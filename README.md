@@ -21,7 +21,7 @@ AI Worker is a Claude Code plugin on each employee's computer and a small server
 - **Rewind the last 24 hours** to see how the day went.
 - **Alerts without the browser:** a menu bar icon (macOS, Windows, Ubuntu) and a Chrome extension count the people waiting.
 - **Shared skills and rules** for every computer, and self-update with signed packages.
-- **Roles and audit:** admins, managers and wall screens see different data; login with a 6-digit OTP code or, optionally, Telegram; every change is logged for 12 months.
+- **Roles and audit:** admins, managers and wall screens see different data; log in with a 6-digit OTP code or with Telegram (Telegram needs a bot set up first, see the [install guide](docs/INSTALL.md)); every change is logged for 12 months.
 
 ## How it works
 
@@ -42,7 +42,7 @@ Without a server the plugin still runs on each computer, with its own office pag
 
 **Each employee:** unzip the package, double-click `INSTALL-Mac.command`, `INSTALL-Windows.bat` or run `INSTALL-Linux.sh`, type your full name. In Claude Code, type `/office` to see your own sessions.
 
-**Managers:** open the server address, sign in with the 6-digit code from Google Authenticator, or with **Log in with Telegram** once linked (when the company turned it on). Install the menu bar icon from the **Admin** page if you want alerts.
+**Managers:** open the server address, sign in with the 6-digit code from Google Authenticator, or press **Log in with Telegram** once Telegram is linked (when the server has a Telegram bot set up). Install the menu bar icon from the **Admin** page if you want alerts.
 
 How to use each screen: [docs/USER-GUIDE.md](docs/USER-GUIDE.md).
 
