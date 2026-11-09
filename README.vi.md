@@ -13,7 +13,10 @@ Xem công ty đang dùng Claude và các trợ lý phụ thế nào, theo thời
 
 AI Worker gồm một plugin Claude Code trên máy từng nhân viên và một máy chủ nhỏ trên một máy Linux. Plugin đếm Claude và các trợ lý phụ (Gemini, ChatGPT, Gemma) đang làm gì: số phiên, ai đang chờ trả lời, token, chi phí, việc đã giao. Máy chủ gom số liệu thành bảng 3D trực tiếp cho quản lý, màn hình treo tường, biểu tượng thanh menu và tiện ích trình duyệt. Không bao giờ gửi nội dung chat, câu hỏi, tên file hay tên dự án.
 
-![Bảng điều hành 3D với người giả](assets/dashboard.vi.png)
+<p>
+  <img src="assets/dashboard.vi.png" alt="Bảng điều hành 3D với người giả" width="69%">
+  <img src="assets/login.png" alt="Trang đăng nhập: tên tài khoản và mã 6 số, hoặc Log in with Telegram" width="29%">
+</p>
 
 ## Làm được gì
 
@@ -44,7 +47,6 @@ Không có máy chủ thì plugin vẫn chạy trên từng máy với trang vă
 
 **Quản lý:** mở địa chỉ máy chủ, đăng nhập bằng mã 6 số trong Google Authenticator, hoặc bấm **Log in with Telegram** sau khi đã liên kết Telegram (nếu máy chủ đã cài bot Telegram). Muốn có báo thì cài biểu tượng thanh menu ở trang **Quản trị**.
 
-<img src="assets/login.png" alt="Trang đăng nhập: tên tài khoản và mã 6 số, hoặc Log in with Telegram" width="380">
 
 Cách dùng từng màn hình: [docs/USER-GUIDE.vi.md](docs/USER-GUIDE.vi.md).
 

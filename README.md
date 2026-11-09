@@ -13,7 +13,10 @@ See how your company uses Claude and its helper assistants, live, on one board.
 
 AI Worker is a Claude Code plugin on each employee's computer and a small server on one Linux machine. The plugin counts what Claude and the helper assistants (Gemini, ChatGPT, Gemma) are doing: sessions, who is waiting for an answer, tokens, cost, tasks handed off. The server gathers those numbers into a live 3D board for managers, a TV wall screen, a menu bar icon and a browser extension. It never sends chat content, prompts, file names or project names.
 
-![The 3D operations board with made-up people](assets/dashboard.png)
+<p>
+  <img src="assets/dashboard.png" alt="The 3D operations board with made-up people" width="69%">
+  <img src="assets/login.png" alt="The login page: account name and 6-digit code, or Log in with Telegram" width="29%">
+</p>
 
 ## What it does
 
@@ -44,7 +47,6 @@ Without a server the plugin still runs on each computer, with its own office pag
 
 **Managers:** open the server address, sign in with the 6-digit code from Google Authenticator, or press **Log in with Telegram** once Telegram is linked (when the server has a Telegram bot set up). Install the menu bar icon from the **Admin** page if you want alerts.
 
-<img src="assets/login.png" alt="The login page: account name and 6-digit code, or Log in with Telegram" width="380">
 
 How to use each screen: [docs/USER-GUIDE.md](docs/USER-GUIDE.md).
 
