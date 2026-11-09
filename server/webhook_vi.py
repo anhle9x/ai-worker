@@ -61,7 +61,7 @@ VI = {
     "old": "cũ",
     "Wall screen: pair with a code": "Màn hình treo tường: ghép bằng mã",
     "COMPANY NETWORK ONLY": "CHỈ MẠNG CÔNG TY",
-    "No account yet. Your IT team runs {command} on the server.": "Chưa có tài khoản. Phòng IT chạy {command} trên máy chủ.",
+    "No account yet. An admin runs {command} on the server.": "Chưa có tài khoản. Người quản trị chạy {command} trên máy chủ.",
     "Enter your account name and the 6-digit code from the Google Authenticator app.": "Nhập tên tài khoản và mã 6 số trong app Google Authenticator.",
     "Download the file for Windows": "Tải file cho Windows",
     "Download the file for macOS": "Tải file cho macOS",

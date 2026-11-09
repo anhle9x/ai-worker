@@ -45,7 +45,7 @@ command for you and you only paste it into the Code tab. Follow these steps by h
 3. Type /reload-plugins, then /office.
 
 HELPER AI ASSISTANTS (the installer does this after installing the office)
-- ChatGPT (Codex CLI): installed by default. Sign in with the company ChatGPT account (ask your IT team).
+- ChatGPT (Codex CLI): installed by default. Sign in with the company ChatGPT account (ask your admin).
   To do it later, open Terminal / PowerShell and type: codex login
 - Gemma (runs on this computer, data stays here): the installer picks a size from your RAM and disk
   (32 GB RAM or more: the 26b version; 16 GB: e4b; 8 GB: e2b; less than that: not installed), and asks before installing.
@@ -73,18 +73,18 @@ task descriptions or file names) to the company server. You do not have to do an
    ~/.local/share/ai-worker/user.json   (Windows: %USERPROFILE%\.local\share\ai-worker\user.json)
 A normal package (without ASK-NAME) sends nothing.
 
-Updates: when your IT team has a new version, the bar above the input box shows "New version" with an Update button (or type /update).
-A new version is installed only when it carries the IT team's correct signature. After it installs, quit the Claude app
+Updates: when your admin has a new version, the bar above the input box shows "New version" with an Update button (or type /update).
+A new version is installed only when it carries the admin's correct signature. After it installs, quit the Claude app
 completely and open it again. The computer must be on the company network to download it; if it cannot install by
-itself, tell your IT team to get the installation package. The old version is kept in the ai-worker.old folder next to
+itself, tell your admin to get the installation package. The old version is kept in the ai-worker.old folder next to
 the plugin folder.
 
 The company server also records the latest public IP address of the computer (only the newest address is kept) to group
 computers of the same office into one branch on the map. It does not use GPS or ask for location permission. At home,
 on 4G or on a business trip, the computer falls into the "Mobile / unassigned" group. The people who view the dashboard
-are managers with a login code. Questions: ask your IT team.
+are managers with a login code. Questions: ask your admin.
 During install, the installer tests the connection to the server; if it says the server cannot be reached, send that to
-your IT team, because this computer's numbers are not on the dashboard yet.
+your admin, because this computer's numbers are not on the dashboard yet.
 The dashboard only counts sessions that run on computers with the plugin installed. Claude on phones, the web and the
 cloud is counted separately from the Team plan report; personal accounts (Pro, Max, Ultra) are not in that report.
 
@@ -95,7 +95,7 @@ WHAT THE OFFICE PAGE SHOWS (/office)
 - The Claude account quota is in the "Models & quota" box. From 80% it shows a warning mark and turns red.
   The chat box also shows a notice, and a bar above the input box (click "Hide" to turn it off
   until the level rises again). The plugin does NOT change the model by itself: to save money, type /model sonnet yourself.
-- The page opens from a file on this computer; chat content goes nowhere. Your IT team sees only the totals
+- The page opens from a file on this computer; chat content goes nowhere. Your admin sees only the totals
   (sessions, tokens, cost, quota, plugin version, the kinds of helper assistants running), not what you asked.
 
 UPDATE TO A NEW VERSION
@@ -111,4 +111,4 @@ All data stays on this computer. The content of delegated tasks is not stored; s
 The cost shown in the office is calculated at API prices; on a subscription plan it is a converted figure, not money charged.
 Sessions closed for more than 7 days are removed from the office automatically (only the display file, the conversation is untouched).
 
-Problems: take a screenshot of the installer window and send it to your IT team.
+Problems: take a screenshot of the installer window and send it to your admin.

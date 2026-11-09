@@ -40,7 +40,7 @@ if [ -n "$CODEX" ] && "$CODEX" --version >/dev/null 2>&1; then
   if "$CODEX" login status >/dev/null 2>&1; then
     say "ChatGPT (Codex): installed and signed in." "ChatGPT (Codex): đã cài, đã đăng nhập."
   else
-    say "ChatGPT (Codex): needs sign-in with the company ChatGPT account (ask your IT team if you do not have one)." "ChatGPT (Codex): cần đăng nhập bằng tài khoản ChatGPT của công ty (hỏi phòng IT nếu chưa có)."
+    say "ChatGPT (Codex): needs sign-in with the company ChatGPT account (ask your admin if you do not have one)." "ChatGPT (Codex): cần đăng nhập bằng tài khoản ChatGPT của công ty (hỏi người quản trị nếu chưa có)."
     Q=$(
     say "Open the browser to sign in now?" "Mở trình duyệt để đăng nhập ngay?"
     )
@@ -53,7 +53,7 @@ if [ -n "$CODEX" ] && "$CODEX" --version >/dev/null 2>&1; then
     fi
   fi
 else
-  say "ChatGPT (Codex): could not install, skipped. Take a screenshot and send it to your IT team." "ChatGPT (Codex): cài chưa được, bỏ qua. Chụp màn hình gửi phòng IT."
+  say "ChatGPT (Codex): could not install, skipped. Take a screenshot and send it to your admin." "ChatGPT (Codex): cài chưa được, bỏ qua. Chụp màn hình gửi người quản trị."
 fi
 
 # ---- Gemma (Ollama): size by RAM, downloaded in the background ----
@@ -116,7 +116,7 @@ elif ask_yes "$GEMMA_Q"; then
   if ! command -v ollama >/dev/null 2>&1 && [ ! -d /Applications/Ollama.app ]; then
     say "Installing Ollama (the official installer; it may ask for the computer password)..." "Cài Ollama (bộ cài chính thức; có thể hỏi mật khẩu máy)..."
     if ! curl -fsSL https://ollama.com/install.sh | sh; then
-      say "Could not install Ollama. Take a screenshot and send it to your IT team." "Cài Ollama chưa được. Chụp màn hình gửi phòng IT."
+      say "Could not install Ollama. Take a screenshot and send it to your admin." "Cài Ollama chưa được. Chụp màn hình gửi người quản trị."
     fi
   fi
   if ! curl -s -m 2 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
@@ -135,7 +135,7 @@ elif ask_yes "$GEMMA_Q"; then
     nohup curl -s http://127.0.0.1:11434/api/pull -d "{\"model\":\"$GEMMA\"}" > "$DATA_DIR/gemma-download.log" 2>&1 &
     say "Gemma: downloading $GEMMA in the background (about $SIZE_GB GB). You can close this window; when it finishes, reopen Claude and the Gemma desk appears." "Gemma: đang tải ngầm $GEMMA (khoảng $SIZE_GB GB). Đóng cửa sổ này không sao; tải xong, mở lại Claude là bàn Gemma hiện."
   else
-    say "Gemma: Ollama could not start, so the model was not downloaded. Take a screenshot and send it to your IT team." "Gemma: Ollama chưa chạy được, chưa tải mô hình. Chụp màn hình gửi phòng IT."
+    say "Gemma: Ollama could not start, so the model was not downloaded. Take a screenshot and send it to your admin." "Gemma: Ollama chưa chạy được, chưa tải mô hình. Chụp màn hình gửi người quản trị."
   fi
 else
   say "Gemma: skipped." "Gemma: bỏ qua."

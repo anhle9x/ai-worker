@@ -77,7 +77,7 @@ flowchart TD
   end
   Browser["Trình duyệt và<br/>màn hình TV"]
   Mgr["Quản lý: biểu tượng thanh menu,<br/>tiện ích trình duyệt"]
-  IT["Máy IT:<br/>khoá riêng"]
+  IT["Máy giữ khoá ký:<br/>khoá riêng"]
   subgraph Server["Máy chủ Linux của công ty"]
     Proxy["Caddy: HTTPS,<br/>danh sách IP"] --> Hook["webhook.py"]
     Hook --> Data["data/: số liệu, nhật ký"]
@@ -262,7 +262,7 @@ flowchart TD
 ```mermaid
 %%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
 flowchart TD
-  Version["Đổi version trong plugin.json"] --> Release["packaging/release.sh<br/>trên máy IT"]
+  Version["Đổi version trong plugin.json"] --> Release["packaging/release.sh<br/>trên máy giữ khoá ký"]
   Release --> Signed["Gói, latest.json, chữ ký<br/>trong server/releases/"]
   Signed --> Install["Chép server/, chạy install.sh"]
   Install --> Fetch["Các máy thấy bản mới trong vòng 4 giờ"]

@@ -105,7 +105,7 @@ if ($reply -eq 'y' -or $reply -eq 'Y') {
 Write-Host ''
 Say-Text 'Also install video-shotcraft to make product videos? The download takes about 70 MB.' 'Cài thêm video-shotcraft để làm video sản phẩm? Tải và chiếm khoảng 70 MB.'
 Say-Text 'Note: the Remotion video tool has its own license and your company may have to pay; some audio files' 'Lưu ý: công cụ dựng Remotion có giấy phép riêng, công ty có thể phải trả phí; một số file âm thanh'
-Say-Text 'have an unclear source. Ask your IT team before using it for company videos.' 'chưa rõ nguồn. Hỏi phòng IT trước khi dùng cho video của công ty.'
+Say-Text 'have an unclear source. Ask your admin before using it for company videos.' 'chưa rõ nguồn. Hỏi người quản trị trước khi dùng cho video của công ty.'
 $reply = $env:AI_WORKER_WITH_VIDEO
 if (-not $reply) { $reply = Read-Host $ynPrompt }
 if ($reply -eq 'y' -or $reply -eq 'Y') {

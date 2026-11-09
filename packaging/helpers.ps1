@@ -82,7 +82,7 @@ if ($codex) {
   if ($LASTEXITCODE -eq 0) {
     Say-Text 'ChatGPT (Codex): installed and signed in.' 'ChatGPT (Codex): đã cài, đã đăng nhập.'
   } else {
-    Say-Text 'ChatGPT (Codex): needs sign-in with the company ChatGPT account (ask your IT team if you do not have one).' 'ChatGPT (Codex): cần đăng nhập bằng tài khoản ChatGPT của công ty (hỏi phòng IT nếu chưa có).'
+    Say-Text 'ChatGPT (Codex): needs sign-in with the company ChatGPT account (ask your admin if you do not have one).' 'ChatGPT (Codex): cần đăng nhập bằng tài khoản ChatGPT của công ty (hỏi người quản trị nếu chưa có).'
     $qLogin = (
       Say-Text -AsString 'Open the browser to sign in now?' 'Mở trình duyệt để đăng nhập ngay?')
     if (Ask-Yes $qLogin) {
@@ -95,7 +95,7 @@ if ($codex) {
     }
   }
 } else {
-  Say-Text 'ChatGPT (Codex): could not install, skipped. Take a screenshot and send it to your IT team.' 'ChatGPT (Codex): cài chưa được, bỏ qua. Chụp màn hình gửi phòng IT.'
+  Say-Text 'ChatGPT (Codex): could not install, skipped. Take a screenshot and send it to your admin.' 'ChatGPT (Codex): cài chưa được, bỏ qua. Chụp màn hình gửi người quản trị.'
 }
 
 # ---- Gemma (Ollama): size by RAM, downloaded in the background ----
@@ -166,7 +166,7 @@ if ($haveGemma) {
       Say-Text "Gemma: downloading $($gemma[0]) in the background (about $($gemma[1]) GB). When it finishes, reopen Claude and the Gemma desk appears." "Gemma: đang tải ngầm $($gemma[0]) (khoảng $($gemma[1]) GB). Tải xong, mở lại Claude là bàn Gemma hiện."
     }
   } else {
-    Say-Text 'Gemma: Ollama could not start, so the model was not downloaded. Take a screenshot and send it to your IT team.' 'Gemma: Ollama chưa chạy được, chưa tải mô hình. Chụp màn hình gửi phòng IT.'
+    Say-Text 'Gemma: Ollama could not start, so the model was not downloaded. Take a screenshot and send it to your admin.' 'Gemma: Ollama chưa chạy được, chưa tải mô hình. Chụp màn hình gửi người quản trị.'
   }
 } else {
   Say-Text 'Gemma: skipped.' 'Gemma: bỏ qua.'

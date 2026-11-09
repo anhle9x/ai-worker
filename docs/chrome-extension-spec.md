@@ -15,7 +15,7 @@ A manager sees at a glance, from any tab, how many staff are waiting for Claude'
 - **Email addresses, internal IPs, account names.** It gets the wall screen's view, which leaves these out (`role_view`, role `wall`). The popup shows what a wall screen and the menu bar window show, including quota and cost today.
 - **Working outside the company network.** The server only answers that network; outside it the extension says so and waits.
 - **Firefox, Safari, mobile browsers.** Chrome and Edge only, because both run the same extension format (Manifest V3).
-- **Publishing on the Chrome Web Store.** It is installed by hand from a folder the IT department hands out.
+- **Publishing on the Chrome Web Store.** It is installed by hand from a folder an admin hands out.
 
 ## Who uses it
 

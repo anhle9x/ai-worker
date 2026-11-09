@@ -4,7 +4,7 @@ Tiếng Việt | [English](SKILLS.md)
 
 **Gói chung, có sẵn trong plugin:** `meeting-notes`, `lesson-generator`, `handoff`, và quy tắc hướng dẫn, bảo mật (chỉ bật ở gói công ty).
 
-**Gói kỹ thuật `ai-worker-dev`, cho lập trình viên và phòng IT, cài riêng:**
+**Gói kỹ thuật `ai-worker-dev`, cho lập trình viên và người quản trị, cài riêng:**
 ```bash
 bash packaging/build-dev-pack.sh
 ```

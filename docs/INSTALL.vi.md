@@ -10,7 +10,7 @@ Dành cho người IT triển khai AI Worker: cần chuẩn bị gì, triển kh
 - **Một tên miền con riêng**, ví dụ `bang.cong-ty.vn`, trỏ bản ghi DNS `A` về IP máy chủ.
 - **Caddy** (hoặc nginx) trên máy chủ để có HTTPS. Webhook chỉ nghe nội bộ, Caddy nhận kết nối từ ngoài.
 - **Danh sách IP được vào:** IP mạng các văn phòng. Máy ngoài danh sách không xem được bảng, không gửi được số liệu và không tải được bản cập nhật.
-- **Một máy của phòng IT** có `ssh-keygen` để giữ khoá ký bản cập nhật.
+- **Một máy giữ khoá ký** có `ssh-keygen` để giữ khoá ký bản cập nhật.
 
 Địa chỉ thật, `INGEST_KEY` và khoá không đưa vào git. Trong repo chỉ dùng địa chỉ mẫu như `https://bang.cong-ty.vn`.
 
@@ -18,7 +18,7 @@ Dành cho người IT triển khai AI Worker: cần chuẩn bị gì, triển kh
 
 1. **Cài webhook.** Chép `server/` lên máy chủ rồi chạy `sudo bash install.sh`. Lần đầu script in `INGEST_KEY` và tạo tài khoản quản trị đầu tiên. Chi tiết ở [`server/README.md`](../server/README.md).
 2. **Bật HTTPS.** Thêm khối Caddy cho tên miền với danh sách IP được vào (mẫu: `server/aiworker.caddy`, đổi sang tên miền và IP của bạn), rồi thêm `TRUST_PROXY=1` vào `/etc/ai-worker.env` và chạy lại `install.sh`.
-3. **Tạo khoá ký**, trên máy IT:
+3. **Tạo khoá ký**, trên máy giữ khoá ký:
    ```bash
    mkdir -p ~/.ai-worker-keys && chmod 700 ~/.ai-worker-keys
    ssh-keygen -t ed25519 -C ai-worker-main -f ~/.ai-worker-keys/main
@@ -94,7 +94,7 @@ Máy chủ không bao giờ gọi Telegram: nút đưa trình duyệt sang trang
 ## Phát hành bản cập nhật
 
 1. Đổi `version` trong `.claude-plugin/plugin.json`.
-2. Trên máy IT, nhập mật khẩu khoá khi được hỏi:
+2. Trên máy giữ khoá ký, nhập mật khẩu khoá khi được hỏi:
    ```bash
    bash packaging/release.sh
    ```

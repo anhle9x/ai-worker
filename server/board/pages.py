@@ -138,7 +138,7 @@ def page_login(error: str = "") -> bytes:
     footer = ('<p class="hint"><a href="/tv" style="color:inherit">' + html.escape(tx("Wall screen: pair with a code")) + '</a></p>'
             '<div class="foot"><span>2FA · TOTP 30S</span><span>' + html.escape(tx("COMPANY NETWORK ONLY")) + ' · <b>●</b></span></div>')
     if not ACCOUNTS.d.get("accounts"):
-        body = ('<div class="login-box">' + head + '<p class="off">' + tx("No account yet. Your IT team runs {command} on the server.",
+        body = ('<div class="login-box">' + head + '<p class="off">' + tx("No account yet. An admin runs {command} on the server.",
                 command='<code>sudo bash manage-otp.sh --rescue admin-name</code>') + '</p>' + footer + '</div>')
     else:
         body = ('<form class="login-box" method="post" action="/login">' + head +

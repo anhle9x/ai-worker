@@ -110,7 +110,7 @@ Then run `install.sh` from the old `server/` folder, move `data/export/data/*` i
 
 ### Plugin on staff computers
 
-1. On the IT computer, change `version` in `.claude-plugin/plugin.json` and run `bash packaging/release.sh` (asks for the signing key password).
+1. On the signing computer, change `version` in `.claude-plugin/plugin.json` and run `bash packaging/release.sh` (asks for the signing key password).
 2. Copy `server/` to the server and run `sudo bash install.sh`.
 3. Computers ask the server at most every 4 hours, then show an **Update** button.
 

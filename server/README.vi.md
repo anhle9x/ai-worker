@@ -1,6 +1,6 @@
 [English](README.md) | Tiếng Việt
 
-# Webhook bảng tổng Văn phòng AI Worker (cho phòng IT)
+# Webhook bảng tổng Văn phòng AI Worker (cho người quản trị)
 
 Một chương trình nhỏ chạy trên máy chủ Linux trong mạng nội bộ. Máy nhân viên gửi số liệu sử dụng Claude lên đây;
 máy quản lý đọc về để hiện bảng **Cả team**. Không cần thư viện ngoài, chỉ cần `python3` (3.8 trở lên) và systemd.

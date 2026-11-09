@@ -95,7 +95,7 @@ test('company settings ship in the package; the machine and the person fill in t
   // config của chính máy thắng, và người quản lý bật xemTong ở đó
   expect(readShareConfig(mergeShare(shipped, { viewBoard: true, folders: '~/thu' }, {}), '/Users/b').folders).toEqual(['/Users/b/thu'])
   // IT can switch one machine off
-  // phòng IT có thể tắt một máy
+  // người quản trị có thể tắt một máy
   expect(readShareConfig(mergeShare(shipped, { enabled: false }, {}), '/Users/b').enabled).toBe(false)
   // a general package shares nothing
   // một gói chung thì không chia sẻ gì
@@ -245,7 +245,7 @@ test('a manifest is read strictly, and an old signed one cannot be replayed', ()
   expect(shouldOfferUpdate(m, '1.1.0', 50)).toBe(true)
   expect(shouldOfferUpdate(m, '1.2.0', 50)).toBe(false)
   // IT rolling back
-  // phòng IT quay lui
+  // người quản trị quay lui
   expect(shouldOfferUpdate(m, '1.3.0', 50)).toBe(true)
   // replayed
   // bị phát lại

@@ -4,7 +4,7 @@
 
 **The common pack, built into the plugin:** `meeting-notes`, `lesson-generator`, `handoff`, and the guidance and security rules (on only in the company package).
 
-**The technical pack `ai-worker-dev`, for developers and the IT team, installed separately:**
+**The technical pack `ai-worker-dev`, for developers and admins, installed separately:**
 ```bash
 bash packaging/build-dev-pack.sh
 ```

@@ -27,7 +27,7 @@ Words used in this guide:
 
 ### 1.1 Install
 
-Your IT team gives you a zip file. Read `GUIDE.txt` inside it; in short:
+Your admin gives you a zip file. Read `GUIDE.txt` inside it; in short:
 
 1. Unzip it into any folder.
 2. Double-click `INSTALL-Mac.command` (Mac) or `INSTALL-Windows.bat` (Windows). On Ubuntu, open Terminal in that folder and type `bash INSTALL-Linux.sh`.
@@ -87,7 +87,7 @@ When IT releases a new version, a bar above the chat box shows **New version** w
 1. Click **Update** and wait for the message that it is installed.
 2. Quit the Claude app completely and open it again.
 
-A version is installed only when it carries the IT team's signature. Your computer must be on the company network to download it. The previous version is kept in the `ai-worker.old` folder next to the plugin.
+A version is installed only when it carries the admin's signature. Your computer must be on the company network to download it. The previous version is kept in the `ai-worker.old` folder next to the plugin.
 
 ### 1.6 What your computer sends
 
@@ -96,7 +96,7 @@ Only a company package sends anything; a normal package sends nothing.
 - **Sent to the company server:** your name, your Claude account email, a computer ID, IP addresses, how many sessions are open, working or waiting, tokens, cost, quota, how many tasks went to each assistant, the plugin version.
 - **Never sent:** chat content, questions, answers, file names, file contents, project names.
 
-To stop sending from one computer, add `"sharing": { "enabled": false }` to `config.js` (see 1.7) and tell your IT team.
+To stop sending from one computer, add `"sharing": { "enabled": false }` to `config.js` (see 1.7) and tell your admin.
 
 ### 1.7 Your settings
 
@@ -137,12 +137,12 @@ Then delete the `claude-plugins-ai-worker` folder in your user folder.
 
 1. Ask an admin for an account. They send you a QR code.
 2. On your phone, open **Google Authenticator** (or Microsoft Authenticator), tap **+**, choose **Scan a QR code**, and scan it.
-3. On your computer, open the board address your IT team gives you (for example `https://board.company.com`).
+3. On your computer, open the board address your admin gives you (for example `https://board.company.com`).
 4. Type your account name and the 6-digit code shown in the app, then click **Log in**.
 
 **Correct result:** the dashboard opens. A login lasts 8 hours. Each code works only once; if it is refused, wait for the next one.
 
-**With Telegram** (when your IT team has turned it on): log in once with name and code, open the detail board, click **Telegram**, enter the 6-digit code and press the Telegram button. From then on, press **Log in with Telegram** on the login page and confirm in Telegram. Admin changes still ask for the 6-digit code.
+**With Telegram** (when your admin has turned it on): log in once with name and code, open the detail board, click **Telegram**, enter the 6-digit code and press the Telegram button. From then on, press **Log in with Telegram** on the login page and confirm in Telegram. Admin changes still ask for the 6-digit code.
 
 The board only opens from the company network.
 
@@ -268,4 +268,4 @@ The **Menu bar icon** section offers the installers for managers (see 2.3). The 
 - **Does it work outside the office?** The plugin works anywhere. Sending numbers, the board and updates need the company network.
 - **Do I need Gemini, ChatGPT or Gemma?** No. Everything works with Claude alone.
 - **Is the cost real money?** It is the price at API rates. On a subscription plan it is for comparison only.
-- **Where do I report a problem?** Take a screenshot and send it to your IT team. For the open-source project, open an issue on GitHub; security problems go through [SECURITY.md](../SECURITY.md).
+- **Where do I report a problem?** Take a screenshot and send it to your admin. For the open-source project, open an issue on GitHub; security problems go through [SECURITY.md](../SECURITY.md).

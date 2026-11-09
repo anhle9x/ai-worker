@@ -124,7 +124,7 @@ call :say "Registering and installing the plugin ..." "Đăng ký và cài plugi
 call "%CLAUDE%" plugin marketplace add "%INSTALL_DIR%" || call "%CLAUDE%" plugin marketplace update ai-worker
 call "%CLAUDE%" plugin install ai-worker@ai-worker
 if errorlevel 1 (
-  call :say "The install did not succeed. Take a screenshot of this window and send it to your IT team." "Cài chưa thành công. Chụp màn hình cửa sổ này gửi phòng IT."
+  call :say "The install did not succeed. Take a screenshot of this window and send it to your admin." "Cài chưa thành công. Chụp màn hình cửa sổ này gửi người quản trị."
   pause
   exit /b 1
 )

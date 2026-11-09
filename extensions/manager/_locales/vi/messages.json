@@ -9,7 +9,7 @@
     "message": "Địa chỉ bảng"
   },
   "boardAddressHint": {
-    "message": "Địa chỉ phòng IT đưa, ví dụ https://board.company.com. Trình duyệt sẽ xin phép cho đúng một trang này."
+    "message": "Địa chỉ người quản trị đưa, ví dụ https://board.company.com. Trình duyệt sẽ xin phép cho đúng một trang này."
   },
   "pairButton": {
     "message": "Lấy mã ghép"

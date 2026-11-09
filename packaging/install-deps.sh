@@ -86,10 +86,10 @@ if [ -n "$CLAUDE" ] && command -v npx >/dev/null 2>&1; then
   # Ghim đúng bản đã thử (04/11/2026): @latest có thể đổi cách chạy mà không báo
   for name in playwright chrome-devtools; do "$CLAUDE" mcp remove --scope user "$name" >/dev/null 2>&1 || true; done
   "$CLAUDE" mcp add --scope user playwright -e "PATH=$PATH_DIR" -- "$NPX" -y @playwright/mcp@0.0.84 --browser chrome >/dev/null 2>&1 || miss "$(
-say "Playwright: could not be registered, take a screenshot of this window and send it to your IT team" "Playwright: không đăng ký được, chụp cửa sổ này gửi phòng IT"
+say "Playwright: could not be registered, take a screenshot of this window and send it to your admin" "Playwright: không đăng ký được, chụp cửa sổ này gửi người quản trị"
 )"
   "$CLAUDE" mcp add --scope user chrome-devtools -e "PATH=$PATH_DIR" -- "$NPX" -y chrome-devtools-mcp@1.12.0 >/dev/null 2>&1 || miss "$(
-say "Chrome DevTools: could not be registered, take a screenshot of this window and send it to your IT team" "Chrome DevTools: không đăng ký được, chụp cửa sổ này gửi phòng IT"
+say "Chrome DevTools: could not be registered, take a screenshot of this window and send it to your admin" "Chrome DevTools: không đăng ký được, chụp cửa sổ này gửi người quản trị"
 )"
 fi
 
@@ -128,7 +128,7 @@ fi
 echo
 say "Also install video-shotcraft to make product videos? The download takes about 70 MB." "Cài thêm video-shotcraft để làm video sản phẩm? Tải và chiếm khoảng 70 MB."
 say "Note: the Remotion video tool has its own license and your company may have to pay; some audio files" "Lưu ý: công cụ dựng Remotion có giấy phép riêng, công ty có thể phải trả phí; một số file âm thanh"
-say "have an unclear source. Ask your IT team before using it for company videos." "chưa rõ nguồn. Hỏi phòng IT trước khi dùng cho video của công ty."
+say "have an unclear source. Ask your admin before using it for company videos." "chưa rõ nguồn. Hỏi người quản trị trước khi dùng cho video của công ty."
 answer="${AI_WORKER_WITH_VIDEO:-}"
 [ -n "$answer" ] || read -r -p "$YN_PROMPT" answer || true
 if [ "$answer" = y ] || [ "$answer" = Y ]; then

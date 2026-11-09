@@ -426,8 +426,8 @@ _branches_cache = {"mtime": None, "items": []}
 
 
 def load_branches() -> list:
-    """List of branches declared by the IT team; read again when the file changes. No file or a bad file gives an empty list.
-    Danh sách chi nhánh do phòng IT khai báo; đọc lại khi file đổi. Không có file hoặc file sai thì danh sách rỗng."""
+    """List of branches declared by an admin; read again when the file changes. No file or a bad file gives an empty list.
+    Danh sách chi nhánh do người quản trị khai báo; đọc lại khi file đổi. Không có file hoặc file sai thì danh sách rỗng."""
     try:
         mtime = os.path.getmtime(BRANCHES_FILE)
     except OSError:

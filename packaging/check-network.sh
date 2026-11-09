@@ -16,11 +16,11 @@ case "$CODE" in
   403)
     echo
     say "NOTE: the server is blocking this network, so this computer's numbers are NOT reaching the company dashboard yet." "LƯU Ý: máy chủ đang chặn mạng này, số liệu máy này CHƯA lên được bảng tổng."
-    say "Take a screenshot of this line and send it to your IT team. The plugin still works normally on this computer." "Chụp dòng này gửi phòng IT. Plugin vẫn dùng bình thường trên máy."
+    say "Take a screenshot of this line and send it to your admin. The plugin still works normally on this computer." "Chụp dòng này gửi người quản trị. Plugin vẫn dùng bình thường trên máy."
     ;;
   *)
     echo
     say "NOTE: could not reach the company server (code ${CODE:-000}), so this computer's numbers are not on the dashboard yet." "LƯU Ý: chưa tới được máy chủ công ty (mã ${CODE:-000}), số liệu máy này chưa lên bảng tổng."
-    say "This may be the network right now. If it keeps happening, take a screenshot of this line and send it to your IT team." "Có thể do mạng lúc này. Nếu kéo dài, chụp dòng này gửi phòng IT."
+    say "This may be the network right now. If it keeps happening, take a screenshot of this line and send it to your admin." "Có thể do mạng lúc này. Nếu kéo dài, chụp dòng này gửi người quản trị."
     ;;
 esac

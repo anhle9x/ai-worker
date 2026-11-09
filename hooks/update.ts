@@ -20,7 +20,7 @@ export function parseManifest(text: string): Manifest | undefined {
 }
 
 /** Offer it if it differs (an older version is how IT rolls back) and is no older than the last one accepted, so an old signed file cannot be replayed. */
-/** Đưa ra nếu nó khác (bản cũ hơn là cách phòng IT quay lui) và không cũ hơn bản đã nhận lần trước, để file cũ có chữ ký không bị phát lại. */
+/** Đưa ra nếu nó khác (bản cũ hơn là cách người quản trị quay lui) và không cũ hơn bản đã nhận lần trước, để file cũ có chữ ký không bị phát lại. */
 export function shouldOfferUpdate(m: Manifest, current: string | undefined, lastAcceptedDate: number): boolean {
   return m.version !== current && m.date >= lastAcceptedDate
 }

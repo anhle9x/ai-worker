@@ -27,4 +27,4 @@ Company rules when working with me:
 ## Notes
 
 - This text only guides Claude; it does not replace the company's security policy.
-- When the plugin's rules change, the IT team will say whether this text needs to change too.
+- When the plugin's rules change, the admin will say whether this text needs to change too.

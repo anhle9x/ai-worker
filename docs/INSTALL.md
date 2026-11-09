@@ -10,7 +10,7 @@ For the IT person who deploys AI Worker: what you need, the first deployment, re
 - **A dedicated subdomain**, for example `board.company.com`, with a DNS `A` record pointing to the server IP.
 - **Caddy** (or nginx) on the server for HTTPS. The webhook listens only inside the server; Caddy takes the outside connections.
 - **An allow-list of IPs:** the network IPs of the offices. A computer outside the list cannot see the dashboard, send numbers or download updates.
-- **One IT computer** with `ssh-keygen` to keep the update signing key.
+- **One signing computer** with `ssh-keygen` to keep the update signing key.
 
 Real addresses, the `INGEST_KEY` and the keys do not go into git. The repo only uses sample addresses such as `https://board.company.com`.
 
@@ -18,7 +18,7 @@ Real addresses, the `INGEST_KEY` and the keys do not go into git. The repo only 
 
 1. **Install the webhook.** Copy `server/` to the server and run `sudo bash install.sh`. The first time, the script prints the `INGEST_KEY` and creates the first admin account. Details in [`server/README.md`](../server/README.md).
 2. **Turn on HTTPS.** Add a Caddy block for the domain with the allow-list of IPs (template: `server/aiworker.caddy`, change it to your domain and IPs), then add `TRUST_PROXY=1` to `/etc/ai-worker.env` and run `install.sh` again.
-3. **Make the signing keys**, on the IT computer:
+3. **Make the signing keys**, on the signing computer:
    ```bash
    mkdir -p ~/.ai-worker-keys && chmod 700 ~/.ai-worker-keys
    ssh-keygen -t ed25519 -C ai-worker-main -f ~/.ai-worker-keys/main
@@ -94,7 +94,7 @@ The server never calls Telegram: the button takes the browser to Telegram's logi
 ## Releasing an update
 
 1. Change `version` in `.claude-plugin/plugin.json`.
-2. On the IT computer, type the key password when asked:
+2. On the signing computer, type the key password when asked:
    ```bash
    bash packaging/release.sh
    ```

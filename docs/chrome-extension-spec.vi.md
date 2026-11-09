@@ -15,7 +15,7 @@ Quản lý nhìn một cái, ở bất kỳ tab nào, là biết bao nhiêu nhâ
 - **Email, IP nội bộ, tên tài khoản.** Tiện ích nhận đúng phần của màn hình treo tường, phần này đã bỏ các thông tin đó (`role_view`, vai `wall`). Cửa sổ nhỏ hiện đúng những gì màn hình treo tường và khung thanh menu hiện, kể cả hạn mức và chi phí hôm nay.
 - **Chạy ngoài mạng công ty.** Máy chủ chỉ trả lời mạng công ty; ra ngoài thì tiện ích báo và chờ.
 - **Firefox, Safari, trình duyệt điện thoại.** Chỉ Chrome và Edge, vì hai trình duyệt này chạy cùng một kiểu tiện ích (Manifest V3).
-- **Đưa lên Chrome Web Store.** Cài tay từ thư mục do phòng IT phát.
+- **Đưa lên Chrome Web Store.** Cài tay từ thư mục do người quản trị phát.
 
 ## Người dùng
 

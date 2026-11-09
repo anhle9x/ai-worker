@@ -4,7 +4,7 @@ Tiếng Việt | [English](USER-GUIDE.md)
 
 Hướng dẫn này dành cho người dùng AI Worker hằng ngày, chia theo vai. Tìm vai của bạn trong bảng dưới và chỉ cần đọc phần đó.
 
-Việc cài máy chủ và đóng gói file cài là việc của phòng IT, xem [INSTALL.vi.md](INSTALL.vi.md) và [server/README](../server/README.vi.md).
+Việc cài máy chủ và đóng gói file cài là việc của người quản trị, xem [INSTALL.vi.md](INSTALL.vi.md) và [server/README](../server/README.vi.md).
 
 ## Ai dùng phần nào
 
@@ -82,12 +82,12 @@ Trước khi gửi gì sang ChatGPT hay Gemini, Claude hỏi bạn, trừ khi qu
 
 ### 1.5 Cập nhật
 
-Khi phòng IT phát hành bản mới, thanh trên ô chat hiện **Có bản mới** kèm nút **Cập nhật**; gõ `/update` cũng được.
+Khi người quản trị phát hành bản mới, thanh trên ô chat hiện **Có bản mới** kèm nút **Cập nhật**; gõ `/update` cũng được.
 
 1. Bấm **Cập nhật** và chờ báo đã cài xong.
 2. Thoát hẳn app Claude rồi mở lại.
 
-Bản mới chỉ được cài khi có chữ ký đúng của phòng IT. Máy phải ở trong mạng công ty mới tải được. Bản trước được giữ trong thư mục `ai-worker.old` cạnh thư mục plugin.
+Bản mới chỉ được cài khi có chữ ký đúng của người quản trị. Máy phải ở trong mạng công ty mới tải được. Bản trước được giữ trong thư mục `ai-worker.old` cạnh thư mục plugin.
 
 ### 1.6 Máy bạn gửi những gì
 
@@ -96,7 +96,7 @@ Chỉ gói của công ty mới gửi; gói thường không gửi gì.
 - **Gửi lên máy chủ công ty:** họ tên, email tài khoản Claude, mã máy, địa chỉ IP, số phiên đang mở, đang làm, đang chờ, token, chi phí, hạn mức, số việc giao cho từng trợ lý, phiên bản plugin.
 - **Không bao giờ gửi:** nội dung chat, câu hỏi, câu trả lời, tên file, nội dung file, tên dự án.
 
-Muốn tắt gửi trên một máy: thêm `"sharing": { "enabled": false }` vào `config.js` (xem 1.7) và báo phòng IT.
+Muốn tắt gửi trên một máy: thêm `"sharing": { "enabled": false }` vào `config.js` (xem 1.7) và báo người quản trị.
 
 ### 1.7 Tuỳ chỉnh của bạn
 
@@ -125,9 +125,9 @@ Rồi xoá thư mục `claude-plugins-ai-worker` trong thư mục người dùng
 | Hiện tượng | Cách xử lý |
 |---|---|
 | Gõ `/office` không có gì | Thoát hẳn app Claude rồi mở lại, hoặc gõ `/reload-plugins` |
-| Bộ cài báo không tới được máy chủ | Số liệu của bạn chưa lên bảng tổng. Kiểm tra máy đang ở mạng công ty và gửi ảnh chụp cho phòng IT |
+| Bộ cài báo không tới được máy chủ | Số liệu của bạn chưa lên bảng tổng. Kiểm tra máy đang ở mạng công ty và gửi ảnh chụp cho người quản trị |
 | Thiếu bàn của một trợ lý phụ | Trợ lý đó chưa cài hoặc chưa đăng nhập; xem 1.4 |
-| Cập nhật không được | Kiểm tra máy đang ở mạng công ty; nếu vẫn lỗi, xin phòng IT gói cài mới |
+| Cập nhật không được | Kiểm tra máy đang ở mạng công ty; nếu vẫn lỗi, xin người quản trị gói cài mới |
 
 ---
 
@@ -137,12 +137,12 @@ Rồi xoá thư mục `claude-plugins-ai-worker` trong thư mục người dùng
 
 1. Xin người quản trị một tài khoản. Họ gửi bạn một mã QR.
 2. Trên điện thoại, mở **Google Authenticator** (hoặc Microsoft Authenticator), bấm **+**, chọn **Quét mã QR** và quét mã đó.
-3. Trên máy tính, mở địa chỉ bảng tổng phòng IT đưa (ví dụ `https://board.company.com`).
+3. Trên máy tính, mở địa chỉ bảng tổng người quản trị đưa (ví dụ `https://board.company.com`).
 4. Gõ tên tài khoản và mã 6 số đang hiện trong app, bấm **Đăng nhập**.
 
 **Đúng là:** bảng tổng mở ra. Một lần đăng nhập dùng được 8 giờ. Mỗi mã chỉ dùng được một lần; bị từ chối thì chờ mã kế tiếp.
 
-**Bằng Telegram** (khi phòng IT đã bật): đăng nhập một lần bằng tên và mã, mở bảng chi tiết, bấm **Telegram**, nhập mã 6 số rồi bấm nút Telegram. Từ đó về sau, bấm **Log in with Telegram** ở trang đăng nhập và xác nhận trong Telegram. Thao tác quản trị vẫn hỏi mã 6 số.
+**Bằng Telegram** (khi người quản trị đã bật): đăng nhập một lần bằng tên và mã, mở bảng chi tiết, bấm **Telegram**, nhập mã 6 số rồi bấm nút Telegram. Từ đó về sau, bấm **Log in with Telegram** ở trang đăng nhập và xác nhận trong Telegram. Thao tác quản trị vẫn hỏi mã 6 số.
 
 Bảng tổng chỉ mở được từ mạng công ty.
 
@@ -186,7 +186,7 @@ Trong **Cài đặt** có thể bật tắt thông báo và chọn chờ bao lâ
 
 Cho quản lý thích dùng trình duyệt: tiện ích Chrome hoặc Edge hiện số người đang chờ trên biểu tượng, bấm vào mở đúng khung nhỏ như trên.
 
-1. Xin phòng IT thư mục `extensions/manager/`.
+1. Xin người quản trị thư mục `extensions/manager/`.
 2. Mở `chrome://extensions` (Edge: `edge://extensions`), bật **Developer mode**, bấm **Load unpacked**, chọn thư mục đó.
 3. Bấm biểu tượng tiện ích, gõ địa chỉ bảng tổng, cho phép truy cập đúng trang đó, rồi đọc mã 8 số cho người quản trị.
 
@@ -268,4 +268,4 @@ Mục **Biểu tượng thanh menu** có các file cài cho quản lý (xem 2.3)
 - **Ra ngoài văn phòng có dùng được không?** Plugin dùng được ở mọi nơi. Gửi số liệu, xem bảng tổng và cập nhật thì cần mạng công ty.
 - **Có bắt buộc cài Gemini, ChatGPT hay Gemma không?** Không. Mọi thứ chạy được chỉ với Claude.
 - **Chi phí có phải tiền thật không?** Đó là giá theo bảng giá API. Với gói thuê bao, chỉ để so sánh.
-- **Báo lỗi ở đâu?** Chụp màn hình gửi phòng IT. Với dự án mã nguồn mở, mở issue trên GitHub; lỗi bảo mật thì theo [SECURITY.vi.md](../SECURITY.vi.md).
+- **Báo lỗi ở đâu?** Chụp màn hình gửi người quản trị. Với dự án mã nguồn mở, mở issue trên GitHub; lỗi bảo mật thì theo [SECURITY.vi.md](../SECURITY.vi.md).

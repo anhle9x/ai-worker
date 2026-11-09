@@ -19,9 +19,9 @@ try {
     Say-Text 'Connection test done: this computer can reach the company server.' 'Đã thử kết nối: máy này tới được máy chủ công ty.'
   } elseif ($code -eq 403) {
     Write-Host ''
-    Say-Text 'NOTE: the server is blocking this network, so this computer''s numbers are NOT reaching the company dashboard yet. Take a screenshot of this line and send it to your IT team.' 'LƯU Ý: máy chủ đang chặn mạng này, số liệu máy này CHƯA lên được bảng tổng. Chụp dòng này gửi phòng IT.'
+    Say-Text 'NOTE: the server is blocking this network, so this computer''s numbers are NOT reaching the company dashboard yet. Take a screenshot of this line and send it to your admin.' 'LƯU Ý: máy chủ đang chặn mạng này, số liệu máy này CHƯA lên được bảng tổng. Chụp dòng này gửi người quản trị.'
   } else {
     Write-Host ''
-    Say-Text "NOTE: could not reach the company server (code $code). If it keeps happening, take a screenshot of this line and send it to your IT team." "LƯU Ý: chưa tới được máy chủ công ty (mã $code). Nếu kéo dài, chụp dòng này gửi phòng IT."
+    Say-Text "NOTE: could not reach the company server (code $code). If it keeps happening, take a screenshot of this line and send it to your admin." "LƯU Ý: chưa tới được máy chủ công ty (mã $code). Nếu kéo dài, chụp dòng này gửi người quản trị."
   }
 } catch { exit 0 }

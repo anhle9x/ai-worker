@@ -27,4 +27,4 @@ Quy tắc công ty khi làm việc với tôi:
 ## Ghi chú
 
 - Đoạn này chỉ là hướng dẫn cho Claude, không thay cho quy định bảo mật của công ty.
-- Khi quy tắc của plugin đổi, phòng IT sẽ báo nếu đoạn này cũng cần đổi.
+- Khi quy tắc của plugin đổi, người quản trị sẽ báo nếu đoạn này cũng cần đổi.

@@ -8,8 +8,8 @@ import type { Ledger, Spend, TeamState, Quota } from '../types'
 import { LEDGER_HOURS } from './edits'
 import { tx } from './lang'
 
-/** The `chiaSe` block of config.js, as the IT team fills it in on each machine. */
-/** Khối `chiaSe` của config.js, do phòng IT điền trên từng máy. */
+/** The `chiaSe` block of config.js, as an admin fills it in on each machine. */
+/** Khối `chiaSe` của config.js, do người quản trị điền trên từng máy. */
 export type ShareConfig = {
   /** This machine writes its summary to the common folder. */
   /** Máy này ghi bản tóm tắt của nó vào thư mục chung. */
@@ -477,7 +477,7 @@ export function shareWarning(fail: { since: number; error: string } | undefined,
   if (!fail || now - fail.since < SHARE_WARN_MS) return undefined
   const mins = Math.round((now - fail.since) / 60_000)
   const span = mins < 120 ? tx('{n} min', { n: mins }) : tx('{n} hours', { n: Math.round(mins / 60) })
-  return tx('{error} Data from this computer has not reached the team board for {span}. If you are at the company, tell your IT team; away from the company this is normal, and the computer sends it again when you are back.', { error: fail.error, span })
+  return tx('{error} Data from this computer has not reached the team board for {span}. If you are at the company, tell your admin; away from the company this is normal, and the computer sends it again when you are back.', { error: fail.error, span })
 }
 
 /**

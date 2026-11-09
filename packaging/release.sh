@@ -1,8 +1,8 @@
 #!/bin/bash
 # Release a plugin update: a zip package (without company.json, the send code or the installers), a manifest and a signature, into server/releases/.
 # Phát hành bản cập nhật plugin: gói zip (không có company.json, mã gửi hay file cài), manifest và chữ ký, vào server/releases/.
-# Run on the IT computer: bash packaging/release.sh   (asks for the key password), then scp server to the server and run install.sh.
-# Chạy trên máy IT: bash packaging/release.sh   (hỏi mật khẩu khoá), rồi scp server lên máy chủ và chạy install.sh.
+# Run on the signing computer: bash packaging/release.sh   (asks for the key password), then scp server to the server and run install.sh.
+# Chạy trên máy giữ khoá ký: bash packaging/release.sh   (hỏi mật khẩu khoá), rồi scp server lên máy chủ và chạy install.sh.
 # Another key: KEY=/path/to/key bash packaging/release.sh. Another output folder: OUT_DIR=/path/out
 # Khoá khác: KEY=/đường/khoá bash packaging/release.sh. Thư mục ra khác: OUT_DIR=/đường/ra
 set -e

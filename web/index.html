@@ -1112,7 +1112,7 @@
     box.hidden = !co
     if (!co) return
     const minutes = Math.round((nowMs - f.since) / 60000)
-    box.textContent = tx('{error} Data from this computer has not reached the team board since {since} ({elapsed}). If you are at the company, tell your IT team; away from the company this is normal, and the computer sends it again when you are back.', { error: f.error, since: timeOrDate(f.since), elapsed: minutes < 120 ? tx('{n} min', { n: minutes }) : tx('{n} hours', { n: Math.round(minutes / 60) }) })
+    box.textContent = tx('{error} Data from this computer has not reached the team board since {since} ({elapsed}). If you are at the company, tell your admin; away from the company this is normal, and the computer sends it again when you are back.', { error: f.error, since: timeOrDate(f.since), elapsed: minutes < 120 ? tx('{n} min', { n: minutes }) : tx('{n} hours', { n: Math.round(minutes / 60) }) })
   }
   function drawAll() {
     const ids = openSessions()

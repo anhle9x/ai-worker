@@ -380,9 +380,9 @@ async function writeLedger($: EngineInterface, ledger: Ledger | undefined) {
 }
 
 // ---- the team board: numbers only, to a common folder, when IT switches it on ----
-// ---- bảng cả team: chỉ có con số, gửi vào một thư mục chung, khi phòng IT bật nó ----
+// ---- bảng cả team: chỉ có con số, gửi vào một thư mục chung, khi người quản trị bật nó ----
 /** The `chiaSe` block of config.js; off until IT fills it in. */
-/** Khối `chiaSe` của config.js; tắt cho tới khi phòng IT điền vào. */
+/** Khối `chiaSe` của config.js; tắt cho tới khi người quản trị điền vào. */
 let share: ShareConfig = SHARE_OFF
 const SHARE_EVERY_MS = 5 * 60_000
 const MERGE_EVERY_MS = 60_000
@@ -963,7 +963,7 @@ async function serveOwn($: EngineInterface, name: string, args: Record<string, u
     }
     if (name === 'generate_image') {
       if (!own?.gemini) return answer(tx('Gemini (Antigravity CLI) is not installed on this computer.'), true)
-      if (isBatchLauncher(own.gemini)) return answer(tx('Gemini was not started: this computer runs it through a .cmd or .bat launcher, which is not safe for this text. Ask your IT team to install the standard Antigravity CLI.'), true)
+      if (isBatchLauncher(own.gemini)) return answer(tx('Gemini was not started: this computer runs it through a .cmd or .bat launcher, which is not safe for this text. Ask your admin to install the standard Antigravity CLI.'), true)
       const agy = own.gemini
       const job = imageQueue.then(() => drawImage($, agy, prompt, args.file_name, work))
       imageQueue = job.catch(() => undefined)
@@ -972,7 +972,7 @@ async function serveOwn($: EngineInterface, name: string, args: Record<string, u
     }
     if (name === 'ask_gemini') {
       if (!own?.gemini) return answer(tx('Gemini (Antigravity CLI) is not installed on this computer.'), true)
-      if (isBatchLauncher(own.gemini)) return answer(tx('Gemini was not started: this computer runs it through a .cmd or .bat launcher, which is not safe for this text. Ask your IT team to install the standard Antigravity CLI.'), true)
+      if (isBatchLauncher(own.gemini)) return answer(tx('Gemini was not started: this computer runs it through a .cmd or .bat launcher, which is not safe for this text. Ask your admin to install the standard Antigravity CLI.'), true)
       const r = await runHelper($, agyArgv(own.gemini, prompt, args.level), { cwd: work, stdin: '', timeoutMs: WORKER_TIMEOUT_MS })
       const text = r.stdout.trim()
       if (r.exitCode === 0 && text) {
@@ -1077,7 +1077,7 @@ async function checkNewVersion($: EngineInterface): Promise<{ m?: Manifest; sign
   await $.fs.write(`${dir}/latest.sig`, await fetchRelease('latest.json.sig'))
   const signature = await checkSignature($, raw, `${dir}/latest.sig`)
   if (signature === 'invalid') {
-    const wrongSignature = tx('The update on the server has a wrong signature, so it was not installed. Tell your IT team.')
+    const wrongSignature = tx('The update on the server has a wrong signature, so it was not installed. Tell your admin.')
     $.ui.toast(wrongSignature)
     return { signature, text: wrongSignature }
   }
@@ -1101,12 +1101,12 @@ async function pollNewVersion($: EngineInterface, now: number) {
 /** Tải, kiểm tra và đổi sang bản mới; giữ bản cũ bên cạnh dưới tên `.cu`. Trả về điều cần nói với người dùng. */
 async function updatePlugin($: EngineInterface): Promise<string> {
   const root = $.plugin.root.replace(/[\\/]+$/, '')
-  if (await $.fs.exists(`${root}/.git`)) return tx('This is your IT team source folder, so it does not update itself.')
+  if (await $.fs.exists(`${root}/.git`)) return tx('This is a source code folder, so it does not update itself.')
   if (!share.webhook || !share.ingestKey) return tx('This computer has no server set up, so it cannot update.')
   const { m, signature, text } = await checkNewVersion($)
   if (text) return text
   if (!m) return tx('This computer already has the latest version.')
-  if (signature !== 'valid') return tx('Version {version} is available, but this computer cannot check its signature, so it will not install it. Ask your IT team for the install package.', { version: m.version })
+  if (signature !== 'valid') return tx('Version {version} is available, but this computer cannot check its signature, so it will not install it. Ask your admin for the install package.', { version: m.version })
   const win = (await $.env.get('OS')) === 'Windows_NT'
   const newDir = `${root}.new`
   const oldDir = `${root}.old`
@@ -1120,19 +1120,19 @@ async function updatePlugin($: EngineInterface): Promise<string> {
   await $.fs.write(headerFile, `Authorization: Bearer ${share.ingestKey}\n`)
   const download = await $.process.run(['curl', '-fsS', '-m', '120', '-H', `@${headerFile}`, '-o', zip, `${share.webhook}/releases/${m.name}`], { timeoutMs: 130_000 })
   await $.fs.write(headerFile, '')
-  if (download.exitCode !== 0) return tx('Could not download the new version. Try again later, or tell your IT team if this computer is away from the office.')
+  if (download.exitCode !== 0) return tx('Could not download the new version. Try again later, or tell your admin if this computer is away from the office.')
   let bam: string | undefined
   for (const argv of [['shasum', '-a', '256', zip], ['sha256sum', zip], ['certutil', '-hashfile', zip, 'SHA256']]) {
     bam = await $.process.run(argv).then(r => (r.exitCode === 0 ? parseHash(r.stdout) : undefined)).catch(() => undefined)
     if (bam) break
   }
-  if (bam !== m.sha256) return tx('The downloaded package does not match its check code, so it was not installed. Tell your IT team.')
+  if (bam !== m.sha256) return tx('The downloaded package does not match its check code, so it was not installed. Tell your admin.')
   await removeDir(newDir)
   await $.fs.write(`${newDir}/.installing`, '')
   const extracted = await $.process.run(['tar', '-xf', zip, '-C', newDir], { timeoutMs: 120_000 })
-  if (extracted.exitCode !== 0) return tx('Could not unpack the new version. Tell your IT team.')
+  if (extracted.exitCode !== 0) return tx('Could not unpack the new version. Tell your admin.')
   const installedVersion = (JSON.parse(await $.fs.read(`${newDir}/.claude-plugin/plugin.json`)) as { version?: unknown }).version
-  if (installedVersion !== m.version) return tx('The downloaded package is not the right version, so it was not installed. Tell your IT team.')
+  if (installedVersion !== m.version) return tx('The downloaded package is not the right version, so it was not installed. Tell your admin.')
   // the company's settings and key are not in the update
   // thiết lập và khoá của công ty không có trong bản cập nhật
   const companyFile = `${root}/web/company.json`
@@ -1141,7 +1141,7 @@ async function updatePlugin($: EngineInterface): Promise<string> {
   if ((await moveDir(root, oldDir)).exitCode !== 0) return tx('Could not replace the plugin folder. Quit the app completely and type /update again.')
   if ((await moveDir(newDir, root)).exitCode !== 0) {
     await moveDir(oldDir, root)
-    return tx('Could not replace the plugin folder, so the old version was kept. Tell your IT team.')
+    return tx('Could not replace the plugin folder, so the old version was kept. Tell your admin.')
   }
   const saved = ((await $.store.get(UPDATE_KEY)) as { checkedAt?: number } | undefined) ?? {}
   await $.store.set(UPDATE_KEY, { ...saved, date: m.date })
@@ -1356,7 +1356,7 @@ export const register: Register = on => {
     return { text: tx('Could not open the browser; opened {title} in the side panel.', { title: BRAND.title }) }
   })
 
-  on('command.run', { command: 'update' }, async $ => ({ text: await updatePlugin($).catch(err => tx('Could not check for a new version ({reason}). Try again later, or tell your IT team if this computer is away from the office.', { reason: String(err instanceof Error ? err.message : err) })) }))
+  on('command.run', { command: 'update' }, async $ => ({ text: await updatePlugin($).catch(err => tx('Could not check for a new version ({reason}). Try again later, or tell your admin if this computer is away from the office.', { reason: String(err instanceof Error ? err.message : err) })) }))
 
   on('command.run', { command: 'office-pane' }, async $ => {
     await $.ui.open({ id: PANE, title: BRAND.title })
@@ -1562,7 +1562,7 @@ export const register: Register = on => {
       if (!pending.auto) {
         return (
           <Box>
-            <Text color="warning">{tx('Version {version} is available. This computer cannot install it itself; ask your IT team for the install package. ', { version: pending.version })}</Text>
+            <Text color="warning">{tx('Version {version} is available. This computer cannot install it itself; ask your admin for the install package. ', { version: pending.version })}</Text>
             <Button key="dismiss" label={tx('Got it')} onPress={dismiss} />
           </Box>
         )

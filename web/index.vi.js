@@ -157,7 +157,7 @@ window.I18n.add({
   'one quarter': 'một quý',
   'one year': 'một năm',
   '{cost} for the whole session': '{cost} cả phiên',
-  '{error} Data from this computer has not reached the team board since {since} ({elapsed}). If you are at the company, tell your IT team; away from the company this is normal, and the computer sends it again when you are back.': '{error} Số liệu của máy này chưa lên bảng cả team từ {since} ({elapsed}). Đang ở công ty thì báo phòng IT; ở ngoài công ty thì bình thường, về công ty máy tự gửi bù.',
+  '{error} Data from this computer has not reached the team board since {since} ({elapsed}). If you are at the company, tell your admin; away from the company this is normal, and the computer sends it again when you are back.': '{error} Số liệu của máy này chưa lên bảng cả team từ {since} ({elapsed}). Đang ở công ty thì báo người quản trị; ở ngoài công ty thì bình thường, về công ty máy tự gửi bù.',
   '{label}: not used': '{label}: không dùng',
   '{n} hours': '{n} giờ',
   '{n} million': '{n} triệu',

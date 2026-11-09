@@ -35,7 +35,7 @@ xcopy /e /i /q /y "ai-worker-dev" "%INSTALL_DIR%\ai-worker-dev" >nul
 call "%CLAUDE%" plugin marketplace add "%INSTALL_DIR%" || call "%CLAUDE%" plugin marketplace update ai-worker-dev
 call "%CLAUDE%" plugin install ai-worker-dev@ai-worker-dev
 if errorlevel 1 (
-  call :say "The install did not succeed. Take a screenshot of this window and send it to your IT team." "Cài chưa thành công. Chụp màn hình cửa sổ này gửi phòng IT."
+  call :say "The install did not succeed. Take a screenshot of this window and send it to your admin." "Cài chưa thành công. Chụp màn hình cửa sổ này gửi người quản trị."
   pause
   exit /b 1
 )

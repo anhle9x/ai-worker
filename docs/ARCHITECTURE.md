@@ -77,7 +77,7 @@ flowchart TD
   end
   Browser["Browser and<br/>TV screen"]
   Mgr["Manager: menu bar icon,<br/>browser extension"]
-  IT["IT computer:<br/>private keys"]
+  IT["Signing computer:<br/>private keys"]
   subgraph Server["Company Linux server"]
     Proxy["Caddy: HTTPS,<br/>IP allow-list"] --> Hook["webhook.py"]
     Hook --> Data["data/: numbers, log"]
@@ -262,7 +262,7 @@ flowchart TD
 ```mermaid
 %%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
 flowchart TD
-  Version["Change version in plugin.json"] --> Release["packaging/release.sh<br/>on the IT computer"]
+  Version["Change version in plugin.json"] --> Release["packaging/release.sh<br/>on the signing computer"]
   Release --> Signed["Package, latest.json, signature<br/>in server/releases/"]
   Signed --> Install["Copy server/, run install.sh"]
   Install --> Fetch["Computers find it within 4 hours"]

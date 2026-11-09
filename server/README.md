@@ -1,6 +1,6 @@
 [Tiếng Việt](README.vi.md) | English <!-- i18n-allow -->
 
-# AI Worker Office dashboard webhook (for the IT team)
+# AI Worker Office dashboard webhook (for admins)
 
 A small program that runs on a Linux server inside the internal network. Staff computers send their Claude usage numbers to it;
 the manager's computer reads them back to show the **Whole team** dashboard. No outside libraries: it needs only `python3` (3.8 or newer) and systemd.

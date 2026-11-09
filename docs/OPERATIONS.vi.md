@@ -110,7 +110,7 @@ Sau đó chạy `install.sh` từ thư mục `server/` cũ, dời `data/export/d
 
 ### Plugin trên máy nhân viên
 
-1. Trên máy IT, đổi `version` trong `.claude-plugin/plugin.json` rồi chạy `bash packaging/release.sh` (hỏi mật khẩu khoá ký).
+1. Trên máy giữ khoá ký, đổi `version` trong `.claude-plugin/plugin.json` rồi chạy `bash packaging/release.sh` (hỏi mật khẩu khoá ký).
 2. Chép `server/` lên máy chủ và chạy `sudo bash install.sh`.
 3. Các máy hỏi máy chủ nhiều nhất 4 giờ một lần, rồi hiện nút **Cập nhật**.
 

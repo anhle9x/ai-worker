@@ -45,7 +45,7 @@ bạn chỉ việc dán vào tab Code. Chỉ làm tay theo các bước dưới 
 3. Gõ /reload-plugins, rồi /office.
 
 NHÂN VIÊN AI PHỤ (file cài làm sau khi cài văn phòng)
-- ChatGPT (Codex CLI): cài mặc định. Đăng nhập bằng tài khoản ChatGPT của công ty (hỏi phòng IT).
+- ChatGPT (Codex CLI): cài mặc định. Đăng nhập bằng tài khoản ChatGPT của công ty (hỏi người quản trị).
   Để sau thì mở Terminal / PowerShell gõ: codex login
 - Gemma (chạy ngay trên máy, dữ liệu không ra ngoài): file cài tự chọn cỡ theo RAM và ổ cứng
   (32 GB RAM trở lên: bản 26b; 16 GB: e4b; 8 GB: e2b; ít hơn thì không cài), hỏi trước khi cài.
@@ -73,15 +73,15 @@ mô tả việc hay tên file) lên máy chủ công ty. Không phải làm gì 
    ~/.local/share/ai-worker/user.json   (Windows: %USERPROFILE%\.local\share\ai-worker\user.json)
 Gói thường (không có ASK-NAME) không gửi gì.
 
-Cập nhật: khi phòng IT có bản mới, thanh trên ô nhập hiện "Có bản mới" với nút Cập nhật (hoặc gõ /update).
-Bản mới chỉ được cài khi đúng chữ ký của phòng IT. Cài xong thì thoát hẳn app Claude rồi mở lại. Máy phải ở
-mạng công ty mới tải được; máy không tự cài được thì báo phòng IT để lấy gói cài. Bản cũ được giữ ở thư mục
+Cập nhật: khi người quản trị có bản mới, thanh trên ô nhập hiện "Có bản mới" với nút Cập nhật (hoặc gõ /update).
+Bản mới chỉ được cài khi đúng chữ ký của người quản trị. Cài xong thì thoát hẳn app Claude rồi mở lại. Máy phải ở
+mạng công ty mới tải được; máy không tự cài được thì báo người quản trị để lấy gói cài. Bản cũ được giữ ở thư mục
 ai-worker.old cạnh thư mục plugin.
 
 Máy chủ công ty cũng ghi địa chỉ IP công cộng gần nhất của máy (chỉ giữ địa chỉ mới nhất) để gom các máy cùng
 văn phòng vào một chi nhánh trên bản đồ. Không dùng GPS, không xin quyền vị trí. Ở nhà, dùng 4G hoặc đi công tác
-thì máy nằm trong nhóm "Di động / chưa gắn". Người xem bảng là quản lý có mã đăng nhập. Thắc mắc: hỏi phòng IT.
-Lúc cài, file cài thử kết nối tới máy chủ; nếu báo chưa tới được thì gửi phòng IT, số liệu máy này chưa lên bảng.
+thì máy nằm trong nhóm "Di động / chưa gắn". Người xem bảng là quản lý có mã đăng nhập. Thắc mắc: hỏi người quản trị.
+Lúc cài, file cài thử kết nối tới máy chủ; nếu báo chưa tới được thì gửi người quản trị, số liệu máy này chưa lên bảng.
 Bảng chỉ tính phiên chạy trên máy đã cài plugin. Claude trên điện thoại, web và cloud được tính riêng từ báo cáo
 của gói Team; tài khoản cá nhân (Pro, Max, Ultra) không có trong báo cáo đó.
 
@@ -108,4 +108,4 @@ Mọi dữ liệu chỉ nằm trên máy. Không lưu nội dung việc giao, fi
 Chi phí hiện trong văn phòng tính theo bảng giá API; dùng gói thuê bao thì là số quy đổi, không phải tiền bị trừ.
 Phiên đã đóng quá 7 ngày được tự xoá khỏi văn phòng (chỉ file hiển thị, không đụng tới cuộc trò chuyện).
 
-Gặp lỗi: chụp màn hình cửa sổ cài gửi phòng IT.
+Gặp lỗi: chụp màn hình cửa sổ cài gửi người quản trị.
