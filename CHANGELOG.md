@@ -2,6 +2,12 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.26.1 - 2026-11-09
+
+### Fixed
+- The 3D globe on the management board draws the land, borders and grid again, and flies down to Vietnam when it opens. The 2.5D map flies to a branch again too.
+- The login page no longer stops with a script error, so pairing a wall screen with a code works again.
+
 ## 0.26.0 - 2026-11-09
 
 ### Added
