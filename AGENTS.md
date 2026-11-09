@@ -35,6 +35,7 @@ node tests/extension/check-extension.js
 
 ```bash
 python3 tests/check-i18n.py
+python3 tests/check-maps.py
 ```
 
 ```bash

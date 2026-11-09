@@ -217,17 +217,17 @@
     if (burst) {
       const material = new T.ShaderMaterial({ ...BLEND, side: T.DoubleSide, uniforms: U,
         vertexShader: 'varying float h; void main(){ h = uv.y; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-        fragmentShader: 'uniform float t; uniform float xa; varying float h; void main(){ float n = .9+.1*sin(t*11.)*sin(t*3.7); gl_FragColor = vec4(vec3(.2,.72,1.)*(1.-h)*.15*n*xa,1.); }' })
+        fragmentShader: 'uniform float t; uniform float away; varying float h; void main(){ float n = .9+.1*sin(t*11.)*sin(t*3.7); gl_FragColor = vec4(vec3(.2,.72,1.)*(1.-h)*.15*n*away,1.); }' })
       beam.add(new T.Mesh(new T.CylinderGeometry(0.78, 0.42, 0.42, 72, 1, true).translate(0, 0.21, 0), material))
     }
     beam.add(new T.Mesh(new T.CircleGeometry(1.12, 128).rotateX(-Math.PI / 2), new T.ShaderMaterial({ ...BLEND, side: T.DoubleSide, uniforms: U,
       vertexShader: 'varying vec2 p; void main(){ p = position.xz / 1.12; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-      fragmentShader: `uniform float t; uniform float xa; varying vec2 p;
+      fragmentShader: `uniform float t; uniform float away; varying vec2 p;
         void main(){ float r = length(p), a = atan(p.y,p.x);
           float luoi = smoothstep(.86,1.,sin(r*54.))*.14 + smoothstep(.985,1.,abs(cos(a*18.)))*.18*smoothstep(.34,.5,r);
           float q = fract((a - t*1.1)/6.28318); float quet = pow(q,11.)*.42 + smoothstep(.994,1.,q)*.5;
           float loi = smoothstep(.42,.0,r)*(.34+.1*sin(t*3.));
-          gl_FragColor = vec4(vec3(.16,.72,1.)*((luoi+quet)*smoothstep(1.,.86,r)*smoothstep(.2,.4,r) + loi)*xa,1.); }` })))
+          gl_FragColor = vec4(vec3(.16,.72,1.)*((luoi+quet)*smoothstep(1.,.86,r)*smoothstep(.2,.4,r) + loi)*away,1.); }` })))
     const arcRing = (r, day, pins, speed, open) => {
       const n = new T.Group()
       n.userData.speed = speed
@@ -256,7 +256,7 @@
     g.setAttribute('ha', new T.BufferAttribute(phases, 3))
     const particles = new T.Points(g, new T.ShaderMaterial({ ...BLEND, uniforms: { ...U, pr: { value: ren.getPixelRatio() } },
       vertexShader: 'uniform float t; uniform float pr; attribute vec3 ha; varying float o; void main(){ float h = fract(ha.z + t*(.1+.1*ha.y)); float r = mix(.32,.82,h)*ha.y; float a = ha.x + t*.25; vec3 q = vec3(cos(a)*r, h*.72, sin(a)*r); o = sin(h*3.1416); gl_PointSize = (1.5+2.2*ha.y)*pr; gl_Position = projectionMatrix*modelViewMatrix*vec4(q,1.); }',
-      fragmentShader: 'uniform float xa; varying float o; void main(){ float d = length(gl_PointCoord-.5); if(d>.5) discard; gl_FragColor = vec4(vec3(.55,.92,1.)*o*(1.-d*2.)*xa,1.); }' }))
+      fragmentShader: 'uniform float away; varying float o; void main(){ float d = length(gl_PointCoord-.5); if(d>.5) discard; gl_FragColor = vec4(vec3(.55,.92,1.)*o*(1.-d*2.)*away,1.); }' }))
     particles.frustumCulled = false
     beam.add(particles)
     return {

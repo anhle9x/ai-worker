@@ -18,20 +18,20 @@
       const a = (lon * Math.PI) / 180, b = (lat * Math.PI) / 180
       return new T.Vector3(Math.cos(b) * Math.sin(a) * r, Math.sin(b) * r, Math.cos(b) * Math.cos(a) * r)
     }
-    const U = { t: { value: 0 }, distance: { value: 1 } }
+    const U = { t: { value: 0 }, away: { value: 1 } }
     const BLEND = { blending: T.AdditiveBlending, transparent: true, depthWrite: false }
-    const VERT = `uniform float co; attribute float k; varying float a; varying float m; varying float y;
+    const VERT = `uniform float size; attribute float k; varying float a; varying float m; varying float y;
       void main(){ vec4 mv = modelViewMatrix * vec4(position,1.); vec3 n = normalize(normalMatrix * position); vec3 v = normalize(-mv.xyz);
         a = smoothstep(-.3,.28,dot(n,v)); m = k; y = normalize(position).y;
-        gl_PointSize = co * (1.1 + min(2.6/(-mv.z), 1.1)); gl_Position = projectionMatrix * mv; }`
-    const FRAG = `uniform float t; uniform float xa; uniform vec3 mau; uniform float sang; varying float a; varying float m; varying float y;
-      void main(){ float mat = max(.2*xa, .03); float s = .78 + .22*sin(y*90.-t*2.4);
-        float quet = smoothstep(.035,0.,abs(y-sin(t*.45)))*1.6*xa;
-        float o = mix(mat,1.,a)*s + quet*a;
-    #ifdef DIEM
+        gl_PointSize = size * (1.1 + min(2.6/(-mv.z), 1.1)); gl_Position = projectionMatrix * mv; }`
+    const FRAG = `uniform float t; uniform float away; uniform vec3 color; uniform float bright; varying float a; varying float m; varying float y;
+      void main(){ float mat = max(.2*away, .03); float s = .78 + .22*sin(y*90.-t*2.4);
+        float sweep = smoothstep(.035,0.,abs(y-sin(t*.45)))*1.6*away;
+        float o = mix(mat,1.,a)*s + sweep*a;
+    #ifdef POINTS
         float d = length(gl_PointCoord-.5); if(d>.5) discard; o *= 1.-smoothstep(.15,.5,d);
     #endif
-        gl_FragColor = vec4(mau*sang*m*o,1.); }`
+        gl_FragColor = vec4(color*bright*m*o,1.); }`
     const makeMaterial = (isPoints, color, bright, size = 2) => new T.ShaderMaterial({ ...BLEND, defines: isPoints ? { POINTS: 1 } : {}, uniforms: { ...U, color: { value: new T.Color(color) }, bright: { value: bright }, size: { value: size * ren.getPixelRatio() } }, vertexShader: VERT, fragmentShader: FRAG })
     const toLines = (array, k) => {
       const g = new T.BufferGeometry()
@@ -43,7 +43,7 @@
     // lõi cầu trong, viền sáng dần ra ngoài
     scene.add(new T.Mesh(new T.SphereGeometry(.995, 96, 64), new T.ShaderMaterial({ ...BLEND, uniforms: U,
       vertexShader: 'varying vec3 n; varying vec3 v; void main(){ vec4 mv = modelViewMatrix*vec4(position,1.); n = normalize(normalMatrix*position); v = normalize(-mv.xyz); gl_Position = projectionMatrix*mv; }',
-      fragmentShader: 'uniform float xa; varying vec3 n; varying vec3 v; void main(){ float f = pow(1.-max(dot(n,v),0.),2.6); vec3 c = mix(vec3(.01,.06,.16), vec3(.3,.85,1.), f); gl_FragColor = vec4(c*(.34+1.15*f)*(.5+.5*xa),1.); }' })))
+      fragmentShader: 'uniform float away; varying vec3 n; varying vec3 v; void main(){ float f = pow(1.-max(dot(n,v),0.),2.6); vec3 c = mix(vec3(.01,.06,.16), vec3(.3,.85,1.), f); gl_FragColor = vec4(c*(.34+1.15*f)*(.5+.5*away),1.); }' })))
     // glow around the rim
     // vầng sáng quanh viền
     const c = document.createElement('canvas')
@@ -180,12 +180,12 @@
       U.t.value = t
       if (flight) {
         const q = Math.min(1, (performance.now() - flight.t0) / flight.ms), e = q < .5 ? 4 * q * q * q : 1 - Math.pow(-2 * q + 2, 3) / 2
-        for (const k of ['lon', 'lat', 'xa', 'ng']) v[k] = flight.from[k] + (flight.d[k] - flight.from[k]) * e
+        for (const k of ['lon', 'lat', 'distance', 'tilt']) v[k] = flight.from[k] + (flight.d[k] - flight.from[k]) * e
         if (q >= 1) flight = null
       } else if (!C.REDUCED_MOTION && !drag && !(api.hud && api.hud.viewing()) && performance.now() - from > 4000 && v.distance > 3.6) v.lon += Math.min(.05, t - previous) * 2.1
       previous = t
       const attach = Math.min(1, Math.max(0, (3.4 - v.distance) / 1.5)), k = attach * attach * (3 - 2 * attach)
-      U.distance.value = 1 - k
+      U.away.value = 1 - k
       cam.position.copy(toVec(v.lon, v.lat - v.tilt * k, v.distance))
       pivot.copy(toVec(v.lon, v.lat, k))
       cam.lookAt(pivot)

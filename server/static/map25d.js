@@ -15,7 +15,7 @@
     const scene = new T.Scene(), cam = new T.PerspectiveCamera(36, 1, .1, 200)
     scene.background = C.starBackdrop(T, 340)
     const BLEND = { blending: T.AdditiveBlending, transparent: true, depthWrite: false }
-    const U = { t: { value: 0 }, distance: { value: 1 } }
+    const U = { t: { value: 0 }, away: { value: 1 } }
     const day = C.createBeam(T, U, ren, BLEND, false)
     day.beam.position.y = -7.6; day.beam.scale.setScalar(7.2)
     scene.add(day.beam)
@@ -160,11 +160,11 @@
       U.t.value = t
       if (flight) {
         const q = Math.min(1, (performance.now() - flight.t0) / flight.ms), e = q < .5 ? 4 * q * q * q : 1 - Math.pow(-2 * q + 2, 3) / 2
-        for (const k of ['quay', 'ng', 'xa', 'tx', 'tz']) v[k] = flight.from[k] + (flight.d[k] - flight.from[k]) * e
+        for (const k of ['spin', 'tilt', 'distance', 'panX', 'panZ']) v[k] = flight.from[k] + (flight.d[k] - flight.from[k]) * e
         if (q >= 1) flight = null
       }
       const attach = Math.max(0, Math.min(1, (30 - v.distance) / 14))
-      U.distance.value = 1 - attach
+      U.away.value = 1 - attach
       const current = api.hud && api.hud.viewing()
       pivot.rotation.y = v.spin + (C.REDUCED_MOTION || drag || current || performance.now() - from < 5000 ? 0 : Math.sin(t * .13) * .08)
       pivot.position.y = C.REDUCED_MOTION ? 0 : Math.sin(t * .7) * .1
