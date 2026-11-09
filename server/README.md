@@ -38,7 +38,6 @@ Because anyone with the install package has the key, the webhook also blocks by 
 - OTP login: 5 wrong tries from one IP lock that IP for 15 minutes; 20 wrong tries on one account lock that account for 15 minutes.
 
 To change the key: edit `/etc/ai-worker.env`, run `sudo systemctl restart ai-worker-webhook`, then rebuild the package.
-(The `/tong` page and `MA_XEM` of the old version were removed; `install.sh` deletes `MA_XEM` from the env file by itself.)
 
 ## The whole-team dashboard in the browser (OTP login)
 

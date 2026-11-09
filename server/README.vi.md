@@ -38,7 +38,6 @@ Vì ai có gói cài cũng có mã, webhook còn tự chặn:
 - đăng nhập OTP: sai 5 lần từ một IP khoá IP đó 15 phút; sai 20 lần trên một tài khoản khoá tài khoản đó 15 phút.
 
 Đổi mã: sửa `/etc/ai-worker.env`, `sudo systemctl restart ai-worker-webhook`, rồi đóng gói lại.
-(Trang `/tong` và `MA_XEM` của bản cũ đã bỏ; `install.sh` tự xoá `MA_XEM` khỏi file env.)
 
 ## Bảng điều khiển cả team trên trình duyệt (đăng nhập bằng OTP)
 
