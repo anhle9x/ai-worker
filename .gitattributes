@@ -1,0 +1,21 @@
+# Code from other people (see THIRD-PARTY.md): left out of GitHub's language count, so it shows this project's own code.
+# Mã của người khác (xem THIRD-PARTY.md): không tính vào tỉ lệ ngôn ngữ trên GitHub, để tỉ lệ phản ánh mã của dự án.
+web/three.js linguist-vendored
+server/static/three.js linguist-vendored
+server/static/qrcode.js linguist-vendored
+server/static/land.json linguist-vendored
+skills/meeting-notes/** linguist-vendored
+skills/lesson-generator/** linguist-vendored
+dev-pack/skills/browser-testing-with-devtools/** linguist-vendored
+dev-pack/skills/interview-me/** linguist-vendored
+dev-pack/skills/ui-ux-pro-max/** linguist-vendored
+dev-pack/skills/tdd/** linguist-vendored
+dev-pack/skills/diagnosing-bugs/** linguist-vendored
+dev-pack/skills/codebase-design/** linguist-vendored
+dev-pack/skills/domain-modeling/** linguist-vendored
+dev-pack/skills/improve-codebase-architecture/** linguist-vendored
+dev-pack/skills/grilling/** linguist-vendored
+dev-pack/skills/security-audit/** linguist-vendored
+# Microsoft WebView2 SDK libraries for the Windows menu bar window (see THIRD-PARTY.md).
+# Thư viện WebView2 SDK của Microsoft cho khung thanh menu Windows (xem THIRD-PARTY.md).
+server/menubar/webview2/** linguist-vendored binary

@@ -1,0 +1,76 @@
+/* Admin page: same colours as the dashboard, built to be easy to read and to use. */
+/* Trang quản trị: cùng màu với bảng điều khiển, ưu tiên dễ đọc và dễ thao tác. */
+:root{color-scheme:dark;--n:#050c13;--o:rgba(12,26,36,.78);--v:rgba(94,214,232,.18);--s:#5ee6f0;--c:#d6eef2;--m:#7f9aa5;--red:#ffb4a8;--yellow:#ffbd4a}
+body{margin:0;background:radial-gradient(ellipse at 50% -10%,#0d2230 0,#050c13 60%) fixed;color:var(--c);font:14px/1.5 ui-monospace,Menlo,Consolas,monospace}
+#admin{max-width:1100px;margin:0 auto;padding:16px}
+.qt-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:12px}
+.qt-head h1{margin:0;font-size:18px;letter-spacing:.08em;color:#e8fbff}
+.qt-head>span:not(.lang-switch){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--m);font-size:12px}
+/* Small EN / VI switch in the header; the language in use is highlighted. */
+/* Nút chuyển EN / VI nhỏ ở đầu trang; ngôn ngữ đang dùng được tô sáng. */
+.lang-switch{display:inline-flex;flex:none;border:1px solid var(--v);border-radius:4px;overflow:hidden}
+.lang-switch button{background:none;color:var(--m);border:0;padding:4px 8px;font:inherit;font-size:11px;letter-spacing:.06em;cursor:pointer}
+.lang-switch button.on{background:rgba(94,230,240,.2);color:#e8fbff;cursor:default}
+.lang-switch button:focus-visible{outline:2px solid var(--s);outline-offset:-2px}
+.qt-column{display:grid;gap:12px}
+.qt-section{background:var(--o);border:1px solid var(--v);border-radius:10px;padding:14px 16px;min-width:0;overflow-x:auto}
+.qt-section h2{margin:0 0 10px;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:#8fe3ee}
+.qt-section h2 small{margin-top:2px;color:var(--m);font-weight:400;letter-spacing:0;text-transform:none}
+.qt-section h3{margin:12px 0 6px;font-size:12px;color:#e8fbff}
+small{display:block;color:var(--m);font-size:12px}
+.qt-button{display:inline-block;background:rgba(94,230,240,.08);color:#e8fbff;border:1px solid var(--v);border-radius:4px;padding:5px 10px;font:inherit;font-size:12px;text-decoration:none;cursor:pointer;white-space:nowrap}
+.qt-button:hover{border-color:var(--s)}.qt-button:disabled{opacity:.5;cursor:wait}
+.qt-button.primary{background:rgba(94,230,240,.2);border-color:rgba(94,230,240,.6)}
+.qt-button.critical{color:var(--red);border-color:rgba(255,180,168,.35);background:none}
+input,select{background:rgba(9,20,28,.85);color:#e8fbff;border:1px solid var(--v);border-radius:4px;padding:5px 7px;font:inherit;font-size:12px;min-width:0}
+input:focus-visible,select:focus-visible,.qt-button:focus-visible{outline:2px solid var(--s);outline-offset:1px}
+.qt-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.qt-row>span{flex:1 1 200px;min-width:0;overflow-wrap:anywhere}
+.qt-steps{margin:12px 0 8px;padding-left:20px;line-height:1.55;font-size:13px}
+.qt-steps li{margin:2px 0}
+.qt-row input:not([type=date],[type=month]){flex:1 1 180px}
+.qt-date{display:grid;gap:2px}
+.qt-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.qt-table th{text-align:left;color:var(--m);font-weight:400;padding:4px 8px 4px 0;border-bottom:1px solid var(--v)}
+.qt-table td{padding:6px 8px 6px 0;border-bottom:1px solid rgba(94,214,232,.07);vertical-align:middle;overflow-wrap:anywhere}
+.qt-table.small{font-size:11.5px}.qt-table.small td:last-child{color:var(--m);max-width:420px}
+.qt-bad-row td:nth-child(3){color:var(--red)}
+.qt-action{white-space:nowrap;text-align:right}.qt-action .qt-button{margin-left:6px}
+.qt-group{padding:8px 0;border-bottom:1px solid rgba(94,214,232,.07)}
+.qt-group b{display:block;color:#e8fbff}
+.qt-person{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:center;padding:4px 0}
+.qt-person span{overflow-wrap:anywhere}
+summary{cursor:pointer;color:var(--m);padding:6px 0}
+.qt-hint{margin-bottom:10px;padding:7px 10px;border-left:3px solid var(--yellow);background:rgba(255,189,74,.08);color:var(--yellow);font-size:12px}
+.qt-secret{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;justify-items:start;margin-bottom:12px;padding:12px;border:1px solid rgba(94,230,240,.6);border-radius:8px;background:rgba(4,12,18,.9)}
+.qt-secret select,.qt-secret .qt-row{max-width:100%}
+.qt-tv-card{margin-top:10px}
+.qt-secret b{color:#e8fbff}
+.qt-secret img{display:block;background:#fff;border-radius:4px;image-rendering:pixelated}
+.qt-secret code{font-size:14px;color:#e8fbff;overflow-wrap:anywhere}
+.qt-notice{position:sticky;top:8px;z-index:5;margin-bottom:10px;padding:8px 12px;border-radius:6px;background:#0d3a2c;color:#c8f7e4;border:1px solid rgba(61,245,167,.4)}
+.qt-notice.error{background:#3a1512;color:var(--red);border-color:rgba(255,180,168,.5)}
+.qt-error{color:var(--red)}
+.qt-muted{color:var(--m)}.qt-old{color:var(--yellow)}
+.qt-dialog{background:#07131c;color:var(--c);border:1px solid var(--s);border-radius:10px;padding:18px;width:min(360px,calc(100vw - 48px))}
+.qt-dialog::backdrop{background:rgba(0,0,0,.6)}
+.qt-dialog form{display:grid;gap:10px}.qt-dialog b{color:#e8fbff}
+.qt-dialog input{font-size:20px;letter-spacing:.3em;text-align:center;padding:8px}
+[hidden]{display:none!important}
+/* Phone layout: tables become cards. */
+/* Bố cục điện thoại: bảng thành thẻ. */
+@media (max-width:640px){
+  #admin{padding:10px 16px}
+  .qt-section{padding:12px;overflow-x:visible}
+  .qt-table,.qt-table tr,.qt-table td{display:block;width:auto}
+  .qt-table tr:first-child{display:none}
+  .qt-table tr{padding:10px 0;border-bottom:1px solid var(--v)}
+  .qt-table td{display:grid;grid-template-columns:92px minmax(0,1fr);gap:8px;align-items:center;padding:3px 0;border:0}
+  .qt-table.small td:last-child{max-width:none}
+  .qt-table td::before{content:attr(data-label);color:var(--m);font-size:11.5px}
+  .qt-table td[data-label]:empty{display:none}
+  .qt-table select{width:100%}
+  .qt-table td.qt-action{display:flex;flex-wrap:wrap;gap:6px;white-space:normal;text-align:left;padding-top:6px}
+  .qt-table td.qt-action::before{display:none}
+  .qt-action .qt-button{margin:0}
+}

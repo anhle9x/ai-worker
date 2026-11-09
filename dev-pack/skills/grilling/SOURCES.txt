@@ -1,0 +1,4 @@
+Nguon: https://github.com/mattpocock/skills
+Duong dan: skills/productivity/grilling
+Commit: 4ae2317ddb22b046e26455e4f9c9b3aaaf62212d
+Chep tay ngay 2026-11-02, khong tu cap nhat.

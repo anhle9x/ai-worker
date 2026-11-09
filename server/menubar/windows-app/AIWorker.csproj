@@ -1,0 +1,35 @@
+<!-- The AI Worker icon next to the clock on Windows: one AI Worker.exe on the .NET Framework 4.8 that Windows 10/11 already has. -->
+<!-- Builds on a Mac (dotnet build) or on Windows; the small window shares ../menubar-popup.cs and the WebView2 libraries in ../webview2. -->
+<!-- Biểu tượng AI Worker cạnh đồng hồ trên Windows: một file AI Worker.exe chạy trên .NET Framework 4.8 có sẵn trong Windows 10/11. -->
+<!-- Dựng được trên Mac (dotnet build) lẫn Windows; khung nhỏ dùng chung ../menubar-popup.cs và thư viện WebView2 ở ../webview2. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>AI Worker</AssemblyName>
+    <RootNamespace>AIWorker</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Product>AI Worker</Product>
+    <AssemblyTitle>AI Worker</AssemblyTitle>
+    <Version>1.0.0</Version>
+    <!-- AnyCPU without 32-bit preference: 64-bit on x64, native ARM64 on Windows 11 ARM (.NET Framework 4.8.1) -->
+    <!-- AnyCPU không ưu tiên 32-bit: 64-bit trên máy x64, ARM64 gốc trên Windows 11 ARM (.NET Framework 4.8.1) -->
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../menubar-popup.cs" Link="menubar-popup.cs" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Windows.SDK.Contracts" Version="10.0.22621.3233" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Security" />
+    <Reference Include="System.Management" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="Microsoft.Web.WebView2.Core"><HintPath>../webview2/Microsoft.Web.WebView2.Core.dll</HintPath></Reference>
+    <Reference Include="Microsoft.Web.WebView2.WinForms"><HintPath>../webview2/Microsoft.Web.WebView2.WinForms.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,16 @@
+AI Worker
+Copyright (c) 2026 Anh Le. See LICENSE.
+
+AI Worker is an independent community project. It is not made, endorsed or
+supported by Anthropic, Google or OpenAI.
+
+Claude and Anthropic are trademarks of Anthropic, PBC. Gemini and Gemma are
+trademarks of Google LLC. ChatGPT and OpenAI are trademarks of OpenAI. Other
+names belong to their owners. These names are used only to say which products
+AI Worker works with.
+
+Each person who deploys AI Worker is responsible for their own deployment and
+for following the terms of those products. See "Your responsibilities" in
+README.md.
+
+Third-party components are listed in THIRD-PARTY.md.

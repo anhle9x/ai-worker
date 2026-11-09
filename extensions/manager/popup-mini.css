@@ -1,0 +1,8 @@
+/* The paired popup is the menu bar window (mini/mini.css, a copy of server/static/mini.css); only its width and height are set here. */
+/* Its height follows the content of the open tab (Chrome caps a popup at 600 px) and glides to it on a tab switch (popup.js sets the height, class gian while gliding). */
+/* Cửa sổ nhỏ đã ghép là khung thanh menu (mini/mini.css, bản chép của server/static/mini.css); ở đây chỉ đặt chiều rộng và chiều cao. */
+/* Chiều cao theo nội dung của thẻ đang mở (Chrome giới hạn cửa sổ nhỏ cao 600 px) và trượt dần tới đó khi đổi thẻ (popup.js đặt chiều cao, lớp gian trong lúc trượt). */
+body{width:372px;transition:height .45s cubic-bezier(.4,0,.2,1)}
+body.gian{overflow:hidden}
+@media (prefers-reduced-motion:reduce){body{transition:none}}
+.mini{max-width:none}

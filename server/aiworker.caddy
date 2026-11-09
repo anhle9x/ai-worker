@@ -1,0 +1,32 @@
+# AI Worker Office dashboard over HTTPS. A separate file, loaded with one line `import aiworker.caddy` at the end of the Caddyfile.
+# Template: change board.example.com and the list of IPs before use. To remove: delete that import line, then `sudo systemctl reload caddy`. It touches no other blocks / files.
+# Bảng điều khiển Văn phòng AI Worker qua HTTPS. File riêng, nạp bằng một dòng `import aiworker.caddy` ở cuối Caddyfile.
+# Mẫu: đổi board.example.com và danh sách IP trước khi dùng. Gỡ: xoá dòng import đó rồi `sudo systemctl reload caddy`. Không đụng các khối khác / files.
+board.example.com {
+	encode zstd gzip
+	# separate access log for this site (rotated, keeps 10 files x 20 MB)
+	# nhật ký truy cập riêng của trang này (xoay vòng, giữ 10 file x 20 MB)
+	log {
+		output file /var/log/caddy/aiworker.log {
+			roll_size 20mb
+			roll_keep 10
+		}
+	}
+	# browsers may only come in over HTTPS; this domain only, it does not spread to other subdomains of example.com
+	# trình duyệt chỉ vào bằng HTTPS; chỉ tên miền này, không lan sang tên miền con khác của example.com
+	header Strict-Transport-Security "max-age=31536000"
+	# only the allowed networks: replace these two sample ranges with your own IPs
+	# chỉ các mạng được phép: thay hai dải mẫu này bằng IP của bạn
+	@outside not remote_ip 203.0.113.0/24 198.51.100.0/24
+	respond @outside "Forbidden" 403
+	# Only if computers at a provincial branch are blocked, open the data-sending path on its own: replace the two lines above with the block below.
+	# The viewing pages still keep the IP list and OTP; /ingest still needs the send key and has a rate limit.
+	# Máy ở chi nhánh tỉnh bị chặn thì mới mở riêng đường gửi số liệu: thay hai dòng trên bằng khối dưới.
+	# Trang xem vẫn giữ danh sách IP và OTP; /ingest vẫn cần mã gửi và có giới hạn tần suất.
+	# @outside {
+	# 	not remote_ip 203.0.113.0/24 198.51.100.0/24
+	# 	not path /ingest
+	# }
+	# respond @outside "Forbidden" 403
+	reverse_proxy 127.0.0.1:8788
+}

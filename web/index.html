@@ -1,0 +1,1144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Worker Office</title>
+<link rel="stylesheet" href="ops.css">
+<style>
+  /* Same look as the server dashboard (server/static/ops.css): dark blue-black background, frosted glass cards with a bright border */
+  /* Cùng phong cách với bảng điều khiển trên máy chủ (server/static/ops.css): nền xanh đen, ô kính mờ viền sáng */
+  :root {
+    color-scheme: dark;
+    --bg: #050c13; --card: #0c1a24; --border: rgba(94,214,232,.16); --border-soft: rgba(94,214,232,.07);
+    --fg: #cfe9ef; --sub: #8fa9b4; --muted: #6f8d99; --cyan: #5ee6f0; --purple: #9b7bff; --title: #8fe3ee; --white: #e8fbff;
+    --wait: #ffc24b; --run: #3df5a7; --err: #ff5a7a; --track: rgba(255,255,255,.07); --grid: rgba(94,214,232,.09);
+  }
+  .frame, .frame * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; color: var(--fg); font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace;
+    background: radial-gradient(ellipse at 50% -10%, #0d2230 0, #050c13 60%) fixed, #050c13; }
+  .frame button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  .frame a { color: inherit; text-decoration: none; }
+  :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; border-radius: 4px; }
+  .num { font-variant-numeric: tabular-nums; }
+  #share-error, #context-warning { max-width: 1296px; margin: 12px auto 0; width: calc(100% - 24px); box-sizing: border-box; padding: 7px 12px; border: 1px solid rgba(255,194,75,.45); border-radius: 8px; color: var(--wait); font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; }
+
+  .frame { max-width: 1320px; margin: 0 auto; padding: 12px; }
+  .card { position: relative; background: linear-gradient(180deg, rgba(16,34,46,.8), rgba(7,16,24,.86)); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 0 28px rgba(0,190,230,.05); padding: 14px 16px; min-width: 0; }
+  .card::before { content: ''; position: absolute; left: 14px; top: -1px; width: 64px; height: 2px; background: var(--cyan); box-shadow: 0 0 10px var(--cyan); }
+  .card::after { content: ''; position: absolute; right: 8px; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--cyan); opacity: .5; }
+  h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  h2 { margin: 0 0 12px; font-size: 11px; font-weight: 700; letter-spacing: .16em; color: var(--title); text-transform: uppercase; }
+  .small { color: var(--sub); font-size: 12px; }
+  .muted { color: var(--muted); font-size: 11px; }
+
+  .topbar { display: flex; align-items: center; gap: 16px; padding: 10px 16px; }
+  .topbar::before, .topbar::after { display: none; }
+  .dots { display: flex; gap: 5px; } .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); } .dots i:first-child { background: var(--cyan); }
+  .status-pill { font-size: 11px; letter-spacing: .12em; padding: 3px 10px; border-radius: 20px; border: 1px solid rgba(61,245,167,.4); color: var(--run); white-space: nowrap; }
+  .status-pill b { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 6px; box-shadow: 0 0 8px currentColor; animation: blink 1.6s infinite; }
+  .status-pill.warn { border-color: rgba(255,194,75,.45); color: var(--wait); }
+  @keyframes blink { 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .status-pill b { animation: none; } }
+  .title { flex: 1; text-align: center; min-width: 0; }
+  .title div { font-size: 15px; font-weight: 800; letter-spacing: .32em; color: var(--white); text-shadow: 0 0 12px rgba(94,230,240,.35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; }
+  .title small { display: block; font-size: 10px; letter-spacing: .3em; color: var(--muted); margin-top: 2px; }
+  .right { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+  .clock { color: var(--white); font-size: 15px; letter-spacing: .08em; }
+  .btn { font-size: 11px; letter-spacing: .08em; color: var(--fg); background: rgba(94,230,240,.06); border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+  .btn:hover { border-color: var(--cyan); }
+  .lang-switch { display: inline-flex; gap: 2px; }
+  .lang-switch button { font-size: 11px; letter-spacing: .08em; padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); }
+  .lang-switch button.on { color: var(--cyan); border-color: rgba(94,230,240,.5); background: rgba(94,230,240,.08); cursor: default; }
+
+  .tab { display: flex; gap: 6px; margin: 12px 0; flex-wrap: wrap; }
+  .tab .item { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border); color: var(--muted); background: rgba(5,14,20,.5); }
+  .tab .item:hover { color: var(--fg); border-color: var(--cyan); }
+  .tab .item[aria-current="page"] { color: var(--cyan); border-color: rgba(94,230,240,.5); background: rgba(94,230,240,.08); text-shadow: 0 0 10px rgba(94,230,240,.35); }
+
+  .head { display: flex; justify-content: flex-end; margin: 0 2px 8px; }
+  .block { margin-top: 12px; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .metric .name { color: var(--muted); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; }
+  .metric .value { font-size: 24px; font-weight: 700; line-height: 1.3; margin-top: 2px; color: var(--cyan); text-shadow: 0 0 10px rgba(94,230,240,.35); }
+  .metric.alert { border-color: rgba(255,194,75,.45); }
+  .metric.alert .value { color: var(--wait); text-shadow: 0 0 10px rgba(255,194,75,.35); }
+  .metric.alert .name { color: var(--wait); }
+
+  .quota-row { display: grid; grid-template-columns: 76px minmax(0, 1fr) 62px; gap: 12px; align-items: center; }
+  .quota-row + .quota-row { margin-top: 12px; }
+  .track { height: 5px; border-radius: 3px; background: var(--track); overflow: hidden; }
+  .track i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--cyan), var(--purple)); }
+  .track.yellow i { background: var(--wait); }
+  .track.red i { background: var(--err); }
+  .quota-row .pct { text-align: right; font-weight: 600; color: var(--white); }
+  .quota-row .reset { grid-column: 2 / 4; margin-top: -9px; }
+
+  .session { display: block; width: 100%; padding: 10px 6px; border-bottom: 1px solid var(--border-soft); border-radius: 4px; }
+  .session:hover { background: rgba(94,230,240,.05); }
+  .session-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .session-name { color: var(--white); flex: 1 1 200px; min-width: 0; }
+  .badge { display: inline-block; font-size: 10.5px; letter-spacing: .08em; padding: 2px 9px; border-radius: 20px; border: 1px solid var(--border); color: var(--cyan); white-space: nowrap; }
+  .badge.waiting { color: var(--wait); border-color: rgba(255,194,75,.45); }
+  .badge.running { color: var(--run); border-color: rgba(61,245,167,.4); }
+  .badge.error { color: var(--err); border-color: rgba(255,90,122,.45); }
+  .session-sub { margin-top: 4px; color: var(--muted); font-size: 11.5px; display: flex; gap: 4px 14px; flex-wrap: wrap; }
+  .session-sub .yellow { color: var(--wait); }
+  .session-sub .red { color: var(--err); }
+  .details { padding: 4px 6px 12px; border-bottom: 1px solid var(--border-soft); }
+  .plan { list-style: none; margin: 6px 0 0; padding: 0; font-size: 12px; }
+  .plan li { padding: 2px 0; color: var(--sub); }
+  .plan li::before { content: '○ '; color: var(--muted); }
+  .plan li.done { color: var(--muted); }
+  .plan li.done::before { content: '✓ '; color: var(--run); }
+  .plan li.doing { color: var(--white); }
+  .plan li.doing::before { content: '▸ '; color: var(--cyan); }
+
+  .helper-row { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border-soft); }
+  .helper-row:last-child { border-bottom: 0; }
+  .helper-row .helper-name { color: var(--white); }
+  .two-col { display: grid; gap: 12px; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+  @media (max-width: 960px) { .two-col { grid-template-columns: minmax(0, 1fr); } }
+
+  .chart-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .chart-head h2 { margin-bottom: 4px; }
+  .chart-head .filter { margin: 0; }
+  .note { margin: 0; color: var(--sub); font-size: 12px; }
+  .note b { color: var(--white); font-weight: 600; }
+  .chart { position: relative; height: 250px; margin-top: 26px; touch-action: pan-y; }
+  .chart.draggable { cursor: grab; }
+  .chart.dragging { cursor: grabbing; user-select: none; }
+  .chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .chart text { font: 10.5px ui-monospace, Menlo, Consolas, monospace; fill: var(--muted); }
+  .chart .peak-text { fill: var(--white); font-size: 12px; font-weight: 600; }
+  .tooltip { position: absolute; z-index: 2; top: 0; background: #0c1a24; border: 1px solid var(--border); color: var(--white); font-size: 11.5px; padding: 5px 9px; border-radius: 6px; pointer-events: none; white-space: nowrap; transform: translateX(-50%); }
+  .chart-select { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .kind-picker { position: relative; }
+  .toolbar { display: flex; gap: 10px 14px; flex-wrap: wrap; align-items: center; justify-content: space-between; margin-top: 12px; padding: 6px 0; border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); }
+  .toolbar .filter { margin: 0; }
+  .tool-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .frame .tool-button { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border-radius: 6px; color: var(--muted); font-size: 11.5px; }
+  .frame .tool-button:hover { color: var(--white); background: rgba(94,230,240,.08); }
+  .frame .tool-button svg { width: 15px; height: 15px; flex: none; }
+  .tool-sep { width: 1px; height: 16px; background: var(--border); }
+  #ohlc { margin-top: 8px; font-size: 11.5px; color: var(--muted); min-height: 18px; }
+  #ohlc b { font-weight: 500; margin: 0 8px 0 3px; }
+  #chart-style { width: min(460px, calc(100vw - 32px)); padding: 0; color: var(--fg); background: #0c1a24; border: 1px solid var(--border); border-radius: 12px; font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; }
+  #chart-style::backdrop { background: rgba(2,8,13,.65); }
+  .cs-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .cs-head h2 { margin: 0; }
+  .cs-body { padding: 8px 18px; }
+  .cs-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 0; }
+  .cs-row label { display: flex; align-items: center; gap: 8px; }
+  #chart-style input[type=color] { width: 34px; height: 26px; padding: 2px; background: none; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+  #chart-style select { font: inherit; font-size: 12px; color: var(--fg); background: #050e14; border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+  .cs-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px 16px; }
+  .frame #chart-style .cs-foot button { padding: 6px 16px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; }
+  .frame #chart-style .cs-foot #cs-save { color: #04161c; background: var(--cyan); border-color: var(--cyan); font-weight: 600; }
+  .ranges { display: flex; gap: 2px; flex-wrap: wrap; }
+  .frame .ranges button { font-size: 11.5px; padding: 4px 9px; border-radius: 6px; color: var(--muted); white-space: nowrap; }
+  .frame .ranges button:hover { color: var(--fg); }
+  .frame .ranges button[aria-pressed="true"] { color: var(--white); background: rgba(94,230,240,.14); }
+  .kind-menu { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; min-width: 170px; padding: 6px; background: #050e14; border: 1px solid rgba(94,230,240,.5); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+  .menu-title { font-size: 10px; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; padding: 4px 8px 6px; }
+  .frame .kind-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px 6px 24px; border-radius: 5px; font-size: 12px; color: var(--fg); position: relative; }
+  .frame .kind-menu button svg { width: 15px; height: 15px; flex: none; }
+  .frame .kind-menu button:hover { background: rgba(94,230,240,.08); }
+  .frame .kind-menu button[aria-checked="true"] { color: var(--cyan); }
+  .frame .kind-menu button[aria-checked="true"]::before { content: '✓'; position: absolute; left: 8px; }
+  .chart.auto-height { height: auto; }
+  .heat { display: grid; gap: 3px; align-items: center; }
+  .heat .hour-label { font-size: 10px; color: var(--muted); text-align: center; }
+  .heat .day-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .heat .day-label.today { color: var(--cyan); font-weight: 600; }
+  .heat .cell { border-radius: 3px; background: rgba(94,214,232,.06); }
+  .heat .cell:hover { outline: 1px solid var(--white); outline-offset: -1px; }
+  .legend { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 10px; font-size: 10.5px; color: var(--muted); }
+  .legend i { width: 16px; height: 10px; border-radius: 2px; }
+  .day-cards { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); margin-top: 14px; }
+  .day-card { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: rgba(5,14,20,.5); }
+  .day-card small { display: block; font-size: 10px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
+  .day-card strong { display: block; font-size: 15px; line-height: 1.4; color: var(--fg); }
+  .day-card.today { border-color: rgba(94,230,240,.5); }
+  .day-card.today strong { color: var(--cyan); text-shadow: 0 0 10px rgba(94,230,240,.35); }
+  .day-card .bar { display: block; height: 3px; border-radius: 2px; background: var(--track); overflow: hidden; margin-top: 3px; }
+  .day-card .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--cyan), var(--purple)); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border-soft); }
+  thead th { color: var(--title); font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+  td.num, th.num { text-align: right; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 11.5px; margin-top: 10px; }
+
+  .filter { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .filter button { font-size: 11px; letter-spacing: .08em; padding: 4px 12px; border: 1px solid var(--border); border-radius: 20px; color: var(--muted); }
+  .filter button[aria-pressed="true"] { color: var(--cyan); border-color: rgba(94,230,240,.5); background: rgba(94,230,240,.08); }
+  .act { display: grid; grid-template-columns: 48px 96px minmax(0, 1fr); gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border-soft); font-size: 12px; }
+  .act .actor { color: var(--muted); }
+  .act .actor.you { color: var(--cyan); }
+  .act .text { overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .act .source { display: block; color: var(--muted); font-size: 11px; }
+  .day-sep { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; color: var(--title); text-transform: uppercase; padding: 14px 0 4px; }
+  .day-sep:first-child { padding-top: 0; }
+  .empty { color: var(--muted); padding: 8px 0; }
+
+  @media (max-width: 720px) {
+    .frame { padding: 8px; }
+    .topbar { flex-wrap: wrap; gap: 8px 12px; padding: 10px 12px; }
+    .title { order: -1; flex-basis: 100%; }
+    .right { margin-left: auto; }
+    .tab .item { padding: 7px 10px; }
+    .helper-row { grid-template-columns: 68px minmax(0, 1fr); }
+    .helper-row .badge { grid-column: 2; justify-self: start; }
+    .act { grid-template-columns: 48px minmax(0, 1fr); }
+    .act .actor { grid-column: 2; grid-row: 1; }
+    .act .text, .act > div { grid-column: 2; }
+  }
+</style>
+</head>
+<body class="ops-mode">
+<div id="share-error" role="status" hidden></div>
+<div id="context-warning" role="status" hidden></div>
+<div id="ops"></div>
+<div class="frame" id="frame" hidden>
+  <header class="card topbar">
+    <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+    <span class="status-pill" id="status-pill"><b></b><span id="summary"></span></span>
+    <div class="title"><div id="sign">AI Worker</div><small>DASHBOARD FOR THIS COMPUTER</small></div>
+    <div class="right">
+      <a class="btn" id="team-link" target="_blank" rel="noopener" hidden>▸ Team board</a>
+      <span id="lang-slot"></span>
+      <span class="clock num" id="clock"></span>
+    </div>
+  </header>
+  <nav class="tab" aria-label="Screens">
+    <button class="item" data-screen="overview" aria-current="page">Overview</button>
+    <button class="item" data-screen="cost">Cost</button>
+    <button class="item" data-screen="activity">Activity</button>
+  </nav>
+  <main>
+    <section id="screen-cost" hidden>
+      <h1>Cost</h1><div class="head"><span class="small" id="usd-rate"></span></div>
+      <div class="grid" id="cost-metrics"></div>
+      <div class="card block">
+        <h2 id="cost-time-title">Cost over time</h2>
+        <p class="note" id="note"></p>
+        <div class="toolbar">
+          <div class="tool-group">
+            <div class="kind-picker" id="span-picker">
+              <button class="tool-button" id="span-button" aria-haspopup="menu" aria-expanded="false" title="How much time each point on the chart covers"></button>
+              <div class="kind-menu" id="span-menu" role="menu" aria-label="Time range" hidden>
+                <div class="menu-title">Time range</div>
+                <button data-span="0" role="menuitemradio">Auto</button>
+                <div class="menu-title">By hour</div>
+                <button data-span="1" role="menuitemradio">1 hour</button>
+                <button data-span="2" role="menuitemradio">2 hours</button>
+                <button data-span="6" role="menuitemradio">6 hours</button>
+                <div class="menu-title" data-long>By day</div>
+                <button data-span="24" role="menuitemradio">1 day</button>
+                <button data-span="168" role="menuitemradio">1 week</button>
+                <div class="menu-title" data-long>By calendar</div>
+                <button data-span="month" role="menuitemradio">Month</button>
+                <button data-span="quarter" role="menuitemradio">Quarter</button>
+                <button data-span="year" role="menuitemradio">Year</button>
+              </div>
+            </div>
+            <span class="tool-sep"></span>
+            <div class="kind-picker" id="kind-picker">
+              <button class="tool-button" id="kind-button" aria-haspopup="menu" aria-expanded="false" aria-label="Chart type"></button>
+              <div class="kind-menu" id="kind-menu" role="menu" aria-label="Chart type" hidden>
+                <div class="menu-title">Chart type</div>
+                <button data-kind="candle" role="menuitemradio"></button>
+                <button data-kind="line" role="menuitemradio"></button>
+                <button data-kind="ohlc" role="menuitemradio"></button>
+                <button data-kind="area" role="menuitemradio"></button>
+                <button data-kind="column" role="menuitemradio"></button>
+                <button data-kind="heat" role="menuitemradio"></button>
+              </div>
+            </div>
+            <button class="tool-button" id="style-button" title="Chart style" aria-label="Chart style"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.4 13a7.5 7.5 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1L15 3.5h-4L10.700 6a7.600 7.600 0 0 0-1.700 1l-2.400-1-2 3.400 2 1.600a7.500 7.500 0 0 0 0 2l-2 1.600 2 3.400 2.400-1c.5.400 1.100.700 1.700 1l.300 2.500h4l.300-2.500c.600-.300 1.200-.600 1.700-1l2.400 1 2-3.400zM13 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" transform="translate(-1 0)"/></svg></button>
+            <span class="tool-sep"></span>
+            <div class="filter" id="zoom" role="group" aria-label="Zoom in and out">
+              <button data-zoom="out" title="Zoom out" aria-label="Zoom out">−</button>
+              <button data-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>
+              <button data-zoom="fit" title="Show everything (or double-click the chart)" aria-label="Show everything">◎</button>
+            </div>
+          </div>
+        </div>
+        <div id="ohlc" class="num"></div>
+        <div class="chart" id="chart"></div>
+        <div class="day-cards" id="day-cards"></div>
+        <dialog id="chart-style" aria-label="Chart style">
+          <form method="dialog">
+            <div class="cs-head"><h2 id="cs-title">Chart style</h2><button id="cs-close" aria-label="Close" style="padding:2px 6px">✕</button></div>
+            <div class="cs-body">
+              <div class="cs-row"><span>Color when up</span><input type="color" id="cs-up" aria-label="Color when up"></div>
+              <div class="cs-row"><span>Color when down</span><input type="color" id="cs-down" aria-label="Color when down"></div>
+              <div class="cs-row"><span>Line, area and bar color</span><input type="color" id="cs-line" aria-label="Line, area and bar color"></div>
+              <div class="cs-row"><span>Chart background color</span><input type="color" id="cs-bg" aria-label="Chart background color"></div>
+              <div class="cs-row"><label><input type="checkbox" id="cs-vgrid"> Vertical grid lines</label></div>
+              <div class="cs-row"><label><input type="checkbox" id="cs-hgrid"> Horizontal grid lines</label></div>
+              <div class="cs-row"><span>Grid style</span><select id="cs-grid" aria-label="Grid style"><option value="dotted">Dotted</option><option value="solid">Solid</option></select></div>
+            </div>
+            <div class="cs-foot"><button id="cs-reset" type="button">Reset</button><button id="cs-save" type="button">Save</button></div>
+          </form>
+        </dialog>
+        <details><summary id="table-summary">View as table</summary><div id="day-table"></div></details>
+      </div>
+      <div class="card block"><h2 id="sessions-title">By open session</h2><div id="cost-sessions"></div></div>
+    </section>
+
+    <section id="screen-activity" hidden>
+      <h1>Activity</h1><div class="head"><span class="small" id="activity-note">From the sessions that are open, newest first. Shown on this computer only.</span></div>
+      <div class="filter" id="filter" role="group" aria-label="Filter activity">
+        <button data-filter="all" aria-pressed="true">All</button>
+        <button data-filter="talk" aria-pressed="false">You and Claude</button>
+        <button data-filter="tools" aria-pressed="false">Tools</button>
+      </div>
+      <div class="card" id="activity-list"></div>
+    </section>
+  </main>
+</div>
+
+<script src="config.js"></script>
+<script src="language.js"></script>
+<script src="i18n.js"></script>
+<script src="index.vi.js"></script>
+<script src="ops.vi.js"></script>
+<script src="ops.js"></script>
+<script>
+  /* A compact preview of the interface: it reads the same data files as the office page, and writes or sends nothing. */
+  /* Bản mẫu giao diện gọn: đọc đúng các file số liệu mà trang văn phòng đang đọc, không ghi gì và không gửi gì đi. */
+  const CFG = window.__aiWorkerConfig || {}
+  const RATE = Number(CFG.usdRate) > 0 ? Number(CFG.usdRate) : 26000
+  const NAMES = Object.assign({ claude: 'Claude', gemini: 'Gemini', chatgpt: 'ChatGPT', gemma: 'Gemma' }, CFG.workerNames || {})
+  const MONEY_RATE = I18n.lang === 'vi' ? RATE : 1
+  const QUOTA_LABELS = { five_hour: tx('5 hours'), seven_day: tx('7 days'), seven_day_opus: tx('7 days Opus'), seven_day_sonnet: tx('7 days Sonnet'), spend_limit: tx('Spending') }
+  const VERB_LABELS = { run: tx('Run command'), read: tx('Read'), edit: tx('Edit'), search: tx('Search'), web: tx('Web lookup'), browser: tx('Browser'), delegate: tx('Delegate'), ask: tx('Ask you'), other: tx('Other') }
+  const HEARTBEAT_MS = 150 * 1000
+  const EXPIRE_MS = 12 * 60 * 60 * 1000
+
+  const $ = id => document.getElementById(id)
+  function el(tag, cls, text) {
+    const n = document.createElement(tag)
+    if (cls) n.className = cls
+    if (text !== undefined) n.textContent = text
+    return n
+  }
+  /* The markup above is English; this fills in the language in use. */
+  /* Phần HTML ở trên là tiếng Anh; đoạn này điền ngôn ngữ đang dùng. */
+  const STATIC_TEXT = [
+    ['.title small', tx('DASHBOARD FOR THIS COMPUTER')],
+    ['#team-link', '▸ ' + tx('Team board')],
+    ['[data-screen="overview"]', tx('Overview')],
+    ['.tab [data-screen="cost"]', tx('Cost')],
+    ['.tab [data-screen="activity"]', tx('Activity')],
+    ['#screen-cost h1', tx('Cost')],
+    ['#cost-time-title', tx('Cost over time')],
+    ['#span-menu .menu-title:first-child', tx('Time range')],
+    ['[data-span="0"]', tx('Auto')],
+    ['#span-menu .menu-title:nth-of-type(2)', tx('By hour')],
+    ['[data-span="1"]', tx('1 hour')],
+    ['[data-span="2"]', tx('2 hours')],
+    ['[data-span="6"]', tx('6 hours')],
+    ['#span-menu .menu-title:nth-of-type(3)', tx('By day')],
+    ['[data-span="24"]', tx('1 day')],
+    ['[data-span="168"]', tx('1 week')],
+    ['#span-menu .menu-title:nth-of-type(4)', tx('By calendar')],
+    ['[data-span="month"]', tx('Month')],
+    ['[data-span="quarter"]', tx('Quarter')],
+    ['[data-span="year"]', tx('Year')],
+    ['#kind-menu .menu-title', tx('Chart type')],
+    ['#cs-title', tx('Chart style')],
+    ['#cs-up', tx('Color when up'), 'before'],
+    ['#cs-down', tx('Color when down'), 'before'],
+    ['#cs-line', tx('Line, area and bar color'), 'before'],
+    ['#cs-bg', tx('Chart background color'), 'before'],
+    ['#cs-vgrid', ' ' + tx('Vertical grid lines'), 'after'],
+    ['#cs-hgrid', ' ' + tx('Horizontal grid lines'), 'after'],
+    ['#cs-grid [value="dotted"]', tx('Dotted')],
+    ['#cs-grid [value="solid"]', tx('Solid')],
+    ['#cs-reset', tx('Reset')],
+    ['#cs-save', tx('Save')],
+    ['#table-summary', tx('View as table')],
+    ['#sessions-title', tx('By open session')],
+    ['#screen-activity h1', tx('Activity')],
+    ['#activity-note', tx('From the sessions that are open, newest first. Shown on this computer only.')],
+    ['[data-filter="all"]', tx('All')],
+    ['[data-filter="talk"]', tx('You and Claude')],
+    ['[data-filter="tools"]', tx('Tools')],
+  ]
+  const STATIC_ATTR = [
+    ['.tab', 'aria-label', tx('Screens')],
+    ['#span-button', 'title', tx('How much time each point on the chart covers')],
+    ['#span-menu', 'aria-label', tx('Time range')],
+    ['#kind-button, #kind-menu', 'aria-label', tx('Chart type')],
+    ['#style-button', 'title', tx('Chart style')],
+    ['#style-button, #chart-style', 'aria-label', tx('Chart style')],
+    ['#zoom', 'aria-label', tx('Zoom in and out')],
+    ['[data-zoom="out"]', 'title', tx('Zoom out')],
+    ['[data-zoom="out"]', 'aria-label', tx('Zoom out')],
+    ['[data-zoom="in"]', 'title', tx('Zoom in')],
+    ['[data-zoom="in"]', 'aria-label', tx('Zoom in')],
+    ['[data-zoom="fit"]', 'title', tx('Show everything (or double-click the chart)')],
+    ['[data-zoom="fit"]', 'aria-label', tx('Show everything')],
+    ['#cs-close', 'aria-label', tx('Close')],
+    ['#cs-up', 'aria-label', tx('Color when up')],
+    ['#cs-down', 'aria-label', tx('Color when down')],
+    ['#cs-line', 'aria-label', tx('Line, area and bar color')],
+    ['#cs-bg', 'aria-label', tx('Chart background color')],
+    ['#cs-grid', 'aria-label', tx('Grid style')],
+    ['#filter', 'aria-label', tx('Filter activity')],
+  ]
+  for (const [selector, text, where] of STATIC_TEXT) {
+    document.querySelectorAll(selector).forEach(n => {
+      if (where === 'after') n.nextSibling.textContent = text
+      else if (where === 'before') n.previousElementSibling.textContent = text
+      else n.textContent = text
+    })
+  }
+  for (const [selector, name, text] of STATIC_ATTR) document.querySelectorAll(selector).forEach(n => n.setAttribute(name, text))
+  $('lang-slot').replaceChildren(I18n.switcher())
+  document.title = tx('AI Worker Office')
+  const p2 = n => String(n).padStart(2, '0')
+  const hourText = ms => { const d = new Date(ms); return `${p2(d.getHours())}:${p2(d.getMinutes())}` }
+  const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString()
+  const shortDate = d => d.toLocaleDateString(I18n.locale, { day: '2-digit', month: '2-digit' })
+  const timeOrDate = ms => { const d = new Date(ms); return sameDay(ms, Date.now()) ? hourText(ms) : `${hourText(ms)} ${shortDate(d)}` }
+  const dayLabel = ms => {
+    const d = new Date(ms), yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1)
+    if (sameDay(ms, Date.now())) return tx('Today')
+    if (sameDay(ms, yesterday)) return tx('Yesterday')
+    return d.toLocaleDateString(I18n.locale, { day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
+  /* Vietnamese shows dong through the rate; English shows US dollars as they are. */
+  /* Tiếng Việt hiện đồng qua tỷ giá; tiếng Anh hiện đô la Mỹ nguyên số. */
+  const decimal = text => (I18n.lang === 'vi' ? text.replace('.', ',') : text)
+  const formatMoney = usd => {
+    if (I18n.lang !== 'vi') return `$${usd.toLocaleString(I18n.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const v = usd * RATE
+    const r = v >= 10000 ? Math.round(v / 1000) * 1000 : Math.round(v / 100) * 100
+    return `${r.toLocaleString(I18n.locale)} đ` // i18n-allow
+  }
+  const compactMoney = usd => {
+    if (I18n.lang !== 'vi') return usd >= 1000 ? `$${(usd / 1000).toFixed(1)}k` : usd >= 10 ? `$${Math.round(usd)}` : `$${usd.toFixed(usd >= 0.1 ? 2 : 3)}`
+    const v = usd * RATE
+    return v >= 1e6 ? `${decimal((v / 1e6).toFixed(1))} tr` : `${Math.round(v / 1000)} k`
+  }
+  const usdText = usd => `$${decimal(usd.toFixed(2))}`
+  const formatTokens = n => n >= 1e6 ? tx('{n} million', { n: decimal((n / 1e6).toFixed(1)) }) : n >= 1e3 ? tx('{n} thousand', { n: Math.round(n / 1e3) }) : String(n)
+  const tokenSub = (usd, tokens) => {
+    const t = tx('{n} tokens', { n: formatTokens(tokens) })
+    return I18n.lang === 'vi' ? `${usdText(usd)} · ${t}` : t
+  }
+  const duration = s => s < 60 ? tx('{n} sec', { n: s }) : tx('{n} min', { n: Math.floor(s / 60) })
+  const modelName = m => {
+    const k = /(opus|sonnet|haiku|fable)[-_ ]?(\d+)?[-_.]?(\d+)?/i.exec(m || '')
+    if (!k) return m || ''
+    return k[1][0].toUpperCase() + k[1].slice(1).toLowerCase() + (k[2] ? ` ${k[2]}${k[3] ? '.' + k[3] : ''}` : '')
+  }
+
+  /* ---- data: loaded the same way as the office page (script tags; opening straight from disk still works) */
+  /* ---- số liệu: cùng cách nạp với trang văn phòng (thẻ script, mở thẳng từ ổ đĩa vẫn chạy) */
+  const store = {}
+  window.__aiWorkerIn = (id, data) => { store[id] = data }
+  function load(src) {
+    return new Promise(done => {
+      const tag = document.createElement('script')
+      tag.src = `${src}?t=${Date.now()}`
+      tag.onload = tag.onerror = () => { tag.remove(); done() }
+      document.body.append(tag)
+    })
+  }
+  const isOpen = d => d && (d.seenAt ? Date.now() - d.seenAt < HEARTBEAT_MS : Date.now() - d.updatedAt < EXPIRE_MS)
+  const status = d => d.asking ? 'waiting' : d.claudeBusySince !== undefined ? 'running' : 'idle'
+  function openSessions() {
+    const row = { waiting: 0, running: 1, idle: 2 }
+    return (window.__aiWorkerList || []).filter(id => isOpen(store[id]))
+      .sort((a, b) => row[status(store[a])] - row[status(store[b])] || store[b].updatedAt - store[a].updatedAt)
+  }
+  const startOfDay = shift => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - shift); return d.getTime() }
+  function spendSince(from, to = Infinity) {
+    const t = { usd: 0, tokens: 0 }
+    for (const [h, v] of Object.entries(window.__aiWorkerCost || {})) {
+      const ms = Number(h) * 3600000
+      if (ms < from || ms >= to) continue
+      t.usd += Number(v.usd) || 0
+      t.tokens += (Number(v.input) || 0) + (Number(v.output) || 0) + (Number(v.cacheRead) || 0) + (Number(v.cacheWrite) || 0)
+    }
+    return t
+  }
+
+  /* ---- Overview screen: the server dashboard itself (ops.js), each session on this computer is one "person" */
+  /* ---- màn Tổng quan: chính bảng điều khiển của máy chủ (ops.js), mỗi phiên trên máy này là một "người" */
+  const HELP = {
+    top: [tx('Status of the sessions on this computer.'), tx('NODES 1/1: number of open sessions.'), tx('ALL SYSTEMS NOMINAL: no session is waiting for you.'), tx('AWAITING INPUT: a session where Claude has stopped and is waiting for your answer.')],
+    ops: [tx('The sessions open on this computer.'), tx('Green dot: Claude is working. Yellow dot: waiting for your answer. Cyan dot: idle.'), tx('Number in %: this session share of the cost among the open sessions, over its whole life.'), tx('Click a name to see the plan and context.')],
+    models: [tx('Claude models of the open sessions, and the quota used on your Claude account.'), tx('Yellow from 60%, red from 80%; at 100% you wait for the reset.')],
+    graph: [tx('Diagram of which session is working with whom.'), tx('The left column is each session, the middle box is Claude, the right column is the 3 assistants.'), tx('A bright line with a moving dot: working with that assistant, or asking it for help.'), tx('Click the box of a session to see its plan and context.'), tx('View button: Default, 2.5D, 3D. Scroll to zoom in, drag to move.')],
+    heat: [tx('Which sessions are busiest at which hours, over the last 24 hours.'), tx('Each row is a session, each cell is an hour. It counts the recent actions of the session, not money: money is only recorded per hour for the whole computer.')],
+    vitals: [tx('The main numbers.'), tx('RUNNING: sessions working / sessions open.'), tx('WAITING: sessions waiting for you.'), tx('COST TODAY: cost of the whole computer today, estimated at API prices.'), tx('TOKENS IN: amount of text sent to Claude to read today.')],
+    tele: [tx('Usage of each kind of AI.'), tx('CLAUDE: cost in the latest hour for the whole computer.'), tx('GEMINI / CHATGPT / GEMMA: tasks today in the open sessions.')],
+    events: [tx('What just happened, newest first.'), tx('Only recorded since you opened this page.')],
+    env: [tx('Trend over the last 24 hours.'), tx('Cyan line: cost per hour for the whole computer.'), tx('Purple line: number of open sessions with activity in that hour.')],
+  }
+  const WORKERS = ['gemini', 'chatgpt', 'gemma']
+  function latestQuota(ids) {
+    const nowMs = Date.now()
+    let hm
+    for (const id of ids) {
+      const h = store[id].quota
+      if (h && Array.isArray(h.windows) && nowMs - h.readAt < 7 * 86400000 && (!hm || h.readAt > hm.readAt)) hm = h
+    }
+    return hm && { ...hm, windows: hm.windows.map(c => ({ ...c, pct: c.resetsAt && c.resetsAt < nowMs ? 0 : c.pct })) }
+  }
+  function boardData(ids) {
+    const nowMs = Date.now(), nowHour = Math.floor(nowMs / 3600000), todayStart = startOfDay(0)
+    const hourIndex = ms => { const i = Math.floor(ms / 3600000) - nowHour + 23; return i >= 0 && i < 24 ? i : -1 }
+    const hm = latestQuota(ids)
+    const tasks24 = WORKERS.map(() => Array(24).fill(0))
+    const people = ids.map(id => {
+      const d = store[id], u = d.usage || {}, hourly24 = Array(24).fill(0)
+      for (const a of d.activity || []) { const i = hourIndex(a.at); if (i >= 0) hourly24[i]++ }
+      const tasks = [0, 0, 0], delegating = [0, 0, 0]
+      for (const j of d.jobs || []) {
+        const k = WORKERS.indexOf(j.worker)
+        if (k < 0) continue
+        if (j.startedAt >= todayStart) tasks[k]++
+        if (j.endedAt === undefined) delegating[k]++
+        const i = hourIndex(j.startedAt)
+        if (i >= 0) tasks24[k][i]++
+      }
+      const state = status(d)
+      return {
+        name: d.name || tx('Session'), account: id, lanIps: [], status: state === 'running' ? 'working' : state === 'waiting' ? 'waiting' : 'open',
+        models: d.model ? { [d.model]: 1 } : {}, usdToday: d.costUsd || 0, usd7d: d.costUsd || 0,
+        tokensIn: (u.input || 0) + (u.cacheRead || 0) + (u.cacheWrite || 0), tokensOut: u.output || 0, tasks, delegating, hourly24,
+        subagents: (d.subagents || []).map(a => ({ name: a.name, count: 1, description: a.description })),
+        plan: d.plan || [], context: d.context, currentTool: state === 'running' ? d.claudeTool || tx('Thinking') : '',
+      }
+    })
+    const today = spendSince(todayStart)
+    const ledgerCost = window.__aiWorkerCost || {}
+    let tokensToday = 0
+    for (const [h, v] of Object.entries(ledgerCost)) if (Number(h) * 3600000 >= todayStart) tokensToday += (Number(v.input) || 0) + (Number(v.cacheRead) || 0) + (Number(v.cacheWrite) || 0)
+    return {
+      updatedAt: nowMs, usdRate: RATE, tasks24, people, machineQuota: hm, usdTodayTotal: today.usd, tokensInTotal: tokensToday,
+      hourlyTotal24: Array.from({ length: 24 }, (_, i) => Number((ledgerCost[nowHour - 23 + i] || {}).usd) || 0),
+    }
+  }
+  const PLAN_MARKS = { completed: '✓', in_progress: '▸' }
+  const cs = CFG.sharing || {}
+  const hasTeam = cs.viewBoard && typeof cs.webhook === 'string' && /^https?:\/\//.test(cs.webhook)
+  const board = window.OpsBoard.create($('ops'), { local: {
+    help: HELP,
+    button: [
+      { text: tx('Cost'), onClick: () => showScreen('cost') },
+      { text: tx('Activity'), onClick: () => showScreen('activity') },
+      ...(hasTeam ? [{ text: tx('Team board') + ' ↗', href: cs.webhook.replace(/\/+$/, '') + '/' }] : []),
+    ],
+    cardLines: p => {
+      const row = [
+        `STATUS   ${p.status === 'working' ? tx('WORKING · {tool}', { tool: p.currentTool }) : p.status === 'waiting' ? tx('WAITING FOR REPLY') : tx('IDLE')}`,
+        `MODEL    ${Object.keys(p.models).map(modelName).join(', ') || '—'}`,
+        `CONTEXT  ${p.context ? p.context.percent + '%' + (p.context.percent >= 80 ? tx(', start a new session') : p.context.percent >= 60 ? tx(', getting full') : '') : '—'}`,
+        `COST     ${tx('{cost} for the whole session', { cost: formatMoney(p.usdToday) })}`,
+        `AI TASKS Gemini ${p.tasks[0]} · ChatGPT ${p.tasks[1]} · Gemma ${p.tasks[2]}`,
+      ]
+      for (const a of p.subagents) row.push(`${tx('ASSISTANT')}${' '.repeat(Math.max(1, 9 - tx('ASSISTANT').length))}${a.name}${a.description ? ' · ' + a.description : ''}`)
+      if (p.plan.length) row.push('PLAN', ...p.plan.map(k => `${PLAN_MARKS[k.status] || '○'} ${k.content}`))
+      return row
+    },
+  } })
+
+  /* ---- number cards used on the Cost screen */
+  /* ---- thẻ số dùng ở màn Chi phí */
+  function metricCard(name, value, sub, warn) {
+    const c = el('div', 'card metric' + (warn ? ' alert' : ''))
+    c.append(el('div', 'name', name), el('div', 'value num', value))
+    if (sub) c.append(el('div', 'open', sub))
+    return c
+  }
+  /* ---- Cost screen */
+  /* ---- màn Chi phí */
+  function drawCost(ids) {
+    /* the computer keeps only 8 days of data (cost.js), so no entry is longer than that */
+    /* máy chỉ giữ số liệu 8 ngày (chi-phi.js), nên không có mục nào dài hơn */
+    const today = spendSince(startOfDay(0)), week = spendSince(startOfDay(6))
+    $('usd-rate').textContent = I18n.lang === 'vi' ? tx('Estimated at API prices, converted at {rate} VND per USD.', { rate: RATE.toLocaleString(I18n.locale) }) : tx('Estimated at API prices.')
+    $('cost-metrics').replaceChildren(
+      metricCard(tx('Today'), formatMoney(today.usd), tokenSub(today.usd, today.tokens)),
+      metricCard(tx('7 days'), formatMoney(week.usd), tokenSub(week.usd, week.tokens)),
+      metricCard(tx('Average per day'), formatMoney(week.usd / 7), tx('Based on the last 7 days')),
+    )
+    const days = []
+    for (let i = 7; i >= 0; i--) days.push({ from: startOfDay(i), ...spendSince(startOfDay(i), i ? startOfDay(i - 1) : Infinity), today: i === 0 })
+    drawChart(days)
+    const board = el('table')
+    board.innerHTML = `<thead><tr><th>${tx('Day')}</th><th class="num">${tx('Cost')}</th><th class="num">${tx('Tokens')}</th></tr></thead>`
+    const body = el('tbody')
+    body.append(...days.slice().reverse().map(n => {
+      const row = el('tr')
+      row.append(el('td', '', dayLabel(n.from)), el('td', 'num', formatMoney(n.usd)), el('td', 'num', formatTokens(n.tokens)))
+      return row
+    }))
+    board.append(body)
+    $('day-table').replaceChildren(board)
+
+    if (!ids.length) return $('cost-sessions').replaceChildren(el('div', 'empty', tx('No sessions are open.')))
+    const sessionsTable = el('table')
+    sessionsTable.innerHTML = `<thead><tr><th>${tx('Session')}</th><th>${tx('Model')}</th><th class="num">${tx('Cost')}</th></tr></thead>`
+    const tbody = el('tbody')
+    tbody.append(...ids.slice().sort((a, b) => (store[b].costUsd || 0) - (store[a].costUsd || 0)).map(id => {
+      const d = store[id], row = el('tr')
+      row.append(el('td', '', d.name || tx('Session')), el('td', '', modelName(d.model)), el('td', 'num', typeof d.costUsd === 'number' ? formatMoney(d.costUsd) : '—'))
+      return row
+    }))
+    sessionsTable.append(tbody)
+    $('cost-sessions').replaceChildren(sessionsTable)
+  }
+  const AXIS_LEFT = 8, AXIS_RIGHT = 54
+  const DEFAULT_STYLE = { up: '#3df5a7', down: '#ff5a7a', line: '#5ee6f0', background: '#0c1a24', gridVertical: true, gridHorizontal: true, gridStyle: 'dotted' }
+  let style = { ...DEFAULT_STYLE }
+  try {
+    const saved = JSON.parse(localStorage.getItem('ai-worker-chart-style') || '{}'), color = /^#[0-9a-f]{6}$/i
+    for (const k of ['up', 'down', 'line', 'background']) if (color.test(saved[k])) style[k] = saved[k]
+    for (const k of ['luoiDoc', 'luoiNgang']) if (typeof saved[k] === 'boolean') style[k] = saved[k]
+    if (['dotted', 'solid'].includes(saved.gridStyle)) style.gridStyle = saved.gridStyle
+  } catch {}
+  let granularity = 0
+  let chartKey = '', chartKind = 'candle'
+  try { const l = localStorage.getItem('ai-worker-chart'); if (['line', 'heat', 'column', 'candle', 'ohlc', 'area'].includes(l)) chartKind = l } catch {}
+  const WEEKDAYS = [tx('Sun'), tx('Mon'), tx('Tue'), tx('Wed'), tx('Thu'), tx('Fri'), tx('Sat')]
+  const columnLabel = ms => { const d = new Date(ms); return sameDay(ms, Date.now()) ? tx('Today') : `${WEEKDAYS[d.getDay()]} ${d.toLocaleDateString(I18n.locale, { day: 'numeric', month: 'numeric' })}` }
+  const svgEl = (tag, attrs) => {
+    const n = document.createElementNS('http://www.w3.org/2000/svg', tag)
+    for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v)
+    return n
+  }
+  /* money by hour: the hourly ledger (8 days, fully detailed), then the long ledger (cost-long.js, only on this computer) */
+  /* tiền theo giờ: sổ theo giờ (8 ngày, đủ chi tiết) rồi tới sổ dài (chi-phi-dai.js, chỉ có trên máy này) */
+  const usdAtHour = h => {
+    const v = (window.__aiWorkerCost || {})[h]
+    return v ? Number(v.usd) || 0 : Number((window.__aiWorkerCostLong || {})[h]) || 0
+  }
+  /* the window being viewed, in hours: opening the page shows the last 7 days; scrolling or dragging makes it free (view), null means everything */
+  /* cửa sổ đang xem, tính bằng giờ: mở trang là 7 ngày gần nhất; lăn chuột hay kéo thì tự do (xem), null là toàn bộ */
+  let view = null, followLatest = true
+  const MIN_SPAN_HOURS = 6
+  function fullRange() {
+    const today = Math.floor(Date.now() / 3600000)
+    const daysBase = [...Object.keys(window.__aiWorkerCost || {}), ...Object.keys(window.__aiWorkerCostLong || {})].map(Number).filter(h => usdAtHour(h) > 0)
+    return { a: daysBase.length ? Math.min(...daysBase, today - MIN_SPAN_HOURS) : today - MIN_SPAN_HOURS, b: today }
+  }
+  function viewWindow() {
+    const t = fullRange()
+    if (followLatest) return { a: Math.max(t.a, t.b - 167), b: t.b }
+    if (!view) return t
+    const span = Math.max(MIN_SPAN_HOURS, Math.min(t.b - t.a, view.b - view.a))
+    const b = Math.min(t.b, Math.max(t.a + span, view.b))
+    return { a: Math.round(b - span), b: Math.round(b) }
+  }
+  function setView(a, b) {
+    const t = fullRange()
+    followLatest = false
+    view = b - a >= t.b - t.a ? null : { a: Math.max(t.a, a), b: Math.min(t.b, b) }
+    if (view && view.b - view.a < MIN_SPAN_HOURS) view = b >= t.b ? { a: t.b - MIN_SPAN_HOURS, b: t.b } : { a: view.a, b: view.a + MIN_SPAN_HOURS }
+    drawCost(openSessions())
+  }
+  function zoom(k, anchor = 0.5) {
+    const c = viewWindow(), span = (c.b - c.a) * k, center = c.a + (c.b - c.a) * anchor
+    setView(center - span * anchor, center + span * (1 - anchor))
+  }
+  /* the longer the window, the more hours each point groups */
+  /* cửa sổ càng dài, mỗi điểm càng gom nhiều giờ */
+  const lineStep = span => (span <= 48 ? 1 : span <= 336 ? 3 : span <= 1440 ? 12 : 24)
+  const areaStep = span => (span <= 36 ? 2 : span <= 96 ? 3 : span <= 336 ? 6 : span <= 1440 ? 24 : 168)
+  const blockLabel = (g, step) => {
+    const blockDate = new Date(g * 3600000)
+    if (CALENDAR[step]) return CALENDAR[step].name(blockDate)
+    return step >= 24 ? columnLabel(g * 3600000) : `${columnLabel(g * 3600000)} ${p2(blockDate.getHours())}:00–${p2((blockDate.getHours() + step) % 24)}:00`
+  }
+  /* choose the points that get an axis label: the start of the day if the window is long, at most 8 labels */
+  /* chọn các điểm ghi nhãn trục: đầu ngày nếu cửa sổ dài, tối đa 8 nhãn */
+  function accentPoint(hours, step, span) {
+    const picked = []
+    hours.forEach((g, i) => { if (CALENDAR[step] || span <= 48 || new Date(g * 3600000).getHours() < step || step >= 24) picked.push(i) })
+    const labelStep = Math.max(1, Math.ceil(picked.length / 8))
+    return new Set(picked.filter((_, k) => k % labelStep === 0))
+  }
+  const axisLabel = (g, step, span) => {
+    if (CALENDAR[step]) return CALENDAR[step].name(new Date(g * 3600000))
+    const hourText = new Date(g * 3600000).getHours()
+    return span > 48 || hourText < step ? columnLabel(g * 3600000) : `${p2(hourText)}:00`
+  }
+  function drawChart(days) {
+    const box = $('chart'), w = box.clientWidth, h = box.clientHeight
+    const c = viewWindow(), blocks = hourBlocks(c, viewStep(c.b - c.a))
+    const key = `${chartKind}|${granularity}|${c.a}|${c.b}|${w}|${JSON.stringify(style)}|` + blocks.map(d => d.total.toFixed(2)).join() + days.map(n => n.usd.toFixed(2)).join()
+    if (key === chartKey || !w) return
+    chartKey = key
+
+    /* the comment sentence and the day cards */
+    /* câu nhận xét và các ô ngày */
+    const daysBase = days.filter(n => n.usd > 0), nayCot = days[days.length - 1]
+    const before = daysBase.filter(n => !n.today)
+    const tbody = before.length ? before.reduce((a, n) => a + n.usd, 0) / before.length : 0
+    const peakDay = daysBase.reduce((a, n) => (n.usd > a.usd ? n : a), nayCot)
+    const noteEl = $('note')
+    noteEl.replaceChildren()
+    if (tbody) {
+      const lech = Math.round((nayCot.usd / tbody - 1) * 100)
+      noteEl.append(tx('Today '), el('b', 'num', formatMoney(nayCot.usd)), lech >= 0 ? tx(', {n}% higher', { n: lech }) : tx(', {n}% lower', { n: -lech }), tx(' compared with the average of the days before (up to this hour).'))
+    } else noteEl.append(tx('Only today has data so far: '), el('b', 'num', formatMoney(nayCot.usd)), '.')
+    const peakUsd = Math.max(...daysBase.map(n => n.usd), 0.01)
+    $('day-cards').replaceChildren(...(daysBase.length ? daysBase : [nayCot]).map(n => {
+      const o = el('div', 'day-card' + (n.today ? ' today' : ''))
+      const v = el('span', 'bar'), i = el('i')
+      i.style.width = `${(n.usd / peakUsd) * 100}%`
+      v.append(i)
+      o.append(el('small', '', columnLabel(n.from)), el('strong', 'num', compactMoney(n.usd)), v)
+      if (n === peakDay && daysBase.length > 1) o.title = tx('Highest day')
+      return o
+    }))
+
+    box.classList.toggle('auto-height', chartKind === 'heat')
+    box.onpointermove = box.onpointerleave = null
+    box.style.background = ''
+    $('ohlc').hidden = chartKind === 'heat'
+    /* the heat map has hours of the day as columns, so there is no 1 day or 1 week range */
+    /* bản đồ nhiệt có cột là giờ trong ngày, nên không có khung 1 ngày hay 1 tuần */
+    $('span-picker').querySelectorAll('[data-span]').forEach(x => { x.hidden = chartKind === 'heat' && (CALENDAR[x.dataset.span] || Number(x.dataset.span) >= 24) })
+    $('span-picker').querySelectorAll('[data-long]').forEach(x => { x.hidden = chartKind === 'heat' })
+    if (chartKind === 'heat') {
+      const spanButton = $('span-button'), span = CALENDAR[granularity] || granularity >= 24
+      spanButton.textContent = `${span ? tx('Auto') : $('span-menu').querySelector(`[data-span="${granularity}"]`).textContent} ▾`
+    } else drawSpanMenu()
+    box.classList.add('draggable')
+    if (chartKind === 'heat') return drawHeat(box, c)
+
+    drawPrice(box, c)
+  }
+  /* heat map: each row is one day of the window being viewed (newest on top; over 60 days a row is one week), */
+  /* each column is a block of hours of the chosen range, with the same colour steps as the Load Map cell on the dashboard */
+  /* bản đồ nhiệt: mỗi hàng một ngày trong cửa sổ đang xem (mới nhất trên cùng; trên 60 ngày thì một tuần), */
+  /* mỗi cột một khối giờ theo khung đã chọn, cùng bậc màu với ô Load Map trên bảng điều khiển */
+  const heatColor = k => (k > 0.66 ? '#9b7bff' : k > 0.33 ? '#3fb6c8' : '#1f6f7c')
+  function drawHeat(box, c) {
+    const step = granularity && granularity < 24 ? granularity : 1, cols = 24 / step
+    const startOfDayAt = g => new Date(g * 3600000).setHours(0, 0, 0, 0)
+    const firstDay = startOfDayAt(c.a), lastDay = startOfDayAt(c.b)
+    const dayCount = Math.round((lastDay - firstDay) / 86400000) + 1
+    const daysPerRow = dayCount > 60 ? 7 : 1
+    const row = []
+    for (let i = 0; i * daysPerRow < dayCount; i++) {
+      const date = new Date(lastDay); date.setDate(date.getDate() - i * daysPerRow)
+      const o = Array(cols).fill(0)
+      for (let n = 0; n < daysPerRow; n++) {
+        const days = new Date(date); days.setDate(days.getDate() - n)
+        if (days.getTime() < firstDay) break
+        const g0 = Math.floor(days.getTime() / 3600000)
+        for (let g = 0; g < 24; g++) o[Math.floor(g / step)] += usdAtHour(g0 + g)
+      }
+      row.push({ date: date.getTime(), o })
+    }
+    const max = Math.max(...row.flatMap(r => r.o), 0.01)
+    const cellH = row.length <= 8 ? 26 : Math.max(8, Math.round(220 / row.length))
+    const grid = el('div', 'heat')
+    grid.style.gridTemplateColumns = `72px repeat(${cols}, minmax(0, 1fr))`
+    grid.append(el('span'), ...Array.from({ length: cols }, (_, k) => el('span', 'hour-label num', (k * step) % 3 === 0 ? String(k * step) : '')))
+    const rowLabelStep = Math.max(1, Math.ceil(row.length / 12))
+    const tooltip = el('div', 'tooltip num'); tooltip.hidden = true
+    row.forEach((r, i) => {
+      const label = daysPerRow > 1 ? tx('Week to {day}', { day: columnLabel(r.date) }) : columnLabel(r.date)
+      grid.append(el('span', 'day-label num' + (sameDay(r.date, Date.now()) ? ' today' : ''), i % rowLabelStep === 0 ? (daysPerRow > 1 ? columnLabel(r.date) : label) : ''))
+      r.o.forEach((usd, k) => {
+        const o = el('div', 'cell')
+        o.style.height = `${cellH}px`
+        if (usd > 0) { o.style.background = heatColor(usd / max); o.style.opacity = 0.5 + (usd / max) * 0.5 }
+        o.addEventListener('mouseenter', () => {
+          tooltip.textContent = `${label} ${p2(k * step)}:00${step > 1 ? `–${p2((k * step + step) % 24)}:00` : ''}: ${usd > 0 ? formatMoney(usd) : tx('not used')}`
+          tooltip.hidden = false
+          const cellRect = o.getBoundingClientRect(), rh = box.getBoundingClientRect()
+          tooltip.style.left = `${Math.min(rh.width - 120, Math.max(120, cellRect.left - rh.left + cellRect.width / 2))}px`
+          tooltip.style.top = `${cellRect.top - rh.top - 32}px`
+        })
+        o.addEventListener('mouseleave', () => { tooltip.hidden = true })
+        grid.append(o)
+      })
+    })
+    const help = el('div', 'legend')
+    help.append(tx('Less'))
+    for (const k of [0.2, 0.5, 0.9]) { const i = el('i'); i.style.background = heatColor(k); help.append(i) }
+    help.append(tx('More'))
+    box.replaceChildren(grid, help, tooltip)
+  }
+  /* ---- exchange-style charts: Candles, Bars, Line, Area and Columns share one set of time blocks. */
+  /* Each block: open and close are the cost of the first and last hour with use, height and low the highest and lowest hour, total the whole block. */
+  /* ---- biểu đồ kiểu sàn: Nến, Thanh, Đường, Vùng, Cột dùng chung một bộ khối thời gian. */
+  /* Mỗi khối: mo/dong là chi phí giờ đầu và giờ cuối có dùng, cao/thap là giờ cao nhất và thấp nhất, tong là cả khối. */
+  /* calendar ranges: each block starts at the start of a month, quarter or year in the computer time */
+  /* khung theo lịch: mỗi khối bắt đầu từ đầu tháng, đầu quý hay đầu năm theo giờ máy */
+  const calendarHour = (year, month) => Math.floor(new Date(year, month, 1).getTime() / 3600000)
+  const buildCalendar = (monthStep, name) => ({
+    start: g => { const d = new Date(g * 3600000); return calendarHour(d.getFullYear(), d.getMonth() - d.getMonth() % monthStep) },
+    next: g => { const d = new Date(g * 3600000); return calendarHour(d.getFullYear(), d.getMonth() + monthStep) },
+    name,
+  })
+  const CALENDAR = {
+    month: buildCalendar(1, d => tx('Month {m}/{y}', { m: d.getMonth() + 1, y: d.getFullYear() })),
+    quarter: buildCalendar(3, d => tx('Q{q} {y}', { q: Math.floor(d.getMonth() / 3) + 1, y: d.getFullYear() })),
+    year: buildCalendar(12, d => tx('Year {y}', { y: d.getFullYear() })),
+  }
+  function hourBlocks(c, step) {
+    const calendar = CALENDAR[step]
+    const lech = new Date().getTimezoneOffset() / 60
+    const start = calendar ? calendar.start(c.a) : step > 1 ? c.a - ((c.a - lech) % step + step) % step : c.a, blocks = []
+    for (let g = start; g <= c.b; g = calendar ? calendar.next(g) : g + step) {
+      const hourText = [], resetsAt = calendar ? calendar.next(g) : g + step
+      for (let k = g; k < resetsAt; k++) { const u = usdAtHour(k); if (u > 0) hourText.push(u) }
+      blocks.push(hourText.length ? { g, open: hourText[0], close: hourText[hourText.length - 1], height: Math.max(...hourText), low: Math.min(...hourText), total: hourText.reduce((a, b) => a + b, 0) } : { g, total: 0 })
+    }
+    return blocks
+  }
+  const isAreaOrBar = () => chartKind === 'candle' || chartKind === 'ohlc'
+  const columnStep = span => (span <= 48 ? 3 : span <= 1440 ? 24 : 168)
+  const viewStep = span => granularity || (isAreaOrBar() ? areaStep(span) : chartKind === 'column' ? columnStep(span) : lineStep(span))
+  function drawOhlc(d, step) {
+    const box = $('ohlc')
+    box.replaceChildren()
+    if (!d) return
+    if (!d.total) return box.append(tx('{label}: not used', { label: blockLabel(d.g, step) }))
+    const color = d.close >= d.open ? style.up : style.down
+    box.append(`${blockLabel(d.g, step)}  `)
+    const addStat = (name, value) => { const b = el('b', '', value); b.style.color = color; box.append(name, b) }
+    addStat(tx('Total'), compactMoney(d.total)); addStat(tx('Open'), compactMoney(d.open)); addStat(tx('High'), compactMoney(d.height)); addStat(tx('Low'), compactMoney(d.low)); addStat(tx('Close'), compactMoney(d.close))
+    addStat(tx('Change'), `${d.close >= d.open ? '+' : ''}${decimal((((d.close - d.open) / d.open) * 100).toFixed(1))}%`)
+    const range = ((d.height - d.low) / d.low) * 100
+    addStat(tx('Range'), range > 999 ? '>999%' : `${decimal(range.toFixed(1))}%`)
+  }
+  function drawPrice(box, c) {
+    const w = box.clientWidth, h = box.clientHeight, span = c.b - c.a, step = viewStep(span), blocks = hourBlocks(c, step)
+    const left = AXIS_LEFT, right = AXIS_RIGHT, top = 10, bottom = 22
+    const width = w - left - right, height = h - top - bottom, areaOrBar = isAreaOrBar()
+    const drawH = areaOrBar ? height * 0.76 : height
+    const valueOf = d => (areaOrBar ? d.height || 0 : d.total)
+    const peakVnd = Math.max(...blocks.map(valueOf), 0.01) * MONEY_RATE
+    const vndStep = Math.pow(10, Math.floor(Math.log10(peakVnd)))
+    const tickValue = [0.5, 1, 1.5, 2, 2.5, 4, 5, 7.5, 10].map(k => k * vndStep).find(k => k * 3 >= peakVnd) || vndStep * 10
+    const yMax = tickValue * 3 / MONEY_RATE, maxTotal = Math.max(...blocks.map(d => d.total), 0.01)
+    const Y = u => top + drawH - (u / yMax) * drawH
+    const column = width / blocks.length, bodyWidth = Math.max(3, Math.min(30, column * 0.62))
+    const X = i => left + column * (i + 0.5)
+    const svg = svgEl('svg', { role: 'img', 'aria-label': tx('Cost chart, one point per {span}; see the table below', { span: CALENDAR[step] ? { month: tx('one month'), quarter: tx('one quarter'), year: tx('one year') }[step] : tx('{n} hours', { n: step }) }) })
+    const net = style.gridStyle === 'dotted' ? { 'stroke-dasharray': '2 4' } : {}
+    const gridColor = 'rgba(94,214,232,.16)'
+    for (const k of [1, 2, 3]) {
+      const y = Y(tickValue * k / MONEY_RATE)
+      if (style.gridHorizontal) svg.append(svgEl('line', { x1: left, x2: w - right, y1: y, y2: y, stroke: gridColor, ...net }))
+      const t = svgEl('text', { x: w, y: y + 4, 'text-anchor': 'end' }); t.textContent = compactMoney(tickValue * k / MONEY_RATE); svg.append(t)
+    }
+    const tickIndexes = accentPoint(blocks.map(d => d.g), step, span)
+    blocks.forEach((d, i) => {
+      if (!tickIndexes.has(i)) return
+      if (style.gridVertical) svg.append(svgEl('line', { x1: X(i), x2: X(i), y1: top, y2: top + height, stroke: gridColor, ...net }))
+      const t = svgEl('text', { x: X(i), y: h - 4, 'text-anchor': 'middle' })
+      t.textContent = axisLabel(d.g, step, span)
+      svg.append(t)
+    })
+    if (areaOrBar) {
+      blocks.forEach((d, i) => {
+        if (!d.total) return
+        const x = X(i), volumeH = (d.total / maxTotal) * height * 0.18, color = d.close >= d.open ? style.up : style.down
+        svg.append(svgEl('rect', { x: x - bodyWidth / 2, y: top + height - volumeH, width: bodyWidth, height: volumeH, rx: 1, fill: color, opacity: .22 }))
+        svg.append(svgEl('line', { x1: x, x2: x, y1: Y(d.height), y2: Y(d.low), stroke: color, 'stroke-width': 1.5 }))
+        if (chartKind === 'candle') {
+          const yBody = Y(Math.max(d.open, d.close))
+          svg.append(svgEl('rect', { x: x - bodyWidth / 2, y: yBody, width: bodyWidth, height: Math.max(2, Y(Math.min(d.open, d.close)) - yBody), rx: 1, fill: color }))
+        } else {
+          svg.append(
+            svgEl('line', { x1: x - bodyWidth / 2, x2: x, y1: Y(d.open), y2: Y(d.open), stroke: color, 'stroke-width': 1.5 }),
+            svgEl('line', { x1: x, x2: x + bodyWidth / 2, y1: Y(d.close), y2: Y(d.close), stroke: color, 'stroke-width': 1.5 }),
+          )
+        }
+      })
+    } else if (chartKind === 'column') {
+      /* with few columns the number is written right on the column; the column in progress is brightest */
+      /* ít cột thì ghi số ngay trên cột; cột đang diễn ra sáng nhất */
+      const showNumbers = blocks.length <= 14
+      blocks.forEach((d, i) => {
+        if (!d.total) return
+        const x = X(i), y = Y(d.total), barWidth = Math.max(3, Math.min(72, column * 0.62)), isLast = i === blocks.length - 1
+        svg.append(svgEl('rect', { x: x - barWidth / 2, y, width: barWidth, height: Math.max(1, top + height - y), rx: 3, fill: style.line, opacity: barTop ? 1 : .6 }))
+        if (showNumbers) {
+          const t = svgEl('text', { class: 'dinh-chu', x, y: y - 6, 'text-anchor': 'middle' })
+          t.textContent = compactMoney(d.total)
+          svg.append(t)
+        }
+      })
+    } else {
+      const linePath = blocks.map((d, i) => `${i ? 'L' : 'M'}${X(i)} ${Y(d.total)}`).join('')
+      if (chartKind === 'area') {
+        const defs = svgEl('defs'), to = svgEl('linearGradient', { id: 'to-cp', x1: 0, y1: 0, x2: 0, y2: 1 })
+        to.append(svgEl('stop', { offset: '0%', 'stop-color': style.line, 'stop-opacity': .4 }), svgEl('stop', { offset: '100%', 'stop-color': style.line, 'stop-opacity': .02 }))
+        defs.append(to)
+        svg.append(defs, svgEl('path', { d: `${linePath}L${X(blocks.length - 1)} ${top + height}L${X(0)} ${top + height}Z`, fill: 'url(#to-cp)' }))
+      }
+      svg.append(svgEl('path', { d: linePath, fill: 'none', stroke: style.line, 'stroke-width': 2, 'stroke-linejoin': 'round' }))
+    }
+    const doc = svgEl('line', { y1: top, y2: top + height, stroke: 'rgba(232,251,255,.4)', 'stroke-dasharray': '3 3', visibility: 'hidden' })
+    svg.append(doc)
+    const last = [...blocks].reverse().find(d => d.total) || blocks[blocks.length - 1]
+    drawOhlc(last, step)
+    box.onpointermove = e => {
+      const r = box.getBoundingClientRect()
+      const i = Math.max(0, Math.min(blocks.length - 1, Math.floor((e.clientX - r.left - left) / column)))
+      doc.setAttribute('x1', X(i)); doc.setAttribute('x2', X(i)); doc.setAttribute('visibility', 'visible')
+      drawOhlc(blocks[i], step)
+    }
+    box.onpointerleave = () => { doc.setAttribute('visibility', 'hidden'); drawOhlc(last, step) }
+    box.style.background = style.background === DEFAULT_STYLE.background ? '' : style.background
+    box.replaceChildren(svg)
+  }
+  const net = d => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">${d}</svg>`
+  const CHART_KINDS = {
+    candle: [tx('Candles'), net('<path d="M5 1.500v3M5 11v3.500M11 1.500v2M11 10v4.500"/><rect x="3" y="4.500" width="4" height="6.500"/><rect x="9" y="3.500" width="4" height="6.500"/>')],
+    line: [tx('Line'), net('<path d="M1.500 12l4-5 3 3 6-7"/>')],
+    ohlc: [tx('Bars'), net('<path d="M5 2v12M2.500 5H5M5 10h2.500M11 2v12M8.500 4H11M11 8h2.500"/>')],
+    area: [tx('Area'), net('<path d="M1.500 11l4-5 3 3 6-6v11h-13z"/>')],
+    column: [tx('Columns'), net('<path d="M3 14V8M8 14V3M13 14V6" stroke-width="3"/>')],
+    heat: [tx('Heat map'), net('<rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5" fill="currentColor"/><rect x="2" y="9" width="5" height="5" fill="currentColor"/><rect x="9" y="9" width="5" height="5"/>')],
+  }
+  $('kind-menu').querySelectorAll('[data-kind]').forEach(x => { x.innerHTML = CHART_KINDS[x.dataset.kind][1]; x.append(CHART_KINDS[x.dataset.kind][0]) })
+  function setKind(l) {
+    chartKind = l
+    $('kind-button').innerHTML = CHART_KINDS[l][1]
+    $('kind-button').append(`${CHART_KINDS[l][0]} ▾`)
+    $('kind-menu').querySelectorAll('[data-kind]').forEach(x => x.setAttribute('aria-checked', String(x.dataset.kind === l)))
+  }
+  function toggleKindMenu(open) {
+    $('kind-menu').hidden = !open
+    $('kind-button').setAttribute('aria-expanded', String(open))
+  }
+  $('kind-button').addEventListener('click', e => { e.stopPropagation(); toggleSpanMenu(false); toggleKindMenu($('kind-menu').hidden) })
+  $('kind-menu').addEventListener('click', e => {
+    const b = e.target.closest('[data-kind]')
+    if (!b) return
+    setKind(b.dataset.kind)
+    try { localStorage.setItem('ai-worker-chart', chartKind) } catch {}
+    toggleKindMenu(false)
+    drawCost(openSessions())
+  })
+  addEventListener('click', e => { if (!$('kind-picker').contains(e.target)) toggleKindMenu(false) })
+  addEventListener('keydown', e => { if (e.key === 'Escape') toggleKindMenu(false) })
+  setKind(chartKind)
+  function drawSpanMenu() {
+    const button = $('span-menu').querySelector(`[data-span="${granularity}"]`)
+    $('span-button').textContent = `${button.textContent} ▾`
+    $('span-menu').querySelectorAll('[data-span]').forEach(x => x.setAttribute('aria-checked', String(x === button)))
+  }
+  function toggleSpanMenu(open) {
+    $('span-menu').hidden = !open
+    $('span-button').setAttribute('aria-expanded', String(open))
+  }
+  $('span-button').addEventListener('click', e => {
+    e.stopPropagation()
+    toggleKindMenu(false)
+    toggleSpanMenu($('span-menu').hidden)
+  })
+  $('span-menu').addEventListener('click', e => {
+    const b = e.target.closest('[data-span]')
+    if (!b) return
+    const g = b.dataset.span
+    granularity = CALENDAR[g] ? g : Number(g)
+    /* month, quarter or year shows everything, otherwise the whole chart would be a single bar */
+    /* tháng, quý, năm thì xem toàn bộ, nếu không cả biểu đồ chỉ còn một cây */
+    if (CALENDAR[g]) { followLatest = false; view = null }
+    drawSpanMenu()
+    toggleSpanMenu(false)
+    drawCost(openSessions())
+  })
+  addEventListener('click', e => { if (!$('span-picker').contains(e.target)) toggleSpanMenu(false) })
+  addEventListener('keydown', e => { if (e.key === 'Escape') toggleSpanMenu(false) })
+  drawSpanMenu()
+  /* Chart style box: colours and grid, remembered per browser */
+  /* hộp Kiểu biểu đồ: màu và lưới, nhớ theo trình duyệt */
+  const STYLE_INPUTS = { up: 'cs-up', down: 'cs-down', line: 'cs-line', background: 'cs-bg' }
+  function fillStyleForm(k) {
+    for (const [name, id] of Object.entries(STYLE_INPUTS)) $(id).value = k[name]
+    $('cs-vgrid').checked = k.gridVertical
+    $('cs-hgrid').checked = k.gridHorizontal
+    $('cs-grid').value = k.gridStyle
+  }
+  $('style-button').addEventListener('click', () => { fillStyleForm(style); $('chart-style').showModal() })
+  $('cs-reset').addEventListener('click', () => fillStyleForm(DEFAULT_STYLE))
+  $('cs-save').addEventListener('click', () => {
+    style = { gridVertical: $('cs-vgrid').checked, gridHorizontal: $('cs-hgrid').checked, gridStyle: $('cs-grid').value }
+    for (const [name, id] of Object.entries(STYLE_INPUTS)) style[name] = $(id).value
+    try { localStorage.setItem('ai-worker-chart-style', JSON.stringify(style)) } catch {}
+    $('chart-style').close()
+    drawCost(openSessions())
+  })
+  $('zoom').addEventListener('click', e => {
+    const b = e.target.closest('[data-zoom]')
+    if (!b) return
+    if (b.dataset.zoom === 'fit') { const t = fullRange(); setView(t.a, t.b) } else zoom(b.dataset.zoom === 'in' ? 0.6 : 1 / 0.6)
+  })
+  /* scroll the wheel or pinch with 2 fingers to zoom around the pointer, drag to move back and forth, double-click to see everything */
+  /* lăn chuột hoặc chụm 2 ngón để phóng quanh con trỏ, kéo để đi tới đi lui, nhấp đúp để xem toàn bộ */
+  {
+    const box = $('chart'), LEFT = AXIS_LEFT, RIGHT = AXIS_RIGHT
+    const canZoom = () => true
+    const ratioOf = x => { const r = box.getBoundingClientRect(); return Math.max(0, Math.min(1, (x - r.left - LEFT) / (r.width - LEFT - RIGHT))) }
+    box.addEventListener('wheel', e => {
+      if (!canZoom()) return
+      e.preventDefault()
+      zoom(Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), ratioOf(e.clientX))
+    }, { passive: false })
+    let drag = null
+    box.addEventListener('pointerdown', e => {
+      if (!canZoom()) return
+      drag = { x: e.clientX, c: viewWindow() }
+      box.setPointerCapture(e.pointerId)
+      box.classList.add('dragging')
+    })
+    box.addEventListener('pointermove', e => {
+      if (!drag) return
+      const hourText = ((drag.x - e.clientX) / (box.clientWidth - LEFT - RIGHT)) * (drag.c.b - drag.c.a)
+      const t = fullRange(), shift = Math.max(t.a - drag.c.a, Math.min(t.b - drag.c.b, hourText))
+      if (shift) setView(drag.c.a + shift, drag.c.b + shift)
+    })
+    const release = () => { drag = null; box.classList.remove('dragging') }
+    box.addEventListener('pointerup', release)
+    box.addEventListener('pointercancel', release)
+    box.addEventListener('dblclick', () => { if (canZoom()) { const t = fullRange(); setView(t.a, t.b) } })
+  }
+  addEventListener('resize', () => { if (viewing === 'cost') drawAll() })
+
+  /* ---- Activity screen */
+  /* ---- màn Hoạt động */
+  let filter = 'all', activityKey = ''
+  function drawActivity(ids) {
+    const all = ids.flatMap(id => (store[id].activity || []).map(a => ({ ...a, session: store[id].name || tx('Session') })))
+    const rows = all.filter(a => filter === 'all' || (filter === 'talk' ? a.kind !== 'tool' : a.kind === 'tool'))
+      .sort((a, b) => b.at - a.at)
+    /* several identical actions in a row are merged into one line */
+    /* nhiều lần liền nhau cùng một thao tác thì gộp thành một dòng */
+    const picked = []
+    for (const a of rows) {
+      const t = picked[picked.length - 1]
+      if (t && a.kind === 'tool' && t.kind === 'tool' && t.verb === a.verb && t.text === a.text && t.session === a.session) t.lan++
+      else picked.push({ ...a, lan: 1 })
+    }
+    picked.length = Math.min(picked.length, 200)
+    const key = filter + picked.length + (picked[0] ? picked[0].at + ':' + picked[0].lan : '')
+    if (key === activityKey) return
+    activityKey = key
+    if (!picked.length) return $('activity-list').replaceChildren(el('div', 'empty', tx('No activity yet.')))
+    const button = []
+    let prevDay = ''
+    for (const a of picked) {
+      const dayText = dayLabel(a.at)
+      if (dayText !== prevDay) { button.push(el('div', 'day-sep', dayText)); prevDay = dayText }
+      const h = el('div', 'activity')
+      const actor = a.kind === 'you' ? tx('You') : a.kind === 'say' ? 'Claude' : VERB_LABELS[a.verb] || tx('Tool')
+      const text = el('div')
+      text.append(el('div', 'text', (a.text || '') + (a.lan > 1 ? tx(' ({n} times)', { n: a.lan }) : '')))
+      if (ids.length > 1) text.append(el('span', 'source', a.session))
+      h.append(el('span', 'muted num', hourText(a.at)), el('span', 'actor' + (a.kind === 'you' ? ' you' : ''), actor), text)
+      button.push(h)
+    }
+    $('activity-list').replaceChildren(...button)
+  }
+
+  /* ---- page frame */
+  /* ---- khung trang */
+  const SCREENS = ['overview', 'cost', 'activity']
+  let viewing = 'overview'
+  function showScreen(m) {
+    viewing = m
+    $('ops').hidden = m !== 'overview'
+    $('frame').hidden = m === 'overview'
+    for (const x of ['cost', 'activity']) $('screen-' + x).hidden = x !== m
+    document.querySelectorAll('[data-screen]').forEach(b => {
+      if (b.dataset.screen === m) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current')
+    })
+    drawAll()
+  }
+  document.querySelectorAll('[data-screen]').forEach(b => b.addEventListener('click', () => showScreen(b.dataset.screen)))
+  $('filter').addEventListener('click', e => {
+    const b = e.target.closest('[data-filter]')
+    if (!b) return
+    filter = b.dataset.filter
+    $('filter').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)))
+    drawActivity(openSessions())
+  })
+  if (typeof CFG.signText === 'string' && CFG.signText) $('sign').textContent = CFG.signText
+  if (hasTeam) {
+    $('team-link').href = cs.webhook.replace(/\/+$/, '') + '/'
+    $('team-link').hidden = false
+  }
+
+  function drawTop(ids) {
+    const waiting = ids.filter(id => status(store[id]) === 'waiting').length
+    const running = ids.filter(id => status(store[id]) === 'running').length
+    $('summary').textContent = waiting ? tx('WAITING FOR YOU: {n}', { n: waiting }) : running ? tx('RUNNING: {n}', { n: running }) : ids.length ? tx('ALL IDLE') : tx('NO SESSIONS OPEN')
+    $('status-pill').classList.toggle('warn', waiting > 0)
+  }
+  function drawClock() {
+    const d = new Date()
+    $('clock').textContent = `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`
+  }
+  drawClock()
+  setInterval(drawClock, 1000)
+  let loaded = false
+  /* gui-tong.js: this computer could not send its data to the team board since `since`; an old file (sharing turned off) is ignored */
+  /* gui-tong.js: máy này không gửi được số liệu lên bảng cả team từ lúc `since`; file cũ (đã tắt chia sẻ) thì bỏ qua */
+  /* a session whose context is nearly full (from 60%): a warning banner; from 80% the tab title also changes so it shows while you are on another tab */
+  /* phiên sắp đầy ngữ cảnh (từ 60%): biển cảnh báo, từ 80% tên tab cũng đổi để thấy khi đang ở tab khác */
+  function drawContext(ids) {
+    const hot = ids.filter(id => (store[id].context?.percent ?? 0) >= 60).sort((a, b) => store[b].context.percent - store[a].context.percent)
+    const day = hot.filter(id => store[id].context.percent >= 80).length
+    const box = $('context-warning')
+    box.hidden = !hot.length
+    if (hot.length) box.textContent = `${day ? tx('⚠ Context almost full, start a new session') : tx('Context getting full')}: ${hot.map(id => `${store[id].name || tx('Session')} ${store[id].context.percent}%`).join(', ')}`
+    document.title = day ? tx('⚠ Context almost full · AI Worker Office') : tx('AI Worker Office')
+  }
+  function drawShareError() {
+    const f = window.__aiWorkerShare, nowMs = Date.now(), box = $('share-error')
+    const co = !!f && nowMs - f.updatedAt < 30 * 60000 && nowMs - f.since >= f.warnAfterMs
+    box.hidden = !co
+    if (!co) return
+    const minutes = Math.round((nowMs - f.since) / 60000)
+    box.textContent = tx('{error} Data from this computer has not reached the team board since {since} ({elapsed}). If you are at the company, tell your IT team; away from the company this is normal, and the computer sends it again when you are back.', { error: f.error, since: timeOrDate(f.since), elapsed: minutes < 120 ? tx('{n} min', { n: minutes }) : tx('{n} hours', { n: Math.round(minutes / 60) }) })
+  }
+  function drawAll() {
+    const ids = openSessions()
+    drawTop(ids)
+    /* the board always receives data so the event stream has no gaps while another screen is shown; wait until data has arrived the first time */
+    /* bảng luôn nhận số liệu để luồng sự kiện không bị hụt khi đang xem màn khác; đợi tới khi có số liệu lần đầu */
+    if (loaded) board.update(boardData(ids))
+    if (viewing === 'cost') drawCost(ids)
+    else if (viewing === 'activity') drawActivity(ids)
+  }
+  let pollCount = 0
+  async function poll() {
+    await load('sessions.js')
+    await load('cost.js')
+    if (!(pollCount++ % 20)) await load('cost-long.js')
+    window.__aiWorkerShare = undefined
+    await load('share-state.js')
+    await Promise.all((window.__aiWorkerList || []).map(id => load(`sessions/${encodeURIComponent(id)}.js`)))
+    loaded = true
+    drawAll()
+    drawShareError()
+    drawContext(openSessions())
+  }
+  showScreen(viewing)
+  poll()
+  setInterval(poll, 3000)
+</script>
+</body>
+</html>

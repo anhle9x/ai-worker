@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security problem
+    url: https://github.com/anhle9x/ai-worker/security/advisories/new
+    about: Report it privately; do not open a public issue.
+  - name: Questions on Telegram
+    url: https://t.me/anhle9x
+    about: Ask the maintainer directly.

@@ -1,0 +1,25 @@
+# Built packages (may contain the company send code)
+# Gói đã đóng (có thể chứa mã gửi của công ty)
+dist/
+# Signed update: made by packaging/release.sh, copy it to the server
+# Bản cập nhật đã ký: do packaging/release.sh tạo, chép lên máy chủ
+server/releases/
+# Real send code + webhook address: only on the packaging computer
+# Mã gửi + địa chỉ webhook thật: chỉ ở máy đóng gói
+packaging/company.json
+# Internal notes: server IP, company IP ranges
+# Ghi chú nội bộ: IP máy chủ, dải IP công ty
+TRANG-THAI.md
+server/data/
+server/keys/
+# Engine-generated types
+# Kiểu dữ liệu engine tự sinh
+.claude-plugin/types/
+node_modules/
+.DS_Store
+__pycache__/
+*.pyc
+
+# the menu bar app built on a Mac for one company: not part of the repository
+# app thanh menu đóng gói trên Mac cho một công ty: không nằm trong repo
+server/menubar/macos-app/dist/

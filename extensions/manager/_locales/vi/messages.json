@@ -1,0 +1,193 @@
+{
+  "extName": {
+    "message": "AI Worker cho quản lý"
+  },
+  "extDescription": {
+    "message": "Thấy ai đang chờ trả lời mà không phải mở bảng. Chỉ đọc những gì màn hình treo tường hiện."
+  },
+  "boardAddress": {
+    "message": "Địa chỉ bảng"
+  },
+  "boardAddressHint": {
+    "message": "Địa chỉ phòng IT đưa, ví dụ https://board.company.com. Trình duyệt sẽ xin phép cho đúng một trang này."
+  },
+  "pairButton": {
+    "message": "Lấy mã ghép"
+  },
+  "pairingCode": {
+    "message": "Mã ghép"
+  },
+  "pairingHint": {
+    "message": "Đưa mã này cho quản trị. Họ nhập ở Quản trị > Màn hình TV rồi duyệt. Ở đây không cần mật khẩu."
+  },
+  "cancelPairing": {
+    "message": "Huỷ"
+  },
+  "allowAccess": {
+    "message": "Cho phép truy cập bảng"
+  },
+  "waitingHeading": {
+    "message": "Đang chờ trả lời"
+  },
+  "workingHeading": {
+    "message": "Đang làm"
+  },
+  "openBoard": {
+    "message": "Mở bảng"
+  },
+  "settings": {
+    "message": "Cài đặt"
+  },
+  "notifyOn": {
+    "message": "Báo khi có người chờ quá lâu"
+  },
+  "notifyAfter": {
+    "message": "Báo sau"
+  },
+  "forget": {
+    "message": "Bỏ ghép trình duyệt này"
+  },
+  "forgetConfirm": {
+    "message": "Bỏ ghép trình duyệt này? Muốn ghép lại phải lấy mã mới và nhờ quản trị duyệt."
+  },
+  "justNow": {
+    "message": "vừa xong"
+  },
+  "summary": {
+    "message": "$WAITING$ đang chờ · $WORKING$ đang làm",
+    "placeholders": {
+      "waiting": {
+        "content": "$1"
+      },
+      "working": {
+        "content": "$2"
+      }
+    }
+  },
+  "nobodyWaiting": {
+    "message": "Không ai đang chờ"
+  },
+  "nobodyWorking": {
+    "message": "Không ai đang làm"
+  },
+  "notPaired": {
+    "message": "Trình duyệt này chưa ghép với bảng."
+  },
+  "revoked": {
+    "message": "Trình duyệt này không còn được ghép: quản trị đã thu hồi hoặc đã hết hạn. Lấy mã mới để ghép lại."
+  },
+  "codeExpired": {
+    "message": "Mã đã hết hạn trước khi được duyệt. Lấy mã mới."
+  },
+  "pairingUnreachable": {
+    "message": "Chưa tới được bảng; vẫn đang thử."
+  },
+  "needPermission": {
+    "message": "Trình duyệt không còn cho tiện ích truy cập bảng."
+  },
+  "unreachable": {
+    "message": "Không tới được bảng. Có thể bạn đang ở ngoài mạng công ty, hoặc máy chủ đang tắt. Không hiện số nào cho tới khi bảng trả lời lại."
+  },
+  "invalidAddress": {
+    "message": "Đây không phải địa chỉ web. Ví dụ: https://board.company.com"
+  },
+  "httpNotAllowed": {
+    "message": "http thường chỉ dùng được cho chính máy này (localhost hoặc 127.0.0.1). Hãy dùng địa chỉ https của bảng, ví dụ https://board.company.com"
+  },
+  "permissionDenied": {
+    "message": "Trình duyệt không cho truy cập địa chỉ này, nên tiện ích không ghép được."
+  },
+  "tooManyWaiting": {
+    "message": "Có quá nhiều thiết bị đang chờ duyệt. Thử lại sau."
+  },
+  "cannotReach": {
+    "message": "Không tới được bảng ở địa chỉ này. Kiểm lại địa chỉ và xem bạn có đang trong mạng công ty."
+  },
+  "badgeNotPaired": {
+    "message": "AI Worker: chưa ghép"
+  },
+  "badgeUnreachable": {
+    "message": "AI Worker: không tới được bảng"
+  },
+  "notifyTitle": {
+    "message": "Có người đang chờ trả lời"
+  },
+  "minutesChoice": {
+    "message": "$N$ phút",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "minutesShort": {
+    "message": "$N$ phút",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "hoursMinutes": {
+    "message": "$H$ giờ $M$ phút",
+    "placeholders": {
+      "h": {
+        "content": "$1"
+      },
+      "m": {
+        "content": "$2"
+      }
+    }
+  },
+  "pairedAs": {
+    "message": "Đã ghép với tên $NAME$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "codeValidUntil": {
+    "message": "Còn hạn tới $TIME$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
+  "lastTried": {
+    "message": "Lần thử gần nhất lúc $TIME$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
+  "updatedAt": {
+    "message": "Cập nhật lúc $TIME$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
+  "badgeOk": {
+    "message": "AI Worker: $N$ người đang chờ",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "notifyMessage": {
+    "message": "$NAME$ đã chờ $MINUTES$ phút.",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "minutes": {
+        "content": "$2"
+      }
+    }
+  }
+}

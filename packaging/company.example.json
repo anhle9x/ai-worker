@@ -1,0 +1,7 @@
+{
+  "sharing": {
+    "enabled": true,
+    "webhook": "https://<your-domain>",
+    "ingestKey": "<INGEST_KEY printed by install.sh>"
+  }
+}

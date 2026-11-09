@@ -1,0 +1,113 @@
+AI WORKER OFFICE — INSTALL GUIDE
+================================
+
+Vietnamese: see GUIDE.vi.txt in the same folder.
+
+A 3D virtual office for Claude Code: watch Claude (and Gemini, ChatGPT, Gemma if you have them) work in your browser.
+
+WHAT YOU NEED FIRST
+- The Claude app (Claude Desktop, download at https://claude.com/download), signed in, and with the Code tab opened at least once.
+  Or Claude Code used with the `claude` command in Terminal. If you have neither, the installer will tell you.
+
+INSTALL
+1. Unzip the zip file into any folder.
+2. Double-click:
+   - macOS:   INSTALL-Mac.command
+              (The first time, macOS may block it: right-click the file > Open > Open.)
+   - Windows: INSTALL-Windows.bat
+   - Ubuntu:  open Terminal in the unzipped folder and type: bash INSTALL-Linux.sh
+              (Ubuntu usually does not run .sh files on double-click.)
+              For /office to open the browser by itself you need xdg-utils (Ubuntu desktop has it).
+3. Wait for the window to say "Done", then press Enter / any key to close it.
+4. Reopen Claude Code (or type /reload-plugins if it is open), then type:
+   /office         opens the control panel in your browser
+   /office-pane   opens the 2D view next to the chat
+
+The plugin is copied into the claude-plugins-ai-worker folder inside your user folder,
+so it is fine to delete the unzipped folder after installing.
+
+LANGUAGE
+The installer and the plugin use English or Vietnamese. The installer picks the language of your computer
+(English if it is not Vietnamese) and saves it in user.json (see below). To force one, set AI_WORKER_LANG
+to en or vi before running the installer. Pages in the browser have an EN / VI switch at the top.
+
+OPTION 2: INSTALL INSIDE THE APP
+The installer does this by itself when the computer has the Claude app but no claude command: it copies each
+command for you and you only paste it into the Code tab. Follow these steps by hand only when the installer cannot run.
+1. Move the unzipped folder into your user folder and KEEP IT THERE
+   (the plugin reads straight from this folder; delete it and the office stops working).
+   Example macOS: /Users/<name>/AI-Worker
+          Windows: C:\Users\<name>\AI-Worker
+2. In the Claude Code chat box, type these one after the other (use your real path):
+   /plugin marketplace add /Users/<name>/AI-Worker
+   /plugin install ai-worker@ai-worker
+3. Type /reload-plugins, then /office.
+
+HELPER AI ASSISTANTS (the installer does this after installing the office)
+- ChatGPT (Codex CLI): installed by default. Sign in with the company ChatGPT account (ask your IT team).
+  To do it later, open Terminal / PowerShell and type: codex login
+- Gemma (runs on this computer, data stays here): the installer picks a size from your RAM and disk
+  (32 GB RAM or more: the 26b version; 16 GB: e4b; 8 GB: e2b; less than that: not installed), and asks before installing.
+  The 5 to 17 GB model downloads in the background; when it finishes, reopen Claude and the Gemma desk appears.
+- Gemini: optional (type y when asked). Free, sign in with your own Google account; used only for
+  web research, nothing from the company is sent. First time: type agy in Terminal / PowerShell to sign in.
+Claude hands side jobs to these assistants following the company rules: sensitive data goes only to Gemma;
+ChatGPT and Gemini never receive people's names, internal documents, figures or passwords.
+The desk of an assistant that is not installed is hidden from the office.
+
+CHANGE NAMES, SIGNS, TURN ASSISTANTS ON/OFF
+Edit this file (created after you open your first Claude Code session):
+   macOS, Ubuntu: ~/.local/share/ai-worker/config.js
+   Windows: %USERPROFILE%\.local\share\ai-worker\config.js
+Dollar-to-dong exchange rate: the "usdRate" entry (default 26000); it is used only when the display is Vietnamese.
+Details of each entry: see ai-worker/docs/INSTALL.md in this package.
+Without Gemini/ChatGPT/Gemma the office still works fully with Claude; set that assistant to false.
+
+COMPANY-WIDE DASHBOARD
+If the package has an ASK-NAME file (a company package), the installer asks for your full name. The email of your
+Claude account is taken from the account that is signed in (it asks only when Claude is not signed in on the
+computer, and you can skip it), and if you change Claude account later, the dashboard follows.
+The computer sends usage numbers (sessions, tokens, cost, the kinds of helper assistants running; NOT chat content,
+task descriptions or file names) to the company server. You do not have to do anything else. Edit the name/email later in:
+   ~/.local/share/ai-worker/user.json   (Windows: %USERPROFILE%\.local\share\ai-worker\user.json)
+A normal package (without ASK-NAME) sends nothing.
+
+Updates: when your IT team has a new version, the bar above the input box shows "New version" with an Update button (or type /update).
+A new version is installed only when it carries the IT team's correct signature. After it installs, quit the Claude app
+completely and open it again. The computer must be on the company network to download it; if it cannot install by
+itself, tell your IT team to get the installation package. The old version is kept in the ai-worker.old folder next to
+the plugin folder.
+
+The company server also records the latest public IP address of the computer (only the newest address is kept) to group
+computers of the same office into one branch on the map. It does not use GPS or ask for location permission. At home,
+on 4G or on a business trip, the computer falls into the "Mobile / unassigned" group. The people who view the dashboard
+are managers with a login code. Questions: ask your IT team.
+During install, the installer tests the connection to the server; if it says the server cannot be reached, send that to
+your IT team, because this computer's numbers are not on the dashboard yet.
+The dashboard only counts sessions that run on computers with the plugin installed. Claude on phones, the web and the
+cloud is counted separately from the Team plan report; personal accounts (Pro, Max, Ultra) are not in that report.
+
+WHAT THE OFFICE PAGE SHOWS (/office)
+- Only your own sessions on this computer: a map of sessions linked to Claude and the 3 assistants, which session is
+  working or waiting for you. Click a session to see its plan, how many % of the context is used, and the cost.
+- The Cost button: cost today, 7 days, an 8-day chart. The Activity button: what was done in the open sessions.
+- The Claude account quota is in the "Models & quota" box. From 80% it shows a warning mark and turns red.
+  The chat box also shows a notice, and a bar above the input box (click "Hide" to turn it off
+  until the level rises again). The plugin does NOT change the model by itself: to save money, type /model sonnet yourself.
+- The page opens from a file on this computer; chat content goes nowhere. Your IT team sees only the totals
+  (sessions, tokens, cost, quota, plugin version, the kinds of helper assistants running), not what you asked.
+
+UPDATE TO A NEW VERSION
+Unzip the new version and run the installer again. Your changes in config.js are kept.
+
+UNINSTALL
+   claude plugin uninstall ai-worker@ai-worker
+   claude plugin marketplace remove ai-worker
+then delete the claude-plugins-ai-worker folder (or the folder you kept in Option 2).
+
+DATA
+All data stays on this computer. The content of delegated tasks is not stored; secret files (.env, keys) are recorded by name only.
+The cost shown in the office is calculated at API prices; on a subscription plan it is a converted figure, not money charged.
+Sessions closed for more than 7 days are removed from the office automatically (only the display file, the conversation is untouched).
+
+Problems: take a screenshot of the installer window and send it to your IT team.

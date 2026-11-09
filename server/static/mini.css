@@ -1,0 +1,135 @@
+:root{--bg:#f6f6f4;--card:#fff;--fg:#1d1d1b;--muted:#6b6a65;--line:rgba(0,0,0,.09);--accent:#185fa5;--accent-bg:#e6f1fb;--warn:#0550ae;--warn-bg:#ddf4ff;--ok:#3b6d11;--bad:#a32d2d}
+@media (prefers-color-scheme:dark){:root{--bg:#1f1f1e;--card:#2a2a28;--fg:#ecebe6;--muted:#a3a29b;--line:rgba(255,255,255,.1);--accent:#85b7eb;--accent-bg:#0c447c;--warn:#4a7fd6;--warn-bg:#0f2550;--ok:#97c459;--bad:#f09595}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Ubuntu,sans-serif}
+.mini{padding:12px 12px 10px;max-width:420px;margin:0 auto}
+header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+header div{flex:1;display:flex;flex-direction:column}
+header small{color:var(--muted);font-size:12px}
+.logo{width:28px;height:28px;border-radius:7px;background:var(--accent-bg);position:relative}
+.logo:after{content:"";position:absolute;inset:7px;border:2px solid var(--accent);border-radius:50%}
+.badge{font-size:12px;padding:2px 8px;border-radius:6px;background:var(--warn-bg);color:var(--warn)}
+nav{display:flex;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+nav button{flex:1;border:0;background:transparent;color:var(--muted);padding:7px 0 4px;border-radius:7px;cursor:pointer}
+nav button[aria-selected=true]{background:var(--accent-bg);color:var(--accent)}
+h2{font-size:14px;font-weight:600;margin:10px 4px 4px}
+ul{list-style:none;margin:0;padding:0;max-height:250px;overflow:auto}
+li{display:flex;align-items:center;gap:8px;padding:7px 4px;border-radius:6px}
+li .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+li .val{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+li.long .val{color:var(--warn);font-weight:600}
+li.empty{color:var(--muted);justify-content:center}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+li.long .dot{background:var(--warn)} li.work .dot{background:var(--ok)}
+.bar{flex:none;width:80px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)} .bar i.hi{background:var(--bad)}
+.opts{margin-top:8px;padding:8px 4px 0;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.opts label{color:var(--fg)} .opts select{font:inherit}
+.opts small{display:block;min-height:1em}
+footer{display:flex;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.btn{flex:1;text-align:center;font:inherit;font-size:13px;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:7px;padding:6px 8px;text-decoration:none;cursor:pointer}
+.err{color:var(--bad)}
+html.app,html.app body{background:transparent}
+html.app .btn{background:rgba(127,127,127,.12)}
+.settings{padding:4px 0 0;font-size:13px}
+.settings .row{padding:8px 4px;border-bottom:1px solid var(--line)}
+.settings>small:not(:empty){padding:0 4px}
+.settings label{color:var(--fg)}
+.settings .actions{display:flex;gap:8px;margin-top:10px}
+.btn.danger{color:var(--bad)}
+.app-only{display:none}
+html.app .app-only{display:block}
+html.app .actions .app-only{display:inline-block}
+/* switching tabs: a highlight slides smoothly to the new tab, the content only fades quickly; none when the computer asks for reduced motion */
+/* đổi thẻ: ô nền xanh trượt mượt sang thẻ mới, nội dung chỉ đổi mờ nhanh; máy bật giảm chuyển động thì bỏ */
+nav{position:relative}
+nav .o-chon{position:absolute;left:0;top:0;height:0;border-radius:7px;background:var(--accent-bg);transition:transform .34s cubic-bezier(.25,.8,.25,1),width .34s cubic-bezier(.25,.8,.25,1);pointer-events:none}
+nav.co-o button{position:relative;z-index:1}
+nav.co-o button[aria-selected=true]{background:transparent}
+@keyframes chuyen-the{from{opacity:.25}to{opacity:1}}
+.chuyen-the{animation:chuyen-the .22s ease-out}
+nav button{transition:background-color .15s,color .15s}
+nav button:not([aria-selected=true]):hover{background:rgba(127,127,127,.14);color:var(--fg)}
+nav button:focus{outline:none}
+nav button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+@media (prefers-reduced-motion:reduce){.chuyen-the{animation:none}nav button,nav .o-chon{transition:none}}
+/* drop-downs and check boxes in the window's own style: rounded, see-through, a thin arrow, fine on the glass background */
+/* ô chọn và ô đánh dấu theo kiểu của khung: bo góc, nền trong mờ, mũi tên mảnh, hợp cả nền kính */
+select{-webkit-appearance:none;appearance:none;font:inherit;color:var(--fg);background:rgba(255,255,255,.6) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8a85' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 9px center/10px 6px;border:1px solid var(--line);border-radius:7px;padding:3px 26px 3px 9px;cursor:pointer;transition:border-color .15s,background-color .15s}
+select:hover{border-color:rgba(127,127,127,.45)}
+select:focus{outline:none}select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+@media (prefers-color-scheme:dark){select{background-color:rgba(255,255,255,.08)}select option{background:#2a2a28;color:#ecebe6}}
+input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;vertical-align:-2px;cursor:pointer}
+/* drop-downs drawn by the page: a rounded button, a rounded list with a shadow, a tick on the chosen line; space from the label next to it */
+/* ô xổ xuống tự vẽ: nút bo góc, danh sách bo góc có bóng, dấu tích ở dòng đang chọn; cách chữ bên cạnh cho thoáng */
+.row .chon{margin:0 4px 0 8px}
+.chon{position:relative;display:inline-block;vertical-align:middle}
+.chon-nut{font:inherit;color:var(--fg);background:rgba(255,255,255,.6) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8a85' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center/10px 6px;border:1px solid var(--line);border-radius:8px;padding:4px 30px 4px 11px;min-width:66px;text-align:left;cursor:pointer;transition:border-color .15s,background-color .15s}
+.chon-nut:hover,.chon.mo .chon-nut{border-color:rgba(127,127,127,.45)}
+.chon-nut:focus{outline:none}.chon-nut:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.chon-ds{position:absolute;z-index:20;left:0;top:calc(100% + 4px);min-width:100%;margin:0;padding:4px;list-style:none;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);animation:chon-mo .12s ease-out}
+.chon-ds.len{top:auto;bottom:calc(100% + 4px)}
+.chon-ds li{position:relative;padding:5px 28px 5px 10px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.chon-ds li:hover{background:var(--accent-bg);color:var(--accent)}
+.chon-ds li[aria-selected=true]{font-weight:600}
+.chon-ds li[aria-selected=true]:after{content:"";position:absolute;right:11px;top:50%;width:4px;height:8px;border:solid currentColor;border-width:0 2px 2px 0;transform:translateY(-65%) rotate(45deg)}
+@keyframes chon-mo{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+@media (prefers-color-scheme:dark){.chon-nut{background-color:rgba(255,255,255,.08)}.chon-ds{box-shadow:0 8px 24px rgba(0,0,0,.45)}}
+@media (prefers-reduced-motion:reduce){.chon-ds{animation:none}}
+/* buttons at the bottom (Open board, Unpair): light up on hover, press in a little on click */
+/* nút phía dưới (Mở bảng, Bỏ ghép): sáng lên khi rê chuột, lún nhẹ khi bấm */
+.btn{transition:background-color .15s,border-color .15s,transform .1s}
+.btn:hover{background:rgba(127,127,127,.22)!important;border-color:rgba(127,127,127,.4)}
+.btn:active{transform:scale(.98)}
+.btn.danger:hover{background:rgba(163,45,45,.14)!important;border-color:rgba(163,45,45,.35)}
+.btn:focus{outline:none}.btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+@media (prefers-reduced-motion:reduce){.btn{transition:none}.btn:active{transform:none}}
+/* the real logo at the top of the window instead of the placeholder circle: black on light, white on dark */
+/* logo thật ở đầu khung thay cho vòng tròn tạm: bản đen trên nền sáng, bản trắng trên nền tối */
+.logo{background:transparent url("/mini/logo-black.png") center/26px 26px no-repeat}.logo:after{display:none}
+@media (prefers-color-scheme:dark){.logo{background-image:url("/mini/logo-white.png")}}
+/* the Windows and Ubuntu windows can turn start-at-login on and off too */
+/* khung Windows và Ubuntu cũng bật tắt được tự chạy khi đăng nhập */
+html.host-login .row.app-only{display:block}
+/* check boxes drawn by the page: rounded, a thin border, a white tick on the window's blue; the focus ring only from the keyboard */
+/* ô đánh dấu tự vẽ: bo góc, viền mảnh, tick trắng trên nền xanh của khung; viền chọn chỉ khi dùng phím */
+input[type=checkbox]{-webkit-appearance:none;appearance:none;width:17px;height:17px;margin:0 6px 0 0;border:1.5px solid rgba(127,127,127,.55);border-radius:5px;background:rgba(255,255,255,.55);vertical-align:-3px;cursor:pointer;position:relative;transition:background-color .15s,border-color .15s}
+input[type=checkbox]:hover{border-color:rgba(127,127,127,.85)}
+input[type=checkbox]:checked{background:var(--accent);border-color:var(--accent)}
+input[type=checkbox]:checked:after{content:"";position:absolute;left:5px;top:1.5px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+input[type=checkbox]:focus{outline:none}input[type=checkbox]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-color-scheme:dark){input[type=checkbox]{background:rgba(255,255,255,.08)}input[type=checkbox]:checked:after{border-color:#1f1f1e}}
+@media (prefers-reduced-motion:reduce){input[type=checkbox]{transition:none}}
+/* rows with a drop-down: the text wraps on the left, the drop-down and its unit stay together on the right */
+/* dòng có ô chọn: chữ bên trái tự xuống dòng, ô chọn và đơn vị canh phải, không bị tách */
+.row.co-chon{display:flex;align-items:center;gap:10px}
+.row.co-chon>label{flex:none}
+.row.co-chon .chon{margin:0;flex:none}
+.row.co-chon>span{flex:none;white-space:nowrap}
+/* check box and text always side by side; a row with a check box and a drop-down splits in two lines; the chosen tab already has its highlight, so no ring */
+/* ô đánh dấu và chữ luôn thẳng hàng; dòng có ô đánh dấu và ô chọn chia hai tầng; thẻ đang chọn đã có ô nền nên bỏ viền */
+.row label{display:inline-flex;align-items:center;gap:8px}
+.row label input[type=checkbox]{margin:0;flex:none}
+.row.hai-tang{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.row.hai-tang>label{flex:1 1 100%}
+.row.hai-tang .chon{margin:0 0 0 25px}
+nav button:focus,nav button:focus-visible{outline:none}
+/* a row with a check box and a drop-down: one line when it fits, otherwise the drop-down and its unit move down together under the text */
+/* dòng có ô đánh dấu và ô chọn: đủ chỗ thì một dòng, không đủ thì ô chọn và đơn vị cùng xuống dòng dưới chữ */
+.row.co-o-danh-dau{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.row.co-o-danh-dau>label{flex:0 1 auto;min-width:0}
+.row.co-o-danh-dau .cum{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.row.co-o-danh-dau .cum .chon{margin:0}
+.row.co-o-danh-dau .cum.xuong{margin-left:25px}
+/* the Windows and Ubuntu windows have the Remove the app button too */
+/* khung Windows và Ubuntu cũng có nút Gỡ app */
+html.host-login .actions .app-only{display:inline-block}
+/* the question drawn by the page: a card sliding up from the bottom over a slightly darker window */
+/* hộp xác nhận tự vẽ: tấm thẻ trượt lên từ đáy khung, nền sau tối nhẹ */
+.hoi{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;background:rgba(0,0,0,.22);animation:hoi-nen .18s ease-out}
+.hoi-the{width:100%;margin:10px;padding:14px;border-radius:12px;background:var(--card);border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.25);animation:hoi-len .22s cubic-bezier(.25,.8,.25,1)}
+.hoi-the p{margin:0 0 12px;color:var(--fg);line-height:1.45}
+.hoi-nut{display:flex;gap:8px}
+@keyframes hoi-nen{from{opacity:0}to{opacity:1}}
+@keyframes hoi-len{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.hoi,.hoi-the{animation:none}}

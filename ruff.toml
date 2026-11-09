@@ -1,0 +1,14 @@
+# Python lint for the server, menu bar scripts and tests. Run: uvx ruff check .
+# Kiểm lỗi Python cho máy chủ, script thanh menu và bộ thử. Chạy: uvx ruff check .
+target-version = "py39"
+# dev-pack/ holds skills copied from upstream projects: left as their authors wrote them
+# dev-pack/ chứa skill chép từ dự án gốc: để nguyên như tác giả viết
+extend-exclude = ["dev-pack"]
+
+[lint]
+# real mistakes only (pyflakes, syntax, bugbear), not style
+# chỉ bắt lỗi thật (pyflakes, cú pháp, bugbear), không bắt kiểu viết
+select = ["F", "E9", "B"]
+# zip(strict=) needs Python 3.10; the menu bar script also runs on the Mac's Python 3.9
+# zip(strict=) cần Python 3.10; script thanh menu còn chạy trên Python 3.9 của Mac
+ignore = ["B905"]

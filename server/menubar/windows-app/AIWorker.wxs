@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AI Worker.msi (WiX 5): installs for this user only into %LOCALAPPDATA%\Programs\AI Worker, no admin rights, with a setup window, -->
+<!-- closes the running copy when installing over it, and has an entry in Settings > Apps. No step runs PowerShell. -->
+<!-- The server address: the SERVER property, by default a fixed-length placeholder; the server replaces it with its own address -->
+<!-- (padded with spaces) when it hands out the file, and the installer writes it into HKCU\Software\AI Worker\Server. -->
+<!-- Gói cài AI Worker.msi (WiX 5): cài cho riêng người dùng vào %LOCALAPPDATA%\Programs\AI Worker, không cần quyền quản trị, -->
+<!-- có cửa sổ cài, tự tắt bản đang chạy khi cài đè, có mục gỡ trong Settings > Apps. Không có bước nào chạy PowerShell. -->
+<!-- Địa chỉ máy chủ: thuộc tính SERVER, mặc định là một chuỗi giữ chỗ dài cố định; máy chủ thay bằng địa chỉ của nó -->
+<!-- (đệm dấu cách) khi phát file, rồi file cài ghi vào HKCU\Software\AI Worker\Server. -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Package Name="AI Worker" Manufacturer="AI Worker" Version="$(var.Version)" Scope="perUser"
+           UpgradeCode="CD80F6D2-E13A-423F-A6E7-0D2FC58C8EAE" Language="1033">
+    <!-- upgrade: copy the new version first (CloseApplication closes the app before copying), remove the old one last; removing the old one first leaves -->
+    <!-- the running app's files undeletable and Windows asks for a reboot (a silent install reboots the computer by itself) -->
+    <!-- nâng cấp: chép bản mới trước (CloseApplication tắt app trước khi chép), dọn bản cũ sau cùng; gỡ bản cũ trước thì file app đang chạy -->
+    <!-- không xoá được và Windows đòi khởi động lại (cài im lặng thì tự khởi động lại máy) -->
+    <MajorUpgrade Schedule="afterInstallExecute" AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of AI Worker is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Icon Id="app.ico" SourceFile="app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="app.ico" />
+    <Property Id="SERVER" Value="AIWORKER-SERVER-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsDir" Name="Programs">
+        <Directory Id="InstallDir" Name="AI Worker">
+          <Directory Id="WebView2Dir" Name="webview2">
+            <Directory Id="WvX64" Name="x64" />
+            <Directory Id="WvArm64" Name="arm64" />
+            <Directory Id="WvX86" Name="x86" />
+          </Directory>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <!-- installed for this user only: each part keeps one HKCU value as its installed mark -->
+    <!-- cài cho riêng người dùng: mỗi phần lấy một giá trị trong HKCU làm dấu đã cài -->
+    <ComponentGroup Id="App" Directory="InstallDir">
+      <Component Id="Exe" Guid="6E0B2C1A-3F4D-4B8E-9A21-5C7D8E9F0A11">
+        <File Id="ExeFile" Source="$(var.BuildDir)\AI Worker.exe" />
+        <File Source="$(var.BuildDir)\AI Worker.exe.config" />
+        <File Source="$(var.BuildDir)\Microsoft.Web.WebView2.Core.dll" />
+        <File Source="$(var.BuildDir)\Microsoft.Web.WebView2.WinForms.dll" />
+        <File Source="..\icons\generic-black.png" />
+        <File Source="..\icons\generic-white.png" />
+        <File Source="..\icons\app-icon.png" />
+        <File Source="..\vi.json" />
+        <RegistryValue Root="HKCU" Key="Software\AI Worker" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+        <RemoveFolder Id="RemoveInstallDir" On="uninstall" />
+        <RemoveFolder Id="RemovePrograms" Directory="ProgramsDir" On="uninstall" />
+      </Component>
+      <!-- start at login, the app name on notifications, the link a notification click opens: written by the installer so an uninstall removes them (the app still writes them when it runs, and the window turns start at login on or off) -->
+      <!-- tự chạy khi đăng nhập, tên app trên thông báo, đường dẫn mở khung khi bấm thông báo: gói cài ghi để gỡ là xoá theo -->
+      <!-- (app vẫn tự ghi lại khi chạy, và tắt bật tự chạy trong khung) -->
+      <Component Id="Registration" Guid="6E0B2C1A-3F4D-4B8E-9A21-5C7D8E9F0A15">
+        <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="AI Worker" Type="string" Value="&quot;[#ExeFile]&quot;" KeyPath="yes" />
+        <RegistryKey Root="HKCU" Key="Software\Classes\AppUserModelId\AIWorker.MenuBar" ForceDeleteOnUninstall="yes">
+          <RegistryValue Name="DisplayName" Type="string" Value="AI Worker" />
+          <RegistryValue Name="IconUri" Type="string" Value="[InstallDir]app-icon.png" />
+        </RegistryKey>
+        <!-- the empty "URL Protocol" value is written by the app when it runs; the whole key goes on uninstall -->
+        <!-- giá trị "URL Protocol" (rỗng) do app ghi khi chạy; khoá được xoá cả khi gỡ -->
+        <RegistryKey Root="HKCU" Key="Software\Classes\ai-worker-open" ForceDeleteOnUninstall="yes">
+          <RegistryValue Type="string" Value="URL:AI Worker" />
+          <RegistryValue Key="shell\open\command" Type="string" Value="&quot;[#ExeFile]&quot; --open" />
+        </RegistryKey>
+      </Component>
+      <Component Id="ServerAddress">
+        <RegistryValue Root="HKCU" Key="Software\AI Worker" Name="Server" Type="string" Value="[SERVER]" KeyPath="yes" />
+      </Component>
+      <Component Id="WebView2X64" Directory="WvX64" Guid="6E0B2C1A-3F4D-4B8E-9A21-5C7D8E9F0A12">
+        <File Id="LoaderX64" Source="..\webview2\x64\WebView2Loader.dll" />
+        <RegistryValue Root="HKCU" Key="Software\AI Worker" Name="WvX64" Type="integer" Value="1" KeyPath="yes" />
+        <RemoveFolder Id="RemoveWvX64" On="uninstall" />
+        <RemoveFolder Id="RemoveWv" Directory="WebView2Dir" On="uninstall" />
+      </Component>
+      <Component Id="WebView2Arm64" Directory="WvArm64" Guid="6E0B2C1A-3F4D-4B8E-9A21-5C7D8E9F0A13">
+        <File Id="LoaderArm64" Source="..\webview2\arm64\WebView2Loader.dll" />
+        <RegistryValue Root="HKCU" Key="Software\AI Worker" Name="WvArm64" Type="integer" Value="1" KeyPath="yes" />
+        <RemoveFolder Id="RemoveWvArm64" On="uninstall" />
+      </Component>
+      <Component Id="WebView2X86" Directory="WvX86" Guid="6E0B2C1A-3F4D-4B8E-9A21-5C7D8E9F0A14">
+        <File Id="LoaderX86" Source="..\webview2\x86\WebView2Loader.dll" />
+        <RegistryValue Root="HKCU" Key="Software\AI Worker" Name="WvX86" Type="integer" Value="1" KeyPath="yes" />
+        <RemoveFolder Id="RemoveWvX86" On="uninstall" />
+      </Component>
+    </ComponentGroup>
+    <Feature Id="Main">
+      <ComponentGroupRef Id="App" />
+    </Feature>
+
+    <!-- installing over it or uninstalling: close the running copy (the app has only a tray icon, no window that would take a close message) -->
+    <!-- cài đè hay gỡ: tắt bản đang chạy (app chỉ có biểu tượng khay, không có cửa sổ để nhận lệnh đóng) -->
+    <!-- no Restart Manager: it cannot close a tray app, shows a "Files in Use" box, stalls and then asks for a reboot; -->
+    <!-- CloseApplication below sends a close message to the app's hidden window (the app quits cleanly), past the timeout ends it, before the files are copied -->
+    <!-- không dùng Restart Manager: nó không đóng được app khay, hiện hộp "Files in Use", kẹt rồi đòi khởi động lại máy; -->
+    <!-- CloseApplication bên dưới gửi lệnh đóng tới cửa sổ ẩn của app (app tự thoát gọn), quá hạn thì tắt hẳn, trước khi chép file -->
+    <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
+    <util:CloseApplication Id="CloseApp" Target="AI Worker.exe" CloseMessage="yes" TerminateProcess="1" Timeout="10" RebootPrompt="no" />
+
+    <!-- the setup window: one screen with the notice and the Install button, then a finish screen with an "Open AI Worker" box (text in the .msi is English only: its code page is 1252) -->
+    <!-- cửa sổ cài: một màn hình lời dặn và nút Install, rồi màn hình xong có ô "Open AI Worker" (chữ trong file .msi chỉ dùng tiếng Anh: bảng mã của gói cài là 1252) -->
+    <ui:WixUI Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="notice.rtf" />
+    <!-- the G logo instead of the WiX default images (drawn by draw-installer-images.swift, made BMP by png-to-bmp.py) -->
+    <!-- logo G thay hình mặc định của WiX (vẽ bằng draw-installer-images.swift, đổi sang BMP bằng png-to-bmp.py) -->
+    <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Open AI Worker" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WixShellExecTarget" Value="[#ExeFile]" />
+    <CustomAction Id="OpenApp" DllEntry="WixShellExec" Impersonate="yes" BinaryRef="Wix4UtilCA_X86" />
+    <UI>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="OpenApp" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
+    </UI>
+  </Package>
+</Wix>

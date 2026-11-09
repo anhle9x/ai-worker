@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="popup.css" id="popup-css">
+</head>
+<body>
+<main id="classic" hidden>
+  <header>
+    <h1 data-msg="extName"></h1>
+    <div id="paired-as" class="muted"></div>
+  </header>
+
+  <section id="view-unpaired" hidden>
+    <p id="unpaired-reason" class="note"></p>
+    <form id="pair-form">
+      <label for="board-url" data-msg="boardAddress"></label>
+      <input id="board-url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://board.company.com">
+      <small class="muted" data-msg="boardAddressHint"></small>
+      <button type="submit" class="primary" data-msg="pairButton"></button>
+    </form>
+    <p id="pair-error" class="bad" role="alert"></p>
+  </section>
+
+  <section id="view-pairing" hidden>
+    <div class="muted" data-msg="pairingCode"></div>
+    <div id="code" aria-live="polite"></div>
+    <p data-msg="pairingHint"></p>
+    <p id="code-left" class="muted"></p>
+    <p id="pairing-trouble" class="bad"></p>
+    <button type="button" id="cancel-pairing" data-msg="cancelPairing"></button>
+  </section>
+
+  <section id="view-unreachable" hidden>
+    <p id="unreachable-text" class="note bad"></p>
+    <p id="last-ok" class="muted"></p>
+    <button type="button" id="allow-access" class="primary" data-msg="allowAccess" hidden></button>
+  </section>
+
+  <section id="view-ok" hidden>
+    <div id="summary"></div>
+    <h2 data-msg="waitingHeading"></h2>
+    <ul id="waiting-list"></ul>
+    <h2 data-msg="workingHeading"></h2>
+    <ul id="working-list"></ul>
+    <p id="updated" class="muted"></p>
+  </section>
+
+  <footer>
+    <button type="button" id="open-board" class="primary" data-msg="openBoard" hidden></button>
+    <details id="settings">
+      <summary data-msg="settings"></summary>
+      <label class="row"><input type="checkbox" id="notify"> <span data-msg="notifyOn"></span></label>
+      <label class="row" for="notify-minutes"><span data-msg="notifyAfter"></span>
+        <select id="notify-minutes"></select></label>
+      <button type="button" id="forget" class="link" data-msg="forget" hidden></button>
+    </details>
+  </footer>
+</main>
+<script src="core.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

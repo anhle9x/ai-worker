@@ -1,0 +1,35 @@
+/* Small window under the extension icon, about 340 px wide; light and dark follow the system. */
+/* Cửa sổ nhỏ dưới biểu tượng tiện ích, rộng khoảng 340 px; sáng tối theo hệ thống. */
+:root{--bg:#f6f6f4;--fg:#1d1d1b;--muted:#6b6a65;--line:rgba(0,0,0,.12);--accent:#1a56c8;--bad:#a32d2d;--wait:#c0392b}
+@media (prefers-color-scheme:dark){:root{--bg:#1f1f1e;--fg:#ecebe6;--muted:#a3a29b;--line:rgba(255,255,255,.14);--accent:#4a7fd6;--bad:#f09595;--wait:#f08a7e}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Ubuntu,sans-serif}
+main{width:340px;padding:12px 14px}
+header{margin-bottom:8px}
+h1{font-size:15px;margin:0}
+h2{font-size:12px;margin:12px 0 4px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+p{margin:6px 0}
+.muted{color:var(--muted)}
+.bad{color:var(--bad)}
+.bad:empty,.note:empty{display:none}
+label{display:block;margin:8px 0 4px}
+input[type=text],select{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--fg)}
+input[type=text]{width:100%}
+small{display:block;margin-top:4px}
+button{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--fg);cursor:pointer;margin-top:10px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;width:100%}
+button.link{border:0;padding:0;color:var(--muted);text-decoration:underline;width:auto}
+#code{font:600 24px/1.2 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em;margin:4px 0 6px}
+#summary{font-size:14px;font-weight:600}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--line)}
+li:last-child{border-bottom:0}
+li .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+li .time{color:var(--wait);white-space:nowrap}
+li.empty{color:var(--muted)}
+footer{margin-top:10px;border-top:1px solid var(--line);padding-top:4px}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--muted)}
+label.row{display:flex;align-items:center;gap:6px;justify-content:space-between}
+label.row input{margin:0}
+label.row:has(input[type=checkbox]){justify-content:flex-start}

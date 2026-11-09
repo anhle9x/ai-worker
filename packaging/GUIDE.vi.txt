@@ -1,0 +1,110 @@
+VĂN PHÒNG AI WORKER — HƯỚNG DẪN CÀI
+==================================
+
+English: xem GUIDE.txt cùng thư mục.
+
+Văn phòng ảo 3D cho Claude Code: xem Claude (và Gemini, ChatGPT, Gemma nếu có) làm việc trên trình duyệt.
+
+CẦN CÓ TRƯỚC
+- App Claude (Claude Desktop, tải tại https://claude.com/download) đã đăng nhập, và đã mở tab Code ít nhất một lần.
+  Hoặc Claude Code dùng bằng lệnh `claude` trong Terminal. Chưa có gì thì file cài sẽ báo.
+
+CÀI ĐẶT
+1. Giải nén file zip ra một thư mục bất kỳ.
+2. Bấm đúp:
+   - macOS:   INSTALL-Mac.command
+              (Lần đầu macOS có thể chặn: chuột phải vào file > Open > Open.)
+   - Windows: INSTALL-Windows.bat
+   - Ubuntu:  mở Terminal trong thư mục giải nén, gõ: bash INSTALL-Linux.sh
+              (Ubuntu thường không chạy file .sh khi bấm đúp.)
+              Để /office tự mở trình duyệt cần xdg-utils (Ubuntu desktop có sẵn).
+3. Chờ cửa sổ báo "Xong", nhấn Enter / phím bất kỳ để đóng.
+4. Mở lại Claude Code (hoặc gõ /reload-plugins nếu đang mở), rồi gõ:
+   /office         mở bảng điều khiển trên trình duyệt
+   /office-pane   mở bản 2D cạnh khung chat
+
+Plugin được chép vào thư mục claude-plugins-ai-worker trong thư mục người dùng,
+nên xoá thư mục giải nén sau khi cài cũng không sao.
+
+NGÔN NGỮ
+File cài và plugin dùng tiếng Anh hoặc tiếng Việt. File cài tự chọn theo ngôn ngữ của máy (không phải tiếng Việt
+thì dùng tiếng Anh) và ghi vào user.json (xem bên dưới). Muốn ép một thứ tiếng, đặt AI_WORKER_LANG là en
+hoặc vi trước khi chạy file cài. Các trang trên trình duyệt có nút chuyển EN / VI ở trên cùng.
+
+CÁCH 2: CÀI NGAY TRONG APP
+File cài tự làm việc này khi máy có app Claude nhưng không tìm thấy lệnh claude: nó chép sẵn từng lệnh,
+bạn chỉ việc dán vào tab Code. Chỉ làm tay theo các bước dưới khi file cài không chạy được.
+1. Chuyển thư mục đã giải nén vào thư mục người dùng và GIỮ LUÔN Ở ĐÓ
+   (plugin đọc trực tiếp từ thư mục này; xoá đi là văn phòng ngừng chạy).
+   Ví dụ macOS: /Users/<tên>/AI-Worker
+         Windows: C:\Users\<tên>\AI-Worker
+2. Trong khung chat của Claude Code, gõ lần lượt (thay bằng đường dẫn thật):
+   /plugin marketplace add /Users/<tên>/AI-Worker
+   /plugin install ai-worker@ai-worker
+3. Gõ /reload-plugins, rồi /office.
+
+NHÂN VIÊN AI PHỤ (file cài làm sau khi cài văn phòng)
+- ChatGPT (Codex CLI): cài mặc định. Đăng nhập bằng tài khoản ChatGPT của công ty (hỏi phòng IT).
+  Để sau thì mở Terminal / PowerShell gõ: codex login
+- Gemma (chạy ngay trên máy, dữ liệu không ra ngoài): file cài tự chọn cỡ theo RAM và ổ cứng
+  (32 GB RAM trở lên: bản 26b; 16 GB: e4b; 8 GB: e2b; ít hơn thì không cài), hỏi trước khi cài.
+  Mô hình 5 đến 17 GB tải ngầm; tải xong, mở lại Claude là bàn Gemma hiện.
+- Gemini: tuỳ chọn (gõ y khi được hỏi). Miễn phí, đăng nhập bằng tài khoản Google của bạn; chỉ dùng
+  tra cứu web, không gửi gì của công ty. Lần đầu: gõ agy trong Terminal / PowerShell để đăng nhập.
+Claude tự giao việc phụ cho các nhân viên này theo quy tắc của công ty: dữ liệu nhạy cảm chỉ giao Gemma;
+ChatGPT, Gemini không bao giờ nhận tên người, tài liệu nội bộ, số liệu, mật khẩu.
+Bàn của nhân viên nào chưa cài sẽ tự ẩn khỏi văn phòng.
+
+TUỲ CHỈNH TÊN, BIỂN HIỆU, BẬT/TẮT NHÂN VIÊN
+Sửa file (tạo ra sau lần mở phiên Claude Code đầu tiên):
+   macOS, Ubuntu: ~/.local/share/ai-worker/config.js
+   Windows: %USERPROFILE%\.local\share\ai-worker\config.js
+Tỷ giá quy đô la ra đồng: mục "usdRate" (mặc định 26000).
+Chi tiết từng mục: xem ai-worker/docs/INSTALL.vi.md trong gói này.
+Không có Gemini/ChatGPT/Gemma: văn phòng vẫn chạy đủ với Claude; đặt nhân viên đó là false.
+
+BẢNG TỔNG CẢ TEAM
+Nếu gói có file ASK-NAME (gói của công ty), file cài sẽ hỏi họ tên của bạn. Email tài khoản Claude
+được tự nhận từ tài khoản đang đăng nhập (chỉ hỏi khi máy chưa đăng nhập Claude, bỏ qua được), và đổi
+tài khoản Claude sau này thì bảng tổng cũng tự đổi theo.
+Máy sẽ gửi số liệu sử dụng (số phiên, token, chi phí, tên loại trợ lý phụ đang chạy; KHÔNG có nội dung chat,
+mô tả việc hay tên file) lên máy chủ công ty. Không phải làm gì thêm. Sửa tên/email sau ở:
+   ~/.local/share/ai-worker/user.json   (Windows: %USERPROFILE%\.local\share\ai-worker\user.json)
+Gói thường (không có ASK-NAME) không gửi gì.
+
+Cập nhật: khi phòng IT có bản mới, thanh trên ô nhập hiện "Có bản mới" với nút Cập nhật (hoặc gõ /update).
+Bản mới chỉ được cài khi đúng chữ ký của phòng IT. Cài xong thì thoát hẳn app Claude rồi mở lại. Máy phải ở
+mạng công ty mới tải được; máy không tự cài được thì báo phòng IT để lấy gói cài. Bản cũ được giữ ở thư mục
+ai-worker.old cạnh thư mục plugin.
+
+Máy chủ công ty cũng ghi địa chỉ IP công cộng gần nhất của máy (chỉ giữ địa chỉ mới nhất) để gom các máy cùng
+văn phòng vào một chi nhánh trên bản đồ. Không dùng GPS, không xin quyền vị trí. Ở nhà, dùng 4G hoặc đi công tác
+thì máy nằm trong nhóm "Di động / chưa gắn". Người xem bảng là quản lý có mã đăng nhập. Thắc mắc: hỏi phòng IT.
+Lúc cài, file cài thử kết nối tới máy chủ; nếu báo chưa tới được thì gửi phòng IT, số liệu máy này chưa lên bảng.
+Bảng chỉ tính phiên chạy trên máy đã cài plugin. Claude trên điện thoại, web và cloud được tính riêng từ báo cáo
+của gói Team; tài khoản cá nhân (Pro, Max, Ultra) không có trong báo cáo đó.
+
+TRANG VĂN PHÒNG XEM ĐƯỢC GÌ (/office)
+- Chỉ phiên của chính bạn trên máy này: sơ đồ phiên nối với Claude và 3 trợ lý, phiên nào đang làm hay
+  đang chờ bạn. Bấm vào một phiên để xem kế hoạch, context đã dùng bao nhiêu %, chi phí.
+- Nút Chi phí: chi phí hôm nay, 7 ngày, biểu đồ 8 ngày. Nút Hoạt động: việc đã làm trong các phiên đang mở.
+- Hạn mức tài khoản Claude nằm trong ô "Models & quota". Từ 80% có dấu cảnh báo và chuyển đỏ.
+  Trong khung chat cũng hiện thông báo và một thanh trên ô nhập (bấm "Ẩn" để tắt
+  tới khi mức tăng tiếp). Plugin KHÔNG tự đổi mô hình: muốn tiết kiệm, tự gõ /model sonnet.
+- Trang mở từ file trên máy; nội dung chat không đi đâu cả. Phòng IT chỉ thấy số liệu tổng
+  (số phiên, token, chi phí, hạn mức, phiên bản plugin, tên loại trợ lý phụ đang chạy), không thấy bạn hỏi gì.
+
+CẬP NHẬT BẢN MỚI
+Giải nén bản mới và chạy lại file cài. Phần tuỳ chỉnh trong config.js được giữ nguyên.
+
+GỠ CÀI
+   claude plugin uninstall ai-worker@ai-worker
+   claude plugin marketplace remove ai-worker
+rồi xoá thư mục claude-plugins-ai-worker (hoặc thư mục đã giữ lại ở Cách 2).
+
+DỮ LIỆU
+Mọi dữ liệu chỉ nằm trên máy. Không lưu nội dung việc giao, file bí mật (.env, key) chỉ ghi tên.
+Chi phí hiện trong văn phòng tính theo bảng giá API; dùng gói thuê bao thì là số quy đổi, không phải tiền bị trừ.
+Phiên đã đóng quá 7 ngày được tự xoá khỏi văn phòng (chỉ file hiển thị, không đụng tới cuộc trò chuyện).
+
+Gặp lỗi: chụp màn hình cửa sổ cài gửi phòng IT.

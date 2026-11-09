@@ -1,0 +1,8 @@
+{
+  "_guide": "Copy this to /etc/ai-worker-branches.json and edit it. A person is placed by 'people' (email or the name shown on the board) first, otherwise by the fixed public IP range in 'ip'. 'isHq': true is where the lines connect to. Nobody is located automatically.",
+  "_guide_vi": "Chép thành /etc/ai-worker-branches.json rồi sửa. Gắn người theo 'people' (email hoặc tên hiện trên bảng) trước, không có thì theo dải IP công cộng cố định trong 'ip'. 'isHq': true là nơi các đường nối về. Không ai bị tra vị trí tự động.",
+  "branches": [
+    { "id": "ts", "name": "<Head office>", "lat": 10.78, "lon": 106.70, "isHq": true, "people": ["<email@company>"], "ip": [] },
+    { "id": "hn", "name": "Hanoi", "lat": 21.03, "lon": 105.85, "people": ["<email@company>"], "ip": ["<fixed IP range, for example 203.0.113.0/24>"] }
+  ]
+}

@@ -1,0 +1,130 @@
+# Try the installer on a clean machine on every push: build on Ubuntu, test-install on Windows.
+# Thử file cài trên máy sạch mỗi lần đẩy code: đóng gói trên Ubuntu, cài thử trên Windows.
+# Only the normal package is used (no packaging/company.json, no company send code).
+# Chỉ dùng gói thường (không có packaging/company.json, không có mã gửi của công ty).
+name: Test install
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  code-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint the Python code
+        run: pipx run ruff==0.17.4 check .
+      # tsc needs the type files Claude Code writes on a developer's computer (.claude-plugin/types, not in git),
+      # so the type check runs locally; CI runs the hooks' tests with the Claude Code CLI, which needs no login
+      # tsc cần file kiểu Claude Code ghi trên máy người viết (.claude-plugin/types, không có trong git),
+      # nên kiểm kiểu chạy trên máy; CI chạy test của hook bằng Claude Code CLI, không cần đăng nhập
+      - name: Test the hooks
+        run: npx -y @anthropic-ai/claude-code@2.1.319 plugin test .
+      - name: Test the server
+        working-directory: server
+        run: python3 -m unittest test_webhook
+      - name: Test the Chrome extension against the server
+        run: node tests/extension/check-extension.js
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the package
+        run: bash packaging/build.sh
+      - name: Test the private-data check
+        run: bash tests/test-check-clean.sh
+      - name: Check the skills' front matter
+        run: python3 tests/check-frontmatter.py
+      - name: Check the two-language rules
+        run: python3 tests/check-i18n.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package
+          path: dist/*.zip
+
+  ubuntu:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: package
+          path: package
+      - name: Unzip the package
+        run: |
+          mkdir -p "$RUNNER_TEMP/package"
+          unzip -q package/*.zip -d "$RUNNER_TEMP/package"
+      - name: Test-install the cases
+        run: bash tests/linux/test-install.sh "$RUNNER_TEMP/package/AI-Worker"
+      - name: Test the server install
+        run: sudo bash tests/linux/test-server.sh
+      - name: Test the menu bar script
+        run: bash tests/menubar/test-menubar.sh
+      - name: Test the Ubuntu menu bar package
+        run: BADGE_OUT="$RUNNER_TEMP/badge.png" bash tests/menubar/test-deb.sh
+        timeout-minutes: 15
+      - name: Keep the notification badge drawn on Ubuntu
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-badge
+          path: ${{ runner.temp }}/badge.png
+          if-no-files-found: ignore
+
+  windows:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: package
+          path: package
+      - name: Unzip the package
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem package\*.zip | Select-Object -First 1
+          Expand-Archive $zip.FullName -DestinationPath "$env:RUNNER_TEMP\package"
+      - name: Test-install the cases
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/windows/test-install.ps1 -Package "$env:RUNNER_TEMP\package\AI-Worker"
+      - name: Test the icon next to the clock
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/menubar/test-menubar.ps1
+        env:
+          BADGE_OUT: ${{ runner.temp }}\badge-windows.png
+      - name: Keep the notification badge drawn on Windows
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-badge
+          path: ${{ runner.temp }}\badge-windows.png
+          if-no-files-found: ignore
+
+  windows-app:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build AI Worker.exe
+        shell: pwsh
+        working-directory: server/menubar/windows-app
+        run: dotnet build -c Release -o build
+      - name: Build AI Worker.msi
+        shell: pwsh
+        working-directory: server/menubar/windows-app
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add -g WixToolset.UI.wixext/5.0.2 WixToolset.Util.wixext/5.0.2
+          wix build AIWorker.wxs -d Version=1.0.0 -d BuildDir=build -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o "AI Worker.msi"
+          wix build AIWorker.wxs -d Version=1.0.1 -d BuildDir=build -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o "AI Worker 1.0.1.msi"
+      - name: Test install, pairing, notifications and removal
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/menubar/test-windows-app.ps1 -Msi "server/menubar/windows-app/AI Worker.msi" -NewerMsi "server/menubar/windows-app/AI Worker 1.0.1.msi"
+        timeout-minutes: 12
+      - name: Keep AI Worker.msi
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-worker-msi
+          path: server/menubar/windows-app/AI Worker.msi

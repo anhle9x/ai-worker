@@ -1,0 +1,193 @@
+{
+  "extName": {
+    "message": "AI Worker for managers"
+  },
+  "extDescription": {
+    "message": "See who is waiting for an answer without keeping the board open. Reads only what a wall screen shows."
+  },
+  "boardAddress": {
+    "message": "Board address"
+  },
+  "boardAddressHint": {
+    "message": "The address IT gave you, for example https://board.company.com. The browser will ask to allow this one site only."
+  },
+  "pairButton": {
+    "message": "Get a pairing code"
+  },
+  "pairingCode": {
+    "message": "Pairing code"
+  },
+  "pairingHint": {
+    "message": "Give this code to an admin. They enter it in Admin > TV screens and approve it. No password is needed here."
+  },
+  "cancelPairing": {
+    "message": "Cancel"
+  },
+  "allowAccess": {
+    "message": "Allow access to the board"
+  },
+  "waitingHeading": {
+    "message": "Waiting for a reply"
+  },
+  "workingHeading": {
+    "message": "Working"
+  },
+  "openBoard": {
+    "message": "Open board"
+  },
+  "settings": {
+    "message": "Settings"
+  },
+  "notifyOn": {
+    "message": "Notify me when someone waits too long"
+  },
+  "notifyAfter": {
+    "message": "Notify after"
+  },
+  "forget": {
+    "message": "Unpair this browser"
+  },
+  "forgetConfirm": {
+    "message": "Unpair this browser? You will need a new code approved by an admin to pair again."
+  },
+  "justNow": {
+    "message": "just now"
+  },
+  "summary": {
+    "message": "$WAITING$ waiting · $WORKING$ working",
+    "placeholders": {
+      "waiting": {
+        "content": "$1"
+      },
+      "working": {
+        "content": "$2"
+      }
+    }
+  },
+  "nobodyWaiting": {
+    "message": "Nobody is waiting"
+  },
+  "nobodyWorking": {
+    "message": "Nobody is working"
+  },
+  "notPaired": {
+    "message": "This browser is not paired with the board yet."
+  },
+  "revoked": {
+    "message": "This browser is no longer paired: an admin revoked it or it expired. Get a new code to pair again."
+  },
+  "codeExpired": {
+    "message": "The code expired before it was approved. Get a new code."
+  },
+  "pairingUnreachable": {
+    "message": "Cannot reach the board right now; still trying."
+  },
+  "needPermission": {
+    "message": "The browser no longer allows this extension to reach the board."
+  },
+  "unreachable": {
+    "message": "Cannot reach the board. You may be outside the company network, or the server is down. No numbers are shown until it answers again."
+  },
+  "invalidAddress": {
+    "message": "This is not a web address. Example: https://board.company.com"
+  },
+  "httpNotAllowed": {
+    "message": "Plain http works only for this computer (localhost or 127.0.0.1). Use the board's https address, for example https://board.company.com"
+  },
+  "permissionDenied": {
+    "message": "The browser did not allow access to this address, so the extension cannot pair."
+  },
+  "tooManyWaiting": {
+    "message": "Too many devices are waiting for approval. Try again later."
+  },
+  "cannotReach": {
+    "message": "Cannot reach the board at this address. Check the address and that you are on the company network."
+  },
+  "badgeNotPaired": {
+    "message": "AI Worker: not paired"
+  },
+  "badgeUnreachable": {
+    "message": "AI Worker: cannot reach the board"
+  },
+  "notifyTitle": {
+    "message": "Someone is waiting for a reply"
+  },
+  "minutesChoice": {
+    "message": "$N$ minutes",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "minutesShort": {
+    "message": "$N$ min",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "hoursMinutes": {
+    "message": "$H$ h $M$ min",
+    "placeholders": {
+      "h": {
+        "content": "$1"
+      },
+      "m": {
+        "content": "$2"
+      }
+    }
+  },
+  "pairedAs": {
+    "message": "Paired as $NAME$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "codeValidUntil": {
+    "message": "Valid until $TIME$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
+  "lastTried": {
+    "message": "Last tried at $TIME$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
+  "updatedAt": {
+    "message": "Updated at $TIME$",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
+  "badgeOk": {
+    "message": "AI Worker: $N$ waiting",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "notifyMessage": {
+    "message": "$NAME$ has been waiting for $MINUTES$ minutes.",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "minutes": {
+        "content": "$2"
+      }
+    }
+  }
+}
