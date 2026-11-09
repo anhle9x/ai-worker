@@ -44,6 +44,8 @@ Without a server the plugin still runs on each computer, with its own office pag
 
 **Managers:** open the server address, sign in with the 6-digit code from Google Authenticator, or press **Log in with Telegram** once Telegram is linked (when the server has a Telegram bot set up). Install the menu bar icon from the **Admin** page if you want alerts.
 
+<img src="assets/login.png" alt="The login page: account name and 6-digit code, or Log in with Telegram" width="380">
+
 How to use each screen: [docs/USER-GUIDE.md](docs/USER-GUIDE.md).
 
 ## Where it runs

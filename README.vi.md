@@ -44,6 +44,8 @@ Không có máy chủ thì plugin vẫn chạy trên từng máy với trang vă
 
 **Quản lý:** mở địa chỉ máy chủ, đăng nhập bằng mã 6 số trong Google Authenticator, hoặc bấm **Log in with Telegram** sau khi đã liên kết Telegram (nếu máy chủ đã cài bot Telegram). Muốn có báo thì cài biểu tượng thanh menu ở trang **Quản trị**.
 
+<img src="assets/login.png" alt="Trang đăng nhập: tên tài khoản và mã 6 số, hoặc Log in with Telegram" width="380">
+
 Cách dùng từng màn hình: [docs/USER-GUIDE.vi.md](docs/USER-GUIDE.vi.md).
 
 ## Chạy trên đâu
