@@ -21,7 +21,7 @@ AI Worker gồm một plugin Claude Code trên máy từng nhân viên và một
 - **Tua lại 24 giờ qua** để xem cả ngày diễn ra thế nào.
 - **Báo mà không cần mở trình duyệt:** biểu tượng thanh menu (macOS, Windows, Ubuntu) và tiện ích Chrome đếm người đang chờ.
 - **Skill và quy tắc dùng chung** cho mọi máy, tự cập nhật bằng gói có chữ ký.
-- **Phân quyền và nhật ký:** quản trị, quản lý, màn hình treo tường thấy dữ liệu khác nhau; đăng nhập OTP; mọi thay đổi được ghi 12 tháng.
+- **Phân quyền và nhật ký:** quản trị, quản lý, màn hình treo tường thấy dữ liệu khác nhau; đăng nhập bằng mã OTP 6 số hoặc, tuỳ chọn, Telegram; mọi thay đổi được ghi 12 tháng.
 
 ## Cách hoạt động
 
@@ -42,7 +42,7 @@ Không có máy chủ thì plugin vẫn chạy trên từng máy với trang vă
 
 **Mỗi nhân viên:** giải nén gói, bấm đúp `INSTALL-Mac.command`, `INSTALL-Windows.bat` hoặc chạy `INSTALL-Linux.sh`, gõ họ tên đầy đủ. Trong Claude Code, gõ `/office` để xem các phiên của mình.
 
-**Quản lý:** mở địa chỉ máy chủ, đăng nhập bằng mã 6 số trong Google Authenticator. Muốn có báo thì cài biểu tượng thanh menu ở trang **Quản trị**.
+**Quản lý:** mở địa chỉ máy chủ, đăng nhập bằng mã 6 số trong Google Authenticator, hoặc bấm **Log in with Telegram** sau khi đã liên kết (khi công ty bật tính năng này). Muốn có báo thì cài biểu tượng thanh menu ở trang **Quản trị**.
 
 Cách dùng từng màn hình: [docs/USER-GUIDE.vi.md](docs/USER-GUIDE.vi.md).
 
