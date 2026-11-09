@@ -22,6 +22,7 @@ GitHub Actions runs `.github/workflows/test-install.yml` on every push. A releas
 |---|---|
 | Permission of every server path | `test_webhook.py` holds the full route table and fails if a path is added without a permission |
 | Login, OTP, lockout after wrong codes, re-entering OTP for account actions | `test_webhook.py` |
+| Telegram login: signature, expiry, reuse, linking only with the code and the one-time step, one Telegram per account, the way to Telegram and back | `test_webhook.py`, class `TelegramLogin` |
 | What each role receives (no email or IP for wall) | `test_webhook.py` |
 | Pairing TV, menu bar and extension; revoke; expiry | `test_webhook.py`, `check-extension.js`, menu bar tests |
 | A computer cannot send for another person; send limits | `test_webhook.py` |
@@ -69,6 +70,7 @@ Automatic tests use fake servers and fake browsers. Before a release that touche
 | Plugin install | A real Mac and a real Windows PC | Run the installer, open Claude Code, type `/office` | The office page opens; the computer appears on the dashboard within 5 minutes |
 | Update | A computer on the previous version | Wait for or force the update check, click **Update**, restart the app | The new version number shows in `/office` |
 | Login with OTP | A real phone with Google or Microsoft Authenticator | Scan the QR on `/admin`, log in | Logged in; a wrong code 5 times locks for 15 minutes |
+| Login with Telegram | A real Telegram account and the bot of the server | On `/telegram` enter the code and press the button, log out, press **Log in with Telegram** on the login page | Back on the dashboard without typing the name or code |
 | TV screen | A real TV or a browser in full screen | Open `/tv`, approve the code on `/admin` | The board shows with no email or IP |
 | macOS menu bar | A real Mac | Install the `.dmg` or `.zip`, pair | Icon shows the waiting count, notification arrives |
 | Ubuntu menu bar | Ubuntu with X11 **and** Ubuntu with Wayland | Install the `.deb`, pair | Icon shows in the top bar on both |

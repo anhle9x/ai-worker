@@ -13,6 +13,12 @@ SERVER_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PORT = int(os.environ.get("PORT", "8788"))
 BIND_ADDR = os.environ.get("BIND_ADDR", "127.0.0.1")
 INGEST_KEY = os.environ.get("INGEST_KEY", "")
+# Log in with Telegram (optional): the bot's token and its @username without the @, both from @BotFather. Off while either is empty.
+# The token can sign a login for anyone, so it stays in the env file like INGEST_KEY, never in git.
+# Đăng nhập bằng Telegram (tuỳ chọn): khoá của bot và tên @ của bot không có @, cả hai lấy từ @BotFather. Tắt khi thiếu một trong hai.
+# Khoá này ký được lần đăng nhập của bất kỳ ai, nên nằm trong file env như INGEST_KEY, không bao giờ vào git.
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+TELEGRAM_BOT_NAME = os.environ.get("TELEGRAM_BOT_NAME", "").strip().lstrip("@")
 # Listening only inside the machine means a local proxy is the way in, so its X-Forwarded-For is trusted by default.
 # Without this, one person's wrong codes would lock everyone, because everyone looks like 127.0.0.1. TRUST_PROXY=0 turns it off.
 # Chỉ nghe trong máy nghĩa là đi vào qua proxy trên máy, nên mặc định tin X-Forwarded-For của proxy đó.

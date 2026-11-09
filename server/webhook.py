@@ -69,13 +69,16 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable, NamedTuple, Optional
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 from board import assets, db, packages, settings
 from board.assets import RELEASE_NAME_RE, STATIC_DIR, STATIC_FILES, has_3d_page
 from board.devices import clean_payload, key_matches, refuse_constant, save_ingest
 from board.lang import REQUEST, lang_from, tx
 from board.login import SESSIONS
+from board.telegram import TELEGRAM
+from board.telegram import bot_id as telegram_bot_id
+from board.telegram import enabled as telegram_enabled
 from board.packages import (
     MENUBAR_ICON_DIR,
     TV_INSTALL_WINDOWS,
@@ -95,6 +98,8 @@ from board.pages import (
     page_admin,
     page_board,
     page_login,
+    page_telegram,
+    page_telegram_back,
     page_mini,
     page_mini_pair,
     page_tv,
@@ -792,6 +797,116 @@ class Handler(BaseHTTPRequestHandler):
         AUDIT_LOG.write(action="login", actor=account_name, role=role, clientIp=ip, device=user_agent)
         self.redirect_home("session=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Strict" % (token, session_lifetime(role)))
 
+    def login_telegram(self, y: "RequestCtx") -> None:
+        """Telegram's button sends the browser here with the signed fields. Only an account linked before can log in this way.
+        Nút của Telegram đưa trình duyệt tới đây kèm các trường đã ký. Chỉ tài khoản đã liên kết trước mới đăng nhập được kiểu này."""
+        now, ip = time.time(), self.client_ip()
+        user_agent = re.sub(r"[^\x20-\x7e]", "", self.headers.get("User-Agent", ""))[:120]
+        if not telegram_enabled():
+            return self.reply(404, {"error": tx("Not found")})
+        if SESSIONS.is_blocked(ip, now):
+            return self.reply_page(429, page_login(tx("Too many wrong tries. Try again in 15 minutes.")))
+        who = TELEGRAM.verify(parse_qs(urlparse(self.path).query, keep_blank_values=True), now)
+        if not who:
+            SESSIONS.note_failure(ip, now)
+            AUDIT_LOG.write(action="login-failed", method="telegram", clientIp=ip, device=user_agent)
+            return self.reply_page(401, page_login(tx("The Telegram login could not be checked or has expired. Press the Telegram button again.")))
+        account_name, token = SESSIONS.login_telegram(who["id"], ip, now)
+        if account_name == BLOCKED:
+            return self.reply_page(429, page_login(tx("Too many wrong tries. Try again in 15 minutes.")))
+        if not account_name:
+            AUDIT_LOG.write(action="login-failed", method="telegram", reason="not-linked", clientIp=ip, device=user_agent)
+            return self.reply_page(401, page_login(tx("This Telegram account is not linked yet. Log in with your name and code, then link Telegram from the detail board.")))
+        role = ACCOUNTS.role_of(account_name)
+        ACCOUNTS.mark_logged_in(account_name)
+        sys.stderr.write("login: %s (%s) with Telegram from %s · %s\n" % (account_name, role, ip, user_agent))
+        AUDIT_LOG.write(action="login", method="telegram", actor=account_name, role=role, clientIp=ip, device=user_agent)
+        self.redirect_home("session=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Strict" % (token, session_lifetime(role)))
+
+    def telegram_go(self, y: "RequestCtx") -> None:
+        """The Telegram button: send the browser to Telegram's login page, which comes back to /telegram/back with the signed login.
+        Nút Telegram: đưa trình duyệt sang trang đăng nhập của Telegram, trang đó quay về /telegram/back kèm phần đăng nhập đã ký."""
+        if not telegram_bot_id():
+            return self.reply(404, {"error": tx("Not found")})
+        # Telegram checks the origin against the bot's domain (/setdomain), so a made-up Host only gets refused there
+        # Telegram so nguồn với tên miền của bot (/setdomain), nên Host giả chỉ bị Telegram từ chối
+        scheme = "https" if self.via_proxy() and self.headers.get("X-Forwarded-Proto", "") == "https" else "http"
+        host = re.sub(r"[^A-Za-z0-9.:\[\]-]", "", self.headers.get("Host", ""))[:255]
+        origin = "%s://%s" % (scheme, host)
+        n = parse_qs(urlparse(self.path).query).get("n", [""])[0]
+        back = origin + "/telegram/back" + ("?n=" + n if re.fullmatch(r"[A-Za-z0-9_-]{10,40}", n) else "")
+        dest = "https://oauth.telegram.org/auth?bot_id=%s&origin=%s&return_to=%s" % (telegram_bot_id(), quote(origin, safe=""), quote(back, safe=""))
+        self.redirect_home(dest=dest)
+
+    def telegram_back(self, y: "RequestCtx") -> None:
+        if not telegram_enabled():
+            return self.reply(404, {"error": tx("Not found")})
+        self.reply_page(200, page_telegram_back())
+
+    def get_telegram(self, y: "RequestCtx") -> None:
+        if not telegram_enabled():
+            return self.redirect_home()
+        # ?done=unlinked: back here after unlinking, so a reload does not post the form again
+        # ?done=unlinked: quay lại đây sau khi gỡ, để tải lại trang không gửi lại biểu mẫu
+        done = parse_qs(urlparse(self.path).query).get("done", [""])[0]
+        notice = tx("Telegram is unlinked. From now on, log in with your name and code, or link again below.") if done == "unlinked" else ""
+        self.reply_page(200, page_telegram(y.user, notice=notice))
+
+    def telegram_code(self, y: "RequestCtx"):
+        """Check the 6-digit code posted from the Telegram page; replies and returns False when it is wrong.
+        Kiểm mã 6 số gửi từ trang Telegram; trả lời và trả False khi sai."""
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = 0
+        code = parse_qs(self.rfile.read(min(max(n, 0), 256)).decode("utf-8", "replace")).get("code", [""])[0].strip()
+        if SESSIONS.is_blocked(self.client_ip(), y.now):
+            self.reply_page(429, page_telegram(y.user, error=tx("Too many wrong tries. Try again in 15 minutes.")))
+            return False
+        result = SESSIONS.confirm(y.cookie, code, self.client_ip(), y.now)
+        if result == "ok":
+            return True
+        self.audit_request(y, action="confirm-failed", result=result)
+        if result == "cancelled":
+            self.redirect_home("session=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict")
+        else:
+            self.reply_page(403, page_telegram(y.user, error=tx("Wrong or already used code. Wait for a new code and enter it again.")))
+        return False
+
+    def telegram_start(self, y: "RequestCtx") -> None:
+        if not telegram_enabled():
+            return self.redirect_home()
+        if self.telegram_code(y):
+            self.reply_page(200, page_telegram(y.user, link_code=TELEGRAM.start_link(SESSIONS.token_of(y.cookie), y.now)))
+
+    def telegram_link(self, y: "RequestCtx") -> None:
+        if not telegram_enabled():
+            return self.redirect_home()
+        query = parse_qs(urlparse(self.path).query, keep_blank_values=True)
+        if not TELEGRAM.take_link(SESSIONS.token_of(y.cookie), query.get("n", [""])[0], y.now):
+            self.audit_request(y, action="telegram-link-failed", reason="no-code")
+            return self.reply_page(403, page_telegram(y.user, error=tx("This link step has expired. Enter the code again.")))
+        who = TELEGRAM.verify(query, y.now)
+        if not who:
+            SESSIONS.note_failure(self.client_ip(), y.now)
+            self.audit_request(y, action="telegram-link-failed", reason="signature")
+            return self.reply_page(403, page_telegram(y.user, error=tx("The Telegram login could not be checked or has expired. Press the Telegram button again.")))
+        try:
+            ACCOUNTS.link_telegram(y.user, who["id"], who["username"])
+        except ValueError as e:
+            self.audit_request(y, action="telegram-link-failed", reason=str(e)[:100])
+            return self.reply_page(409, page_telegram(y.user, error=str(e)))
+        self.audit_request(y, action="telegram-link", accountName=y.user, telegramUser=who["username"])
+        self.reply_page(200, page_telegram(y.user, notice=tx("Telegram is linked. Next time, press the Telegram button on the login page."), go_home=True))
+
+    def telegram_unlink(self, y: "RequestCtx") -> None:
+        if not telegram_enabled():
+            return self.redirect_home()
+        if self.telegram_code(y):
+            ACCOUNTS.unlink_telegram(y.user)
+            self.audit_request(y, action="telegram-unlink", accountName=y.user)
+            self.redirect_home(dest="/telegram?done=unlinked")
+
     def via_proxy(self) -> bool:
         """A request forwarded by Caddy/nginx on the server itself: only then are the X-Forwarded-* headers trusted.
         Someone calling the webhook port directly from another machine cannot fake the IP (the wrong-login lock counts by IP).
@@ -925,6 +1040,11 @@ GET_ROUTES = {
     # bảng chữ có email và IP từng người: màn hình treo tường không được mở
     "/board": Route(Handler.get_board, PERM_NOT_WALL, is_page=True),
     "/admin": Route(Handler.get_admin, PERM_ADMIN, is_page=True, allow_query=True),
+    "/login/telegram": Route(Handler.login_telegram, PERM_PUBLIC, allow_query=True),
+    "/telegram/go": Route(Handler.telegram_go, PERM_PUBLIC, allow_query=True),
+    "/telegram/back": Route(Handler.telegram_back, PERM_PUBLIC, allow_query=True),
+    "/telegram": Route(Handler.get_telegram, PERM_NOT_WALL, is_page=True, allow_query=True),
+    "/telegram/link": Route(Handler.telegram_link, PERM_NOT_WALL, is_page=True, allow_query=True),
     "/admin/data": Route(Handler.get_admin_data, PERM_ADMIN, allow_query=True),
 }
 STATIC_ROUTE = Route(Handler.get_static, PERM_LOGIN)
@@ -932,6 +1052,8 @@ RELEASES_ROUTE = Route(Handler.get_release, PERM_INGEST_KEY)
 POST_ROUTES = {
     "/login": Route(Handler.login, PERM_PUBLIC),
     "/logout": Route(Handler.logout, PERM_PUBLIC, origin_policy=ORIGIN_IF_PRESENT),
+    "/telegram/start": Route(Handler.telegram_start, PERM_NOT_WALL, origin_policy=ORIGIN_IF_PRESENT),
+    "/telegram/unlink": Route(Handler.telegram_unlink, PERM_NOT_WALL, origin_policy=ORIGIN_IF_PRESENT),
     "/tv/request-code": Route(Handler.tv_pair, PERM_PUBLIC, origin_policy=ORIGIN_IF_PRESENT),
     "/tv/poll": Route(Handler.tv_pair, PERM_PUBLIC, origin_policy=ORIGIN_IF_PRESENT),
     # the extension sends Origin chrome-extension://... and no cookie; a foreign web page is refused like on /tv/...

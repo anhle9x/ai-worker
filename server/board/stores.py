@@ -159,7 +159,8 @@ class Accounts(Store):
     def list_accounts(self) -> list:
         """Never includes the key.
         Không bao giờ có khoá."""
-        return sorted(({"name": t, "role": m["role"], "createdAt": m.get("createdAt"), "createdBy": m.get("createdBy"), "lastLoginAt": m.get("lastLoginAt")}
+        return sorted(({"name": t, "role": m["role"], "createdAt": m.get("createdAt"), "createdBy": m.get("createdBy"), "lastLoginAt": m.get("lastLoginAt"),
+                        "telegram": telegram_label(m)}
                        for t, m in self.d.get("accounts", {}).items()), key=lambda x: x["name"].lower())
 
     @staticmethod
@@ -214,11 +215,54 @@ class Accounts(Store):
             self._ensure_admin_left(d["accounts"])
         self.mutate(change)
 
+    def find_by_telegram(self, telegram_id: str):
+        """The account linked to this Telegram user, or None.
+        Tài khoản đã liên kết với người dùng Telegram này, hoặc None."""
+        for t, m in self.d.get("accounts", {}).items():
+            if telegram_id and m.get("telegramId") == telegram_id:
+                return t
+        return None
+
+    def telegram_of(self, name: str) -> str:
+        """What to show for the linked Telegram of an account: @username, "linked", or "" when not linked.
+        Chữ hiện cho Telegram đã liên kết của một tài khoản: @tên, "linked", hoặc "" khi chưa liên kết."""
+        return telegram_label(self.d.get("accounts", {}).get(name, {}))
+
+    def link_telegram(self, name: str, telegram_id: str, username: str) -> None:
+        def change(d):
+            accounts = d.get("accounts", {})
+            if name not in accounts:
+                raise ValueError(tx("This account no longer exists"))
+            if accounts[name].get("role") == WALL:
+                raise ValueError(tx("A wall display account cannot log in with Telegram"))
+            for t, m in accounts.items():
+                if t != name and m.get("telegramId") == telegram_id:
+                    raise ValueError(tx("This Telegram account is already linked to another account"))
+            accounts[name]["telegramId"] = telegram_id
+            accounts[name]["telegramUser"] = username
+        self.mutate(change)
+
+    def unlink_telegram(self, name: str) -> bool:
+        def change(d):
+            m = d.get("accounts", {}).get(name)
+            if not m or "telegramId" not in m:
+                return False
+            m.pop("telegramId", None)
+            m.pop("telegramUser", None)
+            return True
+        return self.mutate(change)
+
     def mark_logged_in(self, name: str) -> None:
         def change(d):
             if name in d.get("accounts", {}):
                 d["accounts"][name]["lastLoginAt"] = int(time.time() * 1000)
         self.mutate(change)
+
+
+def telegram_label(m: dict) -> str:
+    if not m.get("telegramId"):
+        return ""
+    return "@" + m["telegramUser"] if m.get("telegramUser") else "linked"
 
 
 ACCOUNTS = Accounts(keys_db())

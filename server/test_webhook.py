@@ -5,6 +5,8 @@ All the data here is fake, kept in a temporary folder, deleted when the run ends
 Mọi dữ liệu ở đây là giả, nằm trong thư mục tạm, xoá khi chạy xong."""
 import base64
 import glob
+import hashlib
+import hmac
 import http.client
 import inspect
 import json
@@ -18,6 +20,7 @@ import threading
 import time
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
 
 TMP = tempfile.mkdtemp(prefix="test-webhook-")
@@ -317,6 +320,16 @@ class RoutePermissions(unittest.TestCase):
         "/board": (200, 200, 303, 200, 303),
         "/tv": (200, 303, 303, 303, 303),
         "/admin": (200, 303, 303, 200, 303),
+        # Telegram is off in the tests: the paths answer as if it were not set up
+        # Telegram tắt khi chạy thử: các đường trả lời như chưa cài
+        "/login/telegram": (404, 404, 404, 404, 404),
+        "/login/telegram?id=1&hash=x": (404, 404, 404, 404, 404),
+        "/telegram/go": (404, 404, 404, 404, 404),
+        "/telegram/go?n=abcdefghijkl": (404, 404, 404, 404, 404),
+        "/telegram/back": (404, 404, 404, 404, 404),
+        "/telegram": (200, 303, 303, 303, 303),
+        "/telegram?done=unlinked": (200, 303, 303, 303, 303),
+        "/telegram/link": (200, 303, 303, 303, 303),
         "/admin/data": (401, 403, 403, 200, 403),
         "/admin/data?month=2026-11": (401, 403, 403, 200, 403),
         "/data": (401, 200, 200, 200, 200),
@@ -894,7 +907,7 @@ class RoutePermissions(unittest.TestCase):
         self.assertEqual(set(w.GET_ROUTES), {d.split("?")[0] for d in self.GET if not d.startswith(("/static/", "/releases/")) and d != "/missing"})
         self.assertEqual(set(w.POST_ROUTES), set(self.POST_ADMIN) | {"/ingest", "/login", "/logout", "/tv/request-code", "/tv/poll",
                                                                        "/mini/handoff", "/mini/settings", "/mini/unpair", "/mini/pair",
-                                                                       "/ext/request-code", "/ext/poll", "/ext/unpair"})
+                                                                       "/ext/request-code", "/ext/poll", "/ext/unpair", "/telegram/start", "/telegram/unlink"})
 
     def test_permission_check_only_in_gate(self):
         code = ""
@@ -1498,6 +1511,229 @@ def body_reads(source):
 
 def object_keys(text):
     return set(re.findall(r"(?:^|[{,])\s*(\w+)\s*(?=[:,}])", text))
+
+
+class TelegramLogin(unittest.TestCase):
+    """Log in with Telegram: only a signature made with the bot token, fresh and used once, opens a session, and only for an account
+    linked after entering the 6-digit code. Admin actions still ask for the code.
+    Đăng nhập bằng Telegram: chỉ chữ ký làm bằng khoá bot, còn mới và dùng một lần, mới mở được phiên, và chỉ cho tài khoản
+    đã liên kết sau khi nhập mã 6 số. Thao tác quản trị vẫn hỏi mã."""
+
+    TOKEN = "123456:TEST-token-for-the-tests"
+
+    @classmethod
+    def setUpClass(cls):
+        seed()
+        cls.saved = (settings.TELEGRAM_BOT_TOKEN, settings.TELEGRAM_BOT_NAME)
+        settings.TELEGRAM_BOT_TOKEN, settings.TELEGRAM_BOT_NAME = cls.TOKEN, "aiworker_test_bot"
+        cls.server = w.LimitedServer(("127.0.0.1", 0), w.Handler)
+        cls.port = cls.server.server_address[1]
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        settings.TELEGRAM_BOT_TOKEN, settings.TELEGRAM_BOT_NAME = cls.saved
+        cls.server.shutdown()
+        cls.server.server_close()
+
+    def setUp(self):
+        security.BOT.__init__()
+        login.SESSIONS.fails, login.SESSIONS.account_fails, login.SESSIONS.used_step = {}, {}, {}
+        stores.ACCOUNTS.d = {"accounts": {}}
+        self.secrets = {}
+        for name, role in (("an", security.ADMIN), ("binh", security.VIEWER), ("tuong", security.WALL)):
+            self.secrets[name] = base64.b32decode(stores.ACCOUNTS.create(name, role, "test"))
+
+    def signed(self, telegram_id="777", when=None, **extra):
+        # a different first name each time, so two logins in the same second are not the same signature (that one is refused as reused)
+        # mỗi lần một tên khác, để hai lần đăng nhập trong cùng một giây không trùng chữ ký (chữ ký trùng bị từ chối vì dùng lại)
+        TelegramLogin.serial = getattr(TelegramLogin, "serial", 0) + 1
+        fields = {"id": telegram_id, "first_name": "An%d" % TelegramLogin.serial, "username": "an_tg", "auth_date": str(int(when or time.time())), **extra}
+        data = "\n".join("%s=%s" % (k, fields[k]) for k in sorted(fields))
+        fields["hash"] = hmac.new(hashlib.sha256(self.TOKEN.encode()).digest(), data.encode(), hashlib.sha256).hexdigest()
+        return fields
+
+    def code(self, name, offset=0):
+        return security.totp_code(self.secrets[name], int(time.time() // 30) + offset)
+
+    def call(self, method, path, body=None, cookie="", **headers):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        try:
+            h = {k.replace("_", "-"): v for k, v in headers.items()}
+            if cookie:
+                h["Cookie"] = cookie
+            if body is not None:
+                h["Content-Type"] = "application/x-www-form-urlencoded"
+            conn.request(method, path, body, h)
+            r = conn.getresponse()
+            return r.status, r.read().decode("utf-8", "replace"), r.getheader("Set-Cookie") or "", r.getheader("Content-Security-Policy") or ""
+        finally:
+            conn.close()
+
+    def session_of(self, name):
+        token = "tok-tg-" + name
+        login.SESSIONS.sessions[token] = (name, time.time() + 3600)
+        self.addCleanup(login.SESSIONS.sessions.pop, token, None)
+        return "session=" + token
+
+    def link(self, name, telegram_id="777"):
+        cookie = self.session_of(name)
+        status, page, _, csp = self.call("POST", "/telegram/start", "code=" + self.code(name), cookie)
+        self.assertEqual(status, 200, page)
+        self.assertNotIn("telegram.org", csp)
+        n = re.search(r"/telegram/go\?n=([A-Za-z0-9_-]+)", page).group(1)
+        return self.call("GET", "/telegram/link?n=%s&%s" % (n, urllib.parse.urlencode(self.signed(telegram_id))), cookie=cookie)
+
+    def test_signature_rules(self):
+        gate, now = w.TELEGRAM, time.time()
+        q = lambda d: {k: [v] for k, v in d.items()}
+        self.assertEqual(gate.verify(q(self.signed("9001")), now)["id"], "9001")
+        # used once only
+        # chỉ dùng được một lần
+        good = self.signed("9002")
+        self.assertTrue(gate.verify(q(good), now))
+        self.assertIsNone(gate.verify(q(good), now))
+        # changed after signing, signed with another token, too old, from the future
+        # bị sửa sau khi ký, ký bằng khoá khác, quá cũ, ở tương lai
+        self.assertIsNone(gate.verify(q(dict(self.signed("9003"), id="9004")), now))
+        other = dict(self.signed("9005"))
+        other["hash"] = hmac.new(hashlib.sha256(b"another:token").digest(), b"id=9005", hashlib.sha256).hexdigest()
+        self.assertIsNone(gate.verify(q(other), now))
+        self.assertIsNone(gate.verify(q(self.signed("9006", when=now - 301)), now))
+        self.assertIsNone(gate.verify(q(self.signed("9007", when=now + 120)), now))
+        # our own n is not part of the signature; a repeated or strange parameter is refused
+        # n của mình không nằm trong chữ ký; tham số lặp lại hay lạ bị từ chối
+        self.assertTrue(gate.verify(dict(q(self.signed("9008")), n=["x"]), now))
+        self.assertIsNone(gate.verify(dict(q(self.signed("9009")), id=["9009", "1"]), now))
+        self.assertIsNone(gate.verify(dict(q(self.signed("9010")), **{"ID": ["1"]}), now))
+        saved = settings.TELEGRAM_BOT_TOKEN
+        settings.TELEGRAM_BOT_TOKEN = ""
+        try:
+            self.assertIsNone(gate.verify(q(self.signed("9011")), now))
+        finally:
+            settings.TELEGRAM_BOT_TOKEN = saved
+
+    def test_only_a_linked_account_logs_in(self):
+        status, page, cookie, csp = self.call("GET", "/login/telegram?" + urllib.parse.urlencode(self.signed("555")))
+        self.assertEqual(status, 401)
+        self.assertNotIn("session=", cookie)
+        self.assertNotIn("telegram.org", csp)
+        status, page, _, _ = self.link("binh", "555")
+        self.assertEqual(status, 200)
+        # after linking, the page leads on to the dashboard by itself
+        # liên kết xong, trang tự dẫn tiếp tới bảng điều khiển
+        self.assertIn('http-equiv="refresh" content="3;url=/"', page)
+        self.assertEqual(stores.ACCOUNTS.telegram_of("binh"), "@an_tg")
+        status, _, cookie, _ = self.call("GET", "/login/telegram?" + urllib.parse.urlencode(self.signed("555")))
+        self.assertEqual(status, 303)
+        token = re.search(r"session=([^;]+)", cookie).group(1)
+        self.assertEqual(login.SESSIONS.user_of("session=" + token, time.time()), "binh")
+        # a bad signature counts toward the IP limit
+        # chữ ký sai tính vào giới hạn theo IP
+        bad = dict(self.signed("555"), first_name="X")
+        self.assertEqual(self.call("GET", "/login/telegram?" + urllib.parse.urlencode(bad))[0], 401)
+        self.assertTrue(login.SESSIONS.fails)
+
+    def test_a_telegram_session_still_needs_the_code_for_admin_actions(self):
+        self.assertEqual(self.link("an", "888")[0], 200)
+        _, _, cookie, _ = self.call("GET", "/login/telegram?" + urllib.parse.urlencode(self.signed("888")))
+        token = re.search(r"session=([^;]+)", cookie).group(1)
+        host = "127.0.0.1:%d" % self.port
+        status, body, _, _ = self.call("POST", "/admin/accounts", json.dumps({"action": "create", "name": "moi", "role": "viewer"}), "session=" + token,
+                                       Origin="http://" + host, Host=host)
+        self.assertEqual(status, 403)
+        self.assertTrue(json.loads(body).get("needsConfirm"))
+
+    def test_linking_needs_the_code_and_the_one_time_step(self):
+        cookie = self.session_of("binh")
+        self.assertEqual(self.call("POST", "/telegram/start", "code=000000", cookie)[0], 403)
+        # without the step the code opened, a signed login cannot be linked (a link sent by someone else)
+        # không có bước mà mã đã mở thì không liên kết được lần đăng nhập đã ký (đường dẫn người khác gửi)
+        status = self.call("GET", "/telegram/link?n=guess&" + urllib.parse.urlencode(self.signed("321")), cookie=cookie)[0]
+        self.assertEqual(status, 403)
+        self.assertEqual(stores.ACCOUNTS.telegram_of("binh"), "")
+        # the step belongs to the session that entered the code, and works once
+        # bước liên kết thuộc về phiên đã nhập mã, và chỉ dùng một lần
+        status, page, _, _ = self.call("POST", "/telegram/start", "code=" + self.code("binh"), cookie)
+        n = re.search(r"/telegram/go\?n=([A-Za-z0-9_-]+)", page).group(1)
+        other = self.session_of("an")
+        self.assertEqual(self.call("GET", "/telegram/link?n=%s&%s" % (n, urllib.parse.urlencode(self.signed("321"))), cookie=other)[0], 403)
+        self.assertEqual(stores.ACCOUNTS.telegram_of("an"), "")
+
+    def test_one_telegram_for_one_account_and_not_for_a_wall(self):
+        self.assertEqual(self.link("binh", "4242")[0], 200)
+        login.SESSIONS.used_step = {}
+        self.assertEqual(self.link("an", "4242")[0], 409)
+        self.assertEqual(stores.ACCOUNTS.telegram_of("an"), "")
+        with self.assertRaises(ValueError):
+            stores.ACCOUNTS.link_telegram("tuong", "5151", "")
+        # a wall display cannot even start
+        # màn hình treo tường không bắt đầu được
+        self.assertEqual(self.call("POST", "/telegram/start", "code=" + self.code("tuong"), self.session_of("tuong"))[0], 403)
+
+    def test_reissue_role_change_and_unlink_drop_the_link(self):
+        for job, extra in (("reissue", {}), ("role", {"role": security.WALL})):
+            stores.ACCOUNTS.link_telegram("binh", "6060", "b")
+            result = views.manage_account({"action": job, "name": "binh", **extra}, "an", "")[1]
+            if "secret" in result:
+                self.secrets["binh"] = base64.b32decode(result["secret"])
+            self.assertEqual(stores.ACCOUNTS.telegram_of("binh"), "", job)
+            stores.ACCOUNTS.change_role("binh", security.VIEWER)
+        stores.ACCOUNTS.link_telegram("binh", "6060", "")
+        self.assertEqual(stores.ACCOUNTS.telegram_of("binh"), "linked")
+        views.manage_account({"action": "telegram-unlink", "name": "binh"}, "an", "")
+        self.assertIsNone(stores.ACCOUNTS.find_by_telegram("6060"))
+        with self.assertRaises(ValueError):
+            views.manage_account({"action": "telegram-unlink", "name": "binh"}, "an", "")
+        # the person unlinks with their own code
+        # chính người đó gỡ bằng mã của mình
+        stores.ACCOUNTS.link_telegram("binh", "6060", "")
+        cookie = self.session_of("binh")
+        self.assertEqual(self.call("POST", "/telegram/unlink", "code=000000", cookie)[0], 403)
+        self.assertEqual(self.call("POST", "/telegram/unlink", "code=" + self.code("binh"), cookie)[0], 303)
+        self.assertEqual(stores.ACCOUNTS.telegram_of("binh"), "")
+        # back on /telegram, so a reload does not send the form again; the notice says what to do next
+        # quay về /telegram, để tải lại trang không gửi lại biểu mẫu; lời báo nói bước tiếp theo
+        status, page, _, _ = self.call("GET", "/telegram?done=unlinked", cookie=cookie)
+        self.assertEqual(status, 200)
+        self.assertIn("link again below", page)
+
+    def go(self, path):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        try:
+            conn.request("GET", path, headers={"Host": "board.example.com"})
+            r = conn.getresponse()
+            return r.status, r.getheader("Location") or ""
+        finally:
+            conn.close()
+
+    def test_the_button_goes_to_telegram_and_comes_back(self):
+        status, where = self.go("/telegram/go?n=abcdefghijklmnop")
+        self.assertEqual(status, 303)
+        self.assertTrue(where.startswith("https://oauth.telegram.org/auth?bot_id=123456&origin=http%3A%2F%2Fboard.example.com&return_to="), where)
+        self.assertTrue(where.endswith(urllib.parse.quote("http://board.example.com/telegram/back?n=abcdefghijklmnop", safe="")), where)
+        # a strange step code is dropped instead of being passed on
+        # mã bước lạ bị bỏ thay vì chuyển tiếp
+        status, where = self.go("/telegram/go?n=%3Cx%3E")
+        self.assertTrue(where.endswith(urllib.parse.quote("http://board.example.com/telegram/back", safe="")), where)
+        status, page, _, _ = self.call("GET", "/telegram/back")
+        self.assertEqual(status, 200)
+        self.assertIn("/login.js", page)
+
+    def test_pages_without_the_button_keep_the_strict_policy(self):
+        cookie = self.session_of("an")
+        _, page, _, csp = self.call("GET", "/board", cookie=cookie)
+        self.assertNotIn("telegram.org", csp)
+        self.assertIn('href="/telegram"', page)
+        _, page, _, csp = self.call("GET", "/")
+        self.assertIn('href="/telegram/go"', page)
+        self.assertNotIn("<iframe", page)
+        # with Telegram on, the name box does not take focus, so the browser's saved-password list does not open over the page
+        # khi bật Telegram, ô tên không tự nhận con trỏ, để danh sách mật khẩu đã lưu của trình duyệt không mở đè lên trang
+        self.assertNotIn("autofocus", re.search(r'<input id="account"[^>]*>', page).group(0))
+        # nothing from Telegram runs on the page, so the strict policy stays
+        # không có gì của Telegram chạy trên trang, nên quy tắc chặt vẫn giữ
+        self.assertNotIn("telegram.org", csp)
 
 
 class DatabaseStorage(unittest.TestCase):

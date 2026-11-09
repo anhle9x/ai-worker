@@ -12,6 +12,7 @@
     'account-create': tx('Create account'), 'account-reissue': tx('Reissue key'), 'account-role': tx('Change role'), 'account-delete': tx('Delete account'), 'end-session': tx('End session'),
     'tv-request-code': tx('Screen asked for code'), 'tv-refused': tx('Code request refused'), 'tv-view': tx('Viewed screen request'), 'tv-approve': tx('Approved screen'), 'tv-joined': tx('Screen joined board'), 'tv-revoke': tx('Revoked screen'), 'tv-self-exit': tx('Screen exited by itself'), 'tv-reload': tx('Reloaded screen remotely'), 'tv-rename': tx('Renamed screen'), 'tv-ip-changed': tx('Screen changed IP'), 'tv-renewed': tx('Renewed screen'),
     'tv-revoked-key-used': tx('Revoked device asked again'),
+    'account-telegram-unlink': tx('Unlink Telegram'), 'telegram-link': tx('Link Telegram'), 'telegram-unlink': tx('Unlink Telegram'), 'telegram-link-failed': tx('Telegram link failed'),
   }
   // Error text that means "the admin cancelled", so no error toast is shown.
   // Chữ lỗi nghĩa là "quản trị viên đã huỷ", nên không hiện thông báo lỗi.
@@ -204,7 +205,10 @@
     if (adminCount < 2) p.append(o('div', 'qt-hint', tx('Keep at least two admins, so that if one loses their phone the other can still get in.')))
     const board = o('table', 'qt-table')
     const head = o('tr')
-    for (const c of [tx('Name'), tx('Role'), tx('Last login'), '']) head.append(o('th', '', c))
+    // the Telegram column shows once someone has linked Telegram
+    // cột Telegram hiện khi đã có người liên kết Telegram
+    const withTelegram = snapshot.accounts.some(t => t.telegram)
+    for (const c of [tx('Name'), tx('Role'), ...(withTelegram ? ['Telegram'] : []), tx('Last login'), '']) head.append(o('th', '', c))
     board.append(head)
     for (const t of snapshot.accounts) {
       const h = o('tr')
@@ -218,12 +222,18 @@
       actions.append(button(tx('Reissue key'), () => {
         if (confirm(tx('Reissue the key for {name}? The old code of this account stops working at once.', { name: t.name }))) post('/admin/accounts', { action: 'reissue', name: t.name }, d => (newSecret = { name: t.name, key: d.secret, uri: d.uri }))
       }))
+      if (t.telegram) {
+        actions.append(button(tx('Unlink Telegram'), () => {
+          if (confirm(tx('Unlink Telegram from {name}? They log in with their name and code until they link again.', { name: t.name }))) post('/admin/accounts', { action: 'telegram-unlink', name: t.name }, () => toast(tx('Unlinked Telegram from {name}', { name: t.name })))
+        }))
+      }
       if (t.name !== viewerName) {
         actions.append(button(tx('Delete'), () => {
           if (confirm(tx('Delete the account {name}? They are logged out at once. Data is not deleted.\n\nRemind this person to delete the entry in Google Authenticator, because this page cannot do it for them.', { name: t.name }))) post('/admin/accounts', { action: 'delete', name: t.name }, () => toast(tx('Deleted {name}', { name: t.name })))
         }, 'qt-button critical'))
       }
-      h.append(o('td', '', t.name + (t.name === viewerName ? ' ' + tx('(you)') : '')), roleCell, o('td', '', t.lastLoginAt ? dateTime(t.lastLoginAt) : '—'), actions)
+      h.append(o('td', '', t.name + (t.name === viewerName ? ' ' + tx('(you)') : '')), roleCell, ...(withTelegram ? [o('td', '', t.telegram === 'linked' ? tx('linked') : t.telegram || '—')] : []),
+        o('td', '', t.lastLoginAt ? dateTime(t.lastLoginAt) : '—'), actions)
       board.append(h)
     }
     p.append(addLabel(board))

@@ -18,6 +18,7 @@ from board.settings import (
     USD_RATE,
 )
 from board.stores import ACCOUNTS, TV, is_tv
+from board.telegram import bot_name
 from board.views import role_view
 
 CSS = """
@@ -115,6 +116,8 @@ button{width:100%;font:700 13px ui-monospace,Menlo,Consolas,monospace;letter-spa
 button:hover{filter:brightness(1.08)}
 .error{margin:0 0 14px;padding:8px 10px;border-radius:6px;font-size:12.5px;color:#ff8aa0;border:1px solid rgba(255,90,122,.45);background:rgba(255,90,122,.07)}
 .error::before{content:'[ DENIED ] ';color:#ff5a7a;font-weight:700}
+.ok{margin:0 0 14px;padding:8px 10px;border-radius:6px;font-size:12.5px;color:#9ff5cf;border:1px solid rgba(61,245,167,.4);background:rgba(61,245,167,.07)}
+.tg-or{text-align:center;margin:14px 0 10px}.unlink{margin:4px 0 18px}a.go{display:block;text-align:center;text-decoration:none;font:700 13px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.24em;padding:12px;margin:0 0 14px;border-radius:8px;color:#03140d;background:linear-gradient(90deg,#3df5a7,#5ee6f0);box-shadow:0 0 22px rgba(61,245,167,.25)}.unlink summary{cursor:pointer;font-size:12px;color:#6f8d99}.unlink[open] summary{margin-bottom:12px}button.quiet{color:#ff8aa0;background:transparent;border:1px solid rgba(255,90,122,.45);box-shadow:none}.tg{display:flex;justify-content:center;min-height:40px}.tg-link{display:block;width:219px;height:40px;border-radius:6px}.tg-face{display:block;width:219px;height:40px}.tg-link:hover .tg-face{filter:brightness(.94)}.tg-link:focus-visible{outline:2px solid #5ee6f0;outline-offset:2px}
 .foot{display:flex;justify-content:space-between;margin-top:18px;padding-top:12px;border-top:1px solid rgba(94,214,232,.08);font-size:10px;letter-spacing:.14em;color:#4f6b76}
 .foot b{color:#3df5a7;font-weight:600}
 .off{font-size:13px;color:#cfe9ef}.off code{color:#ffc24b}
@@ -140,14 +143,85 @@ def page_login(error: str = "") -> bytes:
     else:
         body = ('<form class="login-box" method="post" action="/login">' + head +
                 '<label for="account">&gt; ACCOUNT</label>'
-                '<input id="account" class="account" name="account" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="60" required autofocus>'
+                # with Telegram on, most people press its button: a focused name box would only open the browser's saved-password list over the page
+                # khi bật Telegram, phần lớn người dùng bấm nút đó: ô tên tự nhận con trỏ chỉ làm trình duyệt mở danh sách mật khẩu đã lưu đè lên trang
+                '<input id="account" class="account" name="account" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="60" required' +
+                ('>' if bot_name() else ' autofocus>') +
                 '<label for="code">&gt; ACCESS CODE</label>'
                 '<input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" '
                 'placeholder="••••••" required>'
                 '<p class="hint">' + html.escape(tx("Enter your account name and the 6-digit code from the Google Authenticator app.")) + '</p>'
-                '%s<button>AUTHENTICATE ▸</button>' % ('<p class="error">%s</p>' % html.escape(error) if error else "") + footer + '</form>')
+                '%s<button>AUTHENTICATE ▸</button>' % ('<p class="error">%s</p>' % html.escape(error) if error else "") + telegram_button() + footer + '</form>')
     return ('<!doctype html><html lang="' + current_lang() + '" data-lang="' + current_lang() + '"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Worker · Secure access</title>'
+            '<style>%s</style></head><body>%s<script src="/login.js"></script></body></html>' % (CSS_LOGIN, body)).encode()
+
+
+TELEGRAM_FACE = '<svg class="tg-face" aria-hidden="true" focusable="false" viewBox="0 0 219 40" width="219" height="40"><rect width="219" height="40" rx="6" fill="#54a9eb"/><g transform="translate(14 8)"><path d="m1.95617055 11.392196c5.77764656-2.42328736 9.63031585-4.02086673 11.55800785-4.79273807 5.5039525-2.20384954 6.6476266-2.5866818 7.3930574-2.59932314.1639507-.00278035.5305319.0363352.7679878.22182361.2005031.15662277.2556695.36819788.2820684.51669348.026399.1484956.0592719.48677234.0331404.75109194-.2982611 3.0169019-1.5888322 10.33812718-2.2454015 13.71710898-.2778191 1.4297738-.8288514 1.7357846-1.3584441 1.7826999-1.1509274.1019576-2.0208916-.5588425-3.1356211-1.2622918-1.7443316-1.1007592-2.3854935-1.3972358-4.0786694-2.4713734-1.95675765-1.2413519-.8891962-1.8911034.2259543-3.0061212.2918402-.2918054 5.3989024-4.83750096 5.497052-5.24030969.0122753-.05037796-.1557336-.55407742-.2716182-.65323489-.1158847-.09915747-.2869204-.06524947-.4103446-.03828214-.17495.03822537-2.9615423 1.81132342-8.35977698 5.31929412-.79096496.5228681-1.50739646.7776269-2.1492945.7642766-.70764107-.0147176-2.06885864-.3851791-3.08078398-.7018404-1.24116762-.388398-1.69932554-.5713149-1.61342745-1.2309348.04474105-.3435709.36011227-.7024173.94611366-1.0765391z" fill="#fff" fill-rule="evenodd"/></g><path fill="#fff" d="M54.13 23.42H59.3V25H52.16V13.62H54.13ZM60.27 20.7Q60.27 19.45 60.77 18.46Q61.26 17.46 62.15 16.93Q63.04 16.39 64.2 16.39Q65.91 16.39 66.97 17.49Q68.04 18.59 68.12 20.41L68.13 20.86Q68.13 22.11 67.65 23.09Q67.17 24.08 66.28 24.62Q65.38 25.16 64.21 25.16Q62.42 25.16 61.35 23.96Q60.27 22.77 60.27 20.79ZM62.17 20.86Q62.17 22.16 62.71 22.9Q63.25 23.64 64.21 23.64Q65.17 23.64 65.71 22.89Q66.24 22.14 66.24 20.7Q66.24 19.41 65.69 18.66Q65.14 17.91 64.2 17.91Q63.27 17.91 62.72 18.65Q62.17 19.39 62.17 20.86ZM69.41 20.71Q69.41 18.74 70.33 17.57Q71.26 16.39 72.79 16.39Q74.23 16.39 75.06 17.4L75.15 16.55H76.86V24.74Q76.86 26.41 75.82 27.37Q74.79 28.33 73.03 28.33Q72.1 28.33 71.21 27.94Q70.33 27.55 69.87 26.93L70.77 25.79Q71.64 26.83 72.92 26.83Q73.87 26.83 74.41 26.32Q74.96 25.8 74.96 24.81V24.24Q74.14 25.16 72.77 25.16Q71.29 25.16 70.35 23.98Q69.41 22.8 69.41 20.71ZM71.3 20.88Q71.3 22.15 71.82 22.88Q72.34 23.61 73.26 23.61Q74.41 23.61 74.96 22.62V18.91Q74.42 17.95 73.27 17.95Q72.34 17.95 71.82 18.69Q71.3 19.43 71.3 20.88ZM84.81 25H82.91V16.55H84.81ZM82.8 14.35Q82.8 13.91 83.07 13.62Q83.35 13.34 83.87 13.34Q84.38 13.34 84.66 13.62Q84.95 13.91 84.95 14.35Q84.95 14.78 84.66 15.07Q84.38 15.35 83.87 15.35Q83.35 15.35 83.07 15.07Q82.8 14.78 82.8 14.35ZM88.64 16.55 88.7 17.52Q89.63 16.39 91.16 16.39Q93.8 16.39 93.84 19.41V25H91.95V19.52Q91.95 18.72 91.6 18.33Q91.25 17.95 90.46 17.95Q89.31 17.95 88.75 18.98V25H86.85V16.55ZM107.19 22.38 108.53 16.55H110.38L108.08 25H106.52L104.7 19.2L102.92 25H101.36L99.05 16.55H100.9L102.27 22.32L104 16.55H105.43ZM113.67 25H111.77V16.55H113.67ZM111.66 14.35Q111.66 13.91 111.93 13.62Q112.21 13.34 112.73 13.34Q113.24 13.34 113.52 13.62Q113.8 13.91 113.8 14.35Q113.8 14.78 113.52 15.07Q113.24 15.35 112.73 15.35Q112.21 15.35 111.93 15.07Q111.66 14.78 111.66 14.35ZM118.12 14.49V16.55H119.61V17.95H118.12V22.67Q118.12 23.16 118.31 23.37Q118.5 23.59 118.99 23.59Q119.32 23.59 119.66 23.51V24.98Q119.01 25.16 118.41 25.16Q116.22 25.16 116.22 22.74V17.95H114.83V16.55H116.22V14.49ZM122.93 17.47Q123.86 16.39 125.28 16.39Q127.98 16.39 128.02 19.48V25H126.12V19.55Q126.12 18.67 125.75 18.31Q125.37 17.95 124.63 17.95Q123.49 17.95 122.93 18.96V25H121.03V13H122.93ZM142.33 15.22H138.78V25H136.82V15.22H133.3V13.62H142.33ZM147.36 25.16Q145.55 25.16 144.43 24.02Q143.31 22.88 143.31 20.99V20.76Q143.31 19.49 143.8 18.5Q144.29 17.5 145.17 16.95Q146.05 16.39 147.14 16.39Q148.87 16.39 149.81 17.49Q150.75 18.59 150.75 20.61V21.38H145.23Q145.31 22.42 145.93 23.03Q146.54 23.64 147.47 23.64Q148.77 23.64 149.59 22.59L150.62 23.56Q150.11 24.32 149.26 24.74Q148.41 25.16 147.36 25.16ZM147.13 17.91Q146.35 17.91 145.87 18.46Q145.39 19.01 145.26 19.98H148.88V19.84Q148.81 18.89 148.37 18.4Q147.92 17.91 147.13 17.91ZM154.24 25H152.34V13H154.24ZM160.03 25.16Q158.23 25.16 157.11 24.02Q155.98 22.88 155.98 20.99V20.76Q155.98 19.49 156.47 18.5Q156.96 17.5 157.84 16.95Q158.73 16.39 159.81 16.39Q161.54 16.39 162.48 17.49Q163.42 18.59 163.42 20.61V21.38H157.9Q157.98 22.42 158.6 23.03Q159.21 23.64 160.14 23.64Q161.45 23.64 162.27 22.59L163.29 23.56Q162.78 24.32 161.93 24.74Q161.09 25.16 160.03 25.16ZM159.8 17.91Q159.02 17.91 158.54 18.46Q158.06 19.01 157.93 19.98H161.55V19.84Q161.48 18.89 161.04 18.4Q160.59 17.91 159.8 17.91ZM164.56 20.71Q164.56 18.74 165.49 17.57Q166.41 16.39 167.95 16.39Q169.39 16.39 170.22 17.4L170.3 16.55H172.02V24.74Q172.02 26.41 170.98 27.37Q169.95 28.33 168.19 28.33Q167.26 28.33 166.37 27.94Q165.48 27.55 165.02 26.93L165.92 25.79Q166.8 26.83 168.08 26.83Q169.02 26.83 169.57 26.32Q170.12 25.8 170.12 24.81V24.24Q169.3 25.16 167.93 25.16Q166.45 25.16 165.5 23.98Q164.56 22.8 164.56 20.71ZM166.45 20.88Q166.45 22.15 166.97 22.88Q167.49 23.61 168.41 23.61Q169.56 23.61 170.12 22.62V18.91Q169.58 17.95 168.43 17.95Q167.49 17.95 166.97 18.69Q166.45 19.43 166.45 20.88ZM178.39 18.28Q178.02 18.22 177.62 18.22Q176.31 18.22 175.86 19.22V25H173.96V16.55H175.77L175.82 17.49Q176.51 16.39 177.73 16.39Q178.13 16.39 178.4 16.5ZM184.64 25Q184.52 24.76 184.42 24.21Q183.52 25.16 182.2 25.16Q180.93 25.16 180.12 24.43Q179.32 23.7 179.32 22.63Q179.32 21.28 180.32 20.56Q181.33 19.84 183.2 19.84H184.36V19.28Q184.36 18.62 183.99 18.23Q183.62 17.84 182.88 17.84Q182.23 17.84 181.81 18.16Q181.4 18.48 181.4 18.98H179.5Q179.5 18.29 179.96 17.68Q180.42 17.08 181.21 16.73Q182.01 16.39 182.98 16.39Q184.47 16.39 185.35 17.14Q186.23 17.88 186.26 19.23V23.05Q186.26 24.19 186.58 24.87V25ZM182.55 23.63Q183.12 23.63 183.61 23.36Q184.11 23.09 184.36 22.62V21.03H183.34Q182.28 21.03 181.75 21.4Q181.22 21.77 181.22 22.44Q181.22 22.98 181.58 23.31Q181.95 23.63 182.55 23.63ZM190.03 16.55 190.09 17.43Q190.98 16.39 192.52 16.39Q194.22 16.39 194.84 17.69Q195.77 16.39 197.44 16.39Q198.84 16.39 199.52 17.16Q200.2 17.94 200.22 19.45V25H198.32V19.5Q198.32 18.7 197.97 18.32Q197.62 17.95 196.8 17.95Q196.16 17.95 195.75 18.29Q195.34 18.64 195.17 19.2L195.18 25H193.28V19.44Q193.24 17.95 191.76 17.95Q190.62 17.95 190.14 18.88V25H188.24V16.55Z"/></svg>'
+
+
+def telegram_button(link_code: str = "", alone: bool = False) -> str:
+    """The "Log in with Telegram" button, when a bot is set up: a plain link that goes to Telegram's login page and back.
+    Nothing from Telegram runs on this page, so the button looks the same from the first frame; the label is drawn as
+    Roboto Medium outlines (Apache License 2.0), the font of Telegram's own button.
+    Nút "Log in with Telegram", khi đã cài bot: một liên kết thường đi sang trang đăng nhập của Telegram rồi quay về.
+    Không có gì của Telegram chạy trên trang này, nên nút giống nhau ngay từ lúc hiện; chữ vẽ bằng đường viền phông
+    Roboto Medium (giấy phép Apache 2.0), đúng phông nút của Telegram."""
+    if not bot_name():
+        return ""
+    href = "/telegram/go" + ("?n=" + link_code if link_code else "")
+    return (('' if alone else '<p class="hint tg-or">' + html.escape(tx("or")) + '</p>') +
+            '<div class="tg"><a class="tg-link" href="%s" aria-label="Log in with Telegram">%s</a></div>' % (html.escape(href), TELEGRAM_FACE))
+
+
+def page_telegram_back() -> bytes:
+    """Telegram sends the browser back here with the signed login after # (the server never sees that part); the script
+    hands it to /login/telegram or /telegram/link, which check the signature.
+    Telegram đưa trình duyệt về đây, phần đăng nhập đã ký nằm sau dấu # (máy chủ không thấy phần này); đoạn mã chuyển
+    nó cho /login/telegram hoặc /telegram/link để kiểm chữ ký."""
+    body = ('<div class="login-box"><h1>AI WORKER</h1><p class="sub">' + html.escape(tx("Logging in with Telegram…")) + '</p>'
+            '<p class="hint"><a href="/" style="color:inherit">' + html.escape(tx("▸ Dashboard")) + '</a></p></div>')
+    return ('<!doctype html><html lang="' + current_lang() + '" data-lang="' + current_lang() + '"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Worker · Telegram</title>'
+            '<style>%s</style></head><body>%s<script src="/login.js"></script></body></html>' % (CSS_LOGIN, body)).encode()
+
+
+def page_telegram(viewer_name: str, link_code: str = "", error: str = "", notice: str = "", go_home: bool = False) -> bytes:
+    """Link or unlink one's own Telegram. Both start with the 6-digit code, so a stolen session alone cannot add a way in.
+    Liên kết hoặc gỡ Telegram của chính mình. Cả hai bắt đầu bằng mã 6 số, để chỉ lấy được phiên thôi thì không thêm được đường vào."""
+    linked = ACCOUNTS.telegram_of(viewer_name)
+    def code_input(focus: bool) -> str:
+        return ('<label for="code">&gt; ACCESS CODE</label>'
+                '<input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="••••••" required'
+                + (' autofocus>' if focus else '>'))
+    if link_code:
+        middle = ('<p class="hint">' + html.escape(tx("Press the button and confirm in Telegram. This step works for 5 minutes.")) + '</p>' +
+                  telegram_button(link_code, alone=True))
+    elif go_home:
+        # just linked: lead on to the dashboard, and leave the one-time link address so a reload does not show an error
+        # vừa liên kết: dẫn tiếp tới bảng điều khiển, và rời địa chỉ liên kết dùng một lần để tải lại trang không báo lỗi
+        middle = '<a class="go" href="/">' + html.escape(tx("GO TO THE DASHBOARD ▸")) + '</a>'
+    elif linked:
+        # one message only: the one just shown after linking, or the state; unlinking is rare, so its button is the quiet one
+        # chỉ một thông báo: lời báo vừa liên kết, hoặc trạng thái; gỡ liên kết hiếm khi dùng nên nút của nó là nút mờ
+        middle = (('' if notice else '<p class="ok">' + html.escape(tx("Linked to Telegram. You can log in with the Telegram button.") if linked == "linked" else
+                                                                tx("Linked to Telegram {who}. You can log in with the Telegram button.", who=linked)) + '</p>') +
+                  '<details class="unlink"' + (' open' if error else '') + '><summary>' + html.escape(tx("Unlink Telegram")) + '</summary>'
+                  '<form method="post" action="/telegram/unlink">' + code_input(False) +
+                  '<p class="hint">' + html.escape(tx("To unlink, enter the 6-digit code from the Google Authenticator app.")) + '</p>'
+                  '<button class="quiet">' + html.escape(tx("UNLINK TELEGRAM ▸")) + '</button></form></details>')
+    else:
+        middle = ('<p class="hint">' + html.escape(tx("Link once, then log in with the Telegram button instead of typing your name and code.")) + '</p>'
+                  '<form method="post" action="/telegram/start">' + code_input(True) +
+                  '<p class="hint">' + html.escape(tx("First enter the 6-digit code from the Google Authenticator app.")) + '</p>'
+                  '<button>' + html.escape(tx("CONTINUE ▸")) + '</button></form>')
+    body = ('<div class="login-box"><div class="top"><div class="dots"><i></i><i></i><i></i></div><span class="pill"><b></b>TELEGRAM</span></div>'
+            '<h1>AI WORKER</h1><p class="sub">' + html.escape(tx("Log in with Telegram · account {name}", name=viewer_name)) + '</p>' +
+            ('<p class="error">%s</p>' % html.escape(error) if error else "") + ('<p class="ok">%s</p>' % html.escape(notice) if notice else "") + middle +
+            ('' if go_home else '<p class="hint"><a href="/" style="color:inherit">' + html.escape(tx("▸ Dashboard")) + '</a></p>') + '</div>')
+    return ('<!doctype html><html lang="' + current_lang() + '" data-lang="' + current_lang() + '"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Worker · Telegram</title>' +
+            ('<meta http-equiv="refresh" content="3;url=/">' if go_home else '') +
             '<style>%s</style></head><body>%s<script src="/login.js"></script></body></html>' % (CSS_LOGIN, body)).encode()
 
 
@@ -436,6 +510,27 @@ __LANG_SWITCH__
 
 
 JS_LOGIN = b"""(function () {
+  // back from Telegram's login page: pass the signed login after # to the server, which checks it
+  // ve tu trang dang nhap Telegram: chuyen phan dang nhap da ky sau dau # cho may chu kiem tra
+  if (location.pathname === '/telegram/back') {
+    var m = /[#&]tgAuthResult=([A-Za-z0-9_=-]+)/.exec(location.hash)
+    var to = '/'
+    try {
+      if (m) {
+        var b = m[1].replace(/-/g, '+').replace(/_/g, '/')
+        while (b.length % 4) b += '='
+        var user = JSON.parse(atob(b)), q = []
+        for (var k in user) if (Object.prototype.hasOwnProperty.call(user, k)) q.push(encodeURIComponent(k) + '=' + encodeURIComponent(user[k]))
+        var n = /[?&]n=([A-Za-z0-9_-]+)/.exec(location.search)
+        to = (n ? '/telegram/link?n=' + n[1] + '&' : '/login/telegram?') + q.join('&')
+      }
+    } catch (e) {}
+    return location.replace(to)
+  }
+  if (tg) {
+    watch()
+    if (window.MutationObserver) new MutationObserver(watch).observe(tg, { childList: true })
+  }
   // quet ma TV khi chua dang nhap, hoac trinh duyet khong gui cookie vi link mo tu app camera
   var h = location.hash
   if (/^#pair=[0-9]{8}$/.test(h)) {
@@ -448,7 +543,8 @@ JS_LOGIN = b"""(function () {
   o.addEventListener('input', function () {
     var digits = o.value.replace(/[^0-9]/g, '').slice(0, 6)
     if (o.value !== digits) o.value = digits
-    if (digits.length === 6 && !sent && document.getElementById('account').value.trim()) {
+    var account = document.getElementById('account')
+    if (digits.length === 6 && !sent && (!account || account.value.trim())) {
       sent = true
       o.readOnly = true
       o.form.submit()
@@ -659,7 +755,8 @@ def page_board(viewer_name: str, now: float) -> bytes:
         cost_note = tx("costs follow API prices, shown in US dollars")
     body = ((
         '<div class="head"><div><h1>' + lit(tx("AI Worker // detail board")) + '</h1><p class="muted">%s</p></div>'
-        '<div class="actions"><a href="/">' + lit(tx("▸ Dashboard")) + '</a><form method="post" action="/logout" style="margin:0"><button>%s</button></form></div></div>'
+        '<div class="actions"><a href="/">' + lit(tx("▸ Dashboard")) + '</a>' + ('<a href="/telegram">Telegram</a>' if bot_name() else '') +
+        '<form method="post" action="/logout" style="margin:0"><button>%s</button></form></div></div>'
         '<div class="card"><table><thead><tr><th>' + lit(tx("Person · account · internal IP")) + '</th><th>' + lit(tx("Status")) + '</th><th>' + lit(tx("Model")) + '</th>'
         '<th title="' + lit(tx("Share used of the 5-hour and 7-day windows of the Claude account (subscription plan); at 100% you wait for the reset")) + '">' + lit(tx("Quota")) + '</th>'
         '<th class=num>' + lit(tx("Cost today")) + '</th><th class=num>' + lit(tx("Tokens in / out")) + '</th>'

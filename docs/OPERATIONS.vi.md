@@ -55,6 +55,9 @@ Trên bảng tổng, máy im 12 phút hiện ngoại tuyến, im một ngày th�
 | TV báo lâu chưa thấy | TV tắt hoặc mất mạng | Bật TV; nếu TV đòi mã thì ghép lại trên `/admin` |
 | Nhân viên không nhận bản cập nhật | Plugin cũ hơn 0.23.0, kiểm chữ ký hỏng, hoặc thư mục plugin có `.git` | Xem mục 5 |
 | Mất hết quản trị | | `sudo bash manage-otp.sh --rescue <tên>` trong thư mục `server/` |
+| Trang Telegram báo tên miền của bot không hợp lệ | Bot chưa gắn với địa chỉ bảng tổng | Gửi `/setdomain` cho @BotFather kèm tên miền bảng tổng |
+| "Tài khoản Telegram này chưa liên kết" | Người đó chưa liên kết Telegram | Đăng nhập bằng tên và mã, rồi liên kết ở `/telegram` |
+| Lộ khoá bot Telegram | Ai có khoá cũng ký được lần đăng nhập | Thu hồi bằng `/revoke` trong @BotFather, ghi khoá mới vào `/etc/ai-worker.env`, khởi động lại dịch vụ |
 
 ## 4. Sao lưu và khôi phục
 
@@ -64,7 +67,7 @@ Sao lưu mỗi ngày, khi máy chủ đang chạy. Dùng lệnh sao lưu của c
 sudo python3 -c 'import sqlite3, sys; sqlite3.connect(sys.argv[1]).backup(sqlite3.connect(sys.argv[2]))' /opt/ai-worker/data/board.db /backup/ai-worker-board-$(date +%F).db
 ```
 
-Sao lưu tài khoản riêng, chỉ root đọc được, vì có mã bí mật OTP:
+Sao lưu tài khoản riêng, chỉ root đọc được, vì có mã bí mật OTP (và người dùng Telegram đã liên kết). Giữ một bản `/etc/ai-worker.env` theo cùng cách: file này chứa `INGEST_KEY` và, khi dùng, khoá bot Telegram:
 
 ```bash
 sudo python3 -c 'import sqlite3, sys; sqlite3.connect(sys.argv[1]).backup(sqlite3.connect(sys.argv[2]))' /opt/ai-worker/keys/accounts.db /root/ai-worker-accounts-$(date +%F).db && sudo chmod 600 /root/ai-worker-accounts-*.db

@@ -83,10 +83,7 @@ class LoginGate:
                 for b in (step - 1, step, step + 1):
                     if b > self.used_step.get(name, -1) and hmac.compare_digest(totp_code(secret, b), code):
                         self.used_step[name] = b
-                        token = secrets.token_urlsafe(32)
-                        self.sessions = {k: v for k, v in self.sessions.items() if v[1] > now}
-                        self.sessions[token] = (name, now + session_lifetime(ACCOUNTS.role_of(name)))
-                        return name, token
+                        return name, self._open(name, now)
             self.fails.setdefault(ip_key, []).append(now)
             self.account_fails.setdefault(name_key, []).append(now)
             # drop old entries so the tables do not grow when probed from many places
@@ -96,6 +93,31 @@ class LoginGate:
             if len(self.account_fails) > 1000:
                 self.account_fails = {k: v for k, v in self.account_fails.items() if v and now - v[-1] < FAIL_WINDOW_SECONDS}
         return None, None
+
+    def _open(self, name: str, now: float) -> str:
+        token = secrets.token_urlsafe(32)
+        self.sessions = {k: v for k, v in self.sessions.items() if v[1] > now}
+        self.sessions[token] = (name, now + session_lifetime(ACCOUNTS.role_of(name)))
+        return token
+
+    def login_telegram(self, telegram_id: str, ip: str, now: float):
+        """Log in the account linked to a Telegram user whose signature was already checked. Returns (name, token), (BLOCKED, None)
+        or (None, None) when no account is linked. Never confirms the session: admin actions still ask for the 6-digit code.
+        Đăng nhập tài khoản đã liên kết với người dùng Telegram mà chữ ký đã được kiểm. Trả (tên, mã phiên), (BLOCKED, None)
+        hoặc (None, None) khi chưa có tài khoản nào liên kết. Không bao giờ xác nhận phiên: thao tác quản trị vẫn hỏi mã 6 số."""
+        with self.lock:
+            if len(self._recent(self.fails, ip_bucket(ip), now)) >= MAX_FAILS:
+                return BLOCKED, None
+            name = ACCOUNTS.find_by_telegram(telegram_id)
+            if not name or ACCOUNTS.role_of(name) == WALL:
+                return None, None
+            return name, self._open(name, now)
+
+    def note_failure(self, ip: str, now: float) -> None:
+        """A refused login that was not a wrong code (a bad or reused Telegram signature) still counts toward the IP limit.
+        Lần đăng nhập bị từ chối không phải vì sai mã (chữ ký Telegram sai hay dùng lại) vẫn tính vào giới hạn theo IP."""
+        with self.lock:
+            self.fails.setdefault(ip_bucket(ip), []).append(now)
 
     def check_otp(self, name_input: str, code: str, ip: str, now: float):
         """Same checks and limits as logging in, but no session is kept: used to approve one's own menu bar computer.

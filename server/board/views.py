@@ -335,6 +335,9 @@ def manage_account(body: dict, actor: str, token: str) -> tuple:
         result["secret"] = ACCOUNTS.create(name, role, actor)
     elif jobs == "reissue":
         result["secret"] = ACCOUNTS.reissue(name)
+        # a Telegram link made with the old key may be someone else's: it has to be made again
+        # liên kết Telegram làm bằng khoá cũ có thể là của người khác: phải liên kết lại
+        ACCOUNTS.unlink_telegram(name)
         # the old key may have leaked: drop this person's other sessions
         # khoá cũ có thể đã lộ: bỏ các phiên khác của người này
         SESSIONS.end_sessions_of(name, token)
@@ -348,6 +351,10 @@ def manage_account(body: dict, actor: str, token: str) -> tuple:
         # chỉ vai xem hoặc quản trị được có máy thanh menu
         if role == WALL:
             TV.revoke_owner(name)
+            ACCOUNTS.unlink_telegram(name)
+    elif jobs == "telegram-unlink":
+        if not ACCOUNTS.unlink_telegram(name):
+            raise ValueError(tx("This account has no Telegram linked"))
     elif jobs == "delete":
         if name == actor:
             raise ValueError(tx("You cannot delete yourself, ask another admin"))

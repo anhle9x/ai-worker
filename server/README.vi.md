@@ -93,6 +93,7 @@ Nhật ký thao tác: bảng `audit` trong `data/board.db`, ghi đăng nhập, t
 - Nhập sai 5 lần trong 15 phút thì IP đó bị chặn 15 phút. Nhật ký ghi ai đăng nhập, từ IP nào: `journalctl -u ai-worker-webhook`.
 - Giờ "hôm nay" theo `TZ_OFFSET` (mặc định 7, giờ Việt Nam); tỷ giá theo `USD_RATE` (mặc định 26000), chỉ dùng cho trang tiếng Việt (trang tiếng Anh hiện đô la Mỹ, không quy đổi).
 - Ngôn ngữ của trang: ưu tiên lựa chọn của người xem (nút EN / VI, ghi trong cookie `lang`), rồi `DEFAULT_LANG` trong `/etc/ai-worker.env` (`en` hoặc `vi`; để trống thì theo trình duyệt), rồi tiếng Anh. Đổi `DEFAULT_LANG` xong chạy `sudo systemctl restart ai-worker-webhook`.
+- Đăng nhập bằng Telegram (tuỳ chọn): ghi `TELEGRAM_BOT_TOKEN` và `TELEGRAM_BOT_NAME` vào `/etc/ai-worker.env`, rồi khởi động lại dịch vụ. Các bước ở [docs/INSTALL.vi.md](../docs/INSTALL.vi.md), mục "Đăng nhập bằng Telegram".
 - Kết nối HTTP không mã hoá: chỉ nên mở trang này trong mạng công ty. Muốn xem từ ngoài thì cần HTTPS trước.
 
 ## Vận hành

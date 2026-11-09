@@ -170,6 +170,27 @@ sequenceDiagram
   W-->>B: 200, written to the action log
 ```
 
+### Logging in with Telegram (optional)
+
+Only when a bot is set up. The page loads nothing from Telegram, and the server never calls Telegram.
+
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant W as webhook.py
+  participant T as oauth.telegram.org
+  B->>W: GET /telegram/go
+  W-->>B: 303 to Telegram's login page, with the bot id and a return address
+  B->>T: Confirm in Telegram
+  T-->>B: Back to /telegram/back#tgAuthResult=...
+  B->>W: GET /login/telegram with the signed fields
+  W->>W: Check the signature with the bot token, 5 minutes, used once
+  W->>W: Find the account linked to this Telegram user
+  W-->>B: Session cookie, or 401 when not linked
+```
+
+Linking goes the same way, after the 6-digit code on `/telegram`: the return address carries a one-time step code tied to that session.
+
 ### Pairing a TV screen
 
 The code shown on the TV lets an admin approve it. The session goes only to the TV, because only the TV holds the key in its cookie: someone who sees the code cannot take the session.

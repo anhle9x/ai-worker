@@ -2,6 +2,16 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.26.0 - 2026-11-09
+
+### Added
+- Log in with Telegram (optional, off until a bot is set up). Each person links once from the detail board after entering the 6-digit code; after that, "Log in with Telegram" goes to Telegram's login page and back. The login page loads nothing from Telegram, and the server never calls Telegram: it only checks Telegram's signature with the bot token. The name and code keep working, and admin changes still ask for the code. See [docs/INSTALL.md](docs/INSTALL.md).
+- Admins see who linked Telegram on `/admin` and can unlink it; reissuing a key or moving an account to the wall role unlinks it too.
+
+### Changed
+- The installers open the office page in the browser at the end, before the first Claude Code session.
+- With Telegram on, the name box on the login page no longer takes focus, so the browser's saved-password list does not open over the buttons.
+
 ## 0.25.0 - 2026-11-09
 
 ### Changed

@@ -142,6 +142,8 @@ Rồi xoá thư mục `claude-plugins-ai-worker` trong thư mục người dùng
 
 **Đúng là:** bảng tổng mở ra. Một lần đăng nhập dùng được 8 giờ. Mỗi mã chỉ dùng được một lần; bị từ chối thì chờ mã kế tiếp.
 
+**Bằng Telegram** (khi phòng IT đã bật): đăng nhập một lần bằng tên và mã, mở bảng chi tiết, bấm **Telegram**, nhập mã 6 số rồi bấm nút Telegram. Từ đó về sau, bấm **Log in with Telegram** ở trang đăng nhập và xác nhận trong Telegram. Thao tác quản trị vẫn hỏi mã 6 số.
+
 Bảng tổng chỉ mở được từ mạng công ty.
 
 ### 2.2 Bảng tổng

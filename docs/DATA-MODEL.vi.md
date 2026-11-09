@@ -35,7 +35,7 @@ Tài khoản nằm ở file riêng, thư mục riêng, để bản sao lưu số
 
 | Bảng | Nội dung |
 |---|---|
-| `accounts` | Tên, vai, mã bí mật OTP (base32), lúc tạo và người tạo, lần đăng nhập cuối |
+| `accounts` | Tên, vai, mã bí mật OTP (base32), lúc tạo và người tạo, lần đăng nhập cuối; mã người dùng và tên @ Telegram đã liên kết khi dùng đăng nhập Telegram |
 | `imported` | Tên đã nhập từ `OTP=` trong file thiết lập, để tài khoản đã xoá trên `/admin` không sống lại |
 
 Chỉ nằm trong bộ nhớ, mất khi khởi động lại: phiên đăng nhập (8 giờ, tài khoản màn hình treo tường 7 ngày), mã ghép TV (10 phút), mã dùng một lần của thanh menu (90 giây), trạng thái TV đang bật.

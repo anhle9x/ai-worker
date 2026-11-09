@@ -66,6 +66,31 @@ Tiện ích cho Chrome hoặc Edge hiện trên biểu tượng số người đ
 
 Thử: `node tests/extension/check-extension.js` (chạy webhook trên máy với người giả, và báo lỗi khi bản chép khác bản gốc).
 
+## Đăng nhập bằng Telegram (tuỳ chọn)
+
+Ai dùng Telegram hằng ngày có thể đăng nhập bảng tổng bằng nút của Telegram thay vì gõ tên và mã. Tắt cho tới khi bạn cài; tên và mã 6 số luôn dùng được, và thao tác quản trị vẫn hỏi mã.
+
+1. **Tạo bot** (trong app Telegram, điện thoại hay máy tính đều được):
+   1. Tìm **@BotFather** và mở đúng tài khoản có dấu tích xanh.
+   2. Gửi `/newbot`. BotFather hỏi tên: gõ tên người dùng sẽ thấy khi xác nhận đăng nhập, ví dụ `AI Worker`.
+   3. BotFather hỏi username: gõ một tên kết thúc bằng `bot` và chưa ai dùng, ví dụ `congtyban_aiworker_bot`. Nếu báo đã có người dùng thì thử tên khác.
+   4. BotFather trả lời "Done! Congratulations on your new bot", trong đó có dòng **"Use this token to access the HTTP API:"** và ngay sau là **token** (khoá của bot), dạng `1234567890:AAH...`. Giữ tin nhắn này để dùng ở bước 3. Token ký được lần đăng nhập của bất kỳ ai: không dán vào chat, không chụp màn hình.
+   5. Tuỳ chọn: gửi `/setuserpic`, chọn bot rồi gửi logo công ty, để người dùng nhận ra bot khi xác nhận.
+2. **Gắn bot với địa chỉ bảng tổng** (vẫn trong @BotFather): gửi `/setdomain`, chọn bot, rồi gửi tên miền bảng tổng, không có `https://`, ví dụ `board.company.com`. Đúng là: "Success! Domain updated."
+3. **Khai token và username cho máy chủ.** Trên máy tính của bạn, chạy lệnh sau; lệnh hỏi token mà không hiện token lên màn hình:
+   ```bash
+   ssh -t <tài-khoản-quản-trị>@<máy-chủ> 'read -rsp "Bot token: " T; echo; read -rp "Bot username (no @): " N; printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_BOT_NAME=%s\n" "$T" "$N" | sudo tee -a /etc/ai-worker.env >/dev/null && sudo systemctl restart ai-worker-webhook && echo DONE'
+   ```
+   Ở dòng `Bot token:` dán token ở bước 1.4 rồi Enter (màn hình không hiện gì là đúng). Ở dòng `Bot username (no @):` gõ username ở bước 1.3, ví dụ `congtyban_aiworker_bot`. Đúng là: hiện `DONE`, và trang đăng nhập có nút **Log in with Telegram** dưới chữ "hoặc".
+   Hoặc sửa file bằng tay với `sudo nano /etc/ai-worker.env`, thêm hai dòng dưới đây, lưu lại, rồi chạy `sudo systemctl restart ai-worker-webhook`:
+   ```
+   TELEGRAM_BOT_TOKEN=<token>
+   TELEGRAM_BOT_NAME=<username của bot, không có @>
+   ```
+4. **Mỗi người liên kết một lần:** đăng nhập bằng tên và mã, mở `/telegram` (hoặc nút **Telegram** trên bảng chi tiết), nhập mã 6 số, bấm **Log in with Telegram** và xác nhận trong Telegram. Lần sau chỉ cần bấm nút đó ở trang đăng nhập.
+
+Máy chủ không bao giờ gọi Telegram: nút đưa trình duyệt sang trang đăng nhập của Telegram rồi quay về, máy chủ chỉ kiểm chữ ký bằng token. Trang đăng nhập không nạp gì từ Telegram. Một lần đăng nhập đã ký chỉ nhận trong 5 phút và một lần. Nếu văn phòng không vào được Telegram thì đăng nhập bằng tên và mã. Quản trị xem ai đã liên kết Telegram ở `/admin` và gỡ được ở đó; cấp lại khoá hoặc chuyển tài khoản sang treo tường cũng gỡ liên kết.
+
 ## Phát hành bản cập nhật
 
 1. Đổi `version` trong `.claude-plugin/plugin.json`.

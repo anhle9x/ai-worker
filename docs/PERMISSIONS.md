@@ -11,6 +11,7 @@ Who can see and do what on the dashboard server. The rules live in one place: th
 | Employee computer (plugin) | `INGEST_KEY` in the `Authorization` header | None: may only send numbers and download signed updates |
 | Admin | Account name + 6-digit OTP, then a session cookie (8 hours) | `admin` |
 | Manager | Account name + OTP, session cookie (8 hours) | `viewer` |
+| Admin or manager with Telegram linked (optional) | Telegram's signature checked with the bot token (5 minutes, once), session cookie | Their own role; admin changes still ask for the OTP |
 | Wall account | Account name + OTP, session cookie (7 days) | `wall` |
 | TV screen | Pairing key approved by an admin (30 days, renewed while used) | `wall` |
 | Menu bar icon | Pairing key, approved by a manager with their own account and OTP, at most 2 computers per account | Always `wall` |
@@ -49,6 +50,7 @@ The fields each role receives are fixed in `server/board/views.py` (`COMMON_FIEL
 
 - **At least one admin:** the server refuses to delete or demote the last admin.
 - **Wrong OTP:** 5 wrong codes from one address in 15 minutes lock that address. 20 wrong codes on one account in 15 minutes lock that account, so a stranger cannot lock the whole site.
+- **Telegram:** linking needs the 6-digit code and a one-time step tied to that session, so a stolen session or a link sent by someone else cannot add a Telegram. One Telegram per account; wall accounts cannot use it. Reissuing a key or making an account a wall account unlinks it.
 - **Account limit:** 200 accounts, 20 TV screens, 300 computers.
 - **Every refusal and every change is written to the audit log** (table `audit` in `board.db`), with who, role, IP and path. CSV content is not copied into it.
 - **If every admin is lost:** someone with sudo on the server runs `sudo bash manage-otp.sh --rescue <name>` in the `server/` folder. See [USER-GUIDE.md](USER-GUIDE.md).

@@ -137,6 +137,19 @@ if exist "%CD%\ASK-NAME" if exist "%CD%\check-network.ps1" powershell -NoProfile
 :: Nhân viên AI phụ: Codex (mặc định), Gemma theo máy, Gemini tuỳ chọn
 if not defined AI_WORKER_SKIP_HELPERS if exist "%CD%\helpers.ps1" powershell -NoProfile -ExecutionPolicy Bypass -File "%CD%\helpers.ps1"
 
+:: Open the office page now: the plugin copies it at the first session, so put the same files there first
+:: Mở trang văn phòng ngay: plugin chỉ chép trang ở phiên đầu tiên, nên chép sẵn đúng các file đó trước
+if defined AI_WORKER_SKIP_HELPERS goto :after_open
+if defined AI_WORKER_NO_OPEN goto :after_open
+set "WEB_DIR=%USERPROFILE%\.local\share\ai-worker"
+if not exist "%WEB_DIR%" mkdir "%WEB_DIR%"
+for %%F in (index.html i18n.js index.vi.js ops.vi.js ops.js ops.css ops3d.js three.js three.LICENSE) do copy /y "%INSTALL_DIR%\ai-worker\web\%%F" "%WEB_DIR%\" >nul 2>&1
+if not exist "%WEB_DIR%\config.js" copy /y "%INSTALL_DIR%\ai-worker\web\config.js" "%WEB_DIR%\" >nul 2>&1
+if not exist "%WEB_DIR%\index.html" goto :after_open
+start "" "%WEB_DIR%\index.html"
+call :say "The office page is open in the browser; your sessions show up there once Claude Code is running." "Đã mở trang văn phòng trên trình duyệt; các phiên sẽ hiện ở đó khi Claude Code chạy."
+:after_open
+
 echo.
 call :say "Done. Open (or reopen) Claude Code, then type /office to see the office." "Xong. Mở (hoặc mở lại) Claude Code, rồi gõ /office để xem văn phòng."
 call :say "If Claude Code is already open: type /reload-plugins." "Nếu Claude Code đang mở: gõ /reload-plugins."

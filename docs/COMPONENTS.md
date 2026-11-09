@@ -8,7 +8,7 @@ Every part of AI Worker, where it runs, what it needs and which version is pinne
 
 | Part | Runs on | Language | Version |
 |---|---|---|---|
-| Plugin (hooks, `/office`, skills) | Staff computers, inside Claude Code | TypeScript | `version` in `.claude-plugin/plugin.json` (now 0.25.0) |
+| Plugin (hooks, `/office`, skills) | Staff computers, inside Claude Code | TypeScript | `version` in `.claude-plugin/plugin.json` (now 0.26.0) |
 | Dashboard server (webhook) | Linux server | Python, standard library only; data in SQLite | Same as the plugin release |
 | 3D office page | Browser | JavaScript, three.js | Same as the plugin release |
 | Menu bar icon | macOS, Windows, Ubuntu | Python (SwiftBar on Mac, Ubuntu), Swift app (`macos-app/`), PowerShell and C# (Windows) | Built by the server for each download |

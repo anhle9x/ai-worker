@@ -20,7 +20,7 @@ test('only the type of a running subagent leaves the machine, never its task', (
     [
       { ...open, subagents: [{ name: 'general-purpose', description: 'Review customer A contract' }, { name: 'Explore', description: 'x' }] },
       { ...open, subagents: [{ name: 'general-purpose', description: 'y' }, { name: 'odd <name>', description: 'z' }] },
-      { ...open, seenAt: NOW - OPEN_MS - 1, subagents: [{ name: 'lap-ke-hoach', description: 'session already closed' }] },
+      { ...open, seenAt: NOW - OPEN_MS - 1, subagents: [{ name: 'planner', description: 'session already closed' }] },
     ],
     undefined, NOW, who,
   )

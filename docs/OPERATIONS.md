@@ -55,6 +55,9 @@ On the dashboard, a computer silent for 12 minutes shows as offline and one sile
 | A TV shows "not seen for a while" | The TV is off or lost its network | Turn it on; if it asks for a code, pair it again on `/admin` |
 | Staff do not get the update | Plugin older than 0.23.0, signature check failed, or the plugin folder has `.git` | See section 5 |
 | Lost every admin | | `sudo bash manage-otp.sh --rescue <name>` in the `server/` folder |
+| Telegram's page says the bot domain is invalid | The bot is not tied to the board's address | Send `/setdomain` to @BotFather with the board's domain |
+| "This Telegram account is not linked yet" | The person has not linked Telegram | They log in with name and code, then link it on `/telegram` |
+| The Telegram token leaked | Anyone with it can sign a login | Revoke it with `/revoke` in @BotFather, put the new token in `/etc/ai-worker.env`, restart the service |
 
 ## 4. Backup and restore
 
@@ -64,7 +67,7 @@ Back up every day, while the server runs. Use SQLite's own backup: `tar` or `cp`
 sudo python3 -c 'import sqlite3, sys; sqlite3.connect(sys.argv[1]).backup(sqlite3.connect(sys.argv[2]))' /opt/ai-worker/data/board.db /backup/ai-worker-board-$(date +%F).db
 ```
 
-Back up the accounts separately, readable by root only, because they hold the OTP secrets:
+Back up the accounts separately, readable by root only, because they hold the OTP secrets (and the linked Telegram users). Keep a copy of `/etc/ai-worker.env` the same way: it holds `INGEST_KEY` and, when used, the Telegram bot token:
 
 ```bash
 sudo python3 -c 'import sqlite3, sys; sqlite3.connect(sys.argv[1]).backup(sqlite3.connect(sys.argv[2]))' /opt/ai-worker/keys/accounts.db /root/ai-worker-accounts-$(date +%F).db && sudo chmod 600 /root/ai-worker-accounts-*.db

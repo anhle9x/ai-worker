@@ -35,7 +35,7 @@ The accounts are in their own file, in their own folder, so a backup of the numb
 
 | Table | Content |
 |---|---|
-| `accounts` | Name, role, OTP secret (base32), created at and by, last login |
+| `accounts` | Name, role, OTP secret (base32), created at and by, last login; the linked Telegram user id and @name when Telegram login is used |
 | `imported` | Names already imported from `OTP=` in the settings file, so an account deleted on `/admin` does not come back |
 
 Kept only in memory, lost on restart: login sessions (8 hours, 7 days for wall accounts), TV pairing codes (10 minutes), menu bar one-time codes (90 seconds), TV online status.

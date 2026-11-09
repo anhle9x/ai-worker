@@ -142,6 +142,8 @@ Then delete the `claude-plugins-ai-worker` folder in your user folder.
 
 **Correct result:** the dashboard opens. A login lasts 8 hours. Each code works only once; if it is refused, wait for the next one.
 
+**With Telegram** (when your IT team has turned it on): log in once with name and code, open the detail board, click **Telegram**, enter the 6-digit code and press the Telegram button. From then on, press **Log in with Telegram** on the login page and confirm in Telegram. Admin changes still ask for the 6-digit code.
+
 The board only opens from the company network.
 
 ### 2.2 The dashboard

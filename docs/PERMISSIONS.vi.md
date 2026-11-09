@@ -11,6 +11,7 @@ Ai được xem gì và làm gì trên máy chủ bảng tổng. Quy tắc nằm
 | Máy nhân viên (plugin) | `INGEST_KEY` trong header `Authorization` | Không có vai: chỉ được gửi số liệu và tải bản cập nhật đã ký |
 | Quản trị | Tên tài khoản + mã OTP 6 số, sau đó là cookie phiên (8 giờ) | `admin` |
 | Quản lý | Tên tài khoản + OTP, cookie phiên (8 giờ) | `viewer` |
+| Quản trị hoặc quản lý đã liên kết Telegram (tuỳ chọn) | Chữ ký của Telegram, kiểm bằng khoá bot (5 phút, một lần), cookie phiên | Vai của chính họ; thao tác quản trị vẫn hỏi OTP |
 | Tài khoản màn hình treo tường | Tên tài khoản + OTP, cookie phiên (7 ngày) | `wall` |
 | Màn hình TV | Khoá ghép do quản trị duyệt (30 ngày, tự gia hạn khi đang dùng) | `wall` |
 | Biểu tượng thanh menu | Khoá ghép, do quản lý tự duyệt bằng tài khoản và OTP của mình, tối đa 2 máy mỗi tài khoản | Luôn là `wall` |
@@ -49,6 +50,7 @@ Các trường mỗi vai nhận được cố định trong `server/board/views.
 
 - **Luôn còn ít nhất một quản trị:** máy chủ từ chối xoá hoặc hạ vai quản trị cuối cùng.
 - **Nhập sai OTP:** sai 5 lần từ một địa chỉ trong 15 phút thì khoá địa chỉ đó. Sai 20 lần trên một tài khoản trong 15 phút thì khoá tài khoản đó, nên người lạ không khoá được cả trang.
+- **Telegram:** liên kết phải nhập mã 6 số và đi qua một bước dùng một lần gắn với phiên đó, nên lấy được phiên hay bấm đường dẫn người khác gửi cũng không thêm được Telegram. Mỗi tài khoản một Telegram; tài khoản treo tường không dùng được. Cấp lại khoá hoặc chuyển sang treo tường sẽ gỡ liên kết.
 - **Giới hạn:** 200 tài khoản, 20 màn hình TV, 300 máy.
 - **Mọi lần từ chối và mọi thay đổi đều ghi vào nhật ký quản trị** (bảng `audit` trong `board.db`): ai, vai gì, IP nào, đường dẫn nào. Nội dung CSV không chép vào.
 - **Mất hết quản trị:** người có quyền sudo trên máy chủ chạy `sudo bash manage-otp.sh --rescue <tên>` trong thư mục `server/`. Xem [USER-GUIDE.vi.md](USER-GUIDE.vi.md).

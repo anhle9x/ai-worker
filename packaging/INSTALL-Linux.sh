@@ -135,6 +135,18 @@ fi
 # Nhân viên AI phụ: Codex (mặc định), Gemma theo máy, Gemini tuỳ chọn
 [ -z "$AI_WORKER_SKIP_HELPERS" ] && [ -f helpers.sh ] && { bash helpers.sh || true; }
 
+# Open the office page now: the plugin copies it at the first session, so put the same files there first
+# Mở trang văn phòng ngay: plugin chỉ chép trang ở phiên đầu tiên, nên chép sẵn đúng các file đó trước
+WEB_DIR="$HOME/.local/share/ai-worker"
+if [ -z "$AI_WORKER_SKIP_HELPERS" ] && command -v xdg-open >/dev/null 2>&1 && mkdir -p "$WEB_DIR" 2>/dev/null; then
+  for f in index.html i18n.js index.vi.js ops.vi.js ops.js ops.css ops3d.js three.js three.LICENSE; do
+    cp "$INSTALL_DIR/ai-worker/web/$f" "$WEB_DIR/" 2>/dev/null || true
+  done
+  [ -f "$WEB_DIR/config.js" ] || cp "$INSTALL_DIR/ai-worker/web/config.js" "$WEB_DIR/" 2>/dev/null || true
+  [ -f "$WEB_DIR/index.html" ] && xdg-open "$WEB_DIR/index.html" >/dev/null 2>&1 &&
+    say "The office page is open in the browser; your sessions show up there once Claude Code is running." "Đã mở trang văn phòng trên trình duyệt; các phiên sẽ hiện ở đó khi Claude Code chạy." || true
+fi
+
 echo
 say "Done. Open (or reopen) Claude Code, then type /office to see the office." "Xong. Mở (hoặc mở lại) Claude Code, rồi gõ /office để xem văn phòng."
 say "If Claude Code is already open: type /reload-plugins." "Nếu Claude Code đang mở: gõ /reload-plugins."

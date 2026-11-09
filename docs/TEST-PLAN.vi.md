@@ -22,6 +22,7 @@ GitHub Actions chạy `.github/workflows/test-install.yml` mỗi lần đẩy co
 |---|---|
 | Quyền của mọi đường dẫn máy chủ | `test_webhook.py` giữ toàn bộ bảng đường dẫn, báo lỗi nếu thêm đường mới mà chưa khai quyền |
 | Đăng nhập, OTP, khoá sau khi nhập sai, nhập lại OTP cho thao tác tài khoản | `test_webhook.py` |
+| Đăng nhập Telegram: chữ ký, hết hạn, dùng lại, chỉ liên kết được khi có mã và bước dùng một lần, mỗi tài khoản một Telegram, đường sang Telegram và quay về | `test_webhook.py`, lớp `TelegramLogin` |
 | Mỗi vai nhận dữ liệu gì (màn hình treo tường không có email, IP) | `test_webhook.py` |
 | Ghép TV, thanh menu, tiện ích; thu hồi; hết hạn | `test_webhook.py`, `check-extension.js`, các test thanh menu |
 | Một máy không gửi thay người khác được; giới hạn gửi | `test_webhook.py` |
@@ -69,6 +70,7 @@ Test tự động dùng máy chủ giả và trình duyệt giả. Trước khi 
 | Cài plugin | Một máy Mac thật và một máy Windows thật | Chạy file cài, mở Claude Code, gõ `/office` | Trang văn phòng mở; máy hiện trên bảng tổng trong vòng 5 phút |
 | Cập nhật | Máy đang ở bản trước | Chờ hoặc ép kiểm bản mới, bấm **Cập nhật**, mở lại app | Số phiên bản mới hiện trong `/office` |
 | Đăng nhập OTP | Điện thoại thật có Google hoặc Microsoft Authenticator | Quét mã QR trên `/admin`, đăng nhập | Vào được; nhập sai 5 lần thì bị khoá 15 phút |
+| Đăng nhập Telegram | Tài khoản Telegram thật và bot của máy chủ | Ở `/telegram` nhập mã rồi bấm nút, đăng xuất, bấm **Log in with Telegram** ở trang đăng nhập | Vào thẳng bảng điều khiển, không gõ tên hay mã |
 | Màn hình TV | TV thật hoặc trình duyệt toàn màn hình | Mở `/tv`, duyệt mã trên `/admin` | Bảng hiện ra, không có email hay IP |
 | Thanh menu macOS | Máy Mac thật | Cài `.dmg` hoặc `.zip`, ghép | Biểu tượng hiện số người chờ, có thông báo |
 | Thanh menu Ubuntu | Ubuntu chạy X11 **và** Ubuntu chạy Wayland | Cài `.deb`, ghép | Biểu tượng hiện trên thanh trên cùng ở cả hai |

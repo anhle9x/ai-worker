@@ -61,6 +61,9 @@ function Run([string]$name, [hashtable]$opts) {
   }
   $saved = @{}
   foreach ($k in $envMap.Keys) { $saved[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $envMap[$k]) }
+  # never open a browser on the test machine
+  # không mở trình duyệt trên máy chạy thử
+  $env:AI_WORKER_NO_OPEN = '1'
   if (-not $opts.Helpers) { $env:AI_WORKER_SKIP_HELPERS = '1' } else { Remove-Item Env:AI_WORKER_SKIP_HELPERS -ErrorAction SilentlyContinue }
   try {
     # Each case gets 4 minutes at most: if it hangs (waiting for a key), cut it and print where it waits

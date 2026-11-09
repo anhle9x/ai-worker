@@ -93,6 +93,7 @@ Action log: the `audit` table in `data/board.db` records logins, changes and ref
 - 5 wrong tries within 15 minutes block that IP for 15 minutes. The log shows who logged in and from which IP: `journalctl -u ai-worker-webhook`.
 - The hour of "today" follows `TZ_OFFSET` (default 7, Vietnam time); the exchange rate follows `USD_RATE` (default 26000) and is used only on Vietnamese pages (English pages show US dollars, with no conversion).
 - Language of the pages: the visitor's own choice first (the EN / VI buttons, kept in the `lang` cookie), then `DEFAULT_LANG` in `/etc/ai-worker.env` (`en` or `vi`; empty follows the browser), then English. After changing `DEFAULT_LANG`, run `sudo systemctl restart ai-worker-webhook`. Messages the server writes to its log, the refusals sent to `/ingest`, and the TV install files are always English.
+- Log in with Telegram (optional): set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_NAME` in `/etc/ai-worker.env`, then restart the service. Steps in [docs/INSTALL.md](../docs/INSTALL.md), section "Log in with Telegram".
 - An HTTP connection is not encrypted: open this page only inside the company network. To view it from outside you need HTTPS first.
 
 ## Operation

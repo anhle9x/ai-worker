@@ -66,6 +66,31 @@ Once paired, the popup is the same small window as the menu bar apps (five tabs,
 
 Test: `node tests/extension/check-extension.js` (runs a local webhook with made-up people, and fails when the copies differ).
 
+## Log in with Telegram (optional)
+
+People who use Telegram every day can log in to the board with Telegram's button instead of typing their name and code. Off until you set it up; the name and 6-digit code always keep working, and admin changes still ask for the code.
+
+1. **Make a bot** (in the Telegram app, phone or computer):
+   1. Search for **@BotFather** and open the account with the blue check mark.
+   2. Send `/newbot`. BotFather asks for a name: type the name people will see when they confirm a login, for example `AI Worker`.
+   3. BotFather asks for a username: type one that ends in `bot` and is not taken, for example `yourcompany_aiworker_bot`. If it says the name is taken, try another.
+   4. BotFather replies "Done! Congratulations on your new bot" with the line **"Use this token to access the HTTP API:"** followed by the **token**, which looks like `1234567890:AAH...`. Keep this message open for step 3. The token can sign a login for anyone: do not post it in a chat or a screenshot.
+   5. Optional: send `/setuserpic`, pick the bot and send your logo, so people recognise it when they confirm.
+2. **Tie the bot to the board's address** (still in @BotFather): send `/setdomain`, pick the bot, and send the board's domain without `https://`, for example `board.company.com`. Correct result: "Success! Domain updated."
+3. **Give the server the token and the username.** From your computer, run this; it asks for the token without showing it on screen:
+   ```bash
+   ssh -t <admin>@<server> 'read -rsp "Bot token: " T; echo; read -rp "Bot username (no @): " N; printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_BOT_NAME=%s\n" "$T" "$N" | sudo tee -a /etc/ai-worker.env >/dev/null && sudo systemctl restart ai-worker-webhook && echo DONE'
+   ```
+   At `Bot token:` paste the token from step 1.4 and press Enter (nothing shows, that is expected). At `Bot username (no @):` type the username from step 1.3, for example `yourcompany_aiworker_bot`. Correct result: `DONE`, and the login page shows a **Log in with Telegram** button under "or".
+   Or edit the file by hand with `sudo nano /etc/ai-worker.env`, add the two lines below, save, and run `sudo systemctl restart ai-worker-webhook`:
+   ```
+   TELEGRAM_BOT_TOKEN=<the token>
+   TELEGRAM_BOT_NAME=<the bot's username, without @>
+   ```
+4. **Each person links once:** log in with name and code, open `/telegram` (or **Telegram** on the detail board), enter the 6-digit code, press **Log in with Telegram** and confirm in Telegram. Next time they press the button on the login page.
+
+The server never calls Telegram: the button takes the browser to Telegram's login page and back, and the server only checks the signature with the token. The login page loads nothing from Telegram. A signed login is accepted for 5 minutes and once. If Telegram cannot be reached from the office, people log in with name and code. Admins see who linked Telegram on `/admin` and can unlink it there; reissuing a key or making an account a wall account also unlinks it.
+
 ## Releasing an update
 
 1. Change `version` in `.claude-plugin/plugin.json`.

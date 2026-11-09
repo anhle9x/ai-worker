@@ -170,6 +170,27 @@ sequenceDiagram
   W-->>B: 200, ghi vào nhật ký thao tác
 ```
 
+### Đăng nhập bằng Telegram (tuỳ chọn)
+
+Chỉ khi đã cài bot. Trang không nạp gì từ Telegram, máy chủ không bao giờ gọi Telegram.
+
+```mermaid
+sequenceDiagram
+  participant B as Trình duyệt
+  participant W as webhook.py
+  participant T as oauth.telegram.org
+  B->>W: GET /telegram/go
+  W-->>B: 303 sang trang đăng nhập của Telegram, kèm số của bot và địa chỉ quay về
+  B->>T: Xác nhận trong Telegram
+  T-->>B: Quay về /telegram/back#tgAuthResult=...
+  B->>W: GET /login/telegram kèm các trường đã ký
+  W->>W: Kiểm chữ ký bằng khoá bot, 5 phút, dùng một lần
+  W->>W: Tìm tài khoản đã liên kết với người dùng Telegram này
+  W-->>B: Cookie phiên, hoặc 401 khi chưa liên kết
+```
+
+Liên kết cũng đi đường này, sau khi nhập mã 6 số ở `/telegram`: địa chỉ quay về mang một mã bước dùng một lần gắn với phiên đó.
+
 ### Ghép màn hình TV
 
 Mã hiện trên TV để quản trị duyệt. Phiên chỉ về tay TV, vì chỉ TV giữ khoá trong cookie: người nhìn thấy mã cũng không lấy được phiên.
