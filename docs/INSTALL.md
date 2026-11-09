@@ -24,7 +24,7 @@ Real addresses, the `INGEST_KEY` and the keys do not go into git. The repo only 
    ssh-keygen -t ed25519 -C ai-worker-main -f ~/.ai-worker-keys/main
    ssh-keygen -t ed25519 -C ai-worker-backup -f ~/.ai-worker-keys/backup
    ```
-   Put the two public keys into `keys/allowed_signers`, one per line like `ai-worker ssh-ed25519 AAAA...`. Private keys do not go to the server or into git; keep the backup one off this computer.
+   Put the two public keys into `~/.ai-worker-keys/allowed_signers`, one per line like `ai-worker ssh-ed25519 AAAA...`. `build.sh` and `release.sh` copy that file into the package; `keys/allowed_signers` in git stays comments only, so the public repository never carries your keys. Private keys do not go to the server or into git; keep the backup one off this computer.
 4. **Build the package.** Copy `packaging/company.example.json` to `packaging/company.json` (this file does not go into git), fill in `webhook` and `ingestKey`, then run:
    ```bash
    bash packaging/build.sh packaging/company.json
@@ -82,7 +82,7 @@ Employee computers ask the server at most once every 4 hours, and 30 minutes lat
 
 **Rolling back:** release the old version again with a new signature, or on that computer rename the `ai-worker.old` folder next to the plugin folder back to the old name.
 
-**Changing keys:** add the new key to `keys/allowed_signers`, release one version, then sign with the new key from the next version. If the main key leaks, sign at once with the backup key and drop the old key in that version.
+**Changing keys:** add the new key to `~/.ai-worker-keys/allowed_signers`, release one version, then sign with the new key from the next version. If the main key leaks, sign at once with the backup key and drop the old key in that version.
 
 ## Data sent to the server
 

@@ -647,7 +647,7 @@ class Handler(BaseHTTPRequestHandler):
         # the IP is written by the server, the sending device cannot claim one
         # IP do máy chủ tự ghi, máy gửi không tự khai được
         d["ip"] = self.client_ip()
-        device_count = sum(1 for f in os.listdir(DATA_DIR) if f.startswith("device-") and f.endswith(".json")) if os.path.isdir(DATA_DIR) else 0
+        device_count = db.data_db().rows("SELECT COUNT(*) FROM devices")[0][0]
         rejection = INGEST_GATE.check(d, d["ip"], time.time(), device_count)
         if rejection:
             sys.stderr.write("rejected ingest from %s at %s: %s\n" % (d["device"], d["ip"], rejection[1]))

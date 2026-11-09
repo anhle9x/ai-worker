@@ -1,4 +1,4 @@
 # Public keys that sign updates. One per line: ai-worker ssh-ed25519 AAAA...
 # Khoá công khai ký bản cập nhật. Mỗi dòng: ai-worker ssh-ed25519 AAAA...
-# Without a key the plugin does not update itself. How to make one: see README.md.
-# Chưa có khoá thì plugin không tự cập nhật. Cách tạo: xem README.md.
+# Without a key the plugin does not update itself. Real keys go in ~/.ai-worker-keys/allowed_signers; build.sh copies them in. See docs/INSTALL.md.
+# Chưa có khoá thì plugin không tự cập nhật. Khoá thật ghi ở ~/.ai-worker-keys/allowed_signers; build.sh chép vào. Xem docs/INSTALL.vi.md.

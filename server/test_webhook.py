@@ -1321,6 +1321,26 @@ class SecurityLimits(unittest.TestCase):
             self.assertIn(self.ingest(json.dumps(self.report(device="device-t%d" % i, **fields))), (200, 400), fields)
             self.pages_still_work()
 
+    def test_the_plugin_makes_device_ids_the_server_takes(self):
+        # 0.24 plugins made may-... ids and every send got 400: the id the plugin builds must pass the server's rule
+        # plugin 0.24 tạo mã may-... và mọi lần gửi bị 400: mã plugin tạo ra phải qua được quy tắc của máy chủ
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "hooks", "register.tsx"), encoding="utf-8") as f:
+            source = f.read()
+        prefix = re.search(r"const id = `([a-z]+-)\$\{", source).group(1)
+        self.assertTrue(settings.DEVICE_NAME_RE.match(prefix + "a1b2c3d4"), prefix)
+        self.assertEqual(self.ingest(json.dumps(self.report(device=prefix + "a1b2c3d4"))), 200)
+        self.assertEqual(self.ingest(json.dumps(self.report(device="may-a1b2c3d4"))), 400)
+
+    def test_the_device_limit_counts_the_database(self):
+        self.assertEqual(self.ingest(json.dumps(self.report(device="device-lim1", name="Lim", account="lim@example.com"))), 200)
+        saved = devices.MAX_DEVICES
+        devices.MAX_DEVICES = db.data_db().rows("SELECT COUNT(*) FROM devices")[0][0]
+        try:
+            self.assertEqual(self.ingest(json.dumps(self.report(device="device-lim2", name="Lim2", account="lim2@example.com"))), 507)
+            self.assertEqual(self.ingest(json.dumps(self.report(device="device-lim1", name="Lim", account="lim@example.com"))), 200)
+        finally:
+            devices.MAX_DEVICES = saved
+
     def test_nan_and_infinity_are_refused(self):
         for text in ('{"usd":NaN}', '{"usd":Infinity}', '{"usd":-Infinity}'):
             raw = '{"v":1,"device":"device-nan","updatedAt":%d,"ledger":{"1":%s}}' % (int(time.time() * 1000), text)

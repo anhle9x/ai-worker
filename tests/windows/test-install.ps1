@@ -35,7 +35,7 @@ function Run([string]$name, [hashtable]$opts) {
   New-Item -ItemType Directory -Force -Path $userHome, "$userHome\AppData\Roaming", "$userHome\AppData\Local", "$userHome\Temp" | Out-Null
   $folder = Join-Path $root "package-$name"
   Copy-Item -Recurse -Force $Package $folder
-  if ($opts.Company) { Set-Content -Path (Join-Path $folder 'ASK-NAME') -Value 'test' } else { Remove-Item -ErrorAction SilentlyContinue (Join-Path $folder 'ASK-NAME') }
+  if ($opts.Company) { Set-Content -Path (Join-Path $folder 'setup\ASK-NAME') -Value 'test' } else { Remove-Item -ErrorAction SilentlyContinue (Join-Path $folder 'setup\ASK-NAME') }
   if ($opts.LoggedIn) { Set-Content -Encoding utf8 -Path "$userHome\login.json" -Value "{`"loggedIn`": true, `"email`": `"$($opts.LoggedIn)`"}" }
   if ($opts.HasApp) { New-Item -ItemType Directory -Force -Path "$userHome\AppData\Roaming\Claude" | Out-Null }
   if ($opts.HasUser) {

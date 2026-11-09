@@ -104,7 +104,11 @@ say "This computer has ${RAM_GB} GB RAM and ${FREE_GB:-?} GB free disk space${SL
 GEMMA_Q=$(
 say "Gemma (runs on this computer, data stays here): $DESC -> install version $GEMMA (about $SIZE_GB GB, downloaded in the background). OK?" "Gemma (chạy ngay trên máy, dữ liệu không ra ngoài): $DESC -> cài bản $GEMMA (khoảng $SIZE_GB GB, tải ngầm). Đồng ý?"
 )
-if [ -z "$GEMMA" ] && [ "$RAM_TIER" -eq 0 ]; then
+# Already downloaded (Ollama running and the model listed): say so and do not ask
+# Đã tải sẵn (Ollama đang chạy và có mô hình trong danh sách): báo luôn, không hỏi
+if [ -n "$GEMMA" ] && curl -s -m 2 http://127.0.0.1:11434/api/tags 2>/dev/null | grep -q "\"name\":\"$GEMMA\""; then
+  say "Gemma: $GEMMA is already there." "Gemma: đã có sẵn $GEMMA."
+elif [ -z "$GEMMA" ] && [ "$RAM_TIER" -eq 0 ]; then
   say "Gemma: not installed ($DESC; needs at least 8 GB RAM)." "Gemma: không cài ($DESC; cần ít nhất 8 GB RAM)."
 elif [ -z "$GEMMA" ]; then
   say "Gemma: not installed ($DESC; needs at least 12 GB free)." "Gemma: không cài ($DESC; cần trống ít nhất 12 GB)."

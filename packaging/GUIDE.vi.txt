@@ -18,6 +18,7 @@ CÀI ĐẶT
    - Ubuntu:  mở Terminal trong thư mục giải nén, gõ: bash INSTALL-Linux.sh
               (Ubuntu thường không chạy file .sh khi bấm đúp.)
               Để /office tự mở trình duyệt cần xdg-utils (Ubuntu desktop có sẵn).
+   Thư mục setup chứa plugin và file phụ của bộ cài: không cần mở, cứ để cạnh các file INSTALL.
 3. Chờ cửa sổ báo "Xong", nhấn Enter / phím bất kỳ để đóng.
 4. Mở lại Claude Code (hoặc gõ /reload-plugins nếu đang mở), rồi gõ:
    /office         mở bảng điều khiển trên trình duyệt

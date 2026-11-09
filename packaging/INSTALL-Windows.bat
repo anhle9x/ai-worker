@@ -3,18 +3,21 @@ chcp 65001 >nul
 :: Install AI Worker Office for Claude Code on Windows. Double-click this file to run it.
 :: Cài Văn phòng AI Worker cho Claude Code trên Windows. Bấm đúp file này để chạy.
 cd /d "%~dp0"
+:: The helper files and the plugin sit in setup\, so only the installers show at the top of the zip
+:: File phụ và plugin nằm trong setup\, để ngoài cùng của zip chỉ còn các file cài
+if exist "%~dp0setup\" cd /d "%~dp0setup"
 :: Language: AI_WORKER_LANG (en or vi) wins, else the Windows language, else English.
 :: Ngôn ngữ: AI_WORKER_LANG (en hoặc vi) thắng, không có thì lấy ngôn ngữ Windows, không có nữa thì tiếng Anh.
 if not defined AI_WORKER_LANG for /f "delims=" %%L in ('powershell -NoProfile -Command "[System.Globalization.CultureInfo]::CurrentCulture.TwoLetterISOLanguageName" 2^>nul') do set "AI_WORKER_LANG=%%L"
 if not defined AI_WORKER_LANG set "AI_WORKER_LANG=en"
 if /i "%AI_WORKER_LANG:~0,2%"=="vi" (set "AI_WORKER_LANG=vi") else (set "AI_WORKER_LANG=en")
 if not exist "ai-worker\" (
-  call :say "Cannot find the ai-worker folder next to the installer: unzip the whole zip file and run again." "Không thấy thư mục ai-worker cạnh file cài: giải nén cả file zip rồi chạy lại."
+  call :say "Cannot find the ai-worker folder in the setup folder: unzip the whole zip file and run again." "Không thấy thư mục ai-worker trong thư mục setup: giải nén cả file zip rồi chạy lại."
   pause
   exit /b 1
 )
-if not exist "%~dp0lang.ps1" (
-  call :say "lang.ps1 is missing next to the installer: unzip the whole zip file and run again." "Thiếu lang.ps1 cạnh file cài: giải nén cả file zip rồi chạy lại."
+if not exist "%CD%\lang.ps1" (
+  call :say "lang.ps1 is missing in the setup folder: unzip the whole zip file and run again." "Thiếu lang.ps1 trong thư mục setup: giải nén cả file zip rồi chạy lại."
   pause
   exit /b 1
 )
@@ -42,7 +45,7 @@ set "AI_WORKER_USER_FILE="
 set "AI_WORKER_SETTINGS_FILE=%USER_FILE%"
 if exist "ASK-NAME" set "AI_WORKER_USER_FILE=%USER_FILE%"
 set "AI_WORKER_CMD_OUT=%TEMP%\ai-worker-claude-%RANDOM%.txt"
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0ask-name.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%CD%\ask-name.ps1"
 set "PS_ERR=%errorlevel%"
 if exist "%AI_WORKER_CMD_OUT%" (
   set /p CLAUDE=<"%AI_WORKER_CMD_OUT%"
@@ -112,7 +115,7 @@ pause >nul
 <nul set /p "=/plugin install ai-worker@ai-worker" | clip
 call :say "  2. Command copied:  /plugin install ai-worker@ai-worker" "  2. Đã chép lệnh:  /plugin install ai-worker@ai-worker"
 call :say "     Paste it into the chat box and press Enter. Then type /reload-plugins, then /office." "     Dán vào khung chat rồi Enter. Sau đó gõ /reload-plugins, rồi /office."
-if not defined AI_WORKER_SKIP_HELPERS if exist "%~dp0helpers.ps1" powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0helpers.ps1"
+if not defined AI_WORKER_SKIP_HELPERS if exist "%CD%\helpers.ps1" powershell -NoProfile -ExecutionPolicy Bypass -File "%CD%\helpers.ps1"
 pause
 exit /b 0
 
@@ -128,11 +131,11 @@ if errorlevel 1 (
 
 :: Company package: check whether this computer can reach the server
 :: Gói công ty: thử xem máy này có tới được máy chủ không
-if exist "%~dp0ASK-NAME" if exist "%~dp0check-network.ps1" powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0check-network.ps1"
+if exist "%CD%\ASK-NAME" if exist "%CD%\check-network.ps1" powershell -NoProfile -ExecutionPolicy Bypass -File "%CD%\check-network.ps1"
 
 :: Helper AI assistants: Codex (default), Gemma by computer size, Gemini optional
 :: Nhân viên AI phụ: Codex (mặc định), Gemma theo máy, Gemini tuỳ chọn
-if not defined AI_WORKER_SKIP_HELPERS if exist "%~dp0helpers.ps1" powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0helpers.ps1"
+if not defined AI_WORKER_SKIP_HELPERS if exist "%CD%\helpers.ps1" powershell -NoProfile -ExecutionPolicy Bypass -File "%CD%\helpers.ps1"
 
 echo.
 call :say "Done. Open (or reopen) Claude Code, then type /office to see the office." "Xong. Mở (hoặc mở lại) Claude Code, rồi gõ /office để xem văn phòng."
@@ -143,7 +146,7 @@ exit /b 0
 :no_claude
 :: Claude Desktop is missing: offer to install it. Either way the user signs in first, then runs this file again.
 :: Thiếu Claude Desktop: đề nghị cài. Dù cách nào thì người dùng cũng đăng nhập trước, rồi chạy lại file này.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-desktop.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%CD%\install-desktop.ps1"
 set "DESKTOP_RESULT=%ERRORLEVEL%"
 pause
 exit /b %DESKTOP_RESULT%

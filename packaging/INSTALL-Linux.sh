@@ -3,7 +3,10 @@
 # Cài Văn phòng AI Worker cho Claude Code trên Ubuntu/Linux. Chạy: bash INSTALL-Linux.sh
 set -e
 cd "$(dirname "$0")"
-[ -f ./lang.sh ] || { echo "lang.sh is missing next to this file: unzip the whole zip file and run again. / Thiếu lang.sh cạnh file này: giải nén cả file zip rồi chạy lại."; exit 1; } # i18n-allow
+# The helper files and the plugin sit in setup/, so only the installers show at the top of the zip
+# File phụ và plugin nằm trong setup/, để ngoài cùng của zip chỉ còn các file cài
+[ -d setup ] && cd setup
+[ -f ./lang.sh ] || { echo "lang.sh is missing in the setup folder: unzip the whole zip file and run again. / Thiếu lang.sh trong thư mục setup: giải nén cả file zip rồi chạy lại."; exit 1; } # i18n-allow
 # Language: AI_WORKER_LANG (en or vi) wins, else the system language (LANG), else English.
 # Ngôn ngữ: AI_WORKER_LANG (en hoặc vi) thắng, không có thì lấy ngôn ngữ hệ thống (LANG), không có nữa thì tiếng Anh.
 . ./lang.sh
@@ -14,7 +17,7 @@ say "Press Enter to close..." "Nhấn Enter để đóng..."
 pause_close() { read -r -p "$PAUSE_MSG" _ || true; }
 
 [ -d ai-worker ] && [ -d .claude-plugin ] || {
-  say "Cannot find the ai-worker folder next to the installer: unzip the whole zip file and run again." "Không thấy thư mục ai-worker cạnh file cài: giải nén cả file zip rồi chạy lại."
+  say "Cannot find the ai-worker folder in the setup folder: unzip the whole zip file and run again." "Không thấy thư mục ai-worker trong thư mục setup: giải nén cả file zip rồi chạy lại."
   pause_close; exit 1
 }
 

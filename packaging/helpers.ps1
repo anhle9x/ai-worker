@@ -131,7 +131,15 @@ if ($gemma) {
   $qGemma = (
     Say-Text -AsString "Gemma (runs on this computer, data stays here): $desc -> install version $($gemma[0]) (about $($gemma[1]) GB, downloaded in the background). OK?" "Gemma (chạy ngay trên máy, dữ liệu không ra ngoài): $desc -> cài bản $($gemma[0]) (khoảng $($gemma[1]) GB, tải ngầm). Đồng ý?")
 }
-if (-not $gemma -and $ramTier -eq 0) {
+# Already downloaded (Ollama running and the model listed): say so and do not ask
+# Đã tải sẵn (Ollama đang chạy và có mô hình trong danh sách): báo luôn, không hỏi
+$haveGemma = $false
+if ($gemma -and (Ollama-Alive)) {
+  try { $haveGemma = [bool]((Invoke-RestMethod "$api/api/tags" -TimeoutSec 2).models | Where-Object { $_.name -eq $gemma[0] }) } catch { }
+}
+if ($haveGemma) {
+  Say-Text "Gemma: $($gemma[0]) is already there." "Gemma: đã có sẵn $($gemma[0])."
+} elseif (-not $gemma -and $ramTier -eq 0) {
   Say-Text "Gemma: not installed ($desc; needs at least 8 GB RAM)." "Gemma: không cài ($desc; cần ít nhất 8 GB RAM)."
 } elseif (-not $gemma) {
   Say-Text "Gemma: not installed ($desc; needs at least 12 GB free)." "Gemma: không cài ($desc; cần trống ít nhất 12 GB)."

@@ -402,8 +402,11 @@ const ACCOUNT_EVERY_MS = 5 * 60_000
 /** Id ngẫu nhiên của máy này, giữ qua các phiên: mỗi máy một file trong thư mục chung. */
 async function machineId($: EngineInterface): Promise<string> {
   const had = await $.store.get('deviceId')
-  if (typeof had === 'string' && had) return had
-  const id = `may-${Math.random().toString(36).slice(2, 10)}`
+  // the server takes device-... only; versions before 0.25.0 made may-... ids that it refused: keep the same suffix
+  // máy chủ chỉ nhận device-...; bản trước 0.25.0 tạo mã may-... bị từ chối: giữ nguyên phần đuôi
+  if (typeof had === 'string' && /^device-[a-z0-9]{1,40}$/.test(had)) return had
+  const old = typeof had === 'string' ? /^may-([a-z0-9]{1,40})$/.exec(had) : null
+  const id = `device-${old ? old[1] : Math.random().toString(36).slice(2, 10)}`
   await $.store.set('deviceId', id)
   return id
 }

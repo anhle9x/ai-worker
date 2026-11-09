@@ -18,6 +18,7 @@ INSTALL
    - Ubuntu:  open Terminal in the unzipped folder and type: bash INSTALL-Linux.sh
               (Ubuntu usually does not run .sh files on double-click.)
               For /office to open the browser by itself you need xdg-utils (Ubuntu desktop has it).
+   The setup folder holds the plugin and the installer's helper files: no need to open it, keep it next to the INSTALL files.
 3. Wait for the window to say "Done", then press Enter / any key to close it.
 4. Reopen Claude Code (or type /reload-plugins if it is open), then type:
    /office         opens the control panel in your browser

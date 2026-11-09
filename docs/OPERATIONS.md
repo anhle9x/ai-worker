@@ -115,7 +115,7 @@ Rolling back the plugin: release the old code again under a new version number, 
 
 ### Keys
 
-- **Signing key:** add the new key to `keys/allowed_signers`, release one version, then sign with the new key. If the main key leaks, sign at once with the backup key and drop the old key in that version.
+- **Signing key:** add the new key to `~/.ai-worker-keys/allowed_signers`, release one version, then sign with the new key. If the main key leaks, sign at once with the backup key and drop the old key in that version.
 - **`INGEST_KEY`:** changing it stops every computer until it gets a package built with the new key. Change it only when it has leaked.
 
 ## 6. Logging policy

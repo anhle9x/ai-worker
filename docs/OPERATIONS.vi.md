@@ -115,7 +115,7 @@ Quay về bản cũ: phát hành lại code cũ với số phiên bản mới, c
 
 ### Khoá
 
-- **Khoá ký:** thêm khoá mới vào `keys/allowed_signers`, phát hành một bản, rồi từ bản sau ký bằng khoá mới. Nếu lộ khoá chính, ký ngay bằng khoá dự phòng và bỏ khoá cũ trong bản đó.
+- **Khoá ký:** thêm khoá mới vào `~/.ai-worker-keys/allowed_signers`, phát hành một bản, rồi từ bản sau ký bằng khoá mới. Nếu lộ khoá chính, ký ngay bằng khoá dự phòng và bỏ khoá cũ trong bản đó.
 - **`INGEST_KEY`:** đổi khoá này thì mọi máy ngừng gửi cho tới khi cài gói đóng với khoá mới. Chỉ đổi khi khoá bị lộ.
 
 ## 6. Chính sách ghi nhật ký

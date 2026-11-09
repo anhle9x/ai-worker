@@ -24,7 +24,7 @@ Dành cho người IT triển khai AI Worker: cần chuẩn bị gì, triển kh
    ssh-keygen -t ed25519 -C ai-worker-main -f ~/.ai-worker-keys/main
    ssh-keygen -t ed25519 -C ai-worker-backup -f ~/.ai-worker-keys/backup
    ```
-   Đưa hai khoá công khai vào `keys/allowed_signers`, mỗi dòng dạng `ai-worker ssh-ed25519 AAAA...`. Khoá riêng không lên máy chủ, không vào git; cất bản dự phòng ở ngoài máy.
+   Đưa hai khoá công khai vào `~/.ai-worker-keys/allowed_signers`, mỗi dòng dạng `ai-worker ssh-ed25519 AAAA...`. `build.sh` và `release.sh` chép file đó vào gói; `keys/allowed_signers` trong git chỉ có chú thích, nên repo công khai không bao giờ mang khoá của bạn. Khoá riêng không lên máy chủ, không vào git; cất bản dự phòng ở ngoài máy.
 4. **Đóng gói.** Chép `packaging/company.example.json` thành `packaging/company.json` (file này không vào git), điền `webhook` và `ingestKey`, rồi:
    ```bash
    bash packaging/build.sh packaging/company.json
@@ -82,7 +82,7 @@ Máy nhân viên hỏi máy chủ tối đa 4 giờ một lần, thất bại th
 
 **Lùi bản:** phát hành lại bản cũ với chữ ký mới, hoặc trên máy đó đổi tên thư mục `ai-worker.old` cạnh thư mục plugin về tên cũ.
 
-**Đổi khoá:** thêm khoá mới vào `keys/allowed_signers`, phát hành một bản, rồi ký bằng khoá mới từ bản sau. Khoá chính lộ thì ký ngay bằng khoá dự phòng và bỏ khoá cũ ở bản đó.
+**Đổi khoá:** thêm khoá mới vào `~/.ai-worker-keys/allowed_signers`, phát hành một bản, rồi ký bằng khoá mới từ bản sau. Khoá chính lộ thì ký ngay bằng khoá dự phòng và bỏ khoá cũ ở bản đó.
 
 ## Dữ liệu gửi lên máy chủ
 

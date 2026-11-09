@@ -80,9 +80,9 @@ check 'keeps the name' 'grep -q "\"name\": *\"Cu\"" "$USER_JSON"'
 check 'updates the language' 'grep -q "\"language\": *\"vi\"" "$USER_JSON"'
 
 echo '== L6 company package asks the name, and a quote cannot break the file'
-touch "$PACKAGE/ASK-NAME"
+touch "$PACKAGE/setup/ASK-NAME"
 run l6 1 lan@example.com en 'Nguyen "Van" A\n\n'
-rm -f "$PACKAGE/ASK-NAME"
+rm -f "$PACKAGE/setup/ASK-NAME"
 check 'exit 0' '[ "$RESULT" = 0 ]'
 check 'user.json stays valid JSON' 'python3 -c "import json,sys;d=json.load(open(sys.argv[1]));sys.exit(0 if d[\"account\"]==\"lan@example.com\" and d[\"language\"]==\"en\" else 1)" "$USER_JSON"'
 
