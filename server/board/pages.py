@@ -527,10 +527,6 @@ JS_LOGIN = b"""(function () {
     } catch (e) {}
     return location.replace(to)
   }
-  if (tg) {
-    watch()
-    if (window.MutationObserver) new MutationObserver(watch).observe(tg, { childList: true })
-  }
   // quet ma TV khi chua dang nhap, hoac trinh duyet khong gui cookie vi link mo tu app camera
   var h = location.hash
   if (/^#pair=[0-9]{8}$/.test(h)) {
