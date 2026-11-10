@@ -2,7 +2,7 @@
 
 # Operations handbook
 
-For the IT person who runs the dashboard server: daily checks, problems, backup, upgrade and rollback, logs. Installing the first time is in [server/README.md](../server/README.md).
+For the admin who runs the dashboard server: daily checks, problems, backup, upgrade and rollback, logs. Installing the first time is in [server/README.md](../server/README.md).
 
 All commands run on the server unless stated otherwise.
 

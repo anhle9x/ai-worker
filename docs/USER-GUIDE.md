@@ -4,7 +4,7 @@
 
 This guide is for the people who use AI Worker every day. It is split by role: find yours in the table below and read only that part.
 
-Setting up the server and building the install package is IT work, covered in [INSTALL.md](INSTALL.md) and [server/README.md](../server/README.md).
+Setting up the server and building the install package is the admin's work, covered in [INSTALL.md](INSTALL.md) and [server/README.md](../server/README.md).
 
 ## Who uses what
 
@@ -82,7 +82,7 @@ To sign in later: open Terminal or PowerShell and type `codex login` (ChatGPT) o
 
 ### 1.5 Updates
 
-When IT releases a new version, a bar above the chat box shows **New version** with an **Update** button; you can also type `/update`.
+When your admin releases a new version, a bar above the chat box shows **New version** with an **Update** button; you can also type `/update`.
 
 1. Click **Update** and wait for the message that it is installed.
 2. Quit the Claude app completely and open it again.
@@ -125,9 +125,9 @@ Then delete the `claude-plugins-ai-worker` folder in your user folder.
 | What you see | What to do |
 |---|---|
 | `/office` does nothing | Quit the Claude app completely and open it again, or type `/reload-plugins` |
-| The installer says the server cannot be reached | Your numbers are not on the board yet. Check you are on the company network and send a screenshot to IT |
+| The installer says the server cannot be reached | Your numbers are not on the board yet. Check you are on the company network and send a screenshot to your admin |
 | A helper assistant's desk is missing | It is not installed or not signed in; see 1.4 |
-| The update fails | Make sure you are on the company network; otherwise ask IT for the new install package |
+| The update fails | Make sure you are on the company network; otherwise ask your admin for the new install package |
 
 ---
 

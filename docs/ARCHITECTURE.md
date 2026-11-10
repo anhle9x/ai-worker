@@ -27,7 +27,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | Viewer | Dashboard, `/board` | See numbers with names, emails and internal IPs; change nothing |
 | Wall screen | Dashboard on a TV | See numbers with shortened names; no emails or internal IPs |
 | Manager | Menu bar icon, browser extension | See who is waiting or working, quota and cost today without opening the board, with the wall screen's data; see [menu-bar-spec.md](menu-bar-spec.md) and [chrome-extension-spec.md](chrome-extension-spec.md) |
-| IT | Server, signing keys | Install the webhook, build packages, sign releases |
+| Server owner | Server, signing keys | Install the webhook, build packages, sign releases |
 
 ### What it must do
 

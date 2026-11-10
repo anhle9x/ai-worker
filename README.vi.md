@@ -22,7 +22,7 @@ AI Worker gồm một plugin Claude Code trên máy từng nhân viên và một
 
 - **Một bảng cho cả công ty:** ai đang làm, ai chờ trả lời và chờ bao lâu, chi phí hôm nay và 7 ngày, hạn mức còn lại, theo từng văn phòng trên bản đồ.
 - **Tua lại 24 giờ qua** để xem cả ngày diễn ra thế nào.
-- **Báo mà không cần mở trình duyệt:** biểu tượng thanh menu (macOS, Windows, Ubuntu) và tiện ích Chrome đếm người đang chờ.
+- **Báo mà không cần mở trình duyệt:** biểu tượng thanh menu (macOS, Windows, Ubuntu) và tiện ích Chrome, Edge đếm người đang chờ.
 - **Skill và quy tắc dùng chung** cho mọi máy, tự cập nhật bằng gói có chữ ký.
 - **Phân quyền và nhật ký:** quản trị, quản lý, màn hình treo tường thấy dữ liệu khác nhau; đăng nhập bằng mã OTP 6 số hoặc bằng Telegram (Telegram cần cài thêm bot, xem [hướng dẫn cài đặt](docs/INSTALL.vi.md)); mọi thay đổi được ghi 12 tháng.
 
@@ -37,7 +37,7 @@ Không có máy chủ thì plugin vẫn chạy trên từng máy với trang vă
 
 ## Cài nhanh
 
-**IT, một lần** (khoảng 30 phút). Các bước và lệnh: [docs/INSTALL.vi.md](docs/INSTALL.vi.md).
+**Người quản trị, một lần** (khoảng 30 phút). Các bước và lệnh: [docs/INSTALL.vi.md](docs/INSTALL.vi.md).
 
 1. Chép `server/` lên một máy chủ Linux và chạy `sudo bash install.sh`. Script in ra mã gửi và tạo quản trị đầu tiên.
 2. Đặt Caddy phía trước để có HTTPS và danh sách IP văn phòng (mẫu: `server/aiworker.caddy`).
@@ -57,7 +57,7 @@ Cách dùng từng màn hình: [docs/USER-GUIDE.vi.md](docs/USER-GUIDE.vi.md).
 | Plugin | macOS, Windows, Linux | Claude Code (thẻ Code của app máy tính hoặc CLI) |
 | Máy chủ bảng tổng | Linux có systemd | Python 3.8 trở lên, Caddy hoặc nginx; không thư viện nào khác |
 | Biểu tượng thanh menu | macOS, Windows 10/11, Ubuntu (X11 và Wayland) | Tải ở trang Quản trị của máy chủ |
-| Tiện ích trình duyệt | Chrome | Ghép bằng mã |
+| Tiện ích trình duyệt | Chrome, Edge | Tải ở trang Quản trị, ghép bằng mã |
 
 Thẻ Chat của app Claude không có plugin nên không đếm được.
 

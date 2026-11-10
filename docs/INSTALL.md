@@ -2,7 +2,7 @@
 
 # Install and configure
 
-For the IT person who deploys AI Worker: what you need, the first deployment, releasing updates, the data sent, settings and protection. Using it day to day is in [USER-GUIDE.md](USER-GUIDE.md); running the server is in [OPERATIONS.md](OPERATIONS.md).
+For the admin who deploys AI Worker: what you need, the first deployment, releasing updates, the data sent, settings and protection. Using it day to day is in [USER-GUIDE.md](USER-GUIDE.md); running the server is in [OPERATIONS.md](OPERATIONS.md).
 
 ## What you need
 

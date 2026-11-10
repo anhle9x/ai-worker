@@ -19,7 +19,7 @@ Mọi phần của AI Worker: chạy ở đâu, cần gì, phiên bản nào đ�
 
 | Máy | Cần | Ai cài |
 |---|---|---|
-| Máy chủ | Linux có systemd, Python 3.8 trở lên kèm module `sqlite3` có sẵn, Caddy hoặc nginx cho HTTPS | IT cài tay; sau đó chạy `server/install.sh` |
+| Máy chủ | Linux có systemd, Python 3.8 trở lên kèm module `sqlite3` có sẵn, Caddy hoặc nginx cho HTTPS | Người quản trị cài tay; sau đó chạy `server/install.sh` |
 | Máy nhân viên | Claude Code (app máy tính hoặc CLI), một tài khoản Claude | Nhân viên |
 | Máy nhân viên, trợ lý phụ tuỳ chọn | Ollama với một model Gemma, Codex CLI (ChatGPT), Antigravity CLI `agy` (Gemini) | File cài hỏi trước khi cài |
 | Gói cho lập trình viên | Node 20.19 trở lên, Python, Chrome, ffmpeg | File cài gói lập trình viên (`winget` trên Windows, Homebrew trên Mac) |

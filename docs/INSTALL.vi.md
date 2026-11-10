@@ -2,7 +2,7 @@ Tiếng Việt | [English](INSTALL.md)
 
 # Cài đặt và cấu hình
 
-Dành cho người IT triển khai AI Worker: cần chuẩn bị gì, triển khai lần đầu, phát hành bản cập nhật, dữ liệu gửi đi, tuỳ chỉnh và bảo vệ. Cách dùng hằng ngày xem [USER-GUIDE.vi.md](USER-GUIDE.vi.md); vận hành máy chủ xem [OPERATIONS.vi.md](OPERATIONS.vi.md).
+Dành cho người quản trị triển khai AI Worker: cần chuẩn bị gì, triển khai lần đầu, phát hành bản cập nhật, dữ liệu gửi đi, tuỳ chỉnh và bảo vệ. Cách dùng hằng ngày xem [USER-GUIDE.vi.md](USER-GUIDE.vi.md); vận hành máy chủ xem [OPERATIONS.vi.md](OPERATIONS.vi.md).
 
 ## Cần chuẩn bị
 

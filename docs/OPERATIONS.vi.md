@@ -2,7 +2,7 @@ Tiếng Việt | [English](OPERATIONS.md)
 
 # Sổ tay vận hành
 
-Dành cho người IT vận hành máy chủ bảng tổng: kiểm tra hằng ngày, xử lý sự cố, sao lưu, nâng cấp và quay về bản cũ, nhật ký. Cài đặt lần đầu xem [server/README.vi.md](../server/README.vi.md).
+Dành cho người quản trị vận hành máy chủ bảng tổng: kiểm tra hằng ngày, xử lý sự cố, sao lưu, nâng cấp và quay về bản cũ, nhật ký. Cài đặt lần đầu xem [server/README.vi.md](../server/README.vi.md).
 
 Mọi lệnh chạy trên máy chủ, trừ khi ghi khác.
 

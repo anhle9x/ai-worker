@@ -19,7 +19,7 @@ Every part of AI Worker, where it runs, what it needs and which version is pinne
 
 | Machine | Needs | Installed by |
 |---|---|---|
-| Server | Linux with systemd, Python 3.8 or newer with its built-in `sqlite3` module, Caddy or nginx for HTTPS | IT, by hand; then `server/install.sh` |
+| Server | Linux with systemd, Python 3.8 or newer with its built-in `sqlite3` module, Caddy or nginx for HTTPS | The admin, by hand; then `server/install.sh` |
 | Staff computer | Claude Code (desktop app or CLI), a Claude account | The staff member |
 | Staff computer, optional helpers | Ollama with a Gemma model, Codex CLI (ChatGPT), Antigravity CLI `agy` (Gemini) | The installer asks |
 | Developer pack | Node 20.19 or newer, Python, Chrome, ffmpeg | The developer pack installer (`winget` on Windows, Homebrew on Mac) |

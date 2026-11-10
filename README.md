@@ -22,7 +22,7 @@ AI Worker is a Claude Code plugin on each employee's computer and a small server
 
 - **One board for the whole company:** who is working, who waits for an answer and for how long, cost today and over 7 days, quota left, per office on a map.
 - **Rewind the last 24 hours** to see how the day went.
-- **Alerts without the browser:** a menu bar icon (macOS, Windows, Ubuntu) and a Chrome extension count the people waiting.
+- **Alerts without the browser:** a menu bar icon (macOS, Windows, Ubuntu) and a Chrome or Edge extension count the people waiting.
 - **Shared skills and rules** for every computer, and self-update with signed packages.
 - **Roles and audit:** admins, managers and wall screens see different data; log in with a 6-digit OTP code or with Telegram (Telegram needs a bot set up first, see the [install guide](docs/INSTALL.md)); every change is logged for 12 months.
 
@@ -37,7 +37,7 @@ Without a server the plugin still runs on each computer, with its own office pag
 
 ## Quick start
 
-**IT, once** (about 30 minutes). Steps and commands: [docs/INSTALL.md](docs/INSTALL.md).
+**The admin, once** (about 30 minutes). Steps and commands: [docs/INSTALL.md](docs/INSTALL.md).
 
 1. Copy `server/` to a Linux server and run `sudo bash install.sh`. It prints the send key and creates the first admin.
 2. Put Caddy in front for HTTPS and your office IP list (template: `server/aiworker.caddy`).
@@ -57,7 +57,7 @@ How to use each screen: [docs/USER-GUIDE.md](docs/USER-GUIDE.md).
 | Plugin | macOS, Windows, Linux | Claude Code (desktop app Code tab or CLI) |
 | Dashboard server | Linux with systemd | Python 3.8 or newer, Caddy or nginx; no other library |
 | Menu bar icon | macOS, Windows 10/11, Ubuntu (X11 and Wayland) | Downloaded from the server's Admin page |
-| Browser extension | Chrome | Paired with a code |
+| Browser extension | Chrome, Edge | Download from the server's Admin page, pair with a code |
 
 The Chat tab of the Claude app has no plugins, so it cannot be counted.
 
