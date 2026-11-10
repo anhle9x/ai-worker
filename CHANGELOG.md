@@ -2,6 +2,17 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.27.0 - 2026-11-10
+
+### Added
+- The Admin page offers the manager browser extension for Chrome and Edge. `packaging/build-extension.sh` zips `extensions/manager` into `server/menubar/`, `install.sh` copies it, and an "Extension for Chrome, Edge" button appears for admins. See [docs/INSTALL.md](docs/INSTALL.md).
+
+### Changed
+- The menu bar downloads on the Admin page are one button per system. macOS and Windows open a small menu that lists the files by name, the recommended one first (`AI-Worker.dmg`, `AI-Worker.msi`); the downloaded file keeps that name.
+
+### Fixed
+- The browser extension gets its pairing code right after "Allow". Chrome closes the extension's window while it asks for access, so the address had to be entered twice.
+
 ## 0.26.1 - 2026-11-09
 
 ### Fixed
