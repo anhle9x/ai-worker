@@ -529,20 +529,50 @@
   function menubarSection() {
     const p = section(tx('Menu bar icon'), tx('For managers: who is waiting for an answer, without opening the board'))
     const row = o('div', 'qt-row')
-    const files = [[tx('Download for macOS'), '/menubar/install-mac.zip', 'AI-Worker-menu-bar-mac.zip']]
+    // one button per system; a system with two kinds of file gets a drop-down, the recommended file first
+    // mỗi hệ điều hành một nút; hệ có hai kiểu file thì thành menu xổ xuống, file nên dùng đứng đầu
+    const mac = [], windows = []
     // the built macOS app also comes as a disk image when the server has one: drag it into Applications
     // app macOS đã đóng gói có thêm bản ổ đĩa ảo khi máy chủ có: kéo vào Applications
-    if (snapshot.menubarDmg) files.push([tx('Download for macOS (.dmg)'), '/menubar/install-mac.dmg', 'AI-Worker-menu-bar-mac.dmg'])
+    // in a drop-down each entry is the file's own name, the recommended one marked
+    // trong menu xổ, mỗi dòng là chính tên file, file nên dùng có ghi chú
+    const pick = (name, recommended) => recommended ? tx('{file} (recommended)', { file: name }) : name
+    if (snapshot.menubarDmg) mac.push([pick('AI-Worker.dmg', true), '/menubar/install-mac.dmg', 'AI-Worker.dmg'])
+    mac.push([snapshot.menubarDmg ? pick('AI-Worker-mac.zip') : tx('Download for macOS'), '/menubar/install-mac.zip', 'AI-Worker-mac.zip'])
     // Windows: AI Worker.msi when the server has it; the .zip (a .bat file) is the old installer, kept as a fallback
     // Windows: gói AI Worker.msi khi máy chủ có; gói .zip (file .bat) là bản cũ, để dự phòng
-    if (snapshot.menubarMsi) files.push([tx('Download for Windows (.msi)'), '/menubar/install-windows.msi', 'AI-Worker.msi'])
-    files.push([snapshot.menubarMsi ? tx('Windows, old installer (.zip)') : tx('Download for Windows'), '/menubar/install-windows.zip', 'AI-Worker-menu-bar-windows.zip'])
-    files.push([tx('Download for Ubuntu (.deb)'), '/menubar/install-ubuntu.deb', 'ai-worker-menubar.deb'])
-    for (const [label, file, name] of files) {
-      const link = o('a', 'qt-button', label)
+    if (snapshot.menubarMsi) windows.push([pick('AI-Worker.msi', true), '/menubar/install-windows.msi', 'AI-Worker.msi'])
+    windows.push([snapshot.menubarMsi ? pick('AI-Worker-windows.zip') : tx('Download for Windows'), '/menubar/install-windows.zip', 'AI-Worker-windows.zip'])
+    const groups = [[tx('Download for macOS'), mac], [tx('Download for Windows'), windows],
+      [tx('Download for Ubuntu (.deb)'), [[tx('Download for Ubuntu (.deb)'), '/menubar/install-ubuntu.deb', 'ai-worker-menubar.deb']]]]
+    // the browser extension for managers, when packaging/build-extension.sh put it on the server
+    // tiện ích trình duyệt cho quản lý, khi packaging/build-extension.sh đã đưa lên máy chủ
+    if (snapshot.menubarExtension) groups.push(['', [[tx('Extension for Chrome, Edge'), '/menubar/extension.zip', 'AI-Worker-extension.zip']]])
+    const fileLink = (cls, [label, file, name]) => {
+      const link = o('a', cls, label)
       link.href = file
       link.download = name
-      row.append(link)
+      return link
+    }
+    for (const [title, list] of groups) {
+      if (list.length === 1) { row.append(fileLink('qt-button', list[0])); continue }
+      const menu = o('details', 'qt-menu')
+      menu.append(o('summary', 'qt-button', title + ' ▾'))
+      const box = o('div', 'qt-menu-list')
+      for (const item of list) box.append(fileLink('', item))
+      menu.append(box)
+      // close it after a pick, and when another menu opens
+      // đóng sau khi chọn, và khi mở menu khác
+      box.addEventListener('click', () => { menu.open = false })
+      menu.addEventListener('toggle', () => {
+        if (!menu.open) return
+        for (const other of row.querySelectorAll('.qt-menu[open]')) if (other !== menu) other.open = false
+        // near the right edge (a phone), open towards the left so the list stays on screen
+        // sát mép phải (điện thoại) thì mở về bên trái để menu không lọt ra ngoài màn hình
+        box.classList.remove('to-left')
+        if (box.getBoundingClientRect().right > document.documentElement.clientWidth - 12) box.classList.add('to-left')
+      })
+      row.append(menu)
     }
     p.append(row)
     const steps = o('ol', 'qt-steps')
@@ -559,6 +589,7 @@
       tx('Ubuntu: open the .deb with App Center, or run sudo apt install ./ai-worker-menubar.deb, then log out and back in.'),
       tx('The manager clicks the icon and pairs it with their own account and 6-digit code; nobody needs to approve. A manager without an account: enter the code shown on the icon in TV screens above.'),
       tx('Within a minute the icon shows how many people are waiting; a click opens the small window.'),
+      ...(snapshot.menubarExtension ? [tx('Chrome, Edge: unzip somewhere it will stay (for example Documents), open chrome://extensions (edge://extensions), turn on Developer mode, click Load unpacked and pick the AI-Worker-extension folder. Click the icon, enter this board\'s address and read the 8-digit code to an admin, who approves it in TV screens above.')] : []),
     ]) steps.append(o('li', '', text))
     p.append(steps)
     p.append(o('small', '', tx('A paired computer sees short names and costs, like a wall screen. Each account may pair 2 computers; deleting the account or ending its sessions removes them.')))

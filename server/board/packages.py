@@ -118,6 +118,15 @@ MENUBAR_ICON_DIR = os.environ.get("MENUBAR_ICON_DIR", "")
 MENUBAR_MAC_APP = os.environ.get("MENUBAR_MAC_APP", "")
 
 
+# the manager browser extension zipped by packaging/build-extension.sh; when it is there, Admin offers it
+# tiện ích trình duyệt cho quản lý do packaging/build-extension.sh nén; có file đó thì trang Quản trị cho tải
+def menubar_extension() -> str:
+    """The extension zip in menubar/, or '' when there is none.
+    File zip tiện ích trong menubar/, hoặc '' khi không có."""
+    path = os.path.join(MENUBAR_DIR, "AI-Worker-extension.zip")
+    return path if os.path.isfile(path) else ""
+
+
 def menubar_mac_dmg() -> str:
     """The .dmg build.sh made next to MENUBAR_MAC_APP, or '' when there is none.
     File .dmg build.sh tạo cạnh MENUBAR_MAC_APP, hoặc '' khi không có."""

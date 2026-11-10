@@ -222,8 +222,17 @@
     // cửa sổ nhỏ cũng thấy chế độ; nhờ vậy biểu tượng đúng màu kể cả khi trang ẩn không mở được
     send({ type: 'theme', dark: matchMedia('(prefers-color-scheme: dark)').matches }).catch(() => {})
     await words()
+    // a pairing that started after the access prompt closed this popup, or the error it ran into
+    // việc ghép đã bắt đầu sau khi hộp hỏi quyền đóng cửa sổ này, hoặc lỗi nó gặp
+    const pending = await send({ type: 'pairPending' })
+    const pendingError = pending && pending.ok && pending.result && pending.result.error
     const r = await send({ type: 'refresh' })
     if (!r || !r.ok) return
+    if (pendingError) {
+      render(r.result)
+      $('pair-error').textContent = t(pendingError)
+      return
+    }
     if (r.result.status === 'ok' && await showMini().catch(() => false)) return
     render(r.result.status === 'ok' ? (await send({ type: 'state' })).result : r.result)
   }
@@ -242,6 +251,9 @@
       $('pair-error').textContent = t(ManagerCore.addressProblem($('board-url').value))
       return
     }
+    // noted before asking: Chrome may close this popup during the prompt, and the hidden page then starts the pairing
+    // ghi lại trước khi hỏi: Chrome có thể đóng cửa sổ này trong lúc hỏi, khi đó trang ẩn bắt đầu ghép
+    await chrome.storage.session.set({ pendingPairing: { origin, at: Date.now() } })
     let granted = false
     try {
       granted = await requestAccess(origin)
@@ -249,15 +261,11 @@
       granted = false
     }
     if (!granted) {
+      await chrome.storage.session.remove('pendingPairing')
       $('pair-error').textContent = t('permissionDenied')
       return
     }
-    const r = await send({ type: 'startPairing', boardUrl: origin })
-    // access to an older address is given back, so only the current board stays allowed; only now, after the old key was revoked there
-    // trả lại quyền của địa chỉ cũ, để chỉ còn bảng hiện tại được phép; chỉ làm lúc này, sau khi khoá cũ đã bị thu hồi ở đó
-    if (current && current.boardUrl && current.boardUrl !== origin && ManagerCore.originPattern(current.boardUrl) !== ManagerCore.originPattern(origin)) {
-      chrome.permissions.remove({ origins: [ManagerCore.originPattern(current.boardUrl)] })
-    }
+    const r = await send({ type: 'pairPending' })
     if (r && r.ok && r.result && r.result.error) $('pair-error').textContent = t(r.result.error)
     else refresh()
   })

@@ -95,6 +95,39 @@ chrome.storage.onChanged.addListener((changes, area) => {
   serial(async () => manager.showBadge(await manager.load()))
 })
 
+// Chrome closes the popup while it asks for access to the board, so the popup's own code stops there.
+// The popup notes the address first; once access is given, the pairing starts here and the code is waiting when the popup opens again.
+// Chrome đóng cửa sổ nhỏ trong lúc hỏi quyền vào bảng, nên code của cửa sổ dừng ở đó.
+// Cửa sổ ghi lại địa chỉ trước; được cấp quyền xong thì việc ghép bắt đầu ở đây, mở lại cửa sổ là đã có mã.
+const PENDING_KEY = 'pendingPairing'
+const PENDING_MS = 10 * 60 * 1000
+async function pairPending () {
+  const x = await chrome.storage.session.get(PENDING_KEY)
+  const p = x[PENDING_KEY]
+  if (!p || !p.origin) return null
+  if (p.error || !(Date.now() - p.at < PENDING_MS)) {
+    // an error from a pairing started while the popup was closed is shown once, then forgotten
+    // lỗi của lần ghép chạy khi cửa sổ đã đóng chỉ hiện một lần rồi bỏ
+    await chrome.storage.session.remove(PENDING_KEY)
+    return p.error ? { error: p.error } : null
+  }
+  if (!(await chrome.permissions.contains({ origins: [ManagerCore.originPattern(p.origin)] }))) return null
+  await chrome.storage.session.remove(PENDING_KEY)
+  const before = await manager.load()
+  const result = await manager.startPairing(p.origin)
+  if (result && result.error) {
+    await chrome.storage.session.set({ [PENDING_KEY]: { origin: p.origin, error: result.error } })
+    return result
+  }
+  // access to an older address is given back, so only the current board stays allowed; only now, after the old key was revoked there
+  // trả lại quyền của địa chỉ cũ, để chỉ còn bảng hiện tại được phép; chỉ làm lúc này, sau khi khoá cũ đã bị thu hồi ở đó
+  if (before.boardUrl && ManagerCore.originPattern(before.boardUrl) !== ManagerCore.originPattern(p.origin)) {
+    chrome.permissions.remove({ origins: [ManagerCore.originPattern(before.boardUrl)] })
+  }
+  return result
+}
+chrome.permissions.onAdded.addListener(() => { serial(pairPending) })
+
 async function openBoard () {
   const s = await manager.load()
   if (s.boardUrl) await chrome.tabs.create({ url: s.boardUrl + '/board' })
@@ -115,7 +148,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   }
   const jobs = {
     refresh: () => manager.tick(),
-    startPairing: () => manager.startPairing(msg.boardUrl),
+    pairPending: () => pairPending(),
     saveSettings: () => manager.saveSettings(msg.settings),
     forget: () => manager.forget(),
     miniPage: () => manager.miniPage(msg.lang),

@@ -43,7 +43,7 @@ Real addresses, the `INGEST_KEY` and the keys do not go into git. The repo only 
 
 Managers see in the menu bar how many people are waiting for an answer, without opening the board: a native app on macOS, an app next to the clock on Windows (installed from an .msi, no admin rights), a top bar icon on Ubuntu (a .deb package). A click opens a small window with Waiting, Working, Quota, Cost today and Settings. Details: [docs/menu-bar-spec.md](menu-bar-spec.md).
 
-- **Download:** the Admin page, section "Menu bar icon": "Download for macOS" (.zip, and .dmg when the server has the built app), "Download for Windows (.msi)" (the old PowerShell installer stays as "Windows, old installer (.zip)"), "Download for Ubuntu (.deb)". Without `MENUBAR_MAC_APP`, "Download for macOS" gives the SwiftBar-based installer instead of the app.
+- **Download:** the Admin page, section "Menu bar icon": "Download for macOS ▾" (.dmg when the server has the built app, and .zip), "Download for Windows ▾" (.msi, and the old PowerShell installer "AI-Worker-windows.zip"), "Download for Ubuntu (.deb)". Without `MENUBAR_MAC_APP`, "Download for macOS" gives the SwiftBar-based installer instead of the app.
 - **Ubuntu:** open the .deb with App Center, or `sudo apt install ./ai-worker-menubar.deb`; apt adds the AppIndicator libraries, the icon starts at every login, and `sudo apt remove ai-worker-menubar` takes it away.
 - **Pairing:** the manager clicks the icon and enters their own account and 6-digit code; an account may pair 2 computers. A manager without an account reads the icon's code to an admin, who enters it under TV screens.
 - **The macOS app is built once per company** on a Mac with Apple's Command Line Tools, then served by the server:
@@ -58,9 +58,10 @@ Copy `server/menubar/macos-app/dist/*-menu-bar-mac-app.zip` to the server and se
 
 A Chrome or Edge extension shows, on its icon, how many people are waiting for an answer; a click opens the same small window as the menu bar apps. It reads only part of what a wall screen sees, and holds no password, OTP or login cookie. Details: [docs/chrome-extension-spec.md](chrome-extension-spec.md).
 
-1. **Install by hand** on the manager's computer: copy the `extensions/manager/` folder, open `chrome://extensions` (Edge: `edge://extensions`), turn on Developer mode, click "Load unpacked" and choose the folder.
-2. **Pair:** click the icon, type the board address, allow access to that one site when the browser asks, and read the 8-digit code to an admin.
-3. **The admin approves** it on the Admin page under TV screens, like a screen; the row is marked "Browser extension". Revoking it there makes the extension show "not paired" within a minute.
+1. **Package** on the computer with the repository: `bash packaging/build-extension.sh` makes `server/menubar/AI-Worker-extension.zip`; copy `server/` to the server and run `install.sh`, and the Admin page shows an **Extension for Chrome, Edge** button under "Menu bar icon". Run it again after changing the extension.
+2. **Install by hand** on the manager's computer: unzip that file (or copy the `extensions/manager/` folder), open `chrome://extensions` (Edge: `edge://extensions`), turn on Developer mode, click "Load unpacked" and choose the folder.
+3. **Pair:** click the icon, type the board address, allow access to that one site when the browser asks, and read the 8-digit code to an admin.
+4. **The admin approves** it on the Admin page under TV screens, like a screen; the row is marked "Browser extension". Revoking it there makes the extension show "not paired" within a minute.
 
 Once paired, the popup is the same small window as the menu bar apps (five tabs, Settings with notifications, language and unpair). It runs copies of `server/static/mini.js`, `mini.css` and the logos kept in `extensions/manager/mini/`: after changing those files, copy them again (`cp server/static/mini.js server/static/mini.css extensions/manager/mini/`, and `server/menubar/icons/generic-black.png` and `generic-white.png` to `extensions/manager/mini/logo-black.png` and `logo-white.png`), then hand out the folder again.
 

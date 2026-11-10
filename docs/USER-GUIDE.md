@@ -169,8 +169,8 @@ An icon in the menu bar (Mac), next to the clock (Windows) or in the top bar (Ub
 
 1. On the board, open the **Admin** page if you have one, or ask an admin; the installers are in the **Menu bar icon** section.
 2. Download the one for your computer:
-   - **Mac:** **Download for macOS** (a .zip, or **.dmg** when offered). Open it and move **AI Worker** to Applications. The first time you open it, go to **System Settings > Privacy & Security** and click **Open Anyway**.
-   - **Windows:** **Download for Windows (.msi)**. Windows warns 2 to 3 times because the file has no big-brand signature; choose **Keep**, then **More info > Run anyway**. Tick the licence box and click **Install**. No admin password is needed.
+   - **Mac:** **Download for macOS ▾**, then **AI-Worker.dmg** (or **AI-Worker-mac.zip**; without a .dmg on the server it is a single button). Open it and move **AI Worker** to Applications. The first time you open it, go to **System Settings > Privacy & Security** and click **Open Anyway**.
+   - **Windows:** **Download for Windows ▾ > AI-Worker.msi**. Windows warns 2 to 3 times because the file has no big-brand signature; choose **Keep**, then **More info > Run anyway**. Tick the licence box and click **Install**. No admin password is needed.
    - **Ubuntu:** **Download for Ubuntu (.deb)**, open it with App Center, or type `sudo apt install ./ai-worker-menubar.deb`.
 3. Only install a file you downloaded yourself from the board. Never open an installer sent by email or chat.
 
@@ -186,8 +186,8 @@ In **Settings** you can turn notifications on or off and choose how long a wait 
 
 For a manager who prefers the browser: a Chrome or Edge extension shows the number of people waiting on its icon, and a click opens the same small window.
 
-1. Get the `extensions/manager/` folder from IT.
-2. Open `chrome://extensions` (Edge: `edge://extensions`), turn on **Developer mode**, click **Load unpacked**, choose the folder.
+1. Get the `AI-Worker-extension.zip` file from an admin (the **Extension for Chrome, Edge** button on the Admin page). Unzip it somewhere it will stay, for example Documents: deleting the folder breaks the extension.
+2. Open `chrome://extensions` (Edge: `edge://extensions`), turn on **Developer mode**, click **Load unpacked**, choose the `AI-Worker-extension` folder.
 3. Click the extension icon, type the board address, allow access to that one site, and read the 8-digit code to an admin.
 
 **Correct result:** within a minute of the admin approving it, the icon shows the number waiting.

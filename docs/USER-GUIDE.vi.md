@@ -27,7 +27,7 @@ Một số từ dùng trong hướng dẫn:
 
 ### 1.1 Cài đặt
 
-Phòng IT gửi bạn một file zip. Bên trong có `GUIDE.vi.txt`; tóm tắt:
+Người quản trị gửi bạn một file zip. Bên trong có `GUIDE.vi.txt`; tóm tắt:
 
 1. Giải nén vào thư mục bất kỳ.
 2. Bấm đúp `INSTALL-Mac.command` (Mac) hoặc `INSTALL-Windows.bat` (Windows). Trên Ubuntu, mở Terminal ở thư mục đó và gõ `bash INSTALL-Linux.sh`.
@@ -169,8 +169,8 @@ Một biểu tượng trên thanh menu (Mac), cạnh đồng hồ (Windows) ho�
 
 1. Vào trang **Quản trị** nếu bạn có quyền, hoặc nhờ người quản trị; các file cài nằm ở mục **Biểu tượng thanh menu**.
 2. Tải bản cho máy của bạn:
-   - **Mac:** **Tải cho macOS** (file .zip, hoặc **.dmg** nếu có). Mở ra và kéo **AI Worker** vào Applications. Lần mở đầu tiên, vào **System Settings > Privacy & Security** và bấm **Open Anyway**.
-   - **Windows:** **Tải cho Windows (.msi)**. Windows sẽ cảnh báo 2–3 lần vì file chưa có chữ ký của hãng lớn; chọn **Keep**, rồi **More info > Run anyway**. Tích ô đồng ý điều khoản và bấm **Install**. Không cần mật khẩu quản trị máy.
+   - **Mac:** **Tải cho macOS ▾**, chọn **AI-Worker.dmg** (hoặc **AI-Worker-mac.zip**; máy chủ chưa có .dmg thì chỉ có một nút). Mở ra và kéo **AI Worker** vào Applications. Lần mở đầu tiên, vào **System Settings > Privacy & Security** và bấm **Open Anyway**.
+   - **Windows:** **Tải cho Windows ▾ > AI-Worker.msi**. Windows sẽ cảnh báo 2–3 lần vì file chưa có chữ ký của hãng lớn; chọn **Keep**, rồi **More info > Run anyway**. Tích ô đồng ý điều khoản và bấm **Install**. Không cần mật khẩu quản trị máy.
    - **Ubuntu:** **Tải cho Ubuntu (.deb)**, mở bằng App Center, hoặc gõ `sudo apt install ./ai-worker-menubar.deb`.
 3. Chỉ cài file bạn tự tải từ bảng tổng. Không mở file cài nhận qua email hay chat.
 
@@ -186,8 +186,8 @@ Trong **Cài đặt** có thể bật tắt thông báo và chọn chờ bao lâ
 
 Cho quản lý thích dùng trình duyệt: tiện ích Chrome hoặc Edge hiện số người đang chờ trên biểu tượng, bấm vào mở đúng khung nhỏ như trên.
 
-1. Xin người quản trị thư mục `extensions/manager/`.
-2. Mở `chrome://extensions` (Edge: `edge://extensions`), bật **Developer mode**, bấm **Load unpacked**, chọn thư mục đó.
+1. Xin người quản trị file `AI-Worker-extension.zip` (nút **Tiện ích Chrome, Edge** ở trang Quản trị). Giải nén vào chỗ cố định, ví dụ Documents: xoá thư mục đi thì tiện ích hỏng.
+2. Mở `chrome://extensions` (Edge: `edge://extensions`), bật **Developer mode**, bấm **Load unpacked**, chọn thư mục `AI-Worker-extension`.
 3. Bấm biểu tượng tiện ích, gõ địa chỉ bảng tổng, cho phép truy cập đúng trang đó, rồi đọc mã 8 số cho người quản trị.
 
 **Đúng là:** trong vòng 1 phút sau khi người quản trị duyệt, biểu tượng hiện số người đang chờ.

@@ -43,7 +43,7 @@ Dành cho người IT triển khai AI Worker: cần chuẩn bị gì, triển kh
 
 Quản lý thấy ngay trên thanh menu có bao nhiêu người đang chờ trả lời, không cần mở bảng: app riêng trên macOS, app cạnh đồng hồ trên Windows (cài từ file .msi, không cần quyền quản trị), biểu tượng trên thanh trên cùng của Ubuntu (gói .deb). Bấm vào là mở khung nhỏ có Đang chờ, Đang làm, Hạn mức, Chi phí hôm nay và Cài đặt. Chi tiết: [docs/menu-bar-spec.vi.md](menu-bar-spec.vi.md).
 
-- **Tải về:** trang Quản trị, mục "Biểu tượng thanh menu": "Tải cho macOS" (.zip, và .dmg khi máy chủ có app đã dựng), "Tải cho Windows (.msi)" (file cài PowerShell cũ vẫn còn ở "Windows bản cũ (.zip)"), "Tải cho Ubuntu (.deb)". Chưa đặt `MENUBAR_MAC_APP` thì "Tải cho macOS" phát gói cài dựa trên SwiftBar, không phải app.
+- **Tải về:** trang Quản trị, mục "Biểu tượng thanh menu": "Tải cho macOS ▾" (.dmg khi máy chủ có app đã dựng, và .zip), "Tải cho Windows ▾" (.msi, và file cài PowerShell cũ "AI-Worker-windows.zip"), "Tải cho Ubuntu (.deb)". Chưa đặt `MENUBAR_MAC_APP` thì "Tải cho macOS" phát gói cài dựa trên SwiftBar, không phải app.
 - **Ubuntu:** mở file .deb bằng App Center, hoặc `sudo apt install ./ai-worker-menubar.deb`; apt tự cài thư viện AppIndicator, biểu tượng tự chạy mỗi lần đăng nhập, `sudo apt remove ai-worker-menubar` là gỡ.
 - **Ghép máy:** quản lý bấm biểu tượng rồi nhập tài khoản và mã 6 số của chính mình; mỗi tài khoản ghép tối đa 2 máy. Quản lý chưa có tài khoản thì đọc mã trên biểu tượng cho quản trị nhập ở mục Màn hình TV.
 - **App macOS được dựng một lần cho mỗi công ty** trên một máy Mac có Command Line Tools của Apple, rồi máy chủ phát app đó:
@@ -58,9 +58,10 @@ Chép `server/menubar/macos-app/dist/*-menu-bar-mac-app.zip` lên máy chủ và
 
 Tiện ích cho Chrome hoặc Edge hiện trên biểu tượng số người đang chờ trả lời; bấm vào là mở đúng khung nhỏ của các app thanh menu. Tiện ích chỉ đọc một phần những gì màn hình treo tường thấy, không giữ mật khẩu, OTP hay cookie đăng nhập. Chi tiết: [docs/chrome-extension-spec.vi.md](chrome-extension-spec.vi.md).
 
-1. **Cài tay** trên máy quản lý: chép thư mục `extensions/manager/`, mở `chrome://extensions` (Edge: `edge://extensions`), bật Developer mode, bấm "Load unpacked" rồi chọn thư mục đó.
-2. **Ghép:** bấm biểu tượng, nhập địa chỉ bảng, cho phép truy cập đúng trang đó khi trình duyệt hỏi, rồi đọc mã 8 số cho quản trị.
-3. **Quản trị duyệt** ở trang Quản trị, mục Màn hình TV, như với màn hình; dòng đó được ghi "Tiện ích trình duyệt". Thu hồi ở đó thì trong vòng một phút tiện ích báo "chưa ghép".
+1. **Đóng gói** trên máy giữ repo: `bash packaging/build-extension.sh` tạo `server/menubar/AI-Worker-extension.zip`; chép `server/` lên máy chủ và chạy `install.sh`, trang Quản trị hiện nút **Tiện ích Chrome, Edge** ở mục "Biểu tượng thanh menu". Sửa tiện ích thì chạy lại lệnh này.
+2. **Cài tay** trên máy quản lý: giải nén file đó (hoặc chép thư mục `extensions/manager/`), mở `chrome://extensions` (Edge: `edge://extensions`), bật Developer mode, bấm "Load unpacked" rồi chọn thư mục đó.
+3. **Ghép:** bấm biểu tượng, nhập địa chỉ bảng, cho phép truy cập đúng trang đó khi trình duyệt hỏi, rồi đọc mã 8 số cho quản trị.
+4. **Quản trị duyệt** ở trang Quản trị, mục Màn hình TV, như với màn hình; dòng đó được ghi "Tiện ích trình duyệt". Thu hồi ở đó thì trong vòng một phút tiện ích báo "chưa ghép".
 
 Đã ghép thì cửa sổ nhỏ chính là khung nhỏ của các app thanh menu (năm thẻ, Cài đặt có thông báo, ngôn ngữ và bỏ ghép). Cửa sổ chạy bản chép của `server/static/mini.js`, `mini.css` và logo, để trong `extensions/manager/mini/`: sửa các file đó thì chép lại (`cp server/static/mini.js server/static/mini.css extensions/manager/mini/`, và chép `server/menubar/icons/generic-black.png`, `generic-white.png` thành `extensions/manager/mini/logo-black.png`, `logo-white.png`), rồi phát lại thư mục.
 

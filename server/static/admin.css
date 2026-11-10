@@ -74,3 +74,10 @@ summary{cursor:pointer;color:var(--m);padding:6px 0}
   .qt-table td.qt-action::before{display:none}
   .qt-action .qt-button{margin:0}
 }
+.qt-menu{position:relative;display:inline-block}
+.qt-menu>summary{list-style:none;padding:5px 10px;color:#e8fbff}.qt-menu>summary::-webkit-details-marker{display:none}
+.qt-menu[open]>summary{border-color:var(--s)}
+.qt-menu-list{position:absolute;z-index:5;top:calc(100% + 4px);left:0;min-width:100%;display:flex;flex-direction:column;background:#0b1a24;border:1px solid var(--v);border-radius:4px;padding:4px 0;box-shadow:0 6px 20px rgba(0,0,0,.45)}
+.qt-menu-list a{color:#e8fbff;text-decoration:none;font-size:12px;padding:7px 12px;white-space:nowrap}
+.qt-menu-list a:hover,.qt-menu-list a:focus-visible{background:rgba(94,230,240,.12);outline:none}
+.qt-menu-list.to-left{left:auto;right:0}

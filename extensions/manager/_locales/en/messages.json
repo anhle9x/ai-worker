@@ -9,7 +9,7 @@
     "message": "Board address"
   },
   "boardAddressHint": {
-    "message": "The address IT gave you, for example https://board.company.com. The browser will ask to allow this one site only."
+    "message": "The address your admin gave you, for example https://board.company.com. The browser will ask to allow this one site only."
   },
   "pairButton": {
     "message": "Get a pairing code"

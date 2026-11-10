@@ -23,3 +23,7 @@ __pycache__/
 # the menu bar app built on a Mac for one company: not part of the repository
 # app thanh menu đóng gói trên Mac cho một công ty: không nằm trong repo
 server/menubar/macos-app/dist/
+
+# the manager extension zipped by packaging/build-extension.sh: built from extensions/manager
+# tiện ích cho quản lý do packaging/build-extension.sh nén: dựng từ extensions/manager
+server/menubar/AI-Worker-extension.zip

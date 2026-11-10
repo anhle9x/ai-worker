@@ -83,6 +83,7 @@ from board.packages import (
     MENUBAR_ICON_DIR,
     TV_INSTALL_WINDOWS,
     menubar_deb,
+    menubar_extension,
     menubar_mac_dmg,
     menubar_msi,
     menubar_zip,
@@ -548,6 +549,12 @@ class Handler(BaseHTTPRequestHandler):
             if package is None:
                 return self.reply(404, {"error": tx("Not found")})
             return self.reply_page(200, package, content_type="application/x-msi")
+        if self.path.endswith("extension.zip"):
+            extension = menubar_extension()
+            if not extension:
+                return self.reply(404, {"error": tx("Not found")})
+            with open(extension, "rb") as f:
+                return self.reply_page(200, f.read(), content_type="application/zip")
         if self.path.endswith(".dmg"):
             dmg = menubar_mac_dmg()
             if not dmg:
@@ -1034,6 +1041,7 @@ GET_ROUTES = {
     "/menubar/install-windows.zip": Route(Handler.get_menubar_installer, PERM_ADMIN),
     "/menubar/install-windows.msi": Route(Handler.get_menubar_installer, PERM_ADMIN),
     "/menubar/install-mac.dmg": Route(Handler.get_menubar_installer, PERM_ADMIN),
+    "/menubar/extension.zip": Route(Handler.get_menubar_installer, PERM_ADMIN),
     "/menubar/install-ubuntu.deb": Route(Handler.get_menubar_installer, PERM_ADMIN),
     "/history": Route(Handler.get_history, PERM_LOGIN),
     # the text board has each person's email and IP: the wall display must not open it

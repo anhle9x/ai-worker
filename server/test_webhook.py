@@ -351,6 +351,7 @@ class RoutePermissions(unittest.TestCase):
         "/menubar/install-windows.zip": (401, 403, 403, 200, 403),
         "/menubar/install-windows.msi": (401, 403, 403, 200 if packages.menubar_msi("https://board.example.com") else 404, 403),
         "/menubar/install-mac.dmg": (401, 403, 403, 404, 403),
+        "/menubar/extension.zip": (401, 403, 403, 200 if packages.menubar_extension() else 404, 403),
         "/menubar/install-ubuntu.deb": (401, 403, 403, 200, 403),
         "/static/mini.js": (401, 200, 200, 200, 200),
         "/static/ops.js": (401, 200, 200, 200, 200),
@@ -687,6 +688,23 @@ class RoutePermissions(unittest.TestCase):
         self.assertEqual(json.loads(data.extractfile("./usr/lib/ai-worker-menubar/config.json").read())["server"], "http://board.example.com")
         everything = b"".join(data.extractfile(m).read() for m in data.getmembers() if m.isfile())
         self.assertNotIn(self.tv_token.encode(), everything)
+
+    def test_extension_only_when_zipped_into_menubar(self):
+        import tempfile
+        old = packages.MENUBAR_DIR
+        with tempfile.TemporaryDirectory() as d:
+            try:
+                packages.MENUBAR_DIR = d
+                self.assertEqual(self.call("GET", "/menubar/extension.zip", "tok-adm", Host="board.example.com")[0], 404)
+                self.assertFalse(views.admin_data(time.time(), "", "")["menubarExtension"])
+                with open(os.path.join(d, "AI-Worker-extension.zip"), "wb") as f:
+                    f.write(b"PK extension")
+                status, b = self.call("GET", "/menubar/extension.zip", "tok-adm", Host="board.example.com")
+                self.assertEqual((status, b), (200, b"PK extension"))
+                self.assertTrue(views.admin_data(time.time(), "", "")["menubarExtension"])
+                self.assertEqual(self.call("GET", "/menubar/extension.zip", "tok-viewer", Host="board.example.com")[0], 403)
+            finally:
+                packages.MENUBAR_DIR = old
 
     def test_menubar_dmg_only_when_built_next_to_the_app(self):
         import tempfile

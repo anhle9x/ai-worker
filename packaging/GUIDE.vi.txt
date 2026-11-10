@@ -92,7 +92,7 @@ TRANG VĂN PHÒNG XEM ĐƯỢC GÌ (/office)
 - Hạn mức tài khoản Claude nằm trong ô "Models & quota". Từ 80% có dấu cảnh báo và chuyển đỏ.
   Trong khung chat cũng hiện thông báo và một thanh trên ô nhập (bấm "Ẩn" để tắt
   tới khi mức tăng tiếp). Plugin KHÔNG tự đổi mô hình: muốn tiết kiệm, tự gõ /model sonnet.
-- Trang mở từ file trên máy; nội dung chat không đi đâu cả. Phòng IT chỉ thấy số liệu tổng
+- Trang mở từ file trên máy; nội dung chat không đi đâu cả. Người quản trị chỉ thấy số liệu tổng
   (số phiên, token, chi phí, hạn mức, phiên bản plugin, tên loại trợ lý phụ đang chạy), không thấy bạn hỏi gì.
 
 CẬP NHẬT BẢN MỚI

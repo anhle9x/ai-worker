@@ -28,7 +28,7 @@ from board.devices import (
 )
 from board.lang import tx
 from board.login import SESSIONS
-from board.packages import menubar_mac_dmg
+from board.packages import menubar_extension, menubar_mac_dmg
 from board.security import ACCOUNT_NAME_RE, ADMIN, VIEWER, WALL
 from board.settings import (
     KIND_EXTENSION,
@@ -319,7 +319,7 @@ def admin_data(now: float, cookie: str, month: str) -> dict:
                        lastSeenAt=int(seen_state["seenAt"] * 1000) if seen_state else None, running=bool(seen_state) and now - seen_state["seenAt"] < TV_ABSENT_SECONDS))
     return {"accounts": ACCOUNTS.list_accounts(), "screens": tv, "sessions": SESSIONS.list_sessions(cookie, now), "unnamedGroups": d["unnamedGroups"], "branches": d["branches"], "team": d["team"],
             "usdRate": USD_RATE, "month": month, "auditLog": AUDIT_LOG.read(month), "menubarDmg": bool(menubar_mac_dmg()),
-            "menubarMsi": os.path.isfile(os.path.join(packages.MENUBAR_DIR, "AI-Worker.msi"))}
+            "menubarMsi": os.path.isfile(os.path.join(packages.MENUBAR_DIR, "AI-Worker.msi")), "menubarExtension": bool(menubar_extension())}
 
 
 def manage_account(body: dict, actor: str, token: str) -> tuple:
