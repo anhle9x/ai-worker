@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.27.1 - 2026-11-12
+
+### Fixed
+- Closing a session's detail card on the board (× or Esc) keeps it closed. The session stayed selected, so the card came back with the next data refresh a few seconds later.
+
 ## 0.27.0 - 2026-11-10
 
 ### Added

@@ -361,7 +361,10 @@
     cardCloseButton.type = 'button'
     cardCloseButton.title = tx('Close (Esc)')
     cardCloseButton.setAttribute('aria-label', tx('Close'))
-    cardCloseButton.addEventListener('click', () => (hoverCard.hidden = true))
+    // closing also clears the selection, or the next data refresh would open the card again
+    // đóng thì bỏ chọn luôn, không thì lần nạp số liệu kế tiếp sẽ mở lại ô
+    const closeCard = () => (selected >= 0 ? selectPerson(-1) : (hoverCard.hidden = true))
+    cardCloseButton.addEventListener('click', closeCard)
     // drag the card with the mouse or touch, never outside the frame; the position is kept until the page is reloaded.
     // the ratio is measured directly because the wall display's zoom makes 1 CSS px differ from 1 screen px, and each browser reports sizes differently
     // kéo thẻ bằng chuột hoặc cảm ứng, không ra ngoài khung; vị trí giữ tới khi tải lại trang.
@@ -459,7 +462,7 @@
     addEventListener('keydown', e => {
       if (e.key === 'Escape') {
         menu.hidden = true
-        hoverCard.hidden = true
+        closeCard()
       }
     })
     modeBar.append(menu, menuButton)
