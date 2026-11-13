@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { findHostApp, hasSigningKeys, parseHash, parseSignatureResult, parseManifest, shouldOfferUpdate } from '../hooks/update'
+import { findHostApp, parseLinuxHost, parseWindowsHost, hasSigningKeys, parseHash, parseSignatureResult, parseManifest, shouldOfferUpdate } from '../hooks/update'
 import { OPEN_MS, buildMachineSummary, hardwareMark, parseHardwareId, sha256Hex, isLanIp, mergeShare, mergeTeam, parseLanIp, parseSessionFile, readShareConfig, summarySignature, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, answerModel, toQuota, quotaWarning } from '../hooks/team'
 
 const H = 3_600_000
@@ -313,5 +313,27 @@ test('the app to reopen is the topmost ancestor, and only an app bundle', () => 
   expect(findHostApp(table, 801)).toBeUndefined()
   expect(findHostApp(table, 999)).toBeUndefined()
   expect(findHostApp('  5  6 a\n  6  5 b', 5)).toBeUndefined()
+})
+
+test('the Linux app is read only from a whole answer of the find script', () => {
+  expect(parseLinuxHost('226\t/opt/Claude/claude-desktop\t/usr/bin/claude-desktop')).toEqual({ pid: 226, app: '/opt/Claude/claude-desktop', launcher: '/usr/bin/claude-desktop' })
+  expect(parseLinuxHost('')).toBeUndefined()
+  expect(parseLinuxHost('564')).toBeUndefined()
+  expect(parseLinuxHost('226\t/opt/Claude/claude-desktop')).toBeUndefined()
+  // never init, and never a command that is not a full path
+  expect(parseLinuxHost('1\t/sbin/init\t/sbin/init')).toBeUndefined()
+  expect(parseLinuxHost('226\t/opt/Claude/claude-desktop\tclaude-desktop')).toBeUndefined()
+})
+
+test('the Windows app is read only from a whole answer of the find script', () => {
+  const app = 'C:\\Users\\an\\AppData\\Local\\AnthropicClaude\\app-5.1.0\\claude.exe'
+  const stub = 'C:\\Users\\an\\AppData\\Local\\AnthropicClaude\\claude.exe'
+  expect(parseWindowsHost(`5516\t${app}\t${stub}\r\n`)).toEqual({ pid: 5516, app, launcher: stub })
+  expect(parseWindowsHost('')).toBeUndefined()
+  expect(parseWindowsHost(`5516\t${app}`)).toBeUndefined()
+  // never the System process, and never a launcher that is not a program on a drive
+  expect(parseWindowsHost(`4\t${app}\t${stub}`)).toBeUndefined()
+  expect(parseWindowsHost(`5516\t${app}\tclaude.exe`)).toBeUndefined()
+  expect(parseWindowsHost(`5516\t${app}\tC:\\x\\run.cmd`)).toBeUndefined()
 })
 

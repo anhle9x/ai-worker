@@ -144,7 +144,7 @@ export const VI: Record<string, string> = {
   'Reopen now': 'Mở lại ngay',
   'Version {version} is installed. Close the Claude app and open it again now? Sessions that are still working will stop.': 'Đã cài bản {version}. Đóng app Claude rồi mở lại ngay bây giờ? Các phiên đang làm dở sẽ dừng.',
   'Updated to version {version}. The Claude app closes and opens again in a few seconds.': 'Đã cập nhật lên bản {version}. App Claude sẽ đóng rồi mở lại sau vài giây.',
-  'Updated to version {version}. Quit the Claude app completely (Mac: Cmd+Q, Windows: close all windows) and open it again to use the new version.': 'Đã cập nhật lên bản {version}. Thoát hẳn app Claude (Mac: Cmd+Q, Windows: đóng hết cửa sổ) rồi mở lại để dùng bản mới.',
+  'Updated to version {version}. Quit the Claude app completely (Mac: Cmd+Q; Windows: right-click the Claude icon next to the clock, then Exit) and open it again to use the new version.': 'Đã cập nhật lên bản {version}. Thoát hẳn app Claude (Mac: Cmd+Q; Windows: bấm chuột phải vào biểu tượng Claude cạnh đồng hồ, chọn Exit) rồi mở lại để dùng bản mới.',
   'Use browser': 'Dùng trình duyệt',
   'Use it for summarizing, sorting, extracting information, and anonymizing internal documents or documents with people names.': 'Dùng cho tóm tắt, phân loại, trích thông tin, ẩn danh hoá tài liệu nội bộ hoặc có tên người.',
   'Version {version} is available, but this computer cannot check its signature, so it will not install it. Ask your admin for the install package.': 'Có bản {version} nhưng máy này không kiểm được chữ ký nên không tự cài. Hãy báo người quản trị để lấy gói cài.',

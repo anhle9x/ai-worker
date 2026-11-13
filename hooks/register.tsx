@@ -14,7 +14,7 @@ import { applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, 
 import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, contextAdvice, contextFill, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
 import { answerModel, buildMachineSummary, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
 import type { ShareConfig } from './team'
-import { DESKTOP_BUNDLE_ID, DETACH_PERL, RESTART_SCRIPT, findHostApp, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
+import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT, findHostApp, parseLinuxHost, parseWindowsHost, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
 import { AGY_BRAIN, IMAGE_DIR, IMAGE_SCHEMA, IMAGE_SETTLE_MS, OLLAMA_URL, PROMPT_LEVEL_SCHEMA, PROMPT_SCHEMA, WORKER_TIMEOUT_MS, imageArgv, imageTargets, newImages, safeImageName, sendingNeedsAsking, sendingRefusal, agyArgv, codexArgv, codexInput, isBatchLauncher, delegationRules, gemmaAnswer, gemmaRequest, mcpConfigured, ownTools, pickGemma } from './workers'
 import type { OwnWorkers } from './workers'
 import { pageLanguageScript, setLang, tx } from './lang'
@@ -1105,13 +1105,35 @@ async function pollNewVersion($: EngineInterface, now: number) {
   await $.store.set(UPDATE_KEY, { ...saved, checkedAt: succeeded ? now : now - UPDATE_EVERY_MS + UPDATE_RETRY_MS })
 }
 
-/** The Claude desktop app this session runs in, on a Mac; undefined in a terminal, an editor, on Windows or Linux. */
-/** App Claude trên Mac mà phiên này đang chạy trong đó; undefined khi ở terminal, trình soạn mã, Windows hay Linux. */
-async function findRestartTarget($: EngineInterface): Promise<{ pid: number; app: string } | undefined> {
+/**
+ * The Claude desktop app this session runs in, with the command that closes it and opens it again;
+ * undefined in a terminal, an editor, or when the app cannot be told for certain.
+ */
+/** App Claude desktop mà phiên này đang chạy trong đó, kèm lệnh đóng rồi mở lại nó; undefined khi ở terminal, trình soạn mã, hoặc khi không nhận ra chắc chắn được app. */
+async function findRestartTarget($: EngineInterface): Promise<{ pid: number; app: string; restart: string[]; env?: Record<string, string> } | undefined> {
   try {
-    if ((await $.env.get('OS')) === 'Windows_NT') return undefined
     if (!(await $.session.surfaces()).some(s => s === 'desktop')) return undefined
-    if ((await $.process.run(['uname', '-s'])).stdout.trim() !== 'Darwin') return undefined
+    if ((await $.env.get('OS')) === 'Windows_NT') {
+      // each script travels in a variable and the command line only names that variable: no quoting can break it,
+      // and nothing read from the machine is ever part of a command line
+      // mỗi script đi trong một biến và dòng lệnh chỉ nêu tên biến đó: không cách đặt dấu nháy nào làm hỏng được,
+      // và không thứ gì đọc từ máy trở thành một phần dòng lệnh
+      const powershell = ['powershell', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', 'Invoke-Expression $env:AIW_SCRIPT']
+      const found = await $.process.run(powershell, { env: { AIW_SCRIPT: WINDOWS_FIND_SCRIPT }, timeoutMs: 30_000 })
+      const host = found.exitCode === 0 ? parseWindowsHost(found.stdout) : undefined
+      if (!host) return undefined
+      return { pid: host.pid, app: host.app, restart: powershell, env: { AIW_SCRIPT: WINDOWS_RESTART_SCRIPT, AIW_HELPER: WINDOWS_HELPER, AIW_PID: String(host.pid), AIW_LAUNCHER: host.launcher } }
+    }
+    const system = (await $.process.run(['uname', '-s'])).stdout.trim()
+    if (system === 'Linux') {
+      // the script starts from its own parent, the program that runs this plugin
+      // script đi từ tiến trình cha của nó, là chương trình đang chạy plugin này
+      const found = await $.process.run(['/bin/sh', '-c', LINUX_FIND_SCRIPT])
+      const host = found.exitCode === 0 ? parseLinuxHost(found.stdout) : undefined
+      if (!host) return undefined
+      return { pid: host.pid, app: host.app, restart: ['/bin/sh', '-c', LINUX_DETACH, LINUX_RESTART_SCRIPT, String(host.pid), host.launcher] }
+    }
+    if (system !== 'Darwin') return undefined
     // the shell's parent is the program that runs this plugin
     // tiến trình cha của shell là chương trình đang chạy plugin này
     const self = Number((await $.process.run(['/bin/sh', '-c', 'echo $PPID'])).stdout.trim())
@@ -1119,7 +1141,8 @@ async function findRestartTarget($: EngineInterface): Promise<{ pid: number; app
     const host = findHostApp((await $.process.run(['ps', '-axo', 'pid=,ppid=,comm='])).stdout, self)
     if (!host) return undefined
     const id = await $.process.run(['/usr/bin/plutil', '-extract', 'CFBundleIdentifier', 'raw', '-o', '-', `${host.app}/Contents/Info.plist`])
-    return id.exitCode === 0 && id.stdout.trim() === DESKTOP_BUNDLE_ID ? host : undefined
+    if (id.exitCode !== 0 || id.stdout.trim() !== DESKTOP_BUNDLE_ID) return undefined
+    return { ...host, restart: ['/usr/bin/perl', '-MPOSIX', '-e', DETACH_PERL, '/bin/sh', '-c', RESTART_SCRIPT, 'sh', String(host.pid), host.app] }
   } catch {
     return undefined
   }
@@ -1143,9 +1166,7 @@ async function offerRestart($: EngineInterface, version: string): Promise<string
   if (answer !== yes) return undefined
   // a program of its own: the app cannot open itself again once it has quit
   // một chương trình riêng: app đã thoát thì không tự mở lại mình được
-  const started = await $.process
-    .run(['/usr/bin/perl', '-MPOSIX', '-e', DETACH_PERL, '/bin/sh', '-c', RESTART_SCRIPT, 'sh', String(host.pid), host.app], { timeoutMs: 10_000 })
-    .catch(() => undefined)
+  const started = await $.process.run(host.restart, { timeoutMs: 30_000, ...(host.env ? { env: host.env } : {}) }).catch(() => undefined)
   return started?.exitCode === 0 ? tx('Updated to version {version}. The Claude app closes and opens again in a few seconds.', { version }) : undefined
 }
 
@@ -1205,7 +1226,7 @@ async function installUpdate($: EngineInterface): Promise<{ text: string; versio
   const saved = ((await $.store.get(UPDATE_KEY)) as { checkedAt?: number } | undefined) ?? {}
   await $.store.set(UPDATE_KEY, { ...saved, date: m.date })
   await commit($, s => ({ ...s, update: undefined }))
-  return { text: tx('Updated to version {version}. Quit the Claude app completely (Mac: Cmd+Q, Windows: close all windows) and open it again to use the new version.', { version: m.version }), version: m.version }
+  return { text: tx('Updated to version {version}. Quit the Claude app completely (Mac: Cmd+Q; Windows: right-click the Claude icon next to the clock, then Exit) and open it again to use the new version.', { version: m.version }), version: m.version }
 }
 
 /** Copies the browser view's page and drawing code next to the session files. */

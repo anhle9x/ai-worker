@@ -75,7 +75,8 @@ A normal package (without ASK-NAME) sends nothing.
 
 Updates: when your admin has a new version, the bar above the input box shows "New version" with an Update button (or type /update).
 A new version is installed only when it carries the admin's correct signature. After it installs, quit the Claude app
-completely and open it again. The computer must be on the company network to download it; if it cannot install by
+completely and open it again (on Windows: right-click the Claude icon next to the clock, then Exit; closing the
+window only hides the app). The computer must be on the company network to download it; if it cannot install by
 itself, tell your admin to get the installation package. The old version is kept in the ai-worker.old folder next to
 the plugin folder.
 

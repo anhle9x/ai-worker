@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.29.0 - 2026-11-13
+
+### Added
+- The question that offers to close and reopen the Claude desktop app after `/update` now also appears on Windows and on Linux (the `claude-desktop` package for Ubuntu and Debian), not only on a Mac. On Windows the app is asked to end the way Windows asks at sign-out, because closing its window only hides it in the tray. Tried with the real app on Windows; on Linux only against a stand-in package so far, not the real app.
+
+### Fixed
+- The messages and guides told Windows users to close every window to quit the Claude app. That only hides the app in the tray: it keeps running. They now say to right-click the Claude icon next to the clock and choose Exit.
+
 ## 0.28.1 - 2026-11-13
 
 ### Changed

@@ -34,7 +34,7 @@ Người quản trị gửi bạn một file zip. Bên trong có `GUIDE.vi.txt`;
    - Lần đầu, máy Mac có thể chặn file: bấm chuột phải vào file, chọn **Open**, rồi **Open** lần nữa.
 3. Gói của công ty sẽ hỏi họ tên. Gõ đúng tên đồng nghiệp vẫn gọi bạn.
 4. Bộ cài hỏi có cài các trợ lý phụ không. Đồng ý với trợ lý công ty đang dùng; bỏ qua hết cũng được.
-5. Khi cửa sổ báo **Xong**, bấm Enter, rồi thoát hẳn app Claude và mở lại.
+5. Khi cửa sổ báo **Xong**, bấm Enter, rồi thoát hẳn app Claude và mở lại. Trên Windows, đóng cửa sổ chỉ làm app ẩn đi: bấm chuột phải vào biểu tượng Claude cạnh đồng hồ rồi chọn **Exit**.
 
 **Đúng là:** trong phiên mới, gõ `/office` thì trình duyệt mở một trang có phiên của bạn.
 
@@ -85,7 +85,7 @@ Trước khi gửi gì sang ChatGPT hay Gemini, Claude hỏi bạn, trừ khi qu
 Khi người quản trị phát hành bản mới, thanh trên ô chat hiện **Có bản mới** kèm nút **Cập nhật**; gõ `/update` cũng được.
 
 1. Bấm **Cập nhật** và chờ báo đã cài xong.
-2. Trong app Claude trên Mac, một câu hỏi hiện ra đề nghị đóng app rồi mở lại: chọn **Mở lại ngay** (các phiên đang làm dở sẽ dừng), hoặc **Để sau** rồi tự làm. Ở nơi khác thì thoát hẳn app Claude rồi mở lại.
+2. Trong app Claude desktop (Mac, Windows, Linux), một câu hỏi hiện ra đề nghị đóng app rồi mở lại: chọn **Mở lại ngay** (các phiên đang làm dở sẽ dừng), hoặc **Để sau** rồi tự làm. Ở nơi khác thì thoát hẳn app Claude rồi mở lại.
 
 Bản mới chỉ được cài khi có chữ ký đúng của người quản trị. Máy phải ở trong mạng công ty mới tải được. Bản trước được giữ trong thư mục `ai-worker.old` cạnh thư mục plugin.
 

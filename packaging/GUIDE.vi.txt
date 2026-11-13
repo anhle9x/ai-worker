@@ -74,7 +74,8 @@ mô tả việc hay tên file) lên máy chủ công ty. Không phải làm gì 
 Gói thường (không có ASK-NAME) không gửi gì.
 
 Cập nhật: khi người quản trị có bản mới, thanh trên ô nhập hiện "Có bản mới" với nút Cập nhật (hoặc gõ /update).
-Bản mới chỉ được cài khi đúng chữ ký của người quản trị. Cài xong thì thoát hẳn app Claude rồi mở lại. Máy phải ở
+Bản mới chỉ được cài khi đúng chữ ký của người quản trị. Cài xong thì thoát hẳn app Claude rồi mở lại (trên Windows: bấm
+chuột phải vào biểu tượng Claude cạnh đồng hồ, chọn Exit; đóng cửa sổ chỉ làm app ẩn đi). Máy phải ở
 mạng công ty mới tải được; máy không tự cài được thì báo người quản trị để lấy gói cài. Bản cũ được giữ ở thư mục
 ai-worker.old cạnh thư mục plugin.
 

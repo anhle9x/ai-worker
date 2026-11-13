@@ -41,7 +41,7 @@ if errorlevel 1 (
 )
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-deps.ps1" -Plugin "%INSTALL_DIR%\ai-worker-dev" -Claude "%CLAUDE%"
 echo.
-call :say "Done. Close all Claude app windows and open it again to use it." "Xong. Đóng hết cửa sổ app Claude rồi mở lại để dùng."
+call :say "Done. Quit the Claude app (right-click its icon next to the clock, then Exit; closing the window only hides it) and open it again to use it." "Xong. Thoát app Claude (bấm chuột phải vào biểu tượng cạnh đồng hồ, chọn Exit; đóng cửa sổ chỉ làm app ẩn đi) rồi mở lại để dùng."
 pause
 exit /b 0
 
