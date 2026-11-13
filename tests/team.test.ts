@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { hasSigningKeys, parseHash, parseSignatureResult, parseManifest, shouldOfferUpdate } from '../hooks/update'
+import { findHostApp, hasSigningKeys, parseHash, parseSignatureResult, parseManifest, shouldOfferUpdate } from '../hooks/update'
 import { OPEN_MS, buildMachineSummary, hardwareMark, parseHardwareId, sha256Hex, isLanIp, mergeShare, mergeTeam, parseLanIp, parseSessionFile, readShareConfig, summarySignature, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, answerModel, toQuota, quotaWarning } from '../hooks/team'
 
 const H = 3_600_000
@@ -292,3 +292,26 @@ test('parseHardwareId reads macOS, Windows and Linux output, and the mark hides 
   const s = buildMachineSummary([], undefined, 1, { device: 'device-a', name: 'A', account: 'a@b', hardwareMark: m })
   expect(s.hardwareMark).toBe(m)
 })
+
+test('the app to reopen is the topmost ancestor, and only an app bundle', () => {
+  const table = [
+    '    1     0 /sbin/launchd',
+    '  414     1 /Applications/Claude.app/Contents/MacOS/Claude',
+    '  562   414 /Applications/Claude.app/Contents/Helpers/disclaimer',
+    '  563   562 /Users/an/Library/Application Support/Claude/claude-code/2.1.321/abc/claude.app/Contents/MacOS/claude',
+    '  700     1 /System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal',
+    '  701   700 /usr/bin/login',
+    '  702   701 -zsh',
+    '  703   702 claude',
+    '  800     1 /usr/sbin/cfprefsd',
+    '  801   800 claude',
+  ].join('\n')
+  // the CLI is an app bundle too: the one launchd started is the app, not the nearest
+  expect(findHostApp(table, 563)).toEqual({ pid: 414, app: '/Applications/Claude.app' })
+  // in a terminal the answer is the terminal: the caller's bundle id check turns it down
+  expect(findHostApp(table, 703)).toEqual({ pid: 700, app: '/System/Applications/Utilities/Terminal.app' })
+  expect(findHostApp(table, 801)).toBeUndefined()
+  expect(findHostApp(table, 999)).toBeUndefined()
+  expect(findHostApp('  5  6 a\n  6  5 b', 5)).toBeUndefined()
+})
+

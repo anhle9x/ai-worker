@@ -14,7 +14,7 @@ import { applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, 
 import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, contextAdvice, contextFill, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
 import { answerModel, buildMachineSummary, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
 import type { ShareConfig } from './team'
-import { parseHash, hasSigningKeys, parseSignatureResult, parseManifest, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
+import { DESKTOP_BUNDLE_ID, DETACH_PERL, RESTART_SCRIPT, findHostApp, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
 import { AGY_BRAIN, IMAGE_DIR, IMAGE_SCHEMA, IMAGE_SETTLE_MS, OLLAMA_URL, PROMPT_LEVEL_SCHEMA, PROMPT_SCHEMA, WORKER_TIMEOUT_MS, imageArgv, imageTargets, newImages, safeImageName, sendingNeedsAsking, sendingRefusal, agyArgv, codexArgv, codexInput, isBatchLauncher, delegationRules, gemmaAnswer, gemmaRequest, mcpConfigured, ownTools, pickGemma } from './workers'
 import type { OwnWorkers } from './workers'
 import { pageLanguageScript, setLang, tx } from './lang'
@@ -1105,16 +1105,67 @@ async function pollNewVersion($: EngineInterface, now: number) {
   await $.store.set(UPDATE_KEY, { ...saved, checkedAt: succeeded ? now : now - UPDATE_EVERY_MS + UPDATE_RETRY_MS })
 }
 
-/** Downloads, checks and swaps in the new version; keeps the old one beside it as `.cu`. Returns what to tell the person. */
-/** Tải, kiểm tra và đổi sang bản mới; giữ bản cũ bên cạnh dưới tên `.cu`. Trả về điều cần nói với người dùng. */
+/** The Claude desktop app this session runs in, on a Mac; undefined in a terminal, an editor, on Windows or Linux. */
+/** App Claude trên Mac mà phiên này đang chạy trong đó; undefined khi ở terminal, trình soạn mã, Windows hay Linux. */
+async function findRestartTarget($: EngineInterface): Promise<{ pid: number; app: string } | undefined> {
+  try {
+    if ((await $.env.get('OS')) === 'Windows_NT') return undefined
+    if (!(await $.session.surfaces()).some(s => s === 'desktop')) return undefined
+    if ((await $.process.run(['uname', '-s'])).stdout.trim() !== 'Darwin') return undefined
+    // the shell's parent is the program that runs this plugin
+    // tiến trình cha của shell là chương trình đang chạy plugin này
+    const self = Number((await $.process.run(['/bin/sh', '-c', 'echo $PPID'])).stdout.trim())
+    if (!Number.isInteger(self) || self <= 1) return undefined
+    const host = findHostApp((await $.process.run(['ps', '-axo', 'pid=,ppid=,comm='])).stdout, self)
+    if (!host) return undefined
+    const id = await $.process.run(['/usr/bin/plutil', '-extract', 'CFBundleIdentifier', 'raw', '-o', '-', `${host.app}/Contents/Info.plist`])
+    return id.exitCode === 0 && id.stdout.trim() === DESKTOP_BUNDLE_ID ? host : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * After an update the person asked for: offers to close the Claude app and open it again, and does it on a yes.
+ * Returns what to say then, or undefined when the app is not one it can reopen or the person said later.
+ */
+/** Sau một lần cập nhật do người dùng yêu cầu: hỏi có đóng app Claude rồi mở lại không, và làm khi được đồng ý. Trả về câu cần nói khi đó, hoặc undefined khi không phải app nó mở lại được hay người dùng chọn để sau. */
+async function offerRestart($: EngineInterface, version: string): Promise<string | undefined> {
+  const host = await findRestartTarget($)
+  if (!host) return undefined
+  const yes = tx('Reopen now')
+  const answer = await $.ui
+    .ask(tx('Version {version} is installed. Close the Claude app and open it again now? Sessions that are still working will stop.', { version }), {
+      options: [yes, tx('Later')],
+      header: tx('Update'),
+    })
+    .catch(() => '')
+  if (answer !== yes) return undefined
+  // a program of its own: the app cannot open itself again once it has quit
+  // một chương trình riêng: app đã thoát thì không tự mở lại mình được
+  const started = await $.process
+    .run(['/usr/bin/perl', '-MPOSIX', '-e', DETACH_PERL, '/bin/sh', '-c', RESTART_SCRIPT, 'sh', String(host.pid), host.app], { timeoutMs: 10_000 })
+    .catch(() => undefined)
+  return started?.exitCode === 0 ? tx('Updated to version {version}. The Claude app closes and opens again in a few seconds.', { version }) : undefined
+}
+
+/** Updates the plugin when the person asks (/update, the Update button), then offers to reopen the app. Returns what to tell the person. */
+/** Cập nhật plugin khi người dùng yêu cầu (/update, nút Cập nhật), rồi hỏi có mở lại app không. Trả về điều cần nói với người dùng. */
 async function updatePlugin($: EngineInterface): Promise<string> {
+  const done = await installUpdate($)
+  return (done.version && (await offerRestart($, done.version))) || done.text
+}
+
+/** Downloads, checks and swaps in the new version; keeps the old one beside it as `.old`. Returns what to tell the person, and the version when it went in. */
+/** Tải, kiểm tra và đổi sang bản mới; giữ bản cũ bên cạnh dưới tên `.old`. Trả về điều cần nói với người dùng, và số phiên bản khi đã đổi xong. */
+async function installUpdate($: EngineInterface): Promise<{ text: string; version?: string }> {
   const root = $.plugin.root.replace(/[\\/]+$/, '')
-  if (await $.fs.exists(`${root}/.git`)) return tx('This is a source code folder, so it does not update itself.')
-  if (!share.webhook || !share.ingestKey) return tx('This computer has no server set up, so it cannot update.')
+  if (await $.fs.exists(`${root}/.git`)) return { text: tx('This is a source code folder, so it does not update itself.') }
+  if (!share.webhook || !share.ingestKey) return { text: tx('This computer has no server set up, so it cannot update.') }
   const { m, signature, text } = await checkNewVersion($)
-  if (text) return text
-  if (!m) return tx('This computer already has the latest version.')
-  if (signature !== 'valid') return tx('Version {version} is available, but this computer cannot check its signature, so it will not install it. Ask your admin for the install package.', { version: m.version })
+  if (text) return { text }
+  if (!m) return { text: tx('This computer already has the latest version.') }
+  if (signature !== 'valid') return { text: tx('Version {version} is available, but this computer cannot check its signature, so it will not install it. Ask your admin for the install package.', { version: m.version }) }
   const win = (await $.env.get('OS')) === 'Windows_NT'
   const newDir = `${root}.new`
   const oldDir = `${root}.old`
@@ -1128,33 +1179,33 @@ async function updatePlugin($: EngineInterface): Promise<string> {
   await $.fs.write(headerFile, `Authorization: Bearer ${share.ingestKey}\n`)
   const download = await $.process.run(['curl', '-fsS', '-m', '120', '-H', `@${headerFile}`, '-o', zip, `${share.webhook}/releases/${m.name}`], { timeoutMs: 130_000 })
   await $.fs.write(headerFile, '')
-  if (download.exitCode !== 0) return tx('Could not download the new version. Try again later, or tell your admin if this computer is away from the office.')
+  if (download.exitCode !== 0) return { text: tx('Could not download the new version. Try again later, or tell your admin if this computer is away from the office.') }
   let bam: string | undefined
   for (const argv of [['shasum', '-a', '256', zip], ['sha256sum', zip], ['certutil', '-hashfile', zip, 'SHA256']]) {
     bam = await $.process.run(argv).then(r => (r.exitCode === 0 ? parseHash(r.stdout) : undefined)).catch(() => undefined)
     if (bam) break
   }
-  if (bam !== m.sha256) return tx('The downloaded package does not match its check code, so it was not installed. Tell your admin.')
+  if (bam !== m.sha256) return { text: tx('The downloaded package does not match its check code, so it was not installed. Tell your admin.') }
   await removeDir(newDir)
   await $.fs.write(`${newDir}/.installing`, '')
   const extracted = await $.process.run(['tar', '-xf', zip, '-C', newDir], { timeoutMs: 120_000 })
-  if (extracted.exitCode !== 0) return tx('Could not unpack the new version. Tell your admin.')
+  if (extracted.exitCode !== 0) return { text: tx('Could not unpack the new version. Tell your admin.') }
   const installedVersion = (JSON.parse(await $.fs.read(`${newDir}/.claude-plugin/plugin.json`)) as { version?: unknown }).version
-  if (installedVersion !== m.version) return tx('The downloaded package is not the right version, so it was not installed. Tell your admin.')
+  if (installedVersion !== m.version) return { text: tx('The downloaded package is not the right version, so it was not installed. Tell your admin.') }
   // the company's settings and key are not in the update
   // thiết lập và khoá của công ty không có trong bản cập nhật
   const companyFile = `${root}/web/company.json`
   if (await $.fs.exists(companyFile)) await $.fs.write(`${newDir}/web/company.json`, await $.fs.read(companyFile))
   await removeDir(oldDir)
-  if ((await moveDir(root, oldDir)).exitCode !== 0) return tx('Could not replace the plugin folder. Quit the app completely and type /update again.')
+  if ((await moveDir(root, oldDir)).exitCode !== 0) return { text: tx('Could not replace the plugin folder. Quit the app completely and type /update again.') }
   if ((await moveDir(newDir, root)).exitCode !== 0) {
     await moveDir(oldDir, root)
-    return tx('Could not replace the plugin folder, so the old version was kept. Tell your admin.')
+    return { text: tx('Could not replace the plugin folder, so the old version was kept. Tell your admin.') }
   }
   const saved = ((await $.store.get(UPDATE_KEY)) as { checkedAt?: number } | undefined) ?? {}
   await $.store.set(UPDATE_KEY, { ...saved, date: m.date })
   await commit($, s => ({ ...s, update: undefined }))
-  return tx('Updated to version {version}. Quit the Claude app completely (Mac: Cmd+Q, Windows: close all windows) and open it again to use the new version.', { version: m.version })
+  return { text: tx('Updated to version {version}. Quit the Claude app completely (Mac: Cmd+Q, Windows: close all windows) and open it again to use the new version.', { version: m.version }), version: m.version }
 }
 
 /** Copies the browser view's page and drawing code next to the session files. */

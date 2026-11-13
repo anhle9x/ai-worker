@@ -2,6 +2,16 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.28.1 - 2026-11-13
+
+### Changed
+- Nothing new to use. This version exists so that a computer on 0.28.0 has an update to install: that is the only way to see the question that offers to reopen the Claude app.
+
+## 0.28.0 - 2026-11-13
+
+### Added
+- After `/update` or the Update button installs a new version, the Claude desktop app on a Mac offers to close and open again on its own. It asks first, because sessions that are still working stop. Elsewhere (Windows, Linux, a terminal, an editor) the message still asks you to quit and reopen by hand.
+
 ## 0.27.2 - 2026-11-13
 
 ### Fixed

@@ -85,7 +85,7 @@ To sign in later: open Terminal or PowerShell and type `codex login` (ChatGPT) o
 When your admin releases a new version, a bar above the chat box shows **New version** with an **Update** button; you can also type `/update`.
 
 1. Click **Update** and wait for the message that it is installed.
-2. Quit the Claude app completely and open it again.
+2. In the Claude app on a Mac, a question offers to close the app and open it again: choose **Reopen now** (sessions that are still working stop), or **Later** and do it yourself. Anywhere else, quit the Claude app completely and open it again.
 
 A version is installed only when it carries the admin's signature. Your computer must be on the company network to download it. The previous version is kept in the `ai-worker.old` folder next to the plugin.
 
