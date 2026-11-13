@@ -124,6 +124,7 @@ Rồi xoá thư mục `claude-plugins-ai-worker` trong thư mục người dùng
 
 | Hiện tượng | Cách xử lý |
 |---|---|
+| Ở phiên mới, danh sách không có `/office` hay `/update`, hoặc có dòng `/office isn't a command here` | Trước tin nhắn đầu tiên, app chỉ biết các tên `ai-worker:office`, `ai-worker:office-pane` và `ai-worker:update`: chọn một tên trong danh sách. Gõ `/office` rồi bấm Enter cũng chạy. |
 | Gõ `/office` không có gì | Thoát hẳn app Claude rồi mở lại, hoặc gõ `/reload-plugins` |
 | Bộ cài báo không tới được máy chủ | Số liệu của bạn chưa lên bảng tổng. Kiểm tra máy đang ở mạng công ty và gửi ảnh chụp cho người quản trị |
 | Thiếu bàn của một trợ lý phụ | Trợ lý đó chưa cài hoặc chưa đăng nhập; xem 1.4 |

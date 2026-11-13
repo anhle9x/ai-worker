@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.29.1 - 2026-11-13
+
+### Fixed
+- In a session that has not started yet, the app did not list `/office`, `/office-pane` or `/update` and said `/office isn't a command here`, because the plugin only declared them once a session was running. They are now also declared as files, so the list shows `ai-worker:office`, `ai-worker:office-pane` and `ai-worker:update` from the start. The short names work as before.
+
 ## 0.29.0 - 2026-11-13
 
 ### Added

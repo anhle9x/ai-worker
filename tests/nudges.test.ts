@@ -108,10 +108,10 @@ function updateWaiting(on: On, machine: Machine) {
   return seen
 }
 
-async function runUpdate($: Engine, on: On, machine: Machine) {
+async function runUpdate($: Engine, on: On, machine: Machine, command = 'update') {
   const seen = updateWaiting(on, machine)
   await $.session.start({ cwd: '/', surface: machine.surface, isInteractive: true })
-  const { text } = (await $.command.run({ command: 'update', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 80 } })) as { text: string }
+  const { text } = (await $.command.run({ command, args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 80 } })) as { text: string }
   return { text, asked: seen.asked, helper: seen.ran.find(r => r.argv[0] === '/usr/bin/perl' || r.argv[2] === LINUX_DETACH || r.env.AIW_SCRIPT === WINDOWS_RESTART_SCRIPT) }
 }
 
@@ -200,3 +200,10 @@ test('/update never offers to reopen on Windows in a terminal', async ($, on) =>
   expect(r.text).toContain(BY_HAND)
 })
 
+
+test('/ai-worker:update, the name the app lists before a session starts, is the same command as /update', async ($, on) => {
+  const r = await runUpdate($, on, { system: 'Darwin', surface: 'desktop', answer: 'Later' }, 'ai-worker:update')
+  expect(r.asked.length).toBe(1)
+  expect(r.text).toContain(BY_HAND)
+  expect(r.text).toContain('9.9.9')
+})

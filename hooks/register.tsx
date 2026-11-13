@@ -1321,6 +1321,27 @@ function ensureTicker($: EngineInterface) {
   if (!ticker) ticker = $.clock.every(1000, () => void tick($))
 }
 
+/** /office: the dashboard in the browser, or the side panel when no browser opens. */
+/** /office: bảng trong trình duyệt, hoặc khung bên cạnh khi không mở được trình duyệt. */
+async function runOffice($: EngineInterface): Promise<{ text: string }> {
+  if (await openWeb($)) return { text: tx('Opened {title} in the browser.', { title: BRAND.title }) }
+  await $.ui.open({ id: PANE, title: BRAND.title })
+  return { text: tx('Could not open the browser; opened {title} in the side panel.', { title: BRAND.title }) }
+}
+
+/** /update: checks for a new version, installs it and says what happened. */
+/** /update: kiểm tra bản mới, cài nó và báo điều đã xảy ra. */
+async function runUpdate($: EngineInterface): Promise<{ text: string }> {
+  return { text: await updatePlugin($).catch(err => tx('Could not check for a new version ({reason}). Try again later, or tell your admin if this computer is away from the office.', { reason: String(err instanceof Error ? err.message : err) })) }
+}
+
+/** /office-pane: the virtual office in a panel next to the chat. */
+/** /office-pane: văn phòng ảo trong một khung cạnh cuộc trò chuyện. */
+async function runOfficePane($: EngineInterface): Promise<{ text: string }> {
+  await $.ui.open({ id: PANE, title: BRAND.title })
+  return { text: tx('Opened {title}.', { title: BRAND.title }) }
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     // installWeb reads the language from user.json and config.js, so the commands below are described in it
@@ -1430,18 +1451,16 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'office' }, async $ => {
-    if (await openWeb($)) return { text: tx('Opened {title} in the browser.', { title: BRAND.title }) }
-    await $.ui.open({ id: PANE, title: BRAND.title })
-    return { text: tx('Could not open the browser; opened {title} in the side panel.', { title: BRAND.title }) }
-  })
-
-  on('command.run', { command: 'update' }, async $ => ({ text: await updatePlugin($).catch(err => tx('Could not check for a new version ({reason}). Try again later, or tell your admin if this computer is away from the office.', { reason: String(err instanceof Error ? err.message : err) })) }))
-
-  on('command.run', { command: 'office-pane' }, async $ => {
-    await $.ui.open({ id: PANE, title: BRAND.title })
-    return { text: tx('Opened {title}.', { title: BRAND.title }) }
-  })
+  // each command answers to two names: the bare one, registered when a session starts, and its file's
+  // (commands/<name>.md, listed as ai-worker:<name>), which the app shows before any session has started
+  // mỗi lệnh trả lời hai tên: tên trần, đăng ký khi một phiên bắt đầu, và tên của file
+  // (commands/<name>.md, hiện là ai-worker:<name>), cái app liệt kê trước khi có phiên nào bắt đầu
+  on('command.run', { command: 'office' }, $ => runOffice($))
+  on('command.run', { command: 'ai-worker:office' }, $ => runOffice($))
+  on('command.run', { command: 'update' }, $ => runUpdate($))
+  on('command.run', { command: 'ai-worker:update' }, $ => runUpdate($))
+  on('command.run', { command: 'office-pane' }, $ => runOfficePane($))
+  on('command.run', { command: 'ai-worker:office-pane' }, $ => runOfficePane($))
 
   // the chat's title rides on the settings hooks' session start and prompt events
   // tiêu đề cuộc trò chuyện đi theo các sự kiện bắt đầu phiên và gửi lời nhắc của các hook cài đặt

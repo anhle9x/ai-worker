@@ -124,6 +124,7 @@ Then delete the `claude-plugins-ai-worker` folder in your user folder.
 
 | What you see | What to do |
 |---|---|
+| In a new session the list shows no `/office` or `/update`, or a line says `/office isn't a command here` | Before your first message the app only knows the names `ai-worker:office`, `ai-worker:office-pane` and `ai-worker:update`: pick one from the list. Typing `/office` and pressing Enter also works. |
 | `/office` does nothing | Quit the Claude app completely and open it again, or type `/reload-plugins` |
 | The installer says the server cannot be reached | Your numbers are not on the board yet. Check you are on the company network and send a screenshot to your admin |
 | A helper assistant's desk is missing | It is not installed or not signed in; see 1.4 |
