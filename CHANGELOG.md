@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.31.2 - 2026-11-13
+
+### Fixed
+- In a session with no folder chosen, asking in plain words for a whole project to be looked over made Claude ask for a folder and then stop, instead of naming the command to type. The rule now tells it to name `/ai-worker:improve-codebase-architecture` first, before asking for a folder or reading any file.
+
 ## 0.31.1 - 2026-11-13
 
 ### Changed
