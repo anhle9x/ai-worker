@@ -1,9 +1,9 @@
 # Python lint for the server, menu bar scripts and tests. Run: uvx ruff check .
 # Kiểm lỗi Python cho máy chủ, script thanh menu và bộ thử. Chạy: uvx ruff check .
 target-version = "py39"
-# dev-pack/ holds skills copied from upstream projects: left as their authors wrote them
-# dev-pack/ chứa skill chép từ dự án gốc: để nguyên như tác giả viết
-extend-exclude = ["dev-pack"]
+# skills/ holds skills copied from upstream projects: left as their authors wrote them
+# skills/ chứa skill chép từ dự án gốc: để nguyên như tác giả viết
+extend-exclude = ["skills"]
 
 [lint]
 # real mistakes only (pyflakes, syntax, bugbear), not style

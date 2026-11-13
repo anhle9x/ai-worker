@@ -18,7 +18,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VI_CHARS = "àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ"
 VI_RE = re.compile("[" + VI_CHARS + VI_CHARS.upper() + "]")
-SKIP = re.compile(r"(^|/)(three\.js|three\.LICENSE|qrcode\.js|.*\.json)$|^dev-pack/skills/(ui-ux-pro-max|security-audit|browser-testing-with-devtools|codebase-design|diagnosing-bugs|domain-modeling|grilling|improve-codebase-architecture|interview-me|tdd)/")
+SKIP = re.compile(r"(^|/)(three\.js|three\.LICENSE|qrcode\.js|.*\.json)$|^skills/(ui-ux-pro-max|security-audit|browser-testing-with-devtools|codebase-design|diagnosing-bugs|domain-modeling|grilling|improve-codebase-architecture|interview-me|tdd)/")
 DICT = re.compile(r"(\.vi\.(js|ts|md|txt|svg)$|webhook_vi\.py$)")
 LINE_COMMENT = {".js": "//", ".ts": "//", ".tsx": "//", ".py": "#", ".sh": "#", ".command": "#", ".ps1": "#", ".caddy": "#", ".yml": "#", ".bat": "::", ".example": "#", ".swift": "//", ".cs": "//", ".toml": "#"}
 TEXT_T = re.compile(r"""\btx\(\s*(?:'((?:\\.|[^'\\])*)'|"((?:\\.|[^"\\])*)"|`((?:\\.|[^`\\])*)`)""")
@@ -28,7 +28,7 @@ GROUPS = {
                                 "server/static/map2d.js", "server/static/map25d.js", "server/static/map3d.js"],
     "server/static/admin.vi.js": ["server/static/admin.js"],
     "web/index.vi.js": ["web/index.html"],
-    "hooks/lang.vi.ts": ["hooks/activity.ts", "hooks/edits.ts", "hooks/office.ts", "hooks/register.tsx", "hooks/team.ts", "hooks/update.ts", "hooks/workers.ts"],
+    "hooks/lang.vi.ts": ["hooks/activity.ts", "hooks/edits.ts", "hooks/help.ts", "hooks/office.ts", "hooks/register.tsx", "hooks/team.ts", "hooks/update.ts", "hooks/workers.ts"],
 }
 
 

@@ -102,7 +102,7 @@ Máy chủ không bao giờ gọi Telegram: nút đưa trình duyệt sang trang
    Tạo gói, manifest và chữ ký trong `server/releases/` (ngoài git).
 3. Chép `server/` lên máy chủ và chạy `sudo bash install.sh`.
 
-Máy nhân viên hỏi máy chủ tối đa 4 giờ một lần, thất bại thì 30 phút sau hỏi lại. Có bản mới thì thanh trên ô nhập hiện nút `Cập nhật`; bấm xong phải thoát hẳn app rồi mở lại. Việc phát hành chỉ tới máy đã cài từ bản 0.23.0 trở lên; gói kỹ thuật chưa tự cập nhật, cài lại bằng zip.
+Máy nhân viên hỏi máy chủ tối đa 4 giờ một lần, thất bại thì 30 phút sau hỏi lại. Có bản mới thì thanh trên ô nhập hiện nút `Cập nhật`; bấm xong phải thoát hẳn app rồi mở lại. Việc phát hành chỉ tới máy đã cài từ bản 0.23.0 trở lên.
 
 **An toàn:** máy nhân viên chỉ cài khi đúng chữ ký và mã kiểm tra, nên máy chủ bị chiếm cũng không phát được gói độc. Máy không kiểm được chữ ký (OpenSSH quá cũ) chỉ được báo có bản mới, không tự cài. Thư mục có `.git` không bao giờ tự cập nhật.
 

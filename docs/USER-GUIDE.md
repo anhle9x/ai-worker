@@ -49,6 +49,15 @@ Type these in the chat box of the Code tab:
 | `/office` | Opens the office page for this computer in your browser |
 | `/office-pane` | Opens the office next to the chat |
 | `/update` | Checks the company server for a new version and installs it |
+| `/ai-worker:help` | Lists what the plugin gives on this computer: commands, skills, helper assistants |
+
+**What else comes with the plugin.** Type `/ai-worker:help` to see the list as it is on your computer. In short:
+
+- **Skills,** which Claude follows when you type their name or ask in your own words: for everyday work, `/ai-worker:handoff` (write a handoff note so the next session can carry on), `/ai-worker:meeting-notes` (turn rough notes into minutes), `/ai-worker:lesson-generator` (build a small course).
+- **Helper assistants** (see 1.4): Claude hands side tasks to Gemma, ChatGPT or Gemini by itself, but only to the ones installed on your computer. The list says which ones yours has.
+- **Skills for people who write code or run systems,** such as `/ai-worker:tdd`, `/ai-worker:qa-test`, `/ai-worker:security-audit` and `/ai-worker:write-spec`, and the `planner` assistant for big decisions. They come with the plugin too; if you do not do that kind of work, ignore them. A few need extra tools: see [SKILLS.md](SKILLS.md).
+
+The plugin has no MCP server of its own.
 
 ### 1.3 The office page (`/office`)
 

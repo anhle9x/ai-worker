@@ -1,5 +1,5 @@
-# Install the libraries the skills in the technical pack need (Windows). Anything missing is reported at the end; it does not break the plugin install.
-# Cài các thư viện skill trong gói kỹ thuật cần (Windows). Thiếu gì thì báo ở cuối, không làm hỏng việc cài plugin.
+# Install the libraries the coding and testing skills need (Windows). Anything missing is reported at the end; it does not break the plugin install.
+# Cài các thư viện mà skill viết code và kiểm thử cần (Windows). Thiếu gì thì báo ở cuối, không làm hỏng việc cài plugin.
 param([string]$Plugin, [string]$Claude)
 $ErrorActionPreference = 'Continue'
 $langFile = Join-Path $PSScriptRoot 'lang.ps1'
@@ -28,7 +28,7 @@ function Install-Package($package) {
   return $true
 }
 Write-Host ''
-Say-Text '== Libraries for the technical pack ==' '== Thư viện cho gói kỹ thuật =='
+Say-Text '== Libraries for the coding and testing skills ==' '== Thư viện cho các skill viết code và kiểm thử =='
 if (-not (Node-Ok)) {
   Say-Text 'Installing Node.js ...' 'Cài Node.js ...'
   $null = Install-Package 'OpenJS.NodeJS.LTS'

@@ -1,6 +1,6 @@
 #!/bin/bash
-# Install the libraries the skills in the technical pack need (macOS). It must not break the plugin install: anything missing is reported at the end.
-# Cài các thư viện skill trong gói kỹ thuật cần (macOS). Không làm hỏng việc cài plugin: thiếu gì thì báo ở cuối.
+# Install the libraries the coding and testing skills need (macOS). It must not break the plugin install: anything missing is reported at the end.
+# Cài các thư viện mà skill viết code và kiểm thử cần (macOS). Không làm hỏng việc cài plugin: thiếu gì thì báo ở cuối.
 # Use: bash install-deps.sh <copied plugin folder>   AI_WORKER_WITH_VIDEO=y, AI_WORKER_WITH_STAGESHOW=y answer the two optional questions in advance.
 # Dùng: bash install-deps.sh <thư mục plugin đã chép>   AI_WORKER_WITH_VIDEO=y, AI_WORKER_WITH_STAGESHOW=y để trả lời sẵn hai câu hỏi tuỳ chọn.
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -62,7 +62,7 @@ install_node() {
 has_python() { python3 -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; }
 
 echo
-say "== Libraries for the technical pack ==" "== Thư viện cho gói kỹ thuật =="
+say "== Libraries for the coding and testing skills ==" "== Thư viện cho các skill viết code và kiểm thử =="
 install_node || miss "$(
 say "Node.js: download it from https://nodejs.org, then run the installer again" "Node.js: tải tại https://nodejs.org rồi chạy lại file cài"
 )"

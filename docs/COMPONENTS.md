@@ -8,7 +8,7 @@ Every part of AI Worker, where it runs, what it needs and which version is pinne
 
 | Part | Runs on | Language | Version |
 |---|---|---|---|
-| Plugin (hooks, `/office`, skills) | Staff computers, inside Claude Code | TypeScript | `version` in `.claude-plugin/plugin.json` (now 0.29.1) |
+| Plugin (hooks, `/office`, skills) | Staff computers, inside Claude Code | TypeScript | `version` in `.claude-plugin/plugin.json` (now 0.31.1) |
 | Dashboard server (webhook) | Linux server | Python, standard library only; data in SQLite | Same as the plugin release |
 | 3D office page | Browser | JavaScript, three.js | Same as the plugin release |
 | Menu bar icon | macOS, Windows, Ubuntu | Python (SwiftBar on Mac, Ubuntu), Swift app (`macos-app/`), PowerShell and C# (Windows) | Built by the server for each download |
@@ -22,7 +22,7 @@ Every part of AI Worker, where it runs, what it needs and which version is pinne
 | Server | Linux with systemd, Python 3.8 or newer with its built-in `sqlite3` module, Caddy or nginx for HTTPS | The admin, by hand; then `server/install.sh` |
 | Staff computer | Claude Code (desktop app or CLI), a Claude account | The staff member |
 | Staff computer, optional helpers | Ollama with a Gemma model, Codex CLI (ChatGPT), Antigravity CLI `agy` (Gemini) | The installer asks |
-| Developer pack | Node 20.19 or newer, Python, Chrome, ffmpeg | The developer pack installer (`winget` on Windows, Homebrew on Mac) |
+| Tools for the coding and testing skills | Node 20.19 or newer, Python, Chrome, ffmpeg | `setup/INSTALL-DevTools-*` in the package (`winget` on Windows, Homebrew on Mac) |
 | Ubuntu menu bar | `python3`, `python3-gi`, `python3-gi-cairo`, GTK 3, AyatanaAppIndicator3 (or AppIndicator3), WebKit2 4.1 (or 4.0) | `apt`, from the `.deb` dependencies |
 | macOS menu bar without the built app | SwiftBar | `install-mac.command`, from Homebrew or its GitHub release |
 | Windows menu bar | WebView2 runtime (built into Windows 10 and 11) | Windows |

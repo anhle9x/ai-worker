@@ -207,3 +207,32 @@ test('/ai-worker:update, the name the app lists before a session starts, is the 
   expect(r.text).toContain(BY_HAND)
   expect(r.text).toContain('9.9.9')
 })
+
+test('/ai-worker:help answers from the plugin folder, without the model', async ($, on) => {
+  mock.clock(on)
+  mock.store(on)
+  mock.env(on, { HOME: '/Users/an' })
+  on('command.register', () => ({ value: { command: 'office' } }))
+  on('command.run', () => ({ text: 'not the plugin' }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.toast', () => ({ value: undefined }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('fs.exists', () => ({ value: false }))
+  on('fs.write', () => ({ value: undefined }))
+  on('fs.list', (_, e) => ({ value: String(e.path).endsWith('/skills') ? [{ name: 'handoff', kind: 'dir', size: 0 }, { name: 'SOURCES.md', kind: 'file', size: 10 }] : [] }) as never)
+  on('fs.read', (_, e) => {
+    if (e.path.endsWith('/skills/handoff/SKILL.md')) return { value: '---\nname: handoff\ndescription: Write the handoff note. Use it late.\n---\n' }
+    if (e.path.endsWith('/.claude-plugin/plugin.json')) return { value: '{"version":"9.9.8"}' }
+    if (e.path.includes('/web/')) return { value: '' }
+    throw new Error('no such file')
+  })
+  on('http.fetch', () => ({ value: { ok: false, status: 0, headers: {}, text: '' } }))
+  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const { text } = (await $.command.run({ command: 'ai-worker:help', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 80 } })) as { text: string }
+  expect(text).toContain('9.9.8')
+  expect(text).toContain('- /ai-worker:handoff — write a handoff note so a new session can carry on')
+  expect(text).not.toContain('SOURCES')
+  expect(text).not.toContain('Dev pack')
+})
+

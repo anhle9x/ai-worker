@@ -29,7 +29,7 @@ cat > "$SETUP/.claude-plugin/marketplace.json" <<'EOF'
 }
 EOF
 
-rsync -a --exclude dev-pack --exclude assets --exclude extensions --exclude packaging --exclude dist --exclude server --exclude tests --exclude TRANG-THAI.md --exclude .git --exclude .github --exclude .gitignore \
+rsync -a --exclude assets --exclude extensions --exclude packaging --exclude dist --exclude server --exclude tests --exclude TRANG-THAI.md --exclude .git --exclude .github --exclude .gitignore \
   --exclude .DS_Store --exclude node_modules "$ROOT/" "$SETUP/ai-worker/"
 # The public keys that sign updates live outside git: without them the installed plugin does not update itself
 # Khoá công khai ký bản cập nhật nằm ngoài git: thiếu chúng thì plugin đã cài không tự cập nhật
@@ -52,7 +52,11 @@ cp "$ROOT/packaging/ask-name.ps1" \
   "$ROOT/packaging/install-desktop.sh" "$ROOT/packaging/install-desktop.ps1" \
   "$ROOT/packaging/helpers.sh" "$ROOT/packaging/helpers.ps1" \
   "$ROOT/packaging/check-network.sh" "$ROOT/packaging/check-network.ps1" "$SETUP/"
-chmod +x "$PKG/INSTALL-Mac.command" "$PKG/INSTALL-Linux.sh"
+# For people who write code: the tools the coding and testing skills need. They sit in setup/, out of the staff's way
+# Cho người viết code: các công cụ mà skill viết code và kiểm thử cần. Chúng nằm trong setup/, không vướng nhân viên
+cp "$ROOT/packaging/INSTALL-DevTools-Mac.command" "$ROOT/packaging/INSTALL-DevTools-Windows.bat" \
+  "$ROOT/packaging/install-deps.sh" "$ROOT/packaging/install-deps.ps1" "$SETUP/"
+chmod +x "$PKG/INSTALL-Mac.command" "$PKG/INSTALL-Linux.sh" "$SETUP/INSTALL-DevTools-Mac.command"
 
 if [ -n "$1" ]; then
   python3 -c '
@@ -81,10 +85,10 @@ if c.get("viewCode"): sys.exit(13)
 fi
 # Windows needs CRLF for .bat files
 # Windows cần CRLF cho file .bat
-perl -pi -e 's/\r?\n/\r\n/' "$PKG/INSTALL-Windows.bat" "$SETUP/ask-name.ps1" "$SETUP/install-desktop.ps1" "$SETUP/helpers.ps1" "$SETUP/lang.ps1" "$SETUP/check-network.ps1"
+perl -pi -e 's/\r?\n/\r\n/' "$PKG/INSTALL-Windows.bat" "$SETUP/INSTALL-DevTools-Windows.bat" "$SETUP/install-deps.ps1" "$SETUP/ask-name.ps1" "$SETUP/install-desktop.ps1" "$SETUP/helpers.ps1" "$SETUP/lang.ps1" "$SETUP/check-network.ps1"
 # PowerShell 5 (built into Windows) reads Vietnamese in a .ps1 correctly only when the file has a UTF-8 BOM
 # PowerShell 5 (có sẵn trên Windows) chỉ đọc đúng tiếng Việt trong .ps1 khi file có BOM UTF-8
-for f in ask-name install-desktop helpers lang check-network; do
+for f in ask-name install-desktop helpers lang check-network install-deps; do
   printf '\357\273\277' | cat - "$SETUP/$f.ps1" > "$SETUP/$f.tmp" && mv "$SETUP/$f.tmp" "$SETUP/$f.ps1"
 done
 

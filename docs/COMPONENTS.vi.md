@@ -8,7 +8,7 @@ Mọi phần của AI Worker: chạy ở đâu, cần gì, phiên bản nào đ�
 
 | Phần | Chạy trên | Ngôn ngữ | Phiên bản |
 |---|---|---|---|
-| Plugin (hook, `/office`, skill) | Máy nhân viên, bên trong Claude Code | TypeScript | `version` trong `.claude-plugin/plugin.json` (hiện 0.29.1) |
+| Plugin (hook, `/office`, skill) | Máy nhân viên, bên trong Claude Code | TypeScript | `version` trong `.claude-plugin/plugin.json` (hiện 0.31.1) |
 | Máy chủ bảng tổng (webhook) | Máy chủ Linux | Python, chỉ thư viện chuẩn; dữ liệu trong SQLite | Theo bản phát hành của plugin |
 | Trang văn phòng 3D | Trình duyệt | JavaScript, three.js | Theo bản phát hành của plugin |
 | Biểu tượng thanh menu | macOS, Windows, Ubuntu | Python (SwiftBar trên Mac, Ubuntu), app Swift (`macos-app/`), PowerShell và C# (Windows) | Máy chủ dựng cho mỗi lần tải |
@@ -22,7 +22,7 @@ Mọi phần của AI Worker: chạy ở đâu, cần gì, phiên bản nào đ�
 | Máy chủ | Linux có systemd, Python 3.8 trở lên kèm module `sqlite3` có sẵn, Caddy hoặc nginx cho HTTPS | Người quản trị cài tay; sau đó chạy `server/install.sh` |
 | Máy nhân viên | Claude Code (app máy tính hoặc CLI), một tài khoản Claude | Nhân viên |
 | Máy nhân viên, trợ lý phụ tuỳ chọn | Ollama với một model Gemma, Codex CLI (ChatGPT), Antigravity CLI `agy` (Gemini) | File cài hỏi trước khi cài |
-| Gói cho lập trình viên | Node 20.19 trở lên, Python, Chrome, ffmpeg | File cài gói lập trình viên (`winget` trên Windows, Homebrew trên Mac) |
+| Công cụ cho các skill viết code, kiểm thử | Node 20.19 trở lên, Python, Chrome, ffmpeg | `setup/INSTALL-DevTools-*` trong gói (`winget` trên Windows, Homebrew trên Mac) |
 | Thanh menu Ubuntu | `python3`, `python3-gi`, `python3-gi-cairo`, GTK 3, AyatanaAppIndicator3 (hoặc AppIndicator3), WebKit2 4.1 (hoặc 4.0) | `apt`, theo phần phụ thuộc của gói `.deb` |
 | Thanh menu macOS khi chưa có app dựng sẵn | SwiftBar | `install-mac.command`, từ Homebrew hoặc bản phát hành trên GitHub |
 | Thanh menu Windows | WebView2 runtime (có sẵn trong Windows 10 và 11) | Windows |

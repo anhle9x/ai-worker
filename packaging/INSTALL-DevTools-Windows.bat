@@ -7,19 +7,14 @@ cd /d "%~dp0"
 if not defined AI_WORKER_LANG for /f "delims=" %%L in ('powershell -NoProfile -Command "[System.Globalization.CultureInfo]::CurrentCulture.TwoLetterISOLanguageName" 2^>nul') do set "AI_WORKER_LANG=%%L"
 if not defined AI_WORKER_LANG set "AI_WORKER_LANG=en"
 if /i "%AI_WORKER_LANG:~0,2%"=="vi" (set "AI_WORKER_LANG=vi") else (set "AI_WORKER_LANG=en")
-if not exist "ai-worker-dev" (
-  call :say "Cannot find the ai-worker-dev folder next to the installer: unzip the whole pack and run again." "Không thấy thư mục ai-worker-dev cạnh file cài: giải nén cả gói rồi chạy lại."
-  pause
-  exit /b 1
-)
 if not exist "%~dp0lang.ps1" (
   call :say "lang.ps1 is missing next to the installer: unzip the whole pack and run again." "Thiếu lang.ps1 cạnh file cài: giải nén cả gói rồi chạy lại."
   pause
   exit /b 1
 )
-set "INSTALL_DIR=%USERPROFILE%\claude-plugins-ai-worker-dev"
+set "INSTALL_DIR=%USERPROFILE%\claude-plugins-ai-worker"
 set "PATH=%USERPROFILE%\.local\bin;%APPDATA%\npm;%PATH%"
-call :say "== Installing the AI Worker technical pack ==" "== Cài gói kỹ thuật AI Worker =="
+call :say "== Installing the tools for the coding and testing skills ==" "== Cài công cụ cho các skill viết code và kiểm thử =="
 set "CLAUDE="
 for /f "delims=" %%i in ('where claude 2^>nul') do if not defined CLAUDE set "CLAUDE=%%i"
 if not defined CLAUDE for /f "delims=" %%i in ('dir /b /s /o-d "%APPDATA%\Claude\claude-code\claude.exe" 2^>nul') do if not defined CLAUDE set "CLAUDE=%%i"
@@ -28,18 +23,12 @@ if not defined CLAUDE (
   pause
   exit /b 1
 )
-call :say "Copying the plugin to %INSTALL_DIR% ..." "Chép plugin vào %INSTALL_DIR% ..."
-if exist "%INSTALL_DIR%" rmdir /s /q "%INSTALL_DIR%"
-xcopy /e /i /q /y ".claude-plugin" "%INSTALL_DIR%\.claude-plugin" >nul
-xcopy /e /i /q /y "ai-worker-dev" "%INSTALL_DIR%\ai-worker-dev" >nul
-call "%CLAUDE%" plugin marketplace add "%INSTALL_DIR%" || call "%CLAUDE%" plugin marketplace update ai-worker-dev
-call "%CLAUDE%" plugin install ai-worker-dev@ai-worker-dev
-if errorlevel 1 (
-  call :say "The install did not succeed. Take a screenshot of this window and send it to your admin." "Cài chưa thành công. Chụp màn hình cửa sổ này gửi người quản trị."
+if not exist "%INSTALL_DIR%\ai-worker" (
+  call :say "The AI Worker plugin is not installed yet: run INSTALL-Windows.bat first, then this file." "Chưa cài plugin AI Worker: chạy INSTALL-Windows.bat trước, rồi mới chạy file này."
   pause
   exit /b 1
 )
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-deps.ps1" -Plugin "%INSTALL_DIR%\ai-worker-dev" -Claude "%CLAUDE%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-deps.ps1" -Plugin "%INSTALL_DIR%\ai-worker" -Claude "%CLAUDE%"
 echo.
 call :say "Done. Quit the Claude app (right-click its icon next to the clock, then Exit; closing the window only hides it) and open it again to use it." "Xong. Thoát app Claude (bấm chuột phải vào biểu tượng cạnh đồng hồ, chọn Exit; đóng cửa sổ chỉ làm app ẩn đi) rồi mở lại để dùng."
 pause

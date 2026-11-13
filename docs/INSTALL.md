@@ -102,7 +102,7 @@ The server never calls Telegram: the button takes the browser to Telegram's logi
    This makes the package, manifest and signature in `server/releases/` (outside git).
 3. Copy `server/` to the server and run `sudo bash install.sh`.
 
-Employee computers ask the server at most once every 4 hours, and 30 minutes later if it failed. When there is a new version, the bar above the input box shows an `Update` button; after clicking, quit the app completely and open it again. A release only reaches computers installed with version 0.23.0 or newer; the technical pack does not self-update yet, reinstall it with the zip.
+Employee computers ask the server at most once every 4 hours, and 30 minutes later if it failed. When there is a new version, the bar above the input box shows an `Update` button; after clicking, quit the app completely and open it again. A release only reaches computers installed with version 0.23.0 or newer.
 
 **Safety:** an employee computer installs only when the signature and the checksum are correct, so even a hijacked server cannot hand out a bad package. A computer that cannot check the signature (OpenSSH too old) is only told there is a new version and does not install it. A folder with `.git` never self-updates.
 

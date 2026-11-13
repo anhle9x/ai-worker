@@ -2,6 +2,24 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.31.1 - 2026-11-13
+
+### Changed
+- Nobody has to remember a skill's name. `/ai-worker:help` now says so at the top of the skills, and marks the one skill that runs only when its name is typed (`improve-codebase-architecture`, which reads a whole project).
+- When someone asks in their own words for the structure of a whole project to be looked over, Claude names the command to type instead of doing that long scan itself. A remark about one function, file or module is helped with at once, as before.
+
+## 0.31.0 - 2026-11-13
+
+### Changed
+- The Dev pack is gone as a separate plugin: its 14 skills (testing, coding, security, UI, specifications, diagrams), the `planner` assistant and the rules for technical work now come with the plugin itself, so every computer has them and they update with it. Their names start with `ai-worker:` instead of `ai-worker-dev:`. If you had installed the Dev pack, remove the `ai-worker-dev` plugin, or its skills show twice.
+- The tools some of those skills need (Node, Playwright, Chrome DevTools) are still a separate step for people who write code: `INSTALL-DevTools-Mac.command` or `INSTALL-DevTools-Windows.bat`, in the `setup` folder of the package. They replace `INSTALL-Dev-*`.
+- `/ai-worker:help` reads as a short list in plain words, in two groups: skills for everyday work, and skills for people who write code or run systems.
+
+## 0.30.0 - 2026-11-13
+
+### Added
+- `/ai-worker:help` lists what the plugin gives on the computer it runs on: its commands, the skills it ships, which helper assistants (Gemma, ChatGPT, Gemini) that computer has, whether the Dev pack is installed and whether numbers are sent to the company server. Until now nothing showed this.
+
 ## 0.29.1 - 2026-11-13
 
 ### Fixed

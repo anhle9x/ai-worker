@@ -18,6 +18,8 @@ import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_
 import { AGY_BRAIN, IMAGE_DIR, IMAGE_SCHEMA, IMAGE_SETTLE_MS, OLLAMA_URL, PROMPT_LEVEL_SCHEMA, PROMPT_SCHEMA, WORKER_TIMEOUT_MS, imageArgv, imageTargets, newImages, safeImageName, sendingNeedsAsking, sendingRefusal, agyArgv, codexArgv, codexInput, isBatchLauncher, delegationRules, gemmaAnswer, gemmaRequest, mcpConfigured, ownTools, pickGemma } from './workers'
 import type { OwnWorkers } from './workers'
 import { pageLanguageScript, setLang, tx } from './lang'
+import { buildHelp, skillLine } from './help'
+import type { SkillLine } from './help'
 import { BADGE_MS, BRAND, FX_MS, WORKERS, applyConfig, setInstalled, buildOfficeSvg, clockLabel, dayLabel, formatSecs, workerView } from './office'
 import type { OfficeConfig } from './office'
 
@@ -1321,6 +1323,42 @@ function ensureTicker($: EngineInterface) {
   if (!ticker) ticker = $.clock.every(1000, () => void tick($))
 }
 
+/** Rules for technical work, in every session: they go with the coding and testing skills and the `planner` assistant the plugin ships. */
+/** Quy tắc cho việc kỹ thuật, trong mọi phiên: đi kèm các skill viết code, kiểm thử và trợ lý `planner` mà plugin mang theo. */
+const techRules = () => [
+  tx('# Rules for technical work'),
+  tx('- After changing the interface, open the real page and check both the desktop and the phone size before saying it is done. If you cannot check, say clearly that you have not.'),
+  tx('- When the user says "split sessions": make a plan first, then evaluate. Only split when there are at least 2 large parts that can be done independently without touching the same file; otherwise give the reason in one sentence and work in the current session. If you split, show the assignment table and then create the sessions right away: mechanical parts use Sonnet, read-only parts use Haiku, design and checking stay in the main session. When done, check each session result before reporting. Commit only when the user says so. When the user says "split anyway", split the parts that can be separated and say clearly which parts cannot be.'),
+  tx('- Call the `planner` assistant only after the user has agreed, because it uses a lot of quota; use it for big decisions that are hard to undo.'),
+  tx('- The skill `improve-codebase-architecture` starts only when the user types its name. When the user asks, in any words, to look over or improve the structure of a whole project, do not do that scan yourself: tell them to type `/ai-worker:improve-codebase-architecture`, and say in one line that it reads the whole project and takes a while. A remark that some code is messy, or a request about one function, file or module, is not that: just help with it.'),
+].join('\n')
+
+/** /ai-worker:help: what the plugin gives on this computer, read from the plugin's own folder and this session. */
+/** /ai-worker:help: những gì plugin có trên máy này, đọc từ thư mục của chính plugin và từ phiên này. */
+async function runHelp($: EngineInterface): Promise<{ text: string }> {
+  const root = $.plugin.root.replace(/[\\/]+$/, '')
+  const skills: SkillLine[] = []
+  try {
+    for (const entry of await $.fs.list(`${root}/skills`)) {
+      if (entry.kind !== 'dir') continue
+      let text = ''
+      try {
+        text = await $.fs.read(`${root}/skills/${entry.name}/SKILL.md`)
+      } catch {
+        // a folder with no skill in it
+        // một thư mục không có skill bên trong
+      }
+      const line = skillLine(text, entry.name)
+      if (line) skills.push(line)
+    }
+  } catch {
+    // no skills folder: the list says none
+    // không có thư mục skills: danh sách ghi là không có
+  }
+  skills.sort((a, b) => a.name.localeCompare(b.name))
+  return { text: buildHelp({ title: BRAND.title, version: await pluginVersion($), skills, workers: own, viaMcp, sharing: share.enabled }) }
+}
+
 /** /office: the dashboard in the browser, or the side panel when no browser opens. */
 /** /office: bảng trong trình duyệt, hoặc khung bên cạnh khi không mở được trình duyệt. */
 async function runOffice($: EngineInterface): Promise<{ text: string }> {
@@ -1395,12 +1433,13 @@ export const register: Register = on => {
     const r = await next(e)
     const text = own && !viaMcp ? delegationRules(own) : undefined
     const extra = [
+      { id: 'ai-worker:tech-rules', text: techRules(), scope: 'session' as const },
       ...(text ? [{ id: 'ai-worker:delegation', text, scope: 'session' as const }] : []),
       // only a company package carries these
       // chỉ gói công ty mới có những thứ này
       ...(share.enabled ? [{ id: 'ai-worker:work-rules', text: sharedRules(), scope: 'session' as const }] : []),
     ]
-    return extra.length ? { ...r, sections: [...r.sections, ...extra] } : r
+    return { ...r, sections: [...r.sections, ...extra] }
   })
 
   // the context window's fill, pushed after each turn: the page shows when to open a fresh session
@@ -1461,6 +1500,9 @@ export const register: Register = on => {
   on('command.run', { command: 'ai-worker:update' }, $ => runUpdate($))
   on('command.run', { command: 'office-pane' }, $ => runOfficePane($))
   on('command.run', { command: 'ai-worker:office-pane' }, $ => runOfficePane($))
+  // no short name: /help is Claude Code's own
+  // không có tên ngắn: /help là của chính Claude Code
+  on('command.run', { command: 'ai-worker:help' }, $ => runHelp($))
 
   // the chat's title rides on the settings hooks' session start and prompt events
   // tiêu đề cuộc trò chuyện đi theo các sự kiện bắt đầu phiên và gửi lời nhắc của các hook cài đặt

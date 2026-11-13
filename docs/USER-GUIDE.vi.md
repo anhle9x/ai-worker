@@ -49,6 +49,15 @@ Gõ trong ô chat của thẻ Code:
 | `/office` | Mở trang văn phòng của máy này trên trình duyệt |
 | `/office-pane` | Mở văn phòng trong khung bên cạnh ô chat |
 | `/update` | Kiểm tra bản mới trên máy chủ công ty và cài |
+| `/ai-worker:help` | Liệt kê những gì plugin có trên máy này: lệnh, skill, trợ lý phụ |
+
+**Plugin còn mang theo gì.** Gõ `/ai-worker:help` để xem danh sách đúng như trên máy bạn. Tóm tắt:
+
+- **Skill,** là các bài hướng dẫn Claude làm theo khi bạn gõ tên hoặc nói bằng lời của mình: cho việc hằng ngày có `/ai-worker:handoff` (ghi bàn giao để phiên sau làm tiếp), `/ai-worker:meeting-notes` (biến ghi chú thô thành biên bản họp), `/ai-worker:lesson-generator` (dựng một khoá học nhỏ).
+- **Trợ lý phụ** (xem 1.4): Claude tự giao việc phụ cho Gemma, ChatGPT hoặc Gemini, nhưng chỉ cho những trợ lý đã cài trên máy bạn. Danh sách cho biết máy bạn có cái nào.
+- **Skill cho người viết code hoặc vận hành hệ thống,** như `/ai-worker:tdd`, `/ai-worker:qa-test`, `/ai-worker:security-audit`, `/ai-worker:write-spec`, và trợ lý `planner` cho quyết định lớn. Chúng cũng đi kèm plugin; bạn không làm loại việc đó thì cứ bỏ qua. Một vài skill cần thêm công cụ: xem [SKILLS.vi.md](SKILLS.vi.md).
+
+Plugin không có máy chủ MCP nào của riêng nó.
 
 ### 1.3 Trang văn phòng (`/office`)
 

@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import { buildHelp, skillLine } from '../hooks/help'
 import { findHostApp, parseLinuxHost, parseWindowsHost, hasSigningKeys, parseHash, parseSignatureResult, parseManifest, shouldOfferUpdate } from '../hooks/update'
 import { OPEN_MS, buildMachineSummary, hardwareMark, parseHardwareId, sha256Hex, isLanIp, mergeShare, mergeTeam, parseLanIp, parseSessionFile, readShareConfig, summarySignature, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, answerModel, toQuota, quotaWarning } from '../hooks/team'
 
@@ -337,3 +338,64 @@ test('the Windows app is read only from a whole answer of the find script', () =
   expect(parseWindowsHost(`5516\t${app}\tC:\\x\\run.cmd`)).toBeUndefined()
 })
 
+test('a skill is listed by its name and the first sentence of its description', () => {
+  expect(skillLine('---\nname: review\ndescription: Look over a change. Use when the user asks.\n---\n# x', 'folder')).toEqual({ name: 'review', about: 'Look over a change' })
+  // a quoted description, and a file that names no skill takes its folder's name
+  expect(skillLine('---\ndescription: "Turns notes into minutes: decisions first. Use it often."\n---\n', 'notes')).toEqual({ name: 'notes', about: 'Turns notes into minutes: decisions first' })
+  expect(skillLine(`---\nname: long\ndescription: ${'word '.repeat(60)}\n---\n`, 'x')!.about.length).toBeLessThan(85)
+  // a skill whose file keeps Claude from starting it is marked: the person has to type its name
+  expect(skillLine('---\nname: scan\ndescription: Scan it all.\ndisable-model-invocation: true\n---\n', 'x')).toEqual({ name: 'scan', about: 'Scan it all', byNameOnly: true })
+  expect(skillLine('# no front matter', 'x')).toBeUndefined()
+  expect(skillLine('', 'x')).toBeUndefined()
+})
+
+test('the help is a short list: commands, skills in plain words in two groups, and only the helpers this computer has', () => {
+  const skills = [{ name: 'handoff', about: 'A long sentence from the file' }, { name: 'tdd', about: 'x' }, { name: 'review', about: 'Look over a change' }, { name: 'improve-codebase-architecture', about: 'x', byNameOnly: true }]
+  const base = { title: 'AI Worker Office', version: '9.9.9', skills, viaMcp: false, sharing: true }
+  const all = buildHelp({ ...base, workers: { gemma: 'gemma4:26b', chatgpt: '/bin/codex', gemini: '/bin/agy' } })
+  const lines = all.split('\n')
+  expect(lines[0]).toBe('AI Worker Office 9.9.9')
+  // every line is a heading, a list item or the closing sentence, and none is cut short
+  expect(lines.filter(l => l && !l.startsWith('- ') && !l.endsWith(':') && l !== lines[0] && l !== lines[lines.length - 1])).toEqual([
+    'Skills. You do not need to remember the names: say what you need in your own words and Claude picks the right one.',
+  ])
+  expect(all).not.toContain('…')
+  for (const part of [
+    '- /office — open the office page in your browser',
+    '- /update — install the newest version',
+    '- /ai-worker:help — show this list',
+    // a skill the plugin ships is told in plain words, another one by its own description
+    '- /ai-worker:handoff — write a handoff note so a new session can carry on',
+    '- /ai-worker:tdd — build a feature or fix a bug by writing the test first',
+    '- /ai-worker:review — Look over a change',
+    // the one skill that will not start by itself says so
+    "- /ai-worker:improve-codebase-architecture — find where the code's structure can be made better (runs only when you type its name)",
+    '- planner — an assistant that plans a big decision; Claude asks you before calling it',
+    '- Gemma, runs on this computer: ready',
+    '- ChatGPT: ready',
+    '- Gemini: ready, can also make images',
+    'Chat content is never sent.',
+  ]) {
+    expect(all).toContain(part)
+  }
+  // everyday skills come first, under their own heading; the technical ones follow under theirs
+  const at = (text: string) => lines.findIndex(l => l.includes(text))
+  expect(at('For everyday work:')).toBeLessThan(at('/ai-worker:handoff'))
+  expect(at('/ai-worker:handoff')).toBeLessThan(at('For people who write code'))
+  expect(at('For people who write code')).toBeLessThan(at('/ai-worker:tdd'))
+  expect(all.match(/runs only when you type its name/g)?.length).toBe(1)
+  const bare = buildHelp({ ...base, skills: [], workers: {}, sharing: false })
+  expect(bare).toContain('- Gemma, runs on this computer: not installed')
+  expect(bare).toContain('- ChatGPT: not installed')
+  expect(bare).toContain('- Gemini: not installed')
+  expect(bare).not.toContain('can also make images')
+  expect(bare).toContain('- none')
+  expect(bare).not.toContain('For people who write code')
+  expect(bare).toContain('Nothing is sent to a company server.')
+  // an ai-workers server hands out ChatGPT and Gemini: the plugin does not claim them
+  const mcp = buildHelp({ ...base, workers: { gemma: 'gemma4:26b' }, viaMcp: true })
+  expect(mcp).toContain('- ChatGPT, Gemini: set up separately on this computer (ai-workers)')
+  expect(mcp).not.toContain('- ChatGPT: ')
+  // before the helpers have been looked for, it says so instead of saying none
+  expect(buildHelp({ ...base })).toContain('not checked yet')
+})

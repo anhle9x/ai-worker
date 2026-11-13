@@ -98,7 +98,7 @@ flowchart TD
 | `server/menubar/` | The menu bar icon for managers: an app for macOS, an app for Windows (`windows-app/`, C#, installed from an .msi; the PowerShell tray script stays as the fallback), an AppIndicator program in a .deb for Ubuntu (the Argos script still works) |
 | `extensions/manager/` | The browser extension for managers (Chrome, Edge), installed by hand |
 | `packaging/` | Building packages, installers, signing releases, checks before publishing |
-| `skills/`, `dev-pack/` | The common skills, and the separate technical pack |
+| `skills/`, `agents/`, `commands/` | The skills (everyday ones and those for coding and systems), the `planner` assistant, and the commands the app lists before a session starts |
 | `tests/` | Plugin tests, install tests for Linux and Windows, language checks, the menu bar tests (`tests/menubar/`) and the extension check (`tests/extension/`) |
 
 ### Languages

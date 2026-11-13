@@ -23,6 +23,7 @@ CÀI ĐẶT
 4. Mở lại Claude Code (hoặc gõ /reload-plugins nếu đang mở), rồi gõ:
    /office         mở bảng điều khiển trên trình duyệt
    /office-pane   mở bản 2D cạnh khung chat
+   /ai-worker:help   liệt kê những gì plugin có trên máy này: lệnh, skill, trợ lý phụ
 
 Plugin được chép vào thư mục claude-plugins-ai-worker trong thư mục người dùng,
 nên xoá thư mục giải nén sau khi cài cũng không sao.

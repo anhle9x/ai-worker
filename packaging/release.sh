@@ -21,7 +21,7 @@ for f in i18n.js ops.vi.js ops.js ops.css ops3d.js; do
 done
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-rsync -a --exclude dev-pack --exclude packaging --exclude dist --exclude server --exclude tests --exclude TRANG-THAI.md --exclude .git --exclude .github \
+rsync -a --exclude packaging --exclude dist --exclude server --exclude tests --exclude TRANG-THAI.md --exclude .git --exclude .github \
   --exclude .DS_Store --exclude node_modules --exclude web/company.json --exclude .gitignore "$ROOT/" "$TMP/pkg/"
 # The public keys live outside git (the public repository keeps a file of comments only): put them into the package
 # Khoá công khai nằm ngoài git (repo công khai chỉ giữ file chú thích): đưa vào gói

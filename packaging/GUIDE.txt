@@ -23,6 +23,7 @@ INSTALL
 4. Reopen Claude Code (or type /reload-plugins if it is open), then type:
    /office         opens the control panel in your browser
    /office-pane   opens the 2D view next to the chat
+   /ai-worker:help   lists what the plugin gives on this computer: commands, skills, helper assistants
 
 The plugin is copied into the claude-plugins-ai-worker folder inside your user folder,
 so it is fine to delete the unzipped folder after installing.

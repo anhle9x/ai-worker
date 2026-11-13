@@ -98,7 +98,7 @@ flowchart TD
 | `server/menubar/` | Biểu tượng thanh menu cho quản lý: app cho macOS, app cho Windows (`windows-app/`, C#, cài từ file .msi; script khay PowerShell giữ làm dự phòng), chương trình AppIndicator trong gói .deb cho Ubuntu (script Argos vẫn dùng được) |
 | `extensions/manager/` | Tiện ích trình duyệt cho quản lý (Chrome, Edge), cài tay |
 | `packaging/` | Đóng gói, file cài, ký bản phát hành, kiểm tra trước khi công khai |
-| `skills/`, `dev-pack/` | Bộ skill chung, và gói kỹ thuật riêng |
+| `skills/`, `agents/`, `commands/` | Các skill (loại dùng hằng ngày và loại cho viết code, vận hành), trợ lý `planner`, và các lệnh app liệt kê trước khi phiên bắt đầu |
 | `tests/` | Test plugin, test cài trên Linux và Windows, kiểm tra ngôn ngữ, test thanh menu (`tests/menubar/`) và bước kiểm tiện ích (`tests/extension/`) |
 
 ### Ngôn ngữ lập trình
