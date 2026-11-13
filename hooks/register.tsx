@@ -883,17 +883,25 @@ async function findOwnWorkers($: EngineInterface): Promise<OwnWorkers> {
   return found
 }
 
-/** Whether this machine has the /handoff skill (~/.claude/skills/handoff): the context warning then points to it. */
-/** Máy này có skill /handoff không (~/.claude/skills/handoff): cảnh báo ngữ cảnh khi đó sẽ trỏ tới nó. */
+/** Whether this session has the /handoff skill: the plugin ships it (skills/handoff), or the machine has its own (~/.claude/skills/handoff). The context warning then points to it. */
+/** Phiên này có skill /handoff không: plugin mang sẵn (skills/handoff), hoặc máy có bản riêng (~/.claude/skills/handoff). Cảnh báo ngữ cảnh khi đó sẽ trỏ tới nó. */
 let handoffSkill: boolean | undefined
 async function hasHandoffSkill($: EngineInterface): Promise<boolean> {
   if (handoffSkill !== undefined) return handoffSkill
   const home = (await $.env.get('HOME')) || (await $.env.get('USERPROFILE')) || ''
-  try {
-    handoffSkill = !!(await $.fs.read(`${home}/.claude/skills/handoff/SKILL.md`))
-  } catch {
-    handoffSkill = false
+  let found = false
+  for (const dir of [`${$.plugin.root.replace(/[\\/]+$/, '')}/skills/handoff`, `${home}/.claude/skills/handoff`]) {
+    try {
+      if (await $.fs.read(`${dir}/SKILL.md`)) {
+        found = true
+        break
+      }
+    } catch {
+      // not there: try the next place
+      // không có ở đây: thử chỗ kế
+    }
   }
+  handoffSkill = found
   return handoffSkill
 }
 

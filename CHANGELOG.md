@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.27.2 - 2026-11-13
+
+### Fixed
+- The warning shown when a session's context is 60% or 80% full now points to `/handoff`. The plugin looked for the skill only in `~/.claude/skills/handoff`, not in its own folder where it ships, so the warning never mentioned it.
+
 ## 0.27.1 - 2026-11-12
 
 ### Fixed
