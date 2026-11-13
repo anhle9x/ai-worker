@@ -162,6 +162,8 @@ It updates by itself every 10 seconds:
 
 Colours: green is working, yellow is waiting for an answer, light blue is idle, grey is offline.
 
+The board only knows about Claude Code on computers where the plugin is installed. Chatting on claude.ai in a browser, the Chat tab of the Claude app and Claude Code sessions that run in the cloud are not counted, so a person who works there shows as idle or offline. Do not read the board as "who uses Claude the most".
+
 ### 2.3 Menu bar icon
 
 An icon in the menu bar (Mac), next to the clock (Windows) or in the top bar (Ubuntu) shows how many people are waiting for an answer, even with the browser closed. It turns blue when someone has waited past your limit.
@@ -266,6 +268,7 @@ The **Menu bar icon** section offers the installers for managers (see 2.3). The 
 ## Questions
 
 - **Can a manager read what staff typed to Claude?** No. Chat content is never sent; the board only has numbers.
+- **Someone uses Claude all day but the board shows them idle. Why?** They are probably on claude.ai in a browser or in the Chat tab of the app. Only Claude Code (the Code tab, the terminal, an editor) on a computer with the plugin is counted.
 - **Does it work outside the office?** The plugin works anywhere. Sending numbers, the board and updates need the company network.
 - **Do I need Gemini, ChatGPT or Gemma?** No. Everything works with Claude alone.
 - **Is the cost real money?** It is the price at API rates. On a subscription plan it is for comparison only.

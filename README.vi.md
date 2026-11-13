@@ -59,7 +59,15 @@ Cách dùng từng màn hình: [docs/USER-GUIDE.vi.md](docs/USER-GUIDE.vi.md).
 | Biểu tượng thanh menu | macOS, Windows 10/11, Ubuntu (X11 và Wayland) | Tải ở trang Quản trị của máy chủ |
 | Tiện ích trình duyệt | Chrome, Edge | Tải ở trang Quản trị, ghép bằng mã |
 
-Thẻ Chat của app Claude không có plugin nên không đếm được.
+### Những gì không được đếm
+
+Bảng chỉ cho thấy Claude Code trên các máy đã cài plugin, ngoài ra không gì khác:
+
+- **claude.ai trên trình duyệt, và thẻ Chat của app Claude.** Hai nơi này không có plugin.
+- **Phiên Claude Code chạy trên đám mây** (claude.ai/code). Phiên chạy trên máy chủ của Anthropic, không phải máy nhân viên, nên plugin cài trên máy không được nạp. Chưa thử thật: hãy coi như không đếm.
+- **Máy chưa cài plugin,** hoặc máy không tới được máy chủ.
+
+Vì vậy người chỉ chat trên claude.ai sẽ hiện là không dùng Claude, dù phần dùng đó vẫn có thể tính vào hạn mức của cùng tài khoản. Hãy đọc bảng là "ai dùng Claude Code, và dùng bao nhiêu", không phải "ai dùng Claude nhiều nhất".
 
 ## Tài liệu
 

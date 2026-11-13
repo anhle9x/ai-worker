@@ -162,6 +162,8 @@ Trang tự cập nhật 10 giây một lần:
 
 Màu: xanh lá là đang làm, vàng là đang chờ trả lời, xanh nhạt là đang rảnh, xám là không kết nối.
 
+Bảng chỉ biết về Claude Code trên các máy đã cài plugin. Chat trên claude.ai bằng trình duyệt, thẻ Chat của app Claude và phiên Claude Code chạy trên đám mây đều không được đếm, nên người làm việc ở đó sẽ hiện là đang rảnh hoặc không kết nối. Đừng đọc bảng là "ai dùng Claude nhiều nhất".
+
 ### 2.3 Biểu tượng thanh menu
 
 Một biểu tượng trên thanh menu (Mac), cạnh đồng hồ (Windows) hoặc thanh trên cùng (Ubuntu) cho biết bao nhiêu người đang chờ trả lời, kể cả khi đã đóng trình duyệt. Biểu tượng chuyển xanh dương khi có người chờ quá thời gian bạn đặt.
@@ -266,6 +268,7 @@ Mục **Biểu tượng thanh menu** có các file cài cho quản lý (xem 2.3)
 ## Câu hỏi thường gặp
 
 - **Quản lý có đọc được nhân viên đã gõ gì cho Claude không?** Không. Nội dung chat không bao giờ được gửi; bảng tổng chỉ có số liệu.
+- **Có người dùng Claude cả ngày mà bảng báo đang rảnh. Vì sao?** Nhiều khả năng họ dùng claude.ai trên trình duyệt hoặc thẻ Chat của app. Chỉ Claude Code (thẻ Code, terminal, trình soạn mã) trên máy đã cài plugin mới được đếm.
 - **Ra ngoài văn phòng có dùng được không?** Plugin dùng được ở mọi nơi. Gửi số liệu, xem bảng tổng và cập nhật thì cần mạng công ty.
 - **Có bắt buộc cài Gemini, ChatGPT hay Gemma không?** Không. Mọi thứ chạy được chỉ với Claude.
 - **Chi phí có phải tiền thật không?** Đó là giá theo bảng giá API. Với gói thuê bao, chỉ để so sánh.

@@ -59,7 +59,15 @@ How to use each screen: [docs/USER-GUIDE.md](docs/USER-GUIDE.md).
 | Menu bar icon | macOS, Windows 10/11, Ubuntu (X11 and Wayland) | Downloaded from the server's Admin page |
 | Browser extension | Chrome, Edge | Download from the server's Admin page, pair with a code |
 
-The Chat tab of the Claude app has no plugins, so it cannot be counted.
+### What is not counted
+
+The board shows Claude Code on computers where the plugin is installed, and nothing else:
+
+- **claude.ai in a browser, and the Chat tab of the Claude app.** They have no plugins.
+- **Claude Code sessions that run in the cloud** (claude.ai/code). They run on Anthropic's servers, not on the staff computer, so the plugin installed there is not loaded. Not tried yet: treat them as not counted.
+- **A computer without the plugin,** or one that cannot reach the server.
+
+Someone who only chats on claude.ai therefore shows as not using Claude, though that use may still count against the same account's quota. Read the board as "who uses Claude Code, and how much", not "who uses Claude the most".
 
 ## Documents
 
