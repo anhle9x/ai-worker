@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.31.13 - 2026-11-14
+
+### Added
+- A new session is told which handoff notes are on the computer: the names and dates of the newest five. Asked to continue one of those tasks, Claude reads its note first; asked only to continue, it asks which one. The plugin gives names and dates, never a note's text, and adds nothing on a computer with no note.
+
+### Changed
+- A command that destroys work now carries the plain-words warning as its description, so the app's permission box shows it: the box shows a command's own description, not the reason a plugin gives. What Claude wrote for the command follows the warning.
+
 ## 0.31.12 - 2026-11-14
 
 ### Fixed

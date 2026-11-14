@@ -29,6 +29,7 @@ GitHub Actions runs `.github/workflows/test-install.yml` on every push. A releas
 | Office labels and pins on the maps: pins that meet are drawn side by side; with many offices the labels with no free place are hidden; no label covers another label, another office's pin or the list of offices, none leaves the frame | `tests/check-map-layout.js` |
 | A manager's Claude plugin and the board: pairing by code, reading only the wall view, revoke, unpair, refused network, denied permission | `test_webhook.py` (class `ExtensionPairing`), `tests/board.test.ts` |
 | Text for ChatGPT or Gemini: asked about in a permission mode that asks nothing, kept on the computer on a no, sent without a question only under an allow rule | `tests/sending.test.ts`, `tests/workers.test.ts` |
+| Handoff notes told to a new session: only files the skill would write, the newest five by name and date, nothing on a computer with none, no note opened by the plugin | `tests/handoff.test.ts` |
 | The question before a command that destroys work: which commands are caught and which are left alone, an allowed command turned into a question for a person, a denied one left denied, the switch in `config.js` | `tests/guard.test.ts` |
 | `/ai-worker:voice`: the right settings page and steps for a Mac, Windows and Linux; steps by hand when the page does not open; nothing else is run | `tests/voice.test.ts` |
 | The demo with sample people: starts, opens with the code it prints, ignores a real board's settings, deletes its data when stopped | `test_demo.py` |

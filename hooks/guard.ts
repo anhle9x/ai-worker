@@ -130,6 +130,17 @@ export function destructiveCommand(command: string): Danger | undefined {
   return undefined
 }
 
+// The note a destructive command carries into the permission box. The app's box shows the command's own description,
+// the line Claude wrote for it, and not the reason a hook gives: so the warning takes that line's place, and what
+// Claude wrote follows it.
+// Lời ghi chú mà một lệnh phá huỷ mang vào hộp xin phép. Hộp của app hiện phần mô tả của chính lệnh,
+// dòng Claude viết cho nó, chứ không hiện lý do mà một hook đưa ra: nên câu cảnh báo thế chỗ dòng đó,
+// và điều Claude viết đi theo sau.
+export function dangerNote(d: Danger, written: unknown): string {
+  const note = typeof written === 'string' ? written.trim() : ''
+  return note ? `${dangerQuestion(d)} ${tx('Claude wrote: {note}', { note })}` : dangerQuestion(d)
+}
+
 /** What the permission dialog tells the person, in plain words: what is about to happen and that it cannot be undone. */
 /** Điều hộp xin phép nói với người dùng, bằng lời thường: điều gì sắp xảy ra và rằng nó không hoàn tác được. */
 export function dangerQuestion(d: Danger): string {

@@ -297,4 +297,9 @@ export const VI: Record<string, string> = {
   'This overwrites what is on the shared git server with what is on this computer (git push --force). Work that others put there can be lost.': 'Lệnh này ghi đè những gì đang có trên máy chủ git dùng chung bằng bản trên máy này (git push --force). Việc người khác đã đưa lên đó có thể mất.',
   'This deletes every file in this project that git does not track (git clean). They cannot be brought back.': 'Lệnh này xoá mọi file trong dự án mà git chưa theo dõi (git clean). Xoá rồi không lấy lại được.',
   'Allow it only if that is what you want.': 'Chỉ cho phép nếu đó đúng là điều bạn muốn.',
+  'Claude wrote: {note}': 'Claude ghi: {note}',
+  '# Handoff notes on this computer': '# Ghi chú bàn giao trên máy này',
+  'Earlier sessions left these notes, newest first: {list}.': 'Các phiên trước để lại những ghi chú này, mới nhất đứng đầu: {list}.',
+  'Each is the file <name>.md in {folder}.': 'Mỗi ghi chú là file <tên>.md trong {folder}.',
+  'When the user asks to continue one of these tasks, read its note before anything else. When they say to continue without saying which task, ask which one and name these. Do not read a note for any other reason, and do not bring this list up by yourself.': 'Khi người dùng nhờ làm tiếp một trong các việc này, hãy đọc ghi chú của việc đó trước mọi thứ khác. Khi họ bảo làm tiếp mà không nói việc nào, hãy hỏi việc nào và nêu tên các ghi chú này. Đừng đọc ghi chú vì lý do nào khác, và đừng tự nhắc tới danh sách này.',
 }

@@ -22,7 +22,9 @@ import { BOARD_CODE_MS, BOARD_KEY, BOARD_SCHEMA, BOARD_TOOL, boardToolDescriptio
 import type { BoardPairing } from './board'
 import { buildHelp, skillLine } from './help'
 import { voiceSettingsCommand, voiceSteps } from './voice'
-import { dangerQuestion, destructiveCommand } from './guard'
+import { dangerNote, dangerQuestion, destructiveCommand } from './guard'
+import { handoffSection, newestNotes, noteName } from './handoff'
+import type { HandoffNote } from './handoff'
 import type { VoiceSystem } from './voice'
 import type { SkillLine } from './help'
 import { BADGE_MS, BRAND, FX_MS, WORKERS, applyConfig, setInstalled, buildOfficeSvg, clockLabel, dayLabel, formatSecs, workerView } from './office'
@@ -1531,6 +1533,29 @@ async function runVoice($: EngineInterface): Promise<{ text: string }> {
 }
 
 let askBeforeDestructive = true
+
+// what a session is told about the handoff notes on this computer; read once, when the session starts
+// điều một phiên được báo về các ghi chú bàn giao trên máy này; đọc một lần, khi phiên bắt đầu
+let handoffNotes: string | undefined
+
+/** Lists the handoff folder (names and dates only) and keeps what the session will be told. No folder, no note: nothing is added. */
+/** Liệt kê thư mục bàn giao (chỉ tên và ngày) và giữ lại điều phiên sẽ được báo. Không có thư mục, không có ghi chú: không thêm gì. */
+async function readHandoffNotes($: EngineInterface) {
+  const folder = `${await webFolder($)}/handoff`
+  const notes: HandoffNote[] = []
+  try {
+    for (const entry of (await $.fs.list(folder)).slice(0, 200)) {
+      const name = entry.kind === 'file' ? noteName(entry.name) : undefined
+      if (!name) continue
+      const stat = await $.fs.stat(`${folder}/${entry.name}`).catch(() => undefined)
+      if (stat) notes.push({ name, at: stat.mtimeMs })
+    }
+  } catch {
+    // no handoff folder yet
+    // chưa có thư mục bàn giao
+  }
+  handoffNotes = handoffSection(newestNotes(notes), folder)
+}
 const SHELL_TOOL = /^(Bash|PowerShell)$/
 
 /** /office: the dashboard in the browser, or the side panel when no browser opens. */
@@ -1604,6 +1629,7 @@ export const register: Register = on => {
       }
     }
     if (viaMcp) await tuckOwnTools($)
+    await readHandoffNotes($)
     // a manager's computer already paired with the board: Claude can read it from the first message
     // máy của quản lý đã ghép với bảng: Claude đọc được bảng ngay từ tin nhắn đầu
     if ((await readPairing($)).token) await registerBoardTool($)
@@ -1622,6 +1648,7 @@ export const register: Register = on => {
       // only a company package carries these
       // chỉ gói công ty mới có những thứ này
       ...(share.enabled ? [{ id: 'ai-worker:work-rules', text: sharedRules(), scope: 'session' as const }] : []),
+      ...(handoffNotes ? [{ id: 'ai-worker:handoff-notes', text: handoffNotes, scope: 'session' as const }] : []),
     ]
     return { ...r, sections: [...r.sections, ...extra] }
   })
@@ -1817,6 +1844,15 @@ export const register: Register = on => {
       if (WRAP_UP.test(e.tool)) await commit($, s => ({ ...s, plan: finishPlan(s.plan) }))
     }
     if (BOARD_TOOL_NAME.test(e.tool)) return serveBoard($, e as unknown as Record<string, unknown>)
+    // the app's permission box shows a command's own description: a command that destroys work goes on with the
+    // plain-words warning in that place (the office page above has already taken what Claude wrote)
+    // hộp xin phép của app hiện phần mô tả của chính lệnh: một lệnh phá huỷ công việc đi tiếp với câu cảnh báo
+    // bằng lời thường ở chỗ đó (trang văn phòng ở trên đã lấy điều Claude viết rồi)
+    if (askBeforeDestructive && SHELL_TOOL.test(e.tool)) {
+      const args = e as unknown as Record<string, unknown>
+      const danger = typeof args.command === 'string' ? destructiveCommand(args.command) : undefined
+      if (danger) e = { ...e, description: dangerNote(danger, args.description) } as typeof e
+    }
     const match = WORKER_TOOL.exec(e.tool)
     const name = match?.[1]
     const op = name ? OPS[name] : undefined

@@ -72,6 +72,7 @@ Trang chỉ hiện các phiên trên **máy của bạn**:
 - **Sơ đồ:** mỗi phiên đang mở, nối với Claude và các trợ lý phụ. Phiên màu xanh lá là đang làm, màu vàng là đang chờ bạn trả lời.
 - **Bấm vào một phiên** để xem kế hoạch, mức đầy của ngữ cảnh và chi phí.
 - **Khi cuộc trò chuyện dài,** có dòng nhắc ở mức 60% và 80% ngữ cảnh. Nếu sau đó Claude tự tóm tắt phần cũ để lấy chỗ, plugin dặn bản tóm tắt giữ lại lời dặn của bạn, các quyết định, việc đã hỏng và việc còn bỏ ngỏ, rồi có dòng báo cho bạn biết: cứ làm tiếp trong cùng cuộc trò chuyện, không cần mở phiên mới.
+- **Làm tiếp trong phiên mới.** Khi bạn đã ghi bàn giao bằng `/ai-worker:handoff`, mỗi phiên mới được báo tên và ngày của năm ghi chú mới nhất. Bạn nói "làm tiếp báo cáo tháng" thì Claude đọc ghi chú đó trước; chỉ nói "làm tiếp" thì nó hỏi việc nào. Plugin chỉ đưa tên và ngày: ghi chú chỉ được mở khi bạn nhờ làm tiếp việc đó.
 - **Chi phí:** hôm nay, 7 ngày qua, và biểu đồ đổi được kiểu (đường, cột, nến; theo giờ hoặc theo ngày).
 - **Hoạt động:** những việc đã làm trong các phiên đang mở, có ô lọc.
 - **Models & quota:** đã dùng bao nhiêu hạn mức 5 giờ và 7 ngày của tài khoản Claude. Từ 80% thì chuyển đỏ, và một thanh hiện trên ô chat. Bấm **Ẩn** để ẩn thanh đó cho tới khi mức dùng tăng tiếp.
