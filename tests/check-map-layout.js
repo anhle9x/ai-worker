@@ -98,5 +98,25 @@ function broken(cards, blocks, w, h) {
   check('twelve offices on the large map: nothing is covered', bad.length === 0, bad.join('; '))
 }
 
+// 7. pins: two offices almost on the same spot are drawn side by side, each still clickable, around their middle
+// 7. ghim: hai văn phòng gần như trùng chỗ được vẽ cạnh nhau, ghim nào cũng bấm được, quanh điểm giữa của chúng
+{
+  const spreadPins = window.MapCommon.spreadPins
+  const near = spreadPins([{ sx: 402, sy: 257 }, { sx: 386, sy: 270 }], 900)
+  check('two pins on one spot: 28 apart, around their middle', Math.abs(near[0] - near[1] - 28) < .1 && Math.abs((near[0] + near[1]) / 2 - 394) < .1, JSON.stringify(near))
+  const far = spreadPins([{ sx: 100, sy: 200 }, { sx: 180, sy: 205 }, { sx: 104, sy: 320 }], 900)
+  check('pins with room, or one above the other: not moved', far.join() === '100,180,104', JSON.stringify(far))
+  const three = spreadPins([{ sx: 300, sy: 200 }, { sx: 300, sy: 204 }, { sx: 301, sy: 198 }], 900).slice().sort((a, b) => a - b)
+  check('three pins on one spot: all 28 apart', three[1] - three[0] > 27.9 && three[2] - three[1] > 27.9, JSON.stringify(three))
+  const small = spreadPins([{ sx: 300, sy: 200 }, { sx: 302, sy: 200 }], 900, 28 * .62)
+  check('small pins of the far view: a smaller gap', Math.abs(small[1] - small[0] - 28 * .62) < .1, JSON.stringify(small))
+  // pin B has drifted 3 px to the left of pin A, but it was drawn on the right last time: it stays on the right
+  // ghim B đã trôi sang trái ghim A 3 px, nhưng lần trước nó được vẽ bên phải: nó ở lại bên phải
+  const kept = spreadPins([{ sx: 300, sy: 200, lean: -14 }, { sx: 297, sy: 200, lean: 14 }], 900)
+  check('pins passing each other: no swap of sides', kept[1] > kept[0], JSON.stringify(kept))
+  const edge = spreadPins([{ sx: 4, sy: 200 }, { sx: 6, sy: 200 }], 900)
+  check('at the left edge: pins stay inside the frame', edge.every(v => v >= 17), JSON.stringify(edge))
+}
+
 if (failed) { console.error(failed + ' of ' + (failed + passed) + ' checks failed'); process.exit(1) }
 console.log(passed + ' checks passed')

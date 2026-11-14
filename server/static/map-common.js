@@ -55,7 +55,32 @@
   }
   const pinClass = n => (n.critical ? 'critical' : n.waiting ? 'waiting' : n.working ? 'active' : 'idle')
 
-  const CARD_GAP = 4, PIN_WIDTH = 34, PIN_HEIGHT = 44
+  const CARD_GAP = 4, PIN_WIDTH = 34, PIN_HEIGHT = 44, PIN_GAP = 28, PIN_HEAD = 30
+  // Where each pin is drawn from left to right. Two offices close together on the map would put one pin right on top of
+  // the other, and a click would always reach the top one. Pins whose round heads meet are moved apart sideways, by the
+  // same amount each, until their centres are `gap` apart; a pin with no neighbour stays exactly on its place.
+  // `lean` is how far a pin was moved last time: it keeps two pins on their sides while they pass each other.
+  // Mỗi ghim được vẽ ở đâu theo chiều ngang. Hai văn phòng gần nhau trên bản đồ sẽ khiến ghim này nằm đúng lên ghim kia,
+  // và cú bấm luôn trúng ghim nằm trên. Các ghim có phần đầu tròn chạm nhau được tách sang hai bên, mỗi ghim một lượng
+  // bằng nhau, tới khi tâm cách nhau `gap`; ghim không có hàng xóm thì đứng đúng chỗ của nó.
+  // `lean` là độ lệch của ghim ở lần trước: nó giữ hai ghim ở đúng bên của mình khi chúng đi ngang qua nhau.
+  function spreadPins(points, w, gap = PIN_GAP) {
+    const x = points.map(p => p.sx)
+    const key = i => points[i].sx + Math.max(-6, Math.min(6, points[i].lean || 0))
+    const order = points.map((_, i) => i).sort((a, b) => key(a) - key(b) || a - b)
+    for (let pass = 0, moved = true; moved && pass < 12; pass++) {
+      moved = false
+      for (let k = 0; k < order.length; k++) {
+        for (let m = k + 1; m < order.length; m++) {
+          const a = order[k], b = order[m]
+          if (Math.abs(points[a].sy - points[b].sy) >= PIN_HEAD) continue
+          const short = gap - (x[b] - x[a])
+          if (short > .01) { x[a] -= short / 2; x[b] += short / 2; moved = true }
+        }
+      }
+    }
+    return x.map(v => Math.max(PIN_WIDTH / 2, Math.min(v, w - PIN_WIDTH / 2)))
+  }
   const overlaps = (x0, y0, width, height, o) => x0 < o.x0 + o.width + CARD_GAP && o.x0 < x0 + width + CARD_GAP && y0 < o.y0 + o.height + CARD_GAP && o.y0 < y0 + height + CARD_GAP
   // Where each office card goes. A card sits beside its own pin, to the right or the left, and slides up or down until it
   // touches nothing in `blocks`, no card placed before it and no other office's pin; it stays inside the w by h frame when
@@ -156,10 +181,16 @@
     // pins stay in place; each card is put where it covers no other card, no other office's pin and not the branch list
     // ghim đứng đúng chỗ; mỗi thẻ được đặt ở chỗ không đè thẻ khác, không đè ghim của văn phòng khác và không đè danh sách chi nhánh
     function place(enabled, w) {
+      // r.px is where the pin is drawn: its own place, moved sideways only when another pin sits on it
+      // r.px là chỗ vẽ ghim: đúng chỗ của nó, chỉ lệch ngang khi có ghim khác nằm đè lên
+      const front = list.filter(r => r.hidden)
+      const drawn = spreadPins(front.map(r => ({ sx: r.sx, sy: r.sy, lean: r.lean })), w, enabled ? PIN_GAP : PIN_GAP * .62)
+      front.forEach((r, i) => { r.px = drawn[i]; r.lean = drawn[i] - r.sx })
       for (const r of list) {
+        if (!r.hidden) { r.px = r.sx; r.lean = 0 }
         r.pin.style.opacity = r.hidden ? 1 : 0
         r.pin.style.pointerEvents = r.hidden ? '' : 'none'
-        r.pin.style.transform = `translate(${r.sx}px,${r.sy}px)`
+        r.pin.style.transform = `translate(${r.px}px,${r.sy}px)`
         r.pin.firstChild && (r.pin.firstChild.style.transform = enabled ? '' : 'scale(.62)')
         const show = r.hidden && enabled
         r.e.style.opacity = show ? 1 : 0
@@ -173,7 +204,7 @@
       const map = host.closest('.o-map'), branchList = map && map.querySelector('.o-bd-list')
       const l = branchList && branchList.getBoundingClientRect()
       if (l && l.width && l.height && l.left < box.right && l.right > box.left && l.top < box.bottom && l.bottom > box.top) blocks.push({ x0: l.left - box.left, y0: l.top - box.top, width: l.width, height: l.height })
-      const cards = shown.map(r => ({ r, sx: r.sx, sy: r.sy, width: r.e.offsetWidth, height: r.e.offsetHeight, last: r.slot }))
+      const cards = shown.map(r => ({ r, sx: r.px, sy: r.sy, width: r.e.offsetWidth, height: r.e.offsetHeight, last: r.slot }))
       for (const c of layoutCards(cards, blocks, w, box.height)) {
         c.r.slot = c.slot
         c.r.e.style.transform = `translate(${c.x0}px,${c.y0}px)`
@@ -220,12 +251,13 @@
     function place() {
       const r = current
       if (!r) return
-      const w = host.clientWidth, h = host.clientHeight, hudWidth = hud.offsetWidth, hudHeight = hud.offsetHeight, onRight = r.sx + 250 + hudWidth < w - 8
-      const hx = onRight ? r.sx + 250 : Math.max(8, r.sx - 60 - hudWidth), hudY = Math.max(8, Math.min(h - hudHeight - 8, r.sy - hudHeight / 2 - 34))
+      const px = r.px === undefined ? r.sx : r.px
+      const w = host.clientWidth, h = host.clientHeight, hudWidth = hud.offsetWidth, hudHeight = hud.offsetHeight, onRight = px + 250 + hudWidth < w - 8
+      const hx = onRight ? px + 250 : Math.max(8, px - 60 - hudWidth), hudY = Math.max(8, Math.min(h - hudHeight - 8, r.sy - hudHeight / 2 - 34))
       hud.style.transform = `translate(${hx}px,${hudY}px)`
       const startX = onRight ? hx : hx + hudWidth, y = hudY + 30, gx = startX + (onRight ? -26 : 26), pinY = r.sy - 30
-      linePoly.setAttribute('points', `${r.sx},${pinY} ${gx},${y} ${startX},${y}`); linePoly.setAttribute('opacity', 1)
-      lineDot.setAttribute('cx', r.sx); lineDot.setAttribute('cy', pinY); lineDot.setAttribute('opacity', 1)
+      linePoly.setAttribute('points', `${px},${pinY} ${gx},${y} ${startX},${y}`); linePoly.setAttribute('opacity', 1)
+      lineDot.setAttribute('cx', px); lineDot.setAttribute('cy', pinY); lineDot.setAttribute('opacity', 1)
     }
     const lines = () => {
       hideTimer = setTimeout(() => { current = null; hud.classList.remove('open'); linePoly.setAttribute('opacity', 0); lineDot.setAttribute('opacity', 0) }, 350)
@@ -333,5 +365,5 @@
     }
   }
 
-  window.MapCommon = { VN_ISLANDS, insideVN, loadJson, LOW_POWER, REDUCED_MOTION, forEachRing, layoutCards, createPinLayer, createHud, starBackdrop, createBeam, loadGovernor }
+  window.MapCommon = { VN_ISLANDS, insideVN, loadJson, LOW_POWER, REDUCED_MOTION, forEachRing, layoutCards, spreadPins, createPinLayer, createHud, starBackdrop, createBeam, loadGovernor }
 })()

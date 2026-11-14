@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.31.5 - 2026-11-14
+
+### Fixed
+- On the maps, two offices close together had one pin right on top of the other, so a click always opened the same office. Pins that meet are now drawn side by side, and each opens its own office.
+
 ## 0.31.4 - 2026-11-14
 
 ### Added
