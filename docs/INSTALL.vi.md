@@ -6,7 +6,7 @@ Dành cho người quản trị triển khai AI Worker: cần chuẩn bị gì, 
 
 ## Cần chuẩn bị
 
-Muốn xem bảng trước khi triển khai, chạy `python3 server/demo.py` (trên Windows: `py server\demo.py`) trên máy mình: lệnh này hiện bảng với người mẫu và không cần máy chủ (xem [README](../README.vi.md#cài-nhanh)).
+Muốn xem bảng trước khi triển khai, chạy `python3 server/demo.py` (trên Windows: `py server\demo.py`) trên máy mình: lệnh này hiện bảng với dữ liệu giả lập và không cần máy chủ (xem [README](../README.vi.md#cài-nhanh)).
 
 - **Máy chủ Linux** có `python3` từ 3.8 và systemd. Webhook không cần thư viện ngoài.
 - **Một tên miền con riêng**, ví dụ `bang.cong-ty.vn`, trỏ bản ghi DNS `A` về IP máy chủ.

@@ -47,7 +47,7 @@ Không có máy chủ thì plugin vẫn chạy trên từng máy với trang vă
 
 ## Cài nhanh
 
-**Chỉ muốn xem thử?** Chạy bảng ngay trên máy bạn với người mẫu. Chỉ cần Git và Python 3.8 trở lên.
+**Chỉ muốn xem thử?** Chạy bảng ngay trên máy bạn với dữ liệu giả lập. Chỉ cần Git và Python 3.8 trở lên.
 
 macOS và Linux:
 
@@ -70,7 +70,7 @@ cd ai-worker
 py server\demo.py
 ```
 
-Lệnh in ra một địa chỉ, tên tài khoản `demo` và một mã 6 số. Mở địa chỉ đó rồi nhập cả hai: bảng hiện lên với 12 người mẫu ở 4 văn phòng. Không cài gì và không có gì rời khỏi máy bạn; bấm Ctrl+C để dừng và xoá dữ liệu mẫu. Đã thử trên macOS, Linux và Windows.
+Lệnh in ra một địa chỉ, tên tài khoản `demo` và một mã 6 số. Mở địa chỉ đó rồi nhập cả hai: bảng hiện lên với 12 nhân viên giả lập ở 4 văn phòng. Không cài gì và không có gì rời khỏi máy bạn; bấm Ctrl+C để dừng và xoá dữ liệu mẫu. Đã thử trên macOS, Linux và Windows.
 
 **Người quản trị, một lần** (khoảng 30 phút). Các bước và lệnh: [docs/INSTALL.vi.md](docs/INSTALL.vi.md).
 

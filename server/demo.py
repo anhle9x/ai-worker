@@ -7,9 +7,9 @@ the 6-digit code to log in with. Needs only Python 3.8+: no server, no install, 
 Everything lives in a temporary folder that is deleted when the demo stops. It never reads or writes the data of a real
 board, it listens only inside this computer, and it sends nothing out.
 
-  Thử bảng ngay trên máy mình, với người mẫu: python3 server/demo.py [--port 8799]  (Windows: py server\\demo.py)
+  Thử bảng ngay trên máy mình, với dữ liệu giả lập: python3 server/demo.py [--port 8799]  (Windows: py server\\demo.py)
 
-  Bật đúng máy chủ bảng tổng trên 127.0.0.1 với 12 người mẫu ở 4 văn phòng, in ra địa chỉ, tên tài khoản và mã 6 số để
+  Bật đúng máy chủ bảng tổng trên 127.0.0.1 với 12 nhân viên giả lập ở 4 văn phòng, in ra địa chỉ, tên tài khoản và mã 6 số để
   đăng nhập. Chỉ cần Python 3.8+: không cần máy chủ, không cài gì, không cần tài khoản ở đâu.
 
   Mọi thứ nằm trong một thư mục tạm, xoá khi bản thử dừng. Bản thử không bao giờ đọc hay ghi dữ liệu của bảng thật,
@@ -60,7 +60,7 @@ def email_of(i: int) -> str:
 
 def sample_branches() -> dict:
     """The four offices in the shape of the branches file, each with the emails of its sample people.
-    Bốn văn phòng theo đúng dạng file chi nhánh, mỗi nơi kèm email của những người mẫu ở đó."""
+    Bốn văn phòng theo đúng dạng file chi nhánh, mỗi nơi kèm email của các nhân viên giả lập ở đó."""
     return {"branches": [{"id": key, "name": name, "lat": lat, "lon": lon, "isHq": key == "hcm", "ip": [],
                           "people": [email_of(i) for i, p in enumerate(PEOPLE) if p[1] == key]} for key, name, lat, lon in OFFICES]}
 
@@ -68,7 +68,7 @@ def sample_branches() -> dict:
 def sample_reports(now: float, plugin_version: str = "1.0.0", seed: int = 7) -> list:
     """One report per sample person, in the shape a real computer sends: the last 30 hours of cost, tasks handed to the
     helper assistants, quota, and what the person is doing now. The same seed gives the same numbers.
-    Mỗi người mẫu một bản báo cáo, đúng dạng một máy thật gửi: chi phí 30 giờ qua, việc đã giao cho trợ lý phụ,
+    Mỗi nhân viên giả lập một bản báo cáo, đúng dạng một máy thật gửi: chi phí 30 giờ qua, việc đã giao cho trợ lý phụ,
     hạn mức, và người đó đang làm gì. Cùng seed thì ra cùng số liệu."""
     rnd = random.Random(seed)
     hour = int(now // 3600)
@@ -125,7 +125,7 @@ def refresh_reports(reports: list, now: float, rnd: random.Random) -> None:
 
 def plugin_version() -> str:
     """The version of this checkout, so the sample people run the same plugin as the code being tried.
-    Phiên bản của bản mã này, để người mẫu chạy cùng plugin với bản mã đang được thử."""
+    Phiên bản của bản mã này, để nhân viên giả lập chạy cùng plugin với bản mã đang được thử."""
     try:
         with open(os.path.join(os.path.dirname(HERE), ".claude-plugin", "plugin.json"), encoding="utf-8") as f:
             return str(json.load(f)["version"])

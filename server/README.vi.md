@@ -7,7 +7,7 @@ máy quản lý đọc về để hiện bảng **Cả team**. Không cần thư
 
 ## Thử trước
 
-`python3 demo.py` (trên Windows: `py demo.py`) bật đúng máy chủ này trên `127.0.0.1` với 12 người mẫu ở 4 văn phòng, rồi in ra địa chỉ, tài khoản `demo` và mã 6 số để đăng nhập. Mọi thứ nằm trong một thư mục tạm, xoá khi bạn bấm Ctrl+C; nó bỏ qua cấu hình của bảng thật, và `install.sh` không chép nó lên máy chủ.
+`python3 demo.py` (trên Windows: `py demo.py`) bật đúng máy chủ này trên `127.0.0.1` với 12 nhân viên giả lập ở 4 văn phòng, rồi in ra địa chỉ, tài khoản `demo` và mã 6 số để đăng nhập. Mọi thứ nằm trong một thư mục tạm, xoá khi bạn bấm Ctrl+C; nó bỏ qua cấu hình của bảng thật, và `install.sh` không chép nó lên máy chủ.
 
 ## Cài (một lần, khoảng 5 phút)
 
