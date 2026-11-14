@@ -36,6 +36,8 @@ A skill is a short instruction file that Claude follows each time a certain kind
 
    # <Title>
 
+   <One line telling Claude to answer the user in the language the user writes in>
+
    ## When to use it, and when not
 
    ## Steps
@@ -74,7 +76,7 @@ A skill is a short instruction file that Claude follows each time a certain kind
 
 8. **Show the user the draft**, in this order: its name, when it will be used and when not, the steps as a short list, what you left out and why, and your open questions. Then ask one question with these choices: switch it on, change something, keep it as a draft.
 
-9. **Switch it on only after a clear yes.** Copy the draft folder to `skills/<name>/` inside the `.claude` folder of the user's home folder. If a skill of that name is already there, ask before replacing it. Then tell the user:
+9. **Switch it on only after a clear yes.** Move the draft folder to `skills/<name>/` inside the `.claude` folder of the user's home folder, so that no second copy stays among the drafts. If a skill of that name is already there, ask before replacing it. Then tell the user:
    - it works in new sessions: open a new session if this one does not show it;
    - how to call it: type `/<name>`, or just ask for the job in their own words;
    - how to remove it: delete that folder.

@@ -2,6 +2,12 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.31.15 - 2026-11-15
+
+### Fixed
+- A skill written by `make-skill` now tells Claude to answer in the language you write in: one made from a Vietnamese procedure could open its answer in English.
+- Switching a draft on moves it out of the drafts folder instead of leaving a second copy there.
+
 ## 0.31.14 - 2026-11-15
 
 ### Added
