@@ -47,6 +47,16 @@ Không có máy chủ thì plugin vẫn chạy trên từng máy với trang vă
 
 ## Cài nhanh
 
+**Chỉ muốn xem thử?** Chạy bảng ngay trên máy bạn với người mẫu. Chỉ cần `python3` 3.8 trở lên:
+
+```bash
+git clone https://github.com/anhle9x/ai-worker.git
+cd ai-worker
+python3 server/demo.py
+```
+
+Lệnh in ra một địa chỉ, tên tài khoản `demo` và một mã 6 số. Mở địa chỉ đó rồi nhập cả hai: bảng hiện lên với 12 người mẫu ở 4 văn phòng. Không cài gì và không có gì rời khỏi máy bạn; bấm Ctrl+C để dừng và xoá dữ liệu mẫu. Đã thử trên macOS và Linux.
+
 **Người quản trị, một lần** (khoảng 30 phút). Các bước và lệnh: [docs/INSTALL.vi.md](docs/INSTALL.vi.md).
 
 1. Chép `server/` lên một máy chủ Linux và chạy `sudo bash install.sh`. Script in ra mã gửi và tạo quản trị đầu tiên.

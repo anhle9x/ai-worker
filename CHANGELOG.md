@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+- `python3 server/demo.py` shows the board on your own computer with 12 made-up people in 4 offices: no server, no install. It prints the address, the account and the 6-digit code to log in with, keeps everything in a temporary folder that is deleted when it stops, and ignores the settings of a real board.
+
+### Changed
+- The README shows nine pictures of the board in one row that scrolls sideways.
+
 ## 0.31.3 - 2026-11-14
 
 ### Fixed

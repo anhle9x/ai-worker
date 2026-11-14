@@ -291,7 +291,7 @@ Máy chủ lưu mọi thứ trong hai file SQLite: `data/board.db` cho số li�
 claude plugin test .
 npx -y -p typescript@5.9.3 tsc -p tsconfig.json
 uvx ruff check .
-cd server && python3 -m unittest test_webhook
+cd server && python3 -m unittest test_webhook test_demo
 python3 tests/check-i18n.py --comments
 node tests/extension/check-extension.js
 ```

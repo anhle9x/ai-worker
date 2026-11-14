@@ -5,6 +5,10 @@
 Một chương trình nhỏ chạy trên máy chủ Linux trong mạng nội bộ. Máy nhân viên gửi số liệu sử dụng Claude lên đây;
 máy quản lý đọc về để hiện bảng **Cả team**. Không cần thư viện ngoài, chỉ cần `python3` (3.8 trở lên) và systemd.
 
+## Thử trước
+
+`python3 demo.py` bật đúng máy chủ này trên `127.0.0.1` với 12 người mẫu ở 4 văn phòng, rồi in ra địa chỉ, tài khoản `demo` và mã 6 số để đăng nhập. Mọi thứ nằm trong một thư mục tạm, xoá khi bạn bấm Ctrl+C; nó bỏ qua cấu hình của bảng thật, và `install.sh` không chép nó lên máy chủ.
+
 ## Cài (một lần, khoảng 5 phút)
 
 Chép thư mục `server/` này lên máy chủ, rồi:

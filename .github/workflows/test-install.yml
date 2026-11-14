@@ -23,7 +23,7 @@ jobs:
         run: npx -y @anthropic-ai/claude-code@2.1.319 plugin test .
       - name: Test the server
         working-directory: server
-        run: python3 -m unittest test_webhook
+        run: python3 -m unittest test_webhook test_demo
       - name: Test the Chrome extension against the server
         run: node tests/extension/check-extension.js
   build:

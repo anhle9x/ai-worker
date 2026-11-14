@@ -47,6 +47,16 @@ Without a server the plugin still runs on each computer, with its own office pag
 
 ## Quick start
 
+**Just looking?** Run the board on your own computer with sample people. It needs only `python3` 3.8 or newer:
+
+```bash
+git clone https://github.com/anhle9x/ai-worker.git
+cd ai-worker
+python3 server/demo.py
+```
+
+It prints an address, the account name `demo` and a 6-digit code. Open the address and type both: the board is up with 12 made-up people in 4 offices. Nothing is installed and nothing leaves your computer; Ctrl+C stops it and deletes the sample data. Checked on macOS and Linux.
+
 **The admin, once** (about 30 minutes). Steps and commands: [docs/INSTALL.md](docs/INSTALL.md).
 
 1. Copy `server/` to a Linux server and run `sudo bash install.sh`. It prints the send key and creates the first admin.
