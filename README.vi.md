@@ -47,7 +47,9 @@ Không có máy chủ thì plugin vẫn chạy trên từng máy với trang vă
 
 ## Cài nhanh
 
-**Chỉ muốn xem thử?** Chạy bảng ngay trên máy bạn với người mẫu. Chỉ cần `python3` 3.8 trở lên:
+**Chỉ muốn xem thử?** Chạy bảng ngay trên máy bạn với người mẫu. Chỉ cần Git và Python 3.8 trở lên.
+
+macOS và Linux:
 
 ```bash
 git clone https://github.com/anhle9x/ai-worker.git
@@ -55,7 +57,18 @@ cd ai-worker
 python3 server/demo.py
 ```
 
-Trên Windows, dòng cuối là `py server\demo.py`.
+Windows, trong PowerShell hoặc Command Prompt. Nếu máy chưa có Git hoặc Python thì cài trước, rồi mở một cửa sổ mới để máy nhận lệnh vừa cài:
+
+```powershell
+winget install --id Git.Git -e --source winget
+winget install --id Python.Python.3.12 -e --source winget
+```
+
+```powershell
+git clone https://github.com/anhle9x/ai-worker.git
+cd ai-worker
+py server\demo.py
+```
 
 Lệnh in ra một địa chỉ, tên tài khoản `demo` và một mã 6 số. Mở địa chỉ đó rồi nhập cả hai: bảng hiện lên với 12 người mẫu ở 4 văn phòng. Không cài gì và không có gì rời khỏi máy bạn; bấm Ctrl+C để dừng và xoá dữ liệu mẫu. Đã thử trên macOS, Linux và Windows.
 

@@ -47,7 +47,9 @@ Without a server the plugin still runs on each computer, with its own office pag
 
 ## Quick start
 
-**Just looking?** Run the board on your own computer with sample people. It needs only `python3` 3.8 or newer:
+**Just looking?** Run the board on your own computer with sample people. It needs only Git and Python 3.8 or newer.
+
+macOS and Linux:
 
 ```bash
 git clone https://github.com/anhle9x/ai-worker.git
@@ -55,7 +57,18 @@ cd ai-worker
 python3 server/demo.py
 ```
 
-On Windows the last line is `py server\demo.py`.
+Windows, in PowerShell or Command Prompt. If Git or Python is missing, install it first, then open a new window so the new commands are found:
+
+```powershell
+winget install --id Git.Git -e --source winget
+winget install --id Python.Python.3.12 -e --source winget
+```
+
+```powershell
+git clone https://github.com/anhle9x/ai-worker.git
+cd ai-worker
+py server\demo.py
+```
 
 It prints an address, the account name `demo` and a 6-digit code. Open the address and type both: the board is up with 12 made-up people in 4 offices. Nothing is installed and nothing leaves your computer; Ctrl+C stops it and deletes the sample data. Checked on macOS, Linux and Windows.
 
