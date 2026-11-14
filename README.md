@@ -13,10 +13,22 @@ See how your company uses Claude and its helper assistants, live, on one board.
 
 AI Worker is a Claude Code plugin on each employee's computer and a small server on one Linux machine. The plugin counts what Claude and the helper assistants (Gemini, ChatGPT, Gemma) are doing: sessions, who is waiting for an answer, tokens, cost, tasks handed off. The server gathers those numbers into a live 3D board for managers, a TV wall screen, a menu bar icon and a browser extension. It never sends chat content, prompts, file names or project names.
 
-<!-- <picture> keeps GitHub from turning the images into links -->
-<p align="center"><picture><img src="assets/login.png" alt="The login page: account name and 6-digit code, or Log in with Telegram" width="420"></picture></p>
+<!-- one row that scrolls sideways, one picture to a view. GitHub shrinks pictures in a table to fit the page; the line of em spaces under each caption cannot wrap (nowrap), so it holds the cell at the width of the page -->
+<table>
+  <tr>
+    <td nowrap align="center" valign="top"><img src="assets/dashboard.png" alt="The 3D operations board with made-up people" height="377"><br><sub><b>Operations board.</b> Who is working, who waits for an answer, cost and quota, live.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/map-2d.jpg" alt="Flat map with four offices" width="808"><br><sub><b>Flat map.</b> Each office shows people working, cost today and the assistants in use.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/map-25d.jpg" alt="Tilted map with a column on each office" width="808"><br><sub><b>2.5D map.</b> The column on each office stands for cost, people or quota: you choose.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/globe.jpg" alt="Globe with the offices marked" width="808"><br><sub><b>Globe.</b> The same offices on a 3D globe: drag to turn it, scroll to zoom in or out.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/wall.jpg" alt="Wall screen with the diagram and three quota rings" width="808"><br><sub><b>Wall screen.</b> Made for a TV: full screen, quota rings, paired with a code an admin approves.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/board.jpg" alt="Table with one row for each person" width="808"><br><sub><b>Detail board.</b> One row for each person: status, model, quota, cost, tokens, plugin version.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/admin.jpg" alt="Admin page with accounts, TV screens and downloads" width="808"><br><sub><b>Admin page.</b> Accounts and roles, TV pairing, downloads for the menu bar icon and extension.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/login.png" alt="The login page: account name and 6-digit code, or Log in with Telegram" height="377"><br><sub><b>Login.</b> Account name and a 6-digit code, or Log in with Telegram.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/phone.jpg" alt="The board on a narrow screen, one panel under the other" height="377"><br><sub><b>Narrow screen.</b> On a phone the panels stack one under the other, from top to bottom.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+  </tr>
+</table>
 
-<p><picture><img src="assets/dashboard.png" alt="The 3D operations board with made-up people" width="100%"></picture></p>
+<p align="center"><sub>Every picture uses made-up people and numbers. Scroll the row sideways to see all nine; click a picture to see it full size.</sub></p>
 
 ## What it does
 
@@ -25,23 +37,6 @@ AI Worker is a Claude Code plugin on each employee's computer and a small server
 - **Alerts without the browser:** a menu bar icon (macOS, Windows, Ubuntu) and a Chrome or Edge extension count the people waiting.
 - **Shared skills and rules** for every computer, and self-update with signed packages.
 - **Roles and audit:** admins, managers and wall screens see different data; log in with a 6-digit OTP code or with Telegram (Telegram needs a bot set up first, see the [install guide](docs/INSTALL.md)); every change is logged for 12 months.
-
-## Screens
-
-Every picture uses made-up people and numbers. Scroll the row sideways to see all seven; click a picture to see it full size.
-
-<!-- one row that scrolls sideways: nowrap keeps each caption on one line, and that line stops GitHub from shrinking the cell. Keep every caption wider than its picture -->
-<table>
-  <tr>
-    <td nowrap align="center" valign="top"><img src="assets/map-2d.jpg" alt="Flat map with four offices" width="400"><br><sub><b>Flat map.</b> Each office shows people working, cost today and the assistants in use.</sub></td>
-    <td nowrap align="center" valign="top"><img src="assets/map-25d.jpg" alt="Tilted map with a column on each office" width="400"><br><sub><b>2.5D map.</b> The column on each office stands for cost, people or quota: you choose.</sub></td>
-    <td nowrap align="center" valign="top"><img src="assets/globe.jpg" alt="Globe with the offices marked" width="400"><br><sub><b>Globe.</b> The same offices on a 3D globe: drag to turn it, scroll to zoom in or out.</sub></td>
-    <td nowrap align="center" valign="top"><img src="assets/wall.jpg" alt="Wall screen with the diagram and three quota rings" width="400"><br><sub><b>Wall screen.</b> Made for a TV: full screen, quota rings, paired with a code an admin approves.</sub></td>
-    <td nowrap align="center" valign="top"><img src="assets/board.jpg" alt="Table with one row for each person" width="400"><br><sub><b>Detail board.</b> One row for each person: status, model, quota, cost, tokens, plugin version.</sub></td>
-    <td nowrap align="center" valign="top"><img src="assets/admin.jpg" alt="Admin page with accounts, TV screens and downloads" width="400"><br><sub><b>Admin page.</b> Accounts and roles, TV pairing, downloads for the menu bar icon and extension.</sub></td>
-    <td nowrap align="center" valign="top"><img src="assets/phone.jpg" alt="The board on a narrow screen, one panel under the other" height="187"><br><sub><b>Narrow screen.</b> On a phone the panels stack one under the other, from top to bottom.</sub></td>
-  </tr>
-</table>
 
 ## How it works
 

@@ -13,10 +13,22 @@ Xem công ty đang dùng Claude và các trợ lý phụ thế nào, theo thời
 
 AI Worker gồm một plugin Claude Code trên máy từng nhân viên và một máy chủ nhỏ trên một máy Linux. Plugin đếm Claude và các trợ lý phụ (Gemini, ChatGPT, Gemma) đang làm gì: số phiên, ai đang chờ trả lời, token, chi phí, việc đã giao. Máy chủ gom số liệu thành bảng 3D trực tiếp cho quản lý, màn hình treo tường, biểu tượng thanh menu và tiện ích trình duyệt. Không bao giờ gửi nội dung chat, câu hỏi, tên file hay tên dự án.
 
-<!-- <picture> keeps GitHub from turning the images into links -->
-<p align="center"><picture><img src="assets/login.png" alt="Trang đăng nhập: tên tài khoản và mã 6 số, hoặc Log in with Telegram" width="420"></picture></p>
+<!-- one row that scrolls sideways, one picture to a view. GitHub shrinks pictures in a table to fit the page; the line of em spaces under each caption cannot wrap (nowrap), so it holds the cell at the width of the page -->
+<table>
+  <tr>
+    <td nowrap align="center" valign="top"><img src="assets/dashboard.vi.png" alt="Bảng điều hành 3D với người giả" height="377"><br><sub><b>Bảng điều hành.</b> Ai đang làm, ai chờ trả lời, chi phí và hạn mức, cập nhật trực tiếp.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/map-2d.jpg" alt="Bản đồ phẳng với bốn văn phòng" width="808"><br><sub><b>Bản đồ phẳng.</b> Mỗi văn phòng hiện số người đang làm, chi phí hôm nay và trợ lý đang dùng.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/map-25d.jpg" alt="Bản đồ nghiêng, mỗi văn phòng có một cột" width="808"><br><sub><b>Bản đồ 2.5D.</b> Cột trên mỗi văn phòng thể hiện chi phí, số người hoặc hạn mức, tuỳ bạn chọn.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/globe.jpg" alt="Quả địa cầu có đánh dấu các văn phòng" width="808"><br><sub><b>Quả địa cầu.</b> Vẫn các văn phòng đó trên quả địa cầu 3D: kéo để xoay, cuộn để phóng to, thu nhỏ.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/wall.jpg" alt="Màn hình treo tường với sơ đồ và ba vòng hạn mức" width="808"><br><sub><b>Màn hình treo tường.</b> Dành cho TV: toàn màn hình, có vòng hạn mức, ghép bằng mã do quản trị duyệt.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/board.jpg" alt="Bảng mỗi người một dòng" width="808"><br><sub><b>Bảng chi tiết.</b> Mỗi người một dòng: trạng thái, mô hình, hạn mức, chi phí, token, bản plugin.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/admin.jpg" alt="Trang quản trị với tài khoản, màn hình TV và các bản tải về" width="808"><br><sub><b>Trang quản trị.</b> Tài khoản và vai trò, ghép màn hình TV, tải biểu tượng thanh menu và tiện ích.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/login.png" alt="Trang đăng nhập: tên tài khoản và mã 6 số, hoặc Log in with Telegram" height="377"><br><sub><b>Đăng nhập.</b> Tên tài khoản và mã 6 số, hoặc Log in with Telegram.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+    <td nowrap align="center" valign="top"><img src="assets/phone.jpg" alt="Bảng trên màn hình hẹp, các ô xếp chồng lên nhau" height="377"><br><sub><b>Màn hình hẹp.</b> Trên điện thoại các ô xếp chồng lên nhau, từ trên xuống dưới.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
+  </tr>
+</table>
 
-<p><picture><img src="assets/dashboard.vi.png" alt="Bảng điều hành 3D với người giả" width="100%"></picture></p>
+<p align="center"><sub>Mọi ảnh đều dùng người và số liệu bịa. Kéo ngang hàng ảnh để xem đủ chín ảnh; bấm vào ảnh để xem cỡ đầy đủ.</sub></p>
 
 ## Làm được gì
 
@@ -25,23 +37,6 @@ AI Worker gồm một plugin Claude Code trên máy từng nhân viên và một
 - **Báo mà không cần mở trình duyệt:** biểu tượng thanh menu (macOS, Windows, Ubuntu) và tiện ích Chrome, Edge đếm người đang chờ.
 - **Skill và quy tắc dùng chung** cho mọi máy, tự cập nhật bằng gói có chữ ký.
 - **Phân quyền và nhật ký:** quản trị, quản lý, màn hình treo tường thấy dữ liệu khác nhau; đăng nhập bằng mã OTP 6 số hoặc bằng Telegram (Telegram cần cài thêm bot, xem [hướng dẫn cài đặt](docs/INSTALL.vi.md)); mọi thay đổi được ghi 12 tháng.
-
-## Các màn hình
-
-Mọi ảnh đều dùng người và số liệu bịa. Kéo ngang hàng ảnh để xem đủ bảy ảnh; bấm vào ảnh để xem cỡ đầy đủ.
-
-<!-- one row that scrolls sideways: nowrap keeps each caption on one line, and that line stops GitHub from shrinking the cell. Keep every caption wider than its picture -->
-<table>
-  <tr>
-    <td nowrap align="center" valign="top"><img src="assets/map-2d.jpg" alt="Bản đồ phẳng với bốn văn phòng" width="400"><br><sub><b>Bản đồ phẳng.</b> Mỗi văn phòng hiện số người đang làm, chi phí hôm nay và trợ lý đang dùng.</sub></td>
-    <td nowrap align="center" valign="top"><img src="assets/map-25d.jpg" alt="Bản đồ nghiêng, mỗi văn phòng có một cột" width="400"><br><sub><b>Bản đồ 2.5D.</b> Cột trên mỗi văn phòng thể hiện chi phí, số người hoặc hạn mức, tuỳ bạn chọn.</sub></td>
-    <td nowrap align="center" valign="top"><img src="assets/globe.jpg" alt="Quả địa cầu có đánh dấu các văn phòng" width="400"><br><sub><b>Quả địa cầu.</b> Vẫn các văn phòng đó trên quả địa cầu 3D: kéo để xoay, cuộn để phóng to, thu nhỏ.</sub></td>
-    <td nowrap align="center" valign="top"><img src="assets/wall.jpg" alt="Màn hình treo tường với sơ đồ và ba vòng hạn mức" width="400"><br><sub><b>Màn hình treo tường.</b> Dành cho TV: toàn màn hình, có vòng hạn mức, ghép bằng mã do quản trị duyệt.</sub></td>
-    <td nowrap align="center" valign="top"><img src="assets/board.jpg" alt="Bảng mỗi người một dòng" width="400"><br><sub><b>Bảng chi tiết.</b> Mỗi người một dòng: trạng thái, mô hình, hạn mức, chi phí, token, bản plugin.</sub></td>
-    <td nowrap align="center" valign="top"><img src="assets/admin.jpg" alt="Trang quản trị với tài khoản, màn hình TV và các bản tải về" width="400"><br><sub><b>Trang quản trị.</b> Tài khoản và vai trò, ghép màn hình TV, tải biểu tượng thanh menu và tiện ích.</sub></td>
-    <td nowrap align="center" valign="top"><img src="assets/phone.jpg" alt="Bảng trên màn hình hẹp, các ô xếp chồng lên nhau" height="187"><br><sub><b>Màn hình hẹp.</b> Trên điện thoại các ô xếp chồng lên nhau, từ trên xuống dưới.</sub></td>
-  </tr>
-</table>
 
 ## Cách hoạt động
 
