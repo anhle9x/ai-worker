@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+- The example question shown after `/ai-worker:board` pairs, and in the README and the user guide, is now "who is waiting longest right now?". The board knows who is waiting at this moment and for how long, not who waited earlier in the day.
+
 ## 0.31.7 - 2026-11-14
 
 ### Added

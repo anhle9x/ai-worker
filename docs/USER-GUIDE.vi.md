@@ -209,7 +209,7 @@ Tiện ích không giữ mật khẩu, mã OTP hay cookie đăng nhập nào.
 
 ### 2.5 Hỏi Claude về bảng
 
-Quản lý có thể hỏi Claude về cả đội bằng lời của mình, gõ hoặc nói, bằng tiếng Việt: "hôm nay ai chờ lâu nhất?", "tuần này văn phòng nào tốn nhất?". Claude đọc số liệu của bảng rồi trả lời.
+Quản lý có thể hỏi Claude về cả đội bằng lời của mình, gõ hoặc nói, bằng tiếng Việt: "ai đang chờ lâu nhất?", "tuần này văn phòng nào tốn nhất?". Claude đọc số liệu của bảng rồi trả lời.
 
 1. Trong Claude Code trên máy bạn, gõ `/ai-worker:board`. Lệnh hiện một mã 8 số, dùng được trong 10 phút.
 2. Đọc mã cho người quản trị của bảng. Người đó mở trang Quản trị, mục **Màn hình TV**, nhập mã, bấm **Xem yêu cầu**, xem đúng loại là "plugin Claude của quản lý", rồi bấm **Duyệt**.

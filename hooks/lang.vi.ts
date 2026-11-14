@@ -240,7 +240,7 @@ export const VI: Record<string, string> = {
   '{title}: {names} working': '{title}: {names} đang làm việc',
   '1. An admin of the board opens {server}/admin, goes to "TV screens", types the code and clicks "View request", then "Approve".': '1. Quản trị viên của bảng mở {server}/admin, tới mục "Màn hình TV", nhập mã rồi bấm "Xem yêu cầu", sau đó bấm "Duyệt".',
   '2. Type /ai-worker:board here again to finish.': '2. Gõ lại /ai-worker:board ở đây để hoàn tất.',
-  'Ask Claude in your own words, for example: who has waited longest today? Which office spent the most this week?': 'Cứ hỏi Claude bằng lời của bạn, ví dụ: hôm nay ai chờ lâu nhất? Tuần này văn phòng nào tốn nhất?',
+  'Ask Claude in your own words, for example: who is waiting longest right now? Which office spent the most this week?': 'Cứ hỏi Claude bằng lời của bạn, ví dụ: ai đang chờ lâu nhất? Tuần này văn phòng nào tốn nhất?',
   'For managers: pair this computer with the company board, so Claude can answer questions about the team': 'Cho quản lý: ghép máy này với bảng công ty, để Claude trả lời được câu hỏi về cả đội',
   'Not approved yet.': 'Chưa được duyệt.',
   'Once paired, Claude on this computer can read the board when you ask about the team: names, states, cost and quota, never an email or an IP. An admin can revoke it on the same page.': 'Ghép xong thì Claude trên máy này đọc được bảng khi bạn hỏi về cả đội: tên, trạng thái, chi phí và hạn mức, không bao giờ có email hay IP. Quản trị viên thu hồi được ngay trên trang đó.',

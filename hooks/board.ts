@@ -117,7 +117,7 @@ export function pairingSteps(code: string, server: string): string {
 export function pairedText(name: string): string {
   return [
     tx('This computer is paired with the board as "{name}".', { name }),
-    tx('Ask Claude in your own words, for example: who has waited longest today? Which office spent the most this week?'),
+    tx('Ask Claude in your own words, for example: who is waiting longest right now? Which office spent the most this week?'),
     tx('To stop: /ai-worker:board unpair'),
   ].join('\n')
 }

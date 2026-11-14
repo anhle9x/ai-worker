@@ -209,7 +209,7 @@ The extension holds no password, OTP or login cookie.
 
 ### 2.5 Ask Claude about the board
 
-A manager can ask Claude about the team in their own words, typed or dictated, in any language: "who has waited longest today?", "which office spent the most this week?". Claude reads the board's numbers and answers.
+A manager can ask Claude about the team in their own words, typed or dictated, in any language: "who is waiting longest right now?", "which office spent the most this week?". Claude reads the board's numbers and answers.
 
 1. In Claude Code on your computer, type `/ai-worker:board`. It shows an 8-digit code, good for 10 minutes.
 2. Read the code to an admin of the board, who opens the Admin page, **TV screens**, types the code, clicks **View request**, checks that the type is "Claude plugin of a manager", then clicks **Approve**.

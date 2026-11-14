@@ -32,7 +32,7 @@ AI Worker gồm một plugin Claude Code trên máy từng nhân viên và một
 
 - **Một bảng cho cả công ty:** ai đang làm, ai chờ trả lời và chờ bao lâu, chi phí hôm nay và 7 ngày, hạn mức còn lại, theo từng văn phòng trên bản đồ.
 - **Tua lại 24 giờ qua** để xem cả ngày diễn ra thế nào.
-- **Hỏi bằng lời của mình:** quản lý ghép Claude của mình với bảng một lần, rồi hỏi "hôm nay ai chờ lâu nhất?" và Claude trả lời từ số liệu của bảng, bằng tiếng Việt, gõ hoặc nói đều được.
+- **Hỏi bằng lời của mình:** quản lý ghép Claude của mình với bảng một lần, rồi hỏi "ai đang chờ lâu nhất?" và Claude trả lời từ số liệu của bảng, bằng tiếng Việt, gõ hoặc nói đều được.
 - **Báo mà không cần mở trình duyệt:** biểu tượng thanh menu (macOS, Windows, Ubuntu) và tiện ích Chrome, Edge đếm người đang chờ.
 - **Skill và quy tắc dùng chung** cho mọi máy, tự cập nhật bằng gói có chữ ký.
 - **Phân quyền và nhật ký:** quản trị, quản lý, màn hình treo tường thấy dữ liệu khác nhau; đăng nhập bằng mã OTP 6 số hoặc bằng Telegram (Telegram cần cài thêm bot, xem [hướng dẫn cài đặt](docs/INSTALL.vi.md)); mọi thay đổi được ghi 12 tháng.
