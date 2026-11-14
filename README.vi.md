@@ -26,6 +26,27 @@ AI Worker gồm một plugin Claude Code trên máy từng nhân viên và một
 - **Skill và quy tắc dùng chung** cho mọi máy, tự cập nhật bằng gói có chữ ký.
 - **Phân quyền và nhật ký:** quản trị, quản lý, màn hình treo tường thấy dữ liệu khác nhau; đăng nhập bằng mã OTP 6 số hoặc bằng Telegram (Telegram cần cài thêm bot, xem [hướng dẫn cài đặt](docs/INSTALL.vi.md)); mọi thay đổi được ghi 12 tháng.
 
+## Các màn hình
+
+Mọi ảnh đều dùng người và số liệu bịa. Bấm vào ảnh để xem cỡ đầy đủ.
+
+<table>
+  <tr>
+    <td width="50%" valign="top"><img src="assets/map-2d.jpg" alt="Bản đồ phẳng với bốn văn phòng" width="100%"><br><sub><b>Bản đồ phẳng.</b> Mỗi văn phòng hiện số người đang làm, chi phí hôm nay và trợ lý nào đang dùng.</sub></td>
+    <td width="50%" valign="top"><img src="assets/map-25d.jpg" alt="Bản đồ nghiêng, mỗi văn phòng có một cột" width="100%"><br><sub><b>Bản đồ 2.5D.</b> Cột trên mỗi văn phòng thể hiện chi phí, số người hoặc hạn mức.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src="assets/globe.jpg" alt="Quả địa cầu có đánh dấu các văn phòng" width="100%"><br><sub><b>Quả địa cầu.</b> Vẫn các văn phòng đó trên quả địa cầu 3D, xoay và phóng to được.</sub></td>
+    <td width="50%" valign="top"><img src="assets/wall.jpg" alt="Màn hình treo tường với sơ đồ và ba vòng hạn mức" width="100%"><br><sub><b>Màn hình treo tường.</b> Dành cho TV: toàn màn hình, có vòng hạn mức, ghép bằng mã do quản trị viên duyệt.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src="assets/board.jpg" alt="Bảng mỗi người một dòng" width="100%"><br><sub><b>Bảng chi tiết.</b> Mỗi người một dòng: trạng thái, mô hình, hạn mức, chi phí, token, việc đã giao, phiên bản plugin.</sub></td>
+    <td width="50%" valign="top"><img src="assets/admin.jpg" alt="Trang quản trị với tài khoản, màn hình TV và các bản tải về" width="100%"><br><sub><b>Trang quản trị.</b> Tài khoản và vai trò, ghép màn hình TV, tải biểu tượng thanh menu và tiện ích trình duyệt.</sub></td>
+  </tr>
+</table>
+
+<p align="center"><img src="assets/phone.jpg" alt="Bảng trên màn hình hẹp, các ô xếp chồng lên nhau" width="300"><br><sub><b>Màn hình hẹp.</b> Trên điện thoại các ô xếp chồng lên nhau.</sub></p>
+
 ## Cách hoạt động
 
 <picture>

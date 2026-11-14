@@ -26,6 +26,27 @@ AI Worker is a Claude Code plugin on each employee's computer and a small server
 - **Shared skills and rules** for every computer, and self-update with signed packages.
 - **Roles and audit:** admins, managers and wall screens see different data; log in with a 6-digit OTP code or with Telegram (Telegram needs a bot set up first, see the [install guide](docs/INSTALL.md)); every change is logged for 12 months.
 
+## Screens
+
+Every picture uses made-up people and numbers. Click a picture to see it full size.
+
+<table>
+  <tr>
+    <td width="50%" valign="top"><img src="assets/map-2d.jpg" alt="Flat map with four offices" width="100%"><br><sub><b>Flat map.</b> Each office shows people working, cost today and which assistants are in use.</sub></td>
+    <td width="50%" valign="top"><img src="assets/map-25d.jpg" alt="Tilted map with a column on each office" width="100%"><br><sub><b>2.5D map.</b> The column on each office stands for cost, people or quota.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src="assets/globe.jpg" alt="Globe with the offices marked" width="100%"><br><sub><b>Globe.</b> The same offices on a 3D globe you can turn and zoom.</sub></td>
+    <td width="50%" valign="top"><img src="assets/wall.jpg" alt="Wall screen with the diagram and three quota rings" width="100%"><br><sub><b>Wall screen.</b> Made for a TV: full screen, quota rings, paired with a code an admin approves.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src="assets/board.jpg" alt="Table with one row for each person" width="100%"><br><sub><b>Detail board.</b> One row for each person: status, model, quota, cost, tokens, tasks handed off, plugin version.</sub></td>
+    <td width="50%" valign="top"><img src="assets/admin.jpg" alt="Admin page with accounts, TV screens and downloads" width="100%"><br><sub><b>Admin page.</b> Accounts and roles, TV pairing, downloads for the menu bar icon and the browser extension.</sub></td>
+  </tr>
+</table>
+
+<p align="center"><img src="assets/phone.jpg" alt="The board on a narrow screen, one panel under the other" width="300"><br><sub><b>Narrow screen.</b> On a phone the panels stack one under the other.</sub></p>
+
 ## How it works
 
 <picture>

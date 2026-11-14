@@ -8,6 +8,8 @@
    Mọi `#ifdef TÊN` đều có TÊN trong `defines: {...}` của cùng file.
 3. Every key animated by `for (const k of [...]) v[k] = flight...` is a real view key, used as `v.<key>`.
    Mọi khoá được bay trong `for (const k of [...]) v[k] = flight...` đều là khoá thật của góc nhìn, có dùng dạng `v.<khoá>`.
+4. No name is assigned to itself (`visible = visible`): an argument named like the flag it should set hides that flag, and the map never draws.
+   Không tên nào được gán cho chính nó (`visible = visible`): tham số trùng tên với cờ nó phải gán sẽ che cờ đó, và bản đồ không bao giờ vẽ.
 An unmatched name makes WebGL read 0, so the globe draws nothing and the flight goes nowhere, with no error in the console.
   Tên không khớp thì WebGL đọc ra 0, địa cầu không vẽ gì và hiệu ứng bay đứng yên, không báo lỗi gì trong console.
 """
@@ -20,6 +22,7 @@ FILES = ["server/static/map-common.js", "server/static/map2d.js", "server/static
 UNIFORM = re.compile(r"\buniform\s+\w+\s+(\w+)\s*;")
 IFDEF = re.compile(r"#ifn?def\s+(\w+)")
 FLIGHT = re.compile(r"for\s*\(\s*const\s+k\s+of\s+\[([^\]]*)\]\s*\)\s*v\[k\]\s*=\s*flight")
+SELF_ASSIGN = re.compile(r"(?<![\w.$])([A-Za-z_$][\w$]*)\s*=\s*\1(?![\w$.(\[])")
 
 
 def braced(text, start):
@@ -102,6 +105,9 @@ def check(paths):
             for key in re.findall(r"['\"](\w+)['\"]", m.group(1)):
                 if not re.search(r"\bv\." + re.escape(key) + r"\b", text):
                     problems.append(f"{p}:{line}: flight animates '{key}' but the view never uses v.{key}")
+        for m in SELF_ASSIGN.finditer(text):
+            line = text.count("\n", 0, m.start()) + 1
+            problems.append(f"{p}:{line}: '{m.group(1)} = {m.group(1)}' assigns a name to itself, so the outer '{m.group(1)}' is never set")
     return problems
 
 

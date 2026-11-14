@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.31.3 - 2026-11-14
+
+### Fixed
+- The flat (2D) map on the board stayed blank: it never started drawing. The 2.5D map and the globe were not affected.
+
+### Added
+- The README has a "Screens" section with seven pictures of the board, all with made-up people and numbers.
+
 ## 0.31.2 - 2026-11-13
 
 ### Fixed

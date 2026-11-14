@@ -140,7 +140,9 @@
       flyTo(id) { const r = pin.fetchFn(id); if (r) flyTo({ lon: r.n.b.lon, lat: r.n.b.lat, s: HOME.s * 5 }) },
       zoom(factor) { flyTo({ ...v, s: Math.max(HOME.s * .8, Math.min(HOME.s * 14, v.s * factor)) }, 300) },
       fit() { flyTo(HOME) },
-      show(visible) { visible = visible; cancelAnimationFrame(frameId); if (visible) { needsBackdrop = true; frameId = requestAnimationFrame(draw) } },
+      // the argument must not carry the name of the flag it sets: it hid the flag, nothing was set and the map stayed blank
+      // tham số không được trùng tên với cờ nó gán: nó che mất cờ, không gì được gán và bản đồ cứ trống
+      show(on) { visible = on; cancelAnimationFrame(frameId); if (on) { needsBackdrop = true; frameId = requestAnimationFrame(draw) } },
     }
   }
   window.Map2D = { create }
