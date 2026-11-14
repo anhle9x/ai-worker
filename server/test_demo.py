@@ -79,8 +79,11 @@ class RunsForReal(unittest.TestCase):
         # những gì một cửa sổ lệnh trên máy chủ bảng thật sẽ có: bản thử không được dùng thứ nào
         env = dict(os.environ, DATA_DIR=cls.real_data, KEYS_DIR=cls.real_data, INGEST_KEY="real-key", OTP="boss:MFRGGZDFMZTWQ2LK", OTP_ADMINS="boss",
                    TELEGRAM_BOT_TOKEN="1:real", TELEGRAM_BOT_NAME="realbot", BIND_ADDR="0.0.0.0", PORT="1", TMPDIR=cls.demo_tmp, TEMP=cls.demo_tmp, TMP=cls.demo_tmp)
+        # on Windows the demo gets its own group, so the test can send it Ctrl+Break without stopping itself
+        # trên Windows bản thử có nhóm riêng, để bài test gửi được Ctrl+Break cho nó mà không tự dừng mình
         cls.proc = subprocess.Popen([sys.executable, os.path.join(HERE, "demo.py"), "--port", "0"], cwd=cls.box, env=env,
-                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
         cls.lines = queue.Queue()
         threading.Thread(target=lambda: [cls.lines.put(line) for line in cls.proc.stdout], daemon=True).start()
         cls.printed = []
@@ -146,12 +149,14 @@ class RunsForReal(unittest.TestCase):
         self.assertEqual(os.listdir(self.real_data), [])
         self.assertEqual(self.call("GET", "/login/telegram")[0], 404)
 
-    @unittest.skipIf(os.name == "nt", "Windows ends a program without letting it tidy up")
     def test_4_stopping_deletes_the_sample_data(self):
         self.assertEqual(len(os.listdir(self.demo_tmp)), 1)
-        self.proc.send_signal(signal.SIGTERM)
+        # a plain kill on Windows ends a program at once with no chance to tidy up, so the test presses Ctrl+Break there
+        # lệnh kill thường trên Windows kết thúc chương trình ngay, không kịp dọn, nên ở đó bài test bấm Ctrl+Break
+        self.proc.send_signal(signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGTERM)
         self.assertEqual(self.proc.wait(15), 0)
         self.assertEqual(os.listdir(self.demo_tmp), [])
+        self.wait_for(r"^(Demo stopped, sample data deleted\.)$", 5)
 
 
 @unittest.skipIf(os.name == "nt", "Windows has no hang-up signal")

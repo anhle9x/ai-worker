@@ -55,7 +55,9 @@ cd ai-worker
 python3 server/demo.py
 ```
 
-Lệnh in ra một địa chỉ, tên tài khoản `demo` và một mã 6 số. Mở địa chỉ đó rồi nhập cả hai: bảng hiện lên với 12 người mẫu ở 4 văn phòng. Không cài gì và không có gì rời khỏi máy bạn; bấm Ctrl+C để dừng và xoá dữ liệu mẫu. Đã thử trên macOS và Linux.
+Trên Windows, dòng cuối là `py server\demo.py`.
+
+Lệnh in ra một địa chỉ, tên tài khoản `demo` và một mã 6 số. Mở địa chỉ đó rồi nhập cả hai: bảng hiện lên với 12 người mẫu ở 4 văn phòng. Không cài gì và không có gì rời khỏi máy bạn; bấm Ctrl+C để dừng và xoá dữ liệu mẫu. Đã thử trên macOS, Linux và Windows.
 
 **Người quản trị, một lần** (khoảng 30 phút). Các bước và lệnh: [docs/INSTALL.vi.md](docs/INSTALL.vi.md).
 

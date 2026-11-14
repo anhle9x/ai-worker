@@ -294,6 +294,7 @@ uvx ruff check .
 cd server && python3 -m unittest test_webhook test_demo
 python3 tests/check-i18n.py --comments
 node tests/extension/check-extension.js
+node tests/check-map-layout.js
 ```
 
 Mỗi lần đẩy code còn chạy `.github/workflows/test-install.yml`: trên Ubuntu thì đóng gói, thử bước kiểm dữ liệu riêng (`tests/test-check-clean.sh`) và phần đầu của các skill, cài thử plugin và máy chủ, rồi thử script thanh menu và gói .deb (`tests/menubar/test-menubar.sh`, `test-deb.sh`); còn kiểm quy tắc hai ngôn ngữ (`tests/check-i18n.py`); trên Windows thì cài thử và thử biểu tượng ở khay (`tests/menubar/test-menubar.ps1`), thêm một bước Windows nữa dựng `AI Worker.exe` và `AI Worker.msi`, cài không cần quyền quản trị, ghép với máy chủ giả, cài bản mới đè lên app đang chạy rồi gỡ (`tests/menubar/test-windows-app.ps1`). Bước này không chạy `test_webhook` hay bước kiểm tiện ích, nên phải tự chạy.

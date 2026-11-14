@@ -55,6 +55,50 @@
   }
   const pinClass = n => (n.critical ? 'critical' : n.waiting ? 'waiting' : n.working ? 'active' : 'idle')
 
+  const CARD_GAP = 4, PIN_WIDTH = 34, PIN_HEIGHT = 44
+  const overlaps = (x0, y0, width, height, o) => x0 < o.x0 + o.width + CARD_GAP && o.x0 < x0 + width + CARD_GAP && y0 < o.y0 + o.height + CARD_GAP && o.y0 < y0 + height + CARD_GAP
+  // Where each office card goes. A card sits beside its own pin, to the right or the left, and slides up or down until it
+  // touches nothing in `blocks`, no card placed before it and no other office's pin; it stays inside the w by h frame when
+  // any such place exists. The place nearest the pin wins, and the side used last time (`last`) wins a near tie, so a card
+  // does not jump between sides while the map turns. Returns the cards with x0, y0 and slot.
+  // Mỗi thẻ văn phòng nằm ở đâu. Thẻ nằm cạnh ghim của chính nó, bên phải hoặc bên trái, và trượt lên hay xuống tới khi
+  // không chạm thứ gì trong `blocks`, không chạm thẻ đã đặt trước và không chạm ghim của văn phòng khác; thẻ nằm gọn trong
+  // khung w nhân h khi còn chỗ như vậy. Chỗ gần ghim nhất được chọn, và bên đã dùng lần trước (`last`) thắng khi gần ngang
+  // nhau, để thẻ không nhảy qua lại giữa hai bên khi bản đồ xoay. Trả về các thẻ kèm x0, y0 và slot.
+  function layoutCards(cards, blocks, w, h) {
+    const placed = []
+    const pinOf = c => ({ x0: c.sx - PIN_WIDTH / 2, y0: c.sy - PIN_HEIGHT, width: PIN_WIDTH, height: PIN_HEIGHT })
+    for (const c of cards.slice().sort((a, b) => b.sy - a.sy)) {
+      const inTheWay = blocks.concat(placed, cards.filter(o => o !== c).map(pinOf))
+      const home = c.sy - 42
+      // a pin at the top or bottom edge has its level spot outside the frame: the search starts from the nearest spot inside
+      // ghim sát mép trên hoặc mép dưới thì chỗ ngang ghim nằm ngoài khung: việc tìm chỗ bắt đầu từ chỗ gần nhất bên trong
+      const start = Math.max(CARD_GAP, Math.min(home, Math.max(CARD_GAP, h - CARD_GAP - c.height)))
+      let best = null
+      for (const side of ['right', 'left']) {
+        const wanted = side === 'right' ? c.sx + 19 : c.sx - 19 - c.width
+        const x0 = Math.max(CARD_GAP, Math.min(wanted, w - 6 - c.width))
+        for (const way of ['up', 'down']) {
+          let y0 = start
+          for (let pass = 0, moved = true; moved && pass < 24; pass++) {
+            moved = false
+            for (const o of inTheWay) if (overlaps(x0, y0, c.width, c.height, o)) { y0 = way === 'up' ? o.y0 - c.height - CARD_GAP : o.y0 + o.height + CARD_GAP; moved = true }
+          }
+          const slot = side + '-' + way
+          const outside = y0 < CARD_GAP || y0 + c.height > h - CARD_GAP
+          // a card pushed off its side would cover its own pin, and one outside the frame is cut off: both are last resorts
+          // thẻ bị ép lệch khỏi bên của nó sẽ đè lên ghim của chính nó, còn thẻ ra ngoài khung thì bị cắt: cả hai là lựa chọn cuối cùng
+          const cost = Math.abs(y0 - home) + (side === 'left' ? 2 : 0) + (x0 !== wanted ? 400 : 0) + (outside ? 4000 : 0) - (slot === c.last ? 14 : 0)
+          if (!best || cost < best.cost) best = { x0, y0, slot, cost }
+        }
+      }
+      const spot = { x0: best.x0, y0: Math.max(CARD_GAP, Math.min(best.y0, Math.max(CARD_GAP, h - CARD_GAP - c.height))), width: c.width, height: c.height }
+      placed.push(spot)
+      Object.assign(c, { x0: spot.x0, y0: spot.y0, slot: best.slot })
+    }
+    return cards
+  }
+
   // pins, cards and the text layer over the map
   // ghim, thẻ và lớp chữ phủ trên bản đồ
   function createPinLayer(host, api) {
@@ -109,10 +153,9 @@
       if (api.hud) api.hud.refresh()
       return list
     }
-    // pins stay in place; overlapping cards are pushed up, and cards at the right edge move to the left
-    // ghim đứng đúng chỗ; thẻ đè nhau thì đẩy lên, sát mép phải thì đưa sang trái
+    // pins stay in place; each card is put where it covers no other card, no other office's pin and not the branch list
+    // ghim đứng đúng chỗ; mỗi thẻ được đặt ở chỗ không đè thẻ khác, không đè ghim của văn phòng khác và không đè danh sách chi nhánh
     function place(enabled, w) {
-      const placed = []
       for (const r of list) {
         r.pin.style.opacity = r.hidden ? 1 : 0
         r.pin.style.pointerEvents = r.hidden ? '' : 'none'
@@ -122,13 +165,18 @@
         r.e.style.opacity = show ? 1 : 0
         r.e.style.pointerEvents = show ? '' : 'none'
       }
-      for (const r of list.filter(x => x.hidden && enabled).sort((a, b) => b.sy - a.sy)) {
-        const width = r.e.offsetWidth, height = r.e.offsetHeight
-        const x0 = r.sx + 19 + width > w - 6 ? r.sx - 19 - width : r.sx + 19
-        let y0 = r.sy - 42
-        for (const o of placed) if (x0 < o.x0 + o.width + 4 && o.x0 < x0 + width + 4 && y0 + height + 4 > o.y0 && y0 < o.y0 + o.height + 4) y0 = o.y0 - height - 4
-        placed.push({ x0, y0, width, height })
-        r.e.style.transform = `translate(${x0}px,${y0}px)`
+      const shown = list.filter(x => x.hidden && enabled)
+      if (!shown.length) return
+      const box = cls.getBoundingClientRect(), blocks = []
+      // on a wide screen the branch list floats over the map's corner: a card under it could not be read or clicked
+      // trên màn hình rộng, danh sách chi nhánh nổi trên góc bản đồ: thẻ nằm dưới nó thì không đọc và không bấm được
+      const map = host.closest('.o-map'), branchList = map && map.querySelector('.o-bd-list')
+      const l = branchList && branchList.getBoundingClientRect()
+      if (l && l.width && l.height && l.left < box.right && l.right > box.left && l.top < box.bottom && l.bottom > box.top) blocks.push({ x0: l.left - box.left, y0: l.top - box.top, width: l.width, height: l.height })
+      const cards = shown.map(r => ({ r, sx: r.sx, sy: r.sy, width: r.e.offsetWidth, height: r.e.offsetHeight, last: r.slot }))
+      for (const c of layoutCards(cards, blocks, w, box.height)) {
+        c.r.slot = c.slot
+        c.r.e.style.transform = `translate(${c.x0}px,${c.y0}px)`
       }
     }
     return { cls, syncPins, place, list: () => list, fetchFn: id => pins.get(id) }
@@ -285,5 +333,5 @@
     }
   }
 
-  window.MapCommon = { VN_ISLANDS, insideVN, loadJson, LOW_POWER, REDUCED_MOTION, forEachRing, createPinLayer, createHud, starBackdrop, createBeam, loadGovernor }
+  window.MapCommon = { VN_ISLANDS, insideVN, loadJson, LOW_POWER, REDUCED_MOTION, forEachRing, layoutCards, createPinLayer, createHud, starBackdrop, createBeam, loadGovernor }
 })()

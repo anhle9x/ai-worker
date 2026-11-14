@@ -55,7 +55,9 @@ cd ai-worker
 python3 server/demo.py
 ```
 
-It prints an address, the account name `demo` and a 6-digit code. Open the address and type both: the board is up with 12 made-up people in 4 offices. Nothing is installed and nothing leaves your computer; Ctrl+C stops it and deletes the sample data. Checked on macOS and Linux.
+On Windows the last line is `py server\demo.py`.
+
+It prints an address, the account name `demo` and a 6-digit code. Open the address and type both: the board is up with 12 made-up people in 4 offices. Nothing is installed and nothing leaves your computer; Ctrl+C stops it and deletes the sample data. Checked on macOS, Linux and Windows.
 
 **The admin, once** (about 30 minutes). Steps and commands: [docs/INSTALL.md](docs/INSTALL.md).
 

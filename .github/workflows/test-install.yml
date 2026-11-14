@@ -26,6 +26,8 @@ jobs:
         run: python3 -m unittest test_webhook test_demo
       - name: Test the Chrome extension against the server
         run: node tests/extension/check-extension.js
+      - name: Check where the maps put the office labels
+        run: node tests/check-map-layout.js
   build:
     runs-on: ubuntu-latest
     steps:

@@ -7,7 +7,7 @@ the manager's computer reads them back to show the **Whole team** dashboard. No 
 
 ## Try it first
 
-`python3 demo.py` starts this same server on `127.0.0.1` with 12 made-up people in 4 offices and prints the address, the account `demo` and the 6-digit code to log in with. It keeps everything in a temporary folder that is deleted when you press Ctrl+C, ignores the settings of a real board, and is not copied to the server by `install.sh`.
+`python3 demo.py` (on Windows: `py demo.py`) starts this same server on `127.0.0.1` with 12 made-up people in 4 offices and prints the address, the account `demo` and the 6-digit code to log in with. It keeps everything in a temporary folder that is deleted when you press Ctrl+C, ignores the settings of a real board, and is not copied to the server by `install.sh`.
 
 ## Install (once, about 5 minutes)
 

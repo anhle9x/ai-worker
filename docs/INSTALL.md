@@ -6,7 +6,7 @@ For the admin who deploys AI Worker: what you need, the first deployment, releas
 
 ## What you need
 
-To look at the board before deploying anything, run `python3 server/demo.py` on your own computer: it shows the board with sample people and needs no server (see the [README](../README.md#quick-start)).
+To look at the board before deploying anything, run `python3 server/demo.py` (on Windows: `py server\demo.py`) on your own computer: it shows the board with sample people and needs no server (see the [README](../README.md#quick-start)).
 
 - **A Linux server** with `python3` 3.8 or newer and systemd. The webhook needs no outside libraries.
 - **A dedicated subdomain**, for example `board.company.com`, with a DNS `A` record pointing to the server IP.

@@ -10,6 +10,10 @@ Changes that matter to people who install or run AI Worker. The format follows [
 ### Changed
 - The README shows nine pictures of the board in one row that scrolls sideways.
 
+### Fixed
+- On Windows, stopping `server/demo.py` left its sample data behind while saying it was deleted: the databases are now closed first, and the message says so if the folder could not be removed. The README gives the Windows command, `py server\demo.py`.
+- On the maps, an office's label could cover another label, another office's pin or the list of offices in the corner, and could be pushed out of the frame. Each label now takes a free place beside its own pin, on the left when the right is taken, and stays inside the frame.
+
 ## 0.31.3 - 2026-11-14
 
 ### Fixed

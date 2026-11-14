@@ -294,6 +294,7 @@ uvx ruff check .
 cd server && python3 -m unittest test_webhook test_demo
 python3 tests/check-i18n.py --comments
 node tests/extension/check-extension.js
+node tests/check-map-layout.js
 ```
 
 Each push also runs `.github/workflows/test-install.yml`: on Ubuntu it builds the package, tests the private-data check (`tests/test-check-clean.sh`) and the skills' front matter, then tries installing the plugin and the server, and tests the menu bar script and the .deb (`tests/menubar/test-menubar.sh`, `test-deb.sh`); it also checks the two-language rules (`tests/check-i18n.py`); on Windows it tries installing and tests the tray icon (`tests/menubar/test-menubar.ps1`), and a second Windows job builds `AI Worker.exe` and `AI Worker.msi`, installs it without admin rights, pairs with a fake server, installs a newer build over the running app, and removes it (`tests/menubar/test-windows-app.ps1`). It does not run `test_webhook` or the extension check, so run those yourself.

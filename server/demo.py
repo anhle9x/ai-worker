@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Try the board on your own computer, with sample people: python3 server/demo.py [--port 8799]
+"""Try the board on your own computer, with sample people: python3 server/demo.py [--port 8799]  (Windows: py server\\demo.py)
 
 Starts the real board server on 127.0.0.1 with 12 made-up people in 4 offices, prints the address, the account name and
 the 6-digit code to log in with. Needs only Python 3.8+: no server, no install, no account anywhere.
@@ -7,7 +7,7 @@ the 6-digit code to log in with. Needs only Python 3.8+: no server, no install, 
 Everything lives in a temporary folder that is deleted when the demo stops. It never reads or writes the data of a real
 board, it listens only inside this computer, and it sends nothing out.
 
-  Thử bảng ngay trên máy mình, với người mẫu: python3 server/demo.py [--port 8799]
+  Thử bảng ngay trên máy mình, với người mẫu: python3 server/demo.py [--port 8799]  (Windows: py server\\demo.py)
 
   Bật đúng máy chủ bảng tổng trên 127.0.0.1 với 12 người mẫu ở 4 văn phòng, in ra địa chỉ, tên tài khoản và mã 6 số để
   đăng nhập. Chỉ cần Python 3.8+: không cần máy chủ, không cài gì, không cần tài khoản ở đâu.
@@ -150,6 +150,17 @@ def show_codes(secret: bytes, totp_code, stop: threading.Event) -> None:
         stop.wait(1)
 
 
+def close_databases() -> None:
+    """Close the demo's two databases before its folder is removed: Windows will not delete a file that is still open.
+    Each lock is taken and kept, so a worker thread waits instead of using a closed database in the moment before the program ends.
+    Đóng hai cơ sở dữ liệu của bản thử trước khi xoá thư mục của nó: Windows không xoá file còn đang mở.
+    Mỗi khoá được lấy và giữ luôn, để luồng phụ đứng chờ thay vì dùng cơ sở dữ liệu đã đóng trong khoảnh khắc trước khi chương trình kết thúc."""
+    opened = getattr(sys.modules.get("board.db"), "_OPEN", {})
+    for database in list(opened.values()):
+        database.lock.acquire()
+        database.conn.close()
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Try the AI Worker board on this computer with sample people. Nothing is sent out.")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="port on 127.0.0.1 (default %d; 0 picks a free one)" % DEFAULT_PORT)
@@ -160,7 +171,7 @@ def main(argv=None) -> int:
 
     # a plain "kill" or a closed terminal window ends the demo the same way as Ctrl+C, so the temporary folder is always removed
     # lệnh "kill" thường hay việc đóng cửa sổ lệnh cũng kết thúc bản thử như Ctrl+C, để thư mục tạm luôn được xoá
-    for name in ("SIGTERM", "SIGHUP"):
+    for name in ("SIGTERM", "SIGHUP", "SIGBREAK"):
         if hasattr(signal, name):
             signal.signal(getattr(signal, name), stop_like_ctrl_c)
     os.umask(0o077)
@@ -222,8 +233,12 @@ def main(argv=None) -> int:
         return 0
     finally:
         stop.set()
+        close_databases()
         shutil.rmtree(folder, ignore_errors=True)
-        print("\nDemo stopped, sample data deleted.", flush=True)
+        if os.path.exists(folder):
+            print("\nDemo stopped. The sample data could not be deleted: remove the folder %s yourself." % folder, flush=True)
+        else:
+            print("\nDemo stopped, sample data deleted.", flush=True)
 
 
 if __name__ == "__main__":
