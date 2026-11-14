@@ -11,7 +11,7 @@ import type { EngineInterface, Register, ToolCallResult } from 'claude-code'
 
 import type { Activity, Job, Ledger, TeamState, Usage, WorkerId } from '../types'
 import { applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, staleSessionFiles } from './activity'
-import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, contextAdvice, contextFill, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
+import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
 import { answerModel, buildMachineSummary, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
 import type { ShareConfig } from './team'
 import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT, findHostApp, parseLinuxHost, parseWindowsHost, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
@@ -1606,6 +1606,19 @@ export const register: Register = on => {
       ...(share.enabled ? [{ id: 'ai-worker:work-rules', text: sharedRules(), scope: 'session' as const }] : []),
     ]
     return { ...r, sections: [...r.sections, ...extra] }
+  })
+
+  // a long conversation about to be compacted: the summarizer is also told what the work depends on, and after an
+  // automatic compaction the person is told nothing broke. A subagent's own transcript is left alone.
+  // một cuộc trò chuyện dài sắp bị nén: bộ tóm tắt được dặn thêm những thứ công việc phụ thuộc vào, và sau một lần
+  // nén tự động người dùng được báo là không có gì hỏng. Bản ghi riêng của trợ lý con thì để nguyên.
+  on('session.compact', async ($, e, next) => {
+    if (e.agentId) return next(e)
+    const r = await next({ ...e, instructions: [e.instructions, compactKeepInstructions()].filter(Boolean).join('\n\n') })
+    // `precompute` installs nothing and a skip changes nothing: there is nothing to tell
+    // `precompute` không cài gì và một lần bỏ qua không đổi gì: không có gì để báo
+    if (e.trigger === 'auto' && r.messages) await Promise.resolve($.ui.toast(compactedNotice())).catch(() => undefined)
+    return r
   })
 
   // the context window's fill, pushed after each turn: the page shows when to open a fresh session

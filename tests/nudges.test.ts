@@ -252,3 +252,61 @@ test('/ai-worker:help answers from the plugin folder, without the model', async 
   expect(text).not.toContain('Dev pack')
 })
 
+
+const TALK = [{ role: 'user' as const, text: 'a long conversation', toolUses: [] }]
+
+type Compact = { trigger: 'manual' | 'auto' | 'plugin' | 'precompute'; instructions?: string; agentId?: string; skip?: boolean }
+
+/** A long session being compacted: returns what the summarizer was told and what the person was told. */
+async function compactOnce($: Engine, on: On, c: Compact) {
+  mock.clock(on)
+  mock.store(on)
+  mock.env(on, { HOME: '/Users/an' })
+  const seen = { instructions: [] as (string | undefined)[], toasts: [] as string[] }
+  on('command.register', () => ({ value: { command: 'office' } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('fs.read', () => {
+    throw new Error('no such file')
+  })
+  on('ui.toast', (_, e) => {
+    seen.toasts.push(e.text)
+    return { value: undefined }
+  })
+  // the engine's own summarizer: it sees the instructions as the plugin left them
+  on('session.compact', (_, e) => {
+    seen.instructions.push(e.instructions)
+    return (c.skip ? { skip: 'nothing to compact' } : { messages: TALK }) as never
+  })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.session.compact({ trigger: c.trigger, messages: TALK, ...(c.instructions ? { instructions: c.instructions } : {}), ...(c.agentId ? { agentId: c.agentId } : {}) } as never)
+  return seen
+}
+
+test('an automatic compaction tells the summarizer what the work depends on, and tells the person nothing broke', async ($, on) => {
+  const seen = await compactOnce($, on, { trigger: 'auto' })
+  expect(seen.instructions.length).toBe(1)
+  expect(seen.instructions[0]).toContain('Every standing instruction the user gave about how to work')
+  expect(seen.instructions[0]).toContain('What is still open')
+  expect(seen.instructions[0]).toContain('Never put a password, a key or a token in the summary')
+  expect(seen.toasts.length).toBe(1)
+  expect(seen.toasts[0]).toContain('no new session is needed')
+})
+
+test("the person's own words after /compact stay first, and their own compaction is not announced to them", async ($, on) => {
+  const seen = await compactOnce($, on, { trigger: 'manual', instructions: 'keep the migration plan' })
+  expect(seen.instructions[0]!.startsWith('keep the migration plan\n\n')).toBe(true)
+  expect(seen.instructions[0]).toContain('Every decision and its reason')
+  expect(seen.toasts).toEqual([])
+})
+
+test('a compaction that did not happen says nothing', async ($, on) => {
+  const skipped = await compactOnce($, on, { trigger: 'auto', skip: true })
+  expect(skipped.toasts).toEqual([])
+})
+
+test("a subagent's own transcript is compacted as the engine would: no added instructions, no notice", async ($, on) => {
+  const seen = await compactOnce($, on, { trigger: 'auto', agentId: 'agent-1' })
+  expect(seen.instructions).toEqual([undefined])
+  expect(seen.toasts).toEqual([])
+})

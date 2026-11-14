@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.31.10 - 2026-11-14
+
+### Added
+- When a long conversation is compacted, the plugin also tells the summarizer what the work depends on: the user's standing instructions, the decisions and their reasons, what failed, what is still open, and the exact file paths, commands and versions. After an automatic compaction a note tells the person that nothing broke and no new session is needed.
+
 ## 0.31.9 - 2026-11-14
 
 ### Added

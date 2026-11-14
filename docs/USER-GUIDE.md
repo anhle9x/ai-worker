@@ -69,6 +69,7 @@ It shows only the sessions on **your** computer:
 
 - **Diagram:** each open session, linked to Claude and the helper assistants. A green session is working, a yellow one is waiting for you.
 - **Click a session** to see its plan, how full its context is, and its cost.
+- **When a conversation gets long,** a note warns you at 60% and at 80% of the context. If Claude then summarizes the older part by itself to make room, the plugin asks that summary to keep your instructions, the decisions, what failed and what is still open, and a note tells you so: carry on in the same conversation, no new session is needed.
 - **Cost:** today, the last 7 days, and a chart you can change (line, bars, candles; by hour or by day).
 - **Activity:** what was done in the open sessions, with a filter.
 - **Models & quota:** how much of your Claude account's 5-hour and 7-day limits are used. From 80% it turns red, and a bar appears above the chat box. Click **Hide** to hide that bar until the level rises again.

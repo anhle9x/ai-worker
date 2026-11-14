@@ -1,6 +1,6 @@
 {
   "name": "ai-worker",
-  "version": "0.31.9",
+  "version": "0.31.10",
   "description": "3D virtual office: watch Claude, Gemini, ChatGPT and Gemma work in the browser",
   "types": "./types/index.d.ts"
 }

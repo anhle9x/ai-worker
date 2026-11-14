@@ -282,4 +282,13 @@ export const VI: Record<string, string> = {
   'The server answers only the networks your admin has added, usually the office one. Back on that network, type /update again.': 'Máy chủ chỉ trả lời những mạng mà quản trị viên đã thêm, thường là mạng văn phòng. Khi về lại mạng đó, gõ /update lần nữa là được.',
   'Working somewhere else for a while? Ask your admin to add the network you are on. (For the admin: the server answered 403.)': 'Bạn làm việc ở nơi khác một thời gian? Nhờ quản trị viên thêm mạng bạn đang dùng. (Cho quản trị viên: máy chủ trả 403.)',
   'turn a document or your team\'s procedure into a new skill, as a draft you review first': 'biến một tài liệu hay quy trình của phòng bạn thành skill mới, dưới dạng bản nháp để bạn xem trước',
+  'The work goes on from this summary alone, so keep the following in full, in the language the user writes in:': 'Công việc sẽ tiếp tục chỉ dựa vào bản tóm tắt này, nên hãy giữ đầy đủ những điều sau, bằng ngôn ngữ người dùng đang viết:',
+  '1. Every standing instruction the user gave about how to work (for example: commit only when told, what must never be sent outside, what not to bring up again), in their own words where the words were exact.': '1. Mọi lời dặn còn hiệu lực của người dùng về cách làm việc (ví dụ: chỉ commit khi được bảo, điều gì không bao giờ được gửi ra ngoài, điều gì đừng nhắc lại), giữ nguyên lời của họ ở những chỗ lời đó chính xác.',
+  '2. Every decision and its reason, including what the user rejected, so it is not proposed again.': '2. Mọi quyết định và lý do, kể cả những gì người dùng đã bác, để không đề xuất lại.',
+  '3. What was tried and failed, and why.': '3. Những gì đã thử mà hỏng, và vì sao.',
+  '4. What is still open: the next steps in order, and which ones wait for the user.': '4. Những gì còn bỏ ngỏ: các bước tiếp theo theo thứ tự, và bước nào đang chờ người dùng.',
+  '5. The exact names needed to carry on: file paths, commands, version numbers, commit ids.': '5. Các tên chính xác cần để làm tiếp: đường dẫn file, lệnh, số phiên bản, mã commit.',
+  '6. What has been checked and what has not.': '6. Điều gì đã kiểm, điều gì chưa.',
+  'Never put a password, a key or a token in the summary, even if one appeared in the conversation.': 'Không bao giờ đưa mật khẩu, khoá hay token vào bản tóm tắt, kể cả khi nó từng xuất hiện trong cuộc trò chuyện.',
+  'This conversation got long, so Claude just summarized its older part to make room. It was told to keep your instructions, the decisions and what is still open. Carry on here: no new session is needed.': 'Cuộc trò chuyện đã dài, nên Claude vừa tóm tắt phần cũ để lấy chỗ. Nó đã được dặn giữ lại lời dặn của bạn, các quyết định và việc còn bỏ ngỏ. Bạn cứ làm tiếp ở đây, không cần mở phiên mới.',
 }

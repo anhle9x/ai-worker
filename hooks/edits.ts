@@ -184,6 +184,31 @@ export function contextAdvice(percent: number): string {
   return percent >= 80 ? tx('start a new session') : percent >= 60 ? tx('getting full') : ''
 }
 
+// What the summarizer is told when a long conversation is compacted, on top of what it was already told.
+// A compaction keeps the gist and drops the rest; what the work depends on is exactly what gets dropped:
+// a standing instruction given hours ago, a rejected idea, a path. This names those things so they stay.
+// Lời dặn thêm cho bộ tóm tắt khi một cuộc trò chuyện dài bị nén, cộng vào lời dặn đã có.
+// Nén giữ ý chính và bỏ phần còn lại; thứ công việc phụ thuộc vào lại chính là thứ bị bỏ:
+// một lời dặn từ mấy tiếng trước, một ý đã bị bác, một đường dẫn. Đoạn này gọi tên những thứ đó để chúng ở lại.
+export function compactKeepInstructions(): string {
+  return [
+    tx('The work goes on from this summary alone, so keep the following in full, in the language the user writes in:'),
+    tx('1. Every standing instruction the user gave about how to work (for example: commit only when told, what must never be sent outside, what not to bring up again), in their own words where the words were exact.'),
+    tx('2. Every decision and its reason, including what the user rejected, so it is not proposed again.'),
+    tx('3. What was tried and failed, and why.'),
+    tx('4. What is still open: the next steps in order, and which ones wait for the user.'),
+    tx('5. The exact names needed to carry on: file paths, commands, version numbers, commit ids.'),
+    tx('6. What has been checked and what has not.'),
+    tx('Never put a password, a key or a token in the summary, even if one appeared in the conversation.'),
+  ].join('\n')
+}
+
+/** What the person is told right after an automatic compaction: nothing broke, and no new session is needed. */
+/** Điều người dùng được báo ngay sau một lần nén tự động: không có gì hỏng, và không cần mở phiên mới. */
+export function compactedNotice(): string {
+  return tx('This conversation got long, so Claude just summarized its older part to make room. It was told to keep your instructions, the decisions and what is still open. Carry on here: no new session is needed.')
+}
+
 /** The warning to give once the fill climbs past a level not yet warned about; the level drops back after a compact. */
 /** Cảnh báo đưa ra khi mức đầy vượt một ngưỡng chưa được cảnh báo; ngưỡng hạ xuống sau khi nén. */
 export function contextWarning(percent: number, warned: number, handoff = false): { level: number; text?: string } {
