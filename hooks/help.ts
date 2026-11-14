@@ -21,7 +21,7 @@ const ABOUT_MAX = 80
 
 /** The skills anyone may use day to day; the plugin's other skills are for people who write code or run systems. */
 /** Các skill ai cũng dùng được hằng ngày; các skill còn lại của plugin dành cho người viết code hoặc vận hành hệ thống. */
-const EVERYDAY = ['handoff', 'meeting-notes', 'lesson-generator']
+const EVERYDAY = ['handoff', 'meeting-notes', 'lesson-generator', 'make-skill']
 
 /** The skills the plugin ships, each in a few plain words; another skill is told by the first sentence of its own description. */
 /** Các skill plugin mang theo, mỗi cái vài chữ dễ hiểu; skill khác thì dùng câu đầu tiên trong mô tả của chính nó. */
@@ -29,6 +29,7 @@ function plainAbout(name: string): string | undefined {
   if (name === 'handoff') return tx('write a handoff note so a new session can carry on')
   if (name === 'meeting-notes') return tx('turn rough meeting notes into tidy minutes')
   if (name === 'lesson-generator') return tx('build a small course with lessons, flashcards and quizzes')
+  if (name === 'make-skill') return tx("turn a document or your team's procedure into a new skill, as a draft you review first")
   if (name === 'write-spec') return tx('write a specification: goal, scope, roles, numbered requirements')
   if (name === 'draw-flow') return tx('draw how a system really works, as diagrams')
   if (name === 'interview-me') return tx('ask you one question at a time until the real need is clear')

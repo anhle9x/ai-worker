@@ -350,7 +350,7 @@ test('a skill is listed by its name and the first sentence of its description', 
 })
 
 test('the help is a short list: commands, skills in plain words in two groups, and only the helpers this computer has', () => {
-  const skills = [{ name: 'handoff', about: 'A long sentence from the file' }, { name: 'tdd', about: 'x' }, { name: 'review', about: 'Look over a change' }, { name: 'improve-codebase-architecture', about: 'x', byNameOnly: true }]
+  const skills = [{ name: 'handoff', about: 'A long sentence from the file' }, { name: 'make-skill', about: 'x' }, { name: 'tdd', about: 'x' }, { name: 'review', about: 'Look over a change' }, { name: 'improve-codebase-architecture', about: 'x', byNameOnly: true }]
   const base = { title: 'AI Worker Office', version: '9.9.9', skills, viaMcp: false, sharing: true }
   const all = buildHelp({ ...base, workers: { gemma: 'gemma4:26b', chatgpt: '/bin/codex', gemini: '/bin/agy' } })
   const lines = all.split('\n')
@@ -382,6 +382,9 @@ test('the help is a short list: commands, skills in plain words in two groups, a
   const at = (text: string) => lines.findIndex(l => l.includes(text))
   expect(at('For everyday work:')).toBeLessThan(at('/ai-worker:handoff'))
   expect(at('/ai-worker:handoff')).toBeLessThan(at('For people who write code'))
+  // making a skill from a document is everyday work too, told in plain words
+  expect(all).toContain("- /ai-worker:make-skill — turn a document or your team's procedure into a new skill, as a draft you review first")
+  expect(at('/ai-worker:make-skill')).toBeLessThan(at('For people who write code'))
   expect(at('For people who write code')).toBeLessThan(at('/ai-worker:tdd'))
   expect(all.match(/runs only when you type its name/g)?.length).toBe(1)
   const bare = buildHelp({ ...base, skills: [], workers: {}, sharing: false })

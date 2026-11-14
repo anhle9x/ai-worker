@@ -281,4 +281,5 @@ export const VI: Record<string, string> = {
   'The network you are on is not allowed to reach the company server, so the new version could not be checked. Nothing is wrong with this computer.': 'Mạng bạn đang dùng chưa được phép vào máy chủ công ty, nên chưa kiểm tra được bản mới. Máy của bạn không bị lỗi gì.',
   'The server answers only the networks your admin has added, usually the office one. Back on that network, type /update again.': 'Máy chủ chỉ trả lời những mạng mà quản trị viên đã thêm, thường là mạng văn phòng. Khi về lại mạng đó, gõ /update lần nữa là được.',
   'Working somewhere else for a while? Ask your admin to add the network you are on. (For the admin: the server answered 403.)': 'Bạn làm việc ở nơi khác một thời gian? Nhờ quản trị viên thêm mạng bạn đang dùng. (Cho quản trị viên: máy chủ trả 403.)',
+  'turn a document or your team\'s procedure into a new skill, as a draft you review first': 'biến một tài liệu hay quy trình của phòng bạn thành skill mới, dưới dạng bản nháp để bạn xem trước',
 }

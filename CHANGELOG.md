@@ -2,7 +2,10 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.31.9 - 2026-11-14
+
+### Added
+- A new everyday skill, `/ai-worker:make-skill`: it turns a document or a team's procedure into a new skill for Claude. It refuses a source that holds a password, a key or a token, leaves personal data out, keeps the skill as a draft on the computer, and switches it on only after the user says yes.
 
 ### Changed
 - `/update` on a network the company server refuses now says so in plain words: the network is not allowed, nothing is wrong with the computer, try again at the office or ask the admin to add the network. It used to say "server returned 403". The code is still shown at the end, for the admin.

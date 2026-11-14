@@ -57,7 +57,7 @@ Type these in the chat box of the Code tab:
 
 **What else comes with the plugin.** Type `/ai-worker:help` to see the list as it is on your computer. In short:
 
-- **Skills,** which Claude follows when you type their name or ask in your own words: for everyday work, `/ai-worker:handoff` (write a handoff note so the next session can carry on), `/ai-worker:meeting-notes` (turn rough notes into minutes), `/ai-worker:lesson-generator` (build a small course).
+- **Skills,** which Claude follows when you type their name or ask in your own words: for everyday work, `/ai-worker:handoff` (write a handoff note so the next session can carry on), `/ai-worker:meeting-notes` (turn rough notes into minutes), `/ai-worker:lesson-generator` (build a small course), `/ai-worker:make-skill` (turn a document or your team's procedure into a new skill: it refuses a source holding a password or a key, keeps the skill as a draft, and switches it on only when you say yes).
 - **Helper assistants** (see 1.4): Claude hands side tasks to Gemma, ChatGPT or Gemini by itself, but only to the ones installed on your computer. The list says which ones yours has.
 - **Skills for people who write code or run systems,** such as `/ai-worker:tdd`, `/ai-worker:qa-test`, `/ai-worker:security-audit` and `/ai-worker:write-spec`, and the `planner` assistant for big decisions. They come with the plugin too; if you do not do that kind of work, ignore them. A few need extra tools: see [SKILLS.md](SKILLS.md).
 

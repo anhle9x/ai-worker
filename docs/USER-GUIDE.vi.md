@@ -57,7 +57,7 @@ Gõ trong ô chat của thẻ Code:
 
 **Plugin còn mang theo gì.** Gõ `/ai-worker:help` để xem danh sách đúng như trên máy bạn. Tóm tắt:
 
-- **Skill,** là các bài hướng dẫn Claude làm theo khi bạn gõ tên hoặc nói bằng lời của mình: cho việc hằng ngày có `/ai-worker:handoff` (ghi bàn giao để phiên sau làm tiếp), `/ai-worker:meeting-notes` (biến ghi chú thô thành biên bản họp), `/ai-worker:lesson-generator` (dựng một khoá học nhỏ).
+- **Skill,** là các bài hướng dẫn Claude làm theo khi bạn gõ tên hoặc nói bằng lời của mình: cho việc hằng ngày có `/ai-worker:handoff` (ghi bàn giao để phiên sau làm tiếp), `/ai-worker:meeting-notes` (biến ghi chú thô thành biên bản họp), `/ai-worker:lesson-generator` (dựng một khoá học nhỏ), `/ai-worker:make-skill` (biến một tài liệu hay quy trình của phòng bạn thành skill mới: nó từ chối nguồn có mật khẩu hay khoá, giữ skill ở dạng bản nháp, và chỉ bật khi bạn đồng ý).
 - **Trợ lý phụ** (xem 1.4): Claude tự giao việc phụ cho Gemma, ChatGPT hoặc Gemini, nhưng chỉ cho những trợ lý đã cài trên máy bạn. Danh sách cho biết máy bạn có cái nào.
 - **Skill cho người viết code hoặc vận hành hệ thống,** như `/ai-worker:tdd`, `/ai-worker:qa-test`, `/ai-worker:security-audit`, `/ai-worker:write-spec`, và trợ lý `planner` cho quyết định lớn. Chúng cũng đi kèm plugin; bạn không làm loại việc đó thì cứ bỏ qua. Một vài skill cần thêm công cụ: xem [SKILLS.vi.md](SKILLS.vi.md).
 
