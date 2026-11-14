@@ -54,6 +54,9 @@
     }
   }
   const pinClass = n => (n.critical ? 'critical' : n.waiting ? 'waiting' : n.working ? 'active' : 'idle')
+  // which offices keep their card first when the map is crowded: near the quota limit, then waiting, working, idle
+  // văn phòng nào được giữ thẻ trước khi bản đồ chật: sắp hết hạn mức, rồi đang chờ, đang làm, rảnh
+  const ATTENTION = ['critical', 'waiting', 'active', 'idle']
 
   const CARD_GAP = 4, PIN_WIDTH = 34, PIN_HEIGHT = 44, PIN_GAP = 28, PIN_HEAD = 30
   // Where each pin is drawn from left to right. Two offices close together on the map would put one pin right on top of
@@ -82,44 +85,57 @@
     return x.map(v => Math.max(PIN_WIDTH / 2, Math.min(v, w - PIN_WIDTH / 2)))
   }
   const overlaps = (x0, y0, width, height, o) => x0 < o.x0 + o.width + CARD_GAP && o.x0 < x0 + width + CARD_GAP && y0 < o.y0 + o.height + CARD_GAP && o.y0 < y0 + height + CARD_GAP
-  // Where each office card goes. A card sits beside its own pin, to the right or the left, and slides up or down until it
-  // touches nothing in `blocks`, no card placed before it and no other office's pin; it stays inside the w by h frame when
-  // any such place exists. The place nearest the pin wins, and the side used last time (`last`) wins a near tie, so a card
-  // does not jump between sides while the map turns. Returns the cards with x0, y0 and slot.
-  // Mỗi thẻ văn phòng nằm ở đâu. Thẻ nằm cạnh ghim của chính nó, bên phải hoặc bên trái, và trượt lên hay xuống tới khi
-  // không chạm thứ gì trong `blocks`, không chạm thẻ đã đặt trước và không chạm ghim của văn phòng khác; thẻ nằm gọn trong
-  // khung w nhân h khi còn chỗ như vậy. Chỗ gần ghim nhất được chọn, và bên đã dùng lần trước (`last`) thắng khi gần ngang
-  // nhau, để thẻ không nhảy qua lại giữa hai bên khi bản đồ xoay. Trả về các thẻ kèm x0, y0 và slot.
+  // Where each office card goes, and which cards are shown at all. A card sits beside its own pin, to the right or the
+  // left, and slides up or down until it touches nothing in `blocks`, no card placed before it and no other office's pin.
+  // A card is shown only in a place like that, inside the w by h frame and within LABEL_REACH of its pin: with many
+  // offices there is not room for every card, and one that would cover something or sit far from its pin is hidden
+  // (its pin stays, and the pin still opens the office). Cards are placed in order of `rank` (lowest first: the offices
+  // that need attention), then `size` (largest first), so those keep their card when room runs out.
+  // The place nearest the pin wins, and the side used last time (`last`) wins a near tie, so a card does not jump between
+  // sides while the map turns; a hidden card must fit a little better before it comes back, so it does not flicker.
+  // Returns the cards with hidden and slot, and x0, y0 for the shown ones.
+  // Mỗi thẻ văn phòng nằm ở đâu, và thẻ nào được hiện. Thẻ nằm cạnh ghim của chính nó, bên phải hoặc bên trái, và trượt
+  // lên hay xuống tới khi không chạm thứ gì trong `blocks`, không chạm thẻ đã đặt trước và không chạm ghim văn phòng khác.
+  // Thẻ chỉ được hiện ở một chỗ như thế, nằm trong khung w nhân h và cách ghim của nó không quá LABEL_REACH: khi nhiều
+  // văn phòng thì không đủ chỗ cho mọi thẻ, và thẻ nào sẽ đè lên thứ khác hoặc nằm xa ghim thì bị ẩn
+  // (ghim vẫn còn, và bấm ghim vẫn mở văn phòng đó). Thẻ được đặt theo thứ tự `rank` (thấp trước: các văn phòng
+  // cần chú ý), rồi `size` (lớn trước), để những nơi đó giữ được thẻ khi hết chỗ.
+  // Chỗ gần ghim nhất được chọn, và bên đã dùng lần trước (`last`) thắng khi gần ngang nhau, để thẻ không nhảy qua lại
+  // giữa hai bên khi bản đồ xoay; thẻ đang ẩn phải vừa chỗ hơn một chút mới hiện lại, để nó không chớp tắt.
+  // Trả về các thẻ kèm hidden và slot, cùng x0, y0 cho thẻ được hiện.
+  const LABEL_REACH = 110
   function layoutCards(cards, blocks, w, h) {
     const placed = []
     const pinOf = c => ({ x0: c.sx - PIN_WIDTH / 2, y0: c.sy - PIN_HEIGHT, width: PIN_WIDTH, height: PIN_HEIGHT })
-    for (const c of cards.slice().sort((a, b) => b.sy - a.sy)) {
+    const order = cards.slice().sort((a, b) => (a.rank || 0) - (b.rank || 0) || (b.size || 0) - (a.size || 0) || b.sy - a.sy)
+    for (const c of order) {
       const inTheWay = blocks.concat(placed, cards.filter(o => o !== c).map(pinOf))
       const home = c.sy - 42
       // a pin at the top or bottom edge has its level spot outside the frame: the search starts from the nearest spot inside
       // ghim sát mép trên hoặc mép dưới thì chỗ ngang ghim nằm ngoài khung: việc tìm chỗ bắt đầu từ chỗ gần nhất bên trong
       const start = Math.max(CARD_GAP, Math.min(home, Math.max(CARD_GAP, h - CARD_GAP - c.height)))
+      const reach = LABEL_REACH + (c.last === 'hidden' ? -15 : c.last ? 15 : 0)
       let best = null
       for (const side of ['right', 'left']) {
-        const wanted = side === 'right' ? c.sx + 19 : c.sx - 19 - c.width
-        const x0 = Math.max(CARD_GAP, Math.min(wanted, w - 6 - c.width))
+        const x0 = side === 'right' ? c.sx + 19 : c.sx - 19 - c.width
+        // a card that does not fit beside its pin on this side would have to cover the pin: not a place
+        // thẻ không nằm vừa cạnh ghim ở bên này thì sẽ phải đè lên ghim: không tính là một chỗ
+        if (x0 < CARD_GAP || x0 + c.width > w - 6) continue
         for (const way of ['up', 'down']) {
-          let y0 = start
-          for (let pass = 0, moved = true; moved && pass < 24; pass++) {
+          let y0 = start, moved = true
+          for (let pass = 0; moved && pass < 24; pass++) {
             moved = false
             for (const o of inTheWay) if (overlaps(x0, y0, c.width, c.height, o)) { y0 = way === 'up' ? o.y0 - c.height - CARD_GAP : o.y0 + o.height + CARD_GAP; moved = true }
           }
+          if (moved || y0 < CARD_GAP || y0 + c.height > h - CARD_GAP || Math.abs(y0 - start) > reach) continue
           const slot = side + '-' + way
-          const outside = y0 < CARD_GAP || y0 + c.height > h - CARD_GAP
-          // a card pushed off its side would cover its own pin, and one outside the frame is cut off: both are last resorts
-          // thẻ bị ép lệch khỏi bên của nó sẽ đè lên ghim của chính nó, còn thẻ ra ngoài khung thì bị cắt: cả hai là lựa chọn cuối cùng
-          const cost = Math.abs(y0 - home) + (side === 'left' ? 2 : 0) + (x0 !== wanted ? 400 : 0) + (outside ? 4000 : 0) - (slot === c.last ? 14 : 0)
+          const cost = Math.abs(y0 - home) + (side === 'left' ? 2 : 0) - (slot === c.last ? 14 : 0)
           if (!best || cost < best.cost) best = { x0, y0, slot, cost }
         }
       }
-      const spot = { x0: best.x0, y0: Math.max(CARD_GAP, Math.min(best.y0, Math.max(CARD_GAP, h - CARD_GAP - c.height))), width: c.width, height: c.height }
-      placed.push(spot)
-      Object.assign(c, { x0: spot.x0, y0: spot.y0, slot: best.slot })
+      if (!best) { Object.assign(c, { hidden: true, slot: 'hidden' }); continue }
+      placed.push({ x0: best.x0, y0: best.y0, width: c.width, height: c.height })
+      Object.assign(c, { hidden: false, x0: best.x0, y0: best.y0, slot: best.slot })
     }
     return cards
   }
@@ -178,8 +194,8 @@
       if (api.hud) api.hud.refresh()
       return list
     }
-    // pins stay in place; each card is put where it covers no other card, no other office's pin and not the branch list
-    // ghim đứng đúng chỗ; mỗi thẻ được đặt ở chỗ không đè thẻ khác, không đè ghim của văn phòng khác và không đè danh sách chi nhánh
+    // pins stay in place; each card is put where it covers no other card, no other office's pin and not the branch list, or is hidden when no such place is left
+    // ghim đứng đúng chỗ; mỗi thẻ được đặt ở chỗ không đè thẻ khác, không đè ghim của văn phòng khác và không đè danh sách chi nhánh, hoặc bị ẩn khi không còn chỗ như vậy
     function place(enabled, w) {
       // r.px is where the pin is drawn: its own place, moved sideways only when another pin sits on it
       // r.px là chỗ vẽ ghim: đúng chỗ của nó, chỉ lệch ngang khi có ghim khác nằm đè lên
@@ -199,15 +215,22 @@
       const shown = list.filter(x => x.hidden && enabled)
       if (!shown.length) return
       const box = cls.getBoundingClientRect(), blocks = []
-      // on a wide screen the branch list floats over the map's corner: a card under it could not be read or clicked
-      // trên màn hình rộng, danh sách chi nhánh nổi trên góc bản đồ: thẻ nằm dưới nó thì không đọc và không bấm được
-      const map = host.closest('.o-map'), branchList = map && map.querySelector('.o-bd-list')
-      const l = branchList && branchList.getBoundingClientRect()
-      if (l && l.width && l.height && l.left < box.right && l.right > box.left && l.top < box.bottom && l.bottom > box.top) blocks.push({ x0: l.left - box.left, y0: l.top - box.top, width: l.width, height: l.height })
-      const cards = shown.map(r => ({ r, sx: r.px, sy: r.sy, width: r.e.offsetWidth, height: r.e.offsetHeight, last: r.slot }))
+      // things that float over the map: the branch list in the corner on a wide screen, the buttons that pick the map
+      // style and zoom, the column-height buttons of the tilted map. A card under one could not be read, and a card over
+      // the buttons would take their clicks
+      // những thứ nổi trên bản đồ: danh sách chi nhánh ở góc trên màn hình rộng, các nút chọn kiểu bản đồ và phóng to,
+      // các nút chọn chiều cao cột của bản đồ nghiêng. Thẻ nằm dưới chúng thì không đọc được, còn thẻ nằm trên
+      // các nút thì nhận mất cú bấm của nút
+      const map = host.closest('.o-map')
+      for (const el of map ? map.querySelectorAll('.o-bd-list, .o-bd-kind, .bd-metric') : []) {
+        const l = el.getBoundingClientRect()
+        if (l.width && l.height && l.left < box.right && l.right > box.left && l.top < box.bottom && l.bottom > box.top) blocks.push({ x0: l.left - box.left, y0: l.top - box.top, width: l.width, height: l.height })
+      }
+      const cards = shown.map(r => ({ r, sx: r.px, sy: r.sy, width: r.e.offsetWidth, height: r.e.offsetHeight, last: r.slot,
+        rank: ATTENTION.indexOf(pinClass(r.n)), size: r.n.members.length }))
       for (const c of layoutCards(cards, blocks, w, box.height)) {
         c.r.slot = c.slot
-        c.r.e.style.transform = `translate(${c.x0}px,${c.y0}px)`
+        if (c.hidden) { c.r.e.style.opacity = 0; c.r.e.style.pointerEvents = 'none' } else c.r.e.style.transform = `translate(${c.x0}px,${c.y0}px)`
       }
     }
     return { cls, syncPins, place, list: () => list, fetchFn: id => pins.get(id) }

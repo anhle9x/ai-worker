@@ -31,7 +31,9 @@ function check(name, ok, detail) {
 function broken(cards, blocks, w, h) {
   const bad = []
   cards.forEach((a, i) => {
-    for (const b of cards.slice(i + 1)) if (touches(a, b)) bad.push(a.name + ' covers the card of ' + b.name)
+    if (a.hidden) return
+    for (const b of cards.slice(i + 1)) if (!b.hidden && touches(a, b)) bad.push(a.name + ' covers the card of ' + b.name)
+    if (Math.abs(a.y0 - Math.max(GAP, Math.min(a.sy - 42, h - GAP - a.height))) > 125) bad.push(a.name + ' is far from its pin')
     for (const b of cards) if (b !== a && touches(a, pinOf(b))) bad.push(a.name + ' covers the pin of ' + b.name)
     for (const b of blocks) if (touches(a, b)) bad.push(a.name + ' covers a blocked area')
     if (a.x0 < 0 || a.x0 + a.width > w || a.y0 < 0 || a.y0 + a.height > h) bad.push(a.name + ' is outside the frame')
@@ -82,11 +84,22 @@ function broken(cards, blocks, w, h) {
   check('big push: the card changes side', left.slot.startsWith('left') && left.y0 === 158, JSON.stringify(left))
 }
 
-// 5. a frame with no free place: every card still gets a place inside the frame's height and nothing throws
-// 5. khung không còn chỗ trống: thẻ nào cũng vẫn có chỗ trong chiều cao khung và không lỗi
+// 5. a frame with room for one card only: that card is shown, the others are hidden instead of covering it
+// 5. khung chỉ đủ chỗ cho một thẻ: thẻ đó được hiện, các thẻ khác bị ẩn thay vì đè lên nó
 {
-  const h = 120, cards = layoutCards([card('A', 100, 60), card('B', 104, 64), card('C', 108, 68), card('D', 112, 72)], [], 260, h)
-  check('no room: cards stay within the height of the frame', cards.every(c => Number.isFinite(c.x0) && c.y0 >= GAP && c.y0 + c.height <= h - GAP), JSON.stringify(cards.map(c => [c.x0, c.y0])))
+  const w = 520, h = 70, cards = layoutCards([card('A', 250, 60), card('B', 254, 62), card('C', 258, 64), card('D', 262, 66)], [], w, h)
+  const shown = cards.filter(c => !c.hidden)
+  check('no room: one card shown, the rest hidden, nothing covered', shown.length >= 1 && shown.length < 4 && cards.every(c => c.hidden === (c.slot === 'hidden')) && broken(cards, [], w, h).length === 0, JSON.stringify(cards.map(c => [c.name, c.slot])))
+  const none = layoutCards([card('A', 100, 60)], [], 260, 120)
+  check('frame narrower than a card beside its pin: the card is hidden, not laid over the pin', none[0].hidden === true, JSON.stringify(none[0]))
+}
+
+// 5b. room for one card and two offices want it: the one that needs attention gets it, whichever comes first
+// 5b. chỗ chỉ đủ một thẻ mà hai văn phòng cùng cần: nơi cần chú ý được chỗ đó, bất kể nơi nào đứng trước
+{
+  const pair = urgent => layoutCards([Object.assign(card('Calm', 230, 60), { rank: urgent === 'Calm' ? 0 : 3 }), Object.assign(card('Other', 480, 60), { rank: urgent === 'Other' ? 0 : 3 })], [{ x0: 0, y0: 0, width: 215, height: 70 }], 700, 70)
+  const first = pair('Calm'), second = pair('Other')
+  check('one place, two offices: the one near its quota limit keeps its card', !first[0].hidden && first[1].hidden && second[0].hidden && !second[1].hidden, JSON.stringify([first.map(c => c.slot), second.map(c => c.slot)]))
 }
 
 // 6. many offices spread over a wide map: still nothing covered
@@ -116,6 +129,25 @@ function broken(cards, blocks, w, h) {
   check('pins passing each other: no swap of sides', kept[1] > kept[0], JSON.stringify(kept))
   const edge = spreadPins([{ sx: 4, sy: 200 }, { sx: 6, sy: 200 }], 900)
   check('at the left edge: pins stay inside the frame', edge.every(v => v >= 17), JSON.stringify(edge))
+}
+
+// 8. many offices: 34 over the whole country in the small panel. Nothing is covered, the cards shown stay near their
+//    pins
+// 8. nhiều văn phòng: 34 nơi trên cả nước trong khung nhỏ. Không gì bị đè, thẻ được hiện nằm gần ghim của nó
+{
+  const w = 938, h = 300, list = [{ x0: 680, y0: 8, width: 250, height: 284 }]
+  const P = [[105.85,21.03],[106.68,20.86],[107.08,20.95],[106.08,21.19],[106.05,20.65],[105.97,20.25],[105.84,21.59],[105.40,21.32],[103.97,22.48],[105.21,21.82],[106.26,22.67],[106.76,21.85],[103.02,21.39],[103.46,22.40],[103.91,21.33],[105.78,19.81],[105.69,18.67],[105.90,18.34],[107.10,16.82],[107.59,16.46],[108.20,16.05],[108.80,15.12],[108.00,13.98],[108.05,12.67],[109.19,12.24],[108.44,11.94],[106.82,10.95],[106.70,10.78],[106.10,11.31],[105.63,10.46],[105.97,10.25],[105.78,10.03],[105.13,10.52],[105.15,9.18]]
+  const pts = P.map(([lon, lat], i) => ({ name: 'Office ' + i, sx: 434 + (lon - 105.85) * 14.9, sy: 72 + (21.03 - lat) * 14.9 }))
+  const px = window.MapCommon.spreadPins(pts, w)
+  const make = () => pts.map((p, i) => Object.assign(card(p.name, px[i], p.sy), { rank: 3, size: 1 }))
+  const calm = layoutCards(make(), list, w, h)
+  const bad = broken(calm, list, w, h), shown = calm.filter(c => !c.hidden).length
+  check('34 offices in the small panel: nothing is covered', bad.length === 0, bad.slice(0, 4).join('; '))
+  check('34 offices in the small panel: some cards shown, the rest hidden', shown >= 3 && shown < 34, shown + ' shown')
+  // a card that is hidden stays hidden when the same picture is laid out again, and a shown one stays shown
+  // thẻ đang ẩn vẫn ẩn khi cùng một hình được xếp lại, và thẻ đang hiện vẫn hiện
+  const again = layoutCards(make().map((c, i) => Object.assign(c, { last: calm[i].slot })), list, w, h)
+  check('34 offices: laying out again changes nothing', again.every((c, i) => c.hidden === calm[i].hidden), again.filter((c, i) => c.hidden !== calm[i].hidden).map(c => c.name).join(','))
 }
 
 if (failed) { console.error(failed + ' of ' + (failed + passed) + ' checks failed'); process.exit(1) }

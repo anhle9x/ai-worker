@@ -1085,7 +1085,7 @@
       }
       kindBox.append(fullButton)
       mapBox.replaceChildren(mapOverlay, mapList, kindBox)
-      if (!branches.length) mapBox.append(o('div', 'o-bd-empty', isAdmin ? tx('No locations yet. Name the computer groups on the Admin page.') : tx('No locations yet.')))
+      if (!branches.length) mapBox.append(o('div', 'o-bd-empty', isAdmin ? tx('No office on the map yet: an office appears once a computer there has sent numbers. Name new computer groups on the Admin page.') : tx('No office on the map yet.')))
     }
     function branchCard(n, rate) {
       hoverCard.replaceChildren(cardCloseButton, o('b', '', n.b.name), o('br'))

@@ -2,6 +2,12 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.31.6 - 2026-11-14
+
+### Changed
+- A branch appears on the board's map and in its list once a computer there has sent numbers. A branch that is only declared, with no computer yet, stays on the Admin page and off the map and the wall display.
+- On a map with many offices there is not room for every office's label. A label is now shown only where it covers no other label, no pin, not the list of offices and not the map's own buttons, and stays near its pin; the others are hidden and their pins still open the office. Offices near their quota limit or with people waiting are given their label first. With a few offices nothing changes.
+
 ## 0.31.5 - 2026-11-14
 
 ### Fixed

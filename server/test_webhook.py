@@ -198,6 +198,33 @@ class ViaHttp(unittest.TestCase):
         self.assertIn("unnamedGroups", d)
         self.assertTrue(any(b.get("customNetworks") for b in d["branches"]))
 
+    def test_a_branch_is_on_the_board_only_once_a_computer_has_sent_from_it(self):
+        network = "45.5.5.5"
+        stores.LOCATIONS.mutate(lambda d: views.edit_location(d, {"ip": network, "name": "Da Nang", "lat": 16.05, "lon": 108.2}))
+        try:
+            # declared, no computer yet: the Admin page manages it, the board and the wall display leave it out
+            # đã khai báo, chưa có máy nào: trang Quản trị quản lý nó, bảng và màn hình treo tường bỏ nó ra
+            for name in ("adm", "viewer", "wall"):
+                with self.subTest(role=name):
+                    names = [b["name"] for b in self.fetch("/data", name)["branches"]]
+                    self.assertIn("Hanoi", names)
+                    self.assertNotIn("Da Nang", names)
+            self.assertIn("Da Nang", [b["name"] for b in self.fetch("/admin/data", "adm")["branches"]])
+            # one computer sends from that network: the branch is on the board from then on, even after the computer goes offline
+            # một máy gửi từ mạng đó: chi nhánh có mặt trên bảng từ lúc ấy, kể cả sau khi máy ngoại tuyến
+            devices.save_device({"v": 1, "device": "device-chi", "name": "Chi", "account": "chi@example.com", "ip": network,
+                                 "updatedAt": int((NOW - 3 * 86400) * 1000), "openSessions": 0, "working": 0})
+            for name in ("adm", "viewer", "wall"):
+                with self.subTest(role=name, sent=True):
+                    self.assertIn("Da Nang", [b["name"] for b in self.fetch("/data", name)["branches"]])
+            board = self.fetch("/data", "adm")
+            chi = next(p for p in board["people"] if p["name"] == "Chi")
+            self.assertEqual(chi["status"], "offline")
+            self.assertEqual(chi["branch"], next(b["id"] for b in board["branches"] if b["name"] == "Da Nang"))
+        finally:
+            drop_device("device-chi")
+            stores.LOCATIONS.mutate(lambda d: views.edit_location(d, {"ip": network, "remove": True, "confirm": True}))
+
 
 class SafeDefaults(unittest.TestCase):
     def test_listens_internal_and_has_timeout(self):

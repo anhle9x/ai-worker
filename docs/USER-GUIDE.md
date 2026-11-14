@@ -251,6 +251,8 @@ The board groups computers by the network they send from.
 
 - **Unnamed groups of devices:** choose a group, then a province or city, and give it a name (empty uses the province name).
 - New computers on the same network join the right branch by themselves.
+- A branch appears on the board's map once a computer there has sent numbers, and stays while one has sent in the last 30 days. A branch that is only declared, with no computer yet, is listed on the Admin page but not on the map.
+- A person who moves to another office is counted there from the next time their computer sends from that office's network; nobody has to change anything.
 - Staff at home, on 4G or travelling fall under "Mobile / unassigned".
 
 ### 3.5 Team plan

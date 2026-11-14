@@ -242,14 +242,19 @@ def _pick(d: dict, allowed: frozenset) -> dict:
     return {k: v for k, v in d.items() if k in allowed}
 
 
-def role_view(role: str, now: float) -> dict:
+def role_view(role: str, now: float, every_branch: bool = False) -> dict:
     """The board's numbers by role: the only way user data goes out.
-    Số liệu của bảng đúng theo vai: đường duy nhất đưa số liệu người dùng ra ngoài."""
+    A branch is on the board once a computer there has sent numbers; one that is only declared, with no computer yet,
+    is left out unless every_branch is set (the Admin page, which has to manage those too).
+    Số liệu của bảng đúng theo vai: đường duy nhất đưa số liệu người dùng ra ngoài.
+    Chi nhánh có mặt trên bảng khi đã có máy ở đó gửi số liệu; nơi mới chỉ khai báo, chưa có máy nào,
+    bị bỏ ra trừ khi đặt every_branch (trang Quản trị, nơi vẫn phải quản lý cả những chi nhánh đó)."""
     raw = _raw_data(now)
     v = role if role in COMMON_FIELDS_BY_ROLE else WALL
     d = _pick(raw, COMMON_FIELDS_BY_ROLE[v])
     d["people"] = [_pick(p, PERSON_FIELDS_BY_ROLE[v]) for p in raw["people"]]
-    d["branches"] = [_pick(b, BRANCH_FIELDS_BY_ROLE[v]) for b in raw["branches"]]
+    connected = {p["branch"] for p in raw["people"]}
+    d["branches"] = [_pick(b, BRANCH_FIELDS_BY_ROLE[v]) for b in raw["branches"] if every_branch or b["id"] in connected]
     if v == WALL:
         for p in d["people"]:
             p.update(name=wall_name(p["name"]), account=alias(p["account"]))
@@ -309,7 +314,7 @@ def tv_action(path: str, body: dict, actor: str) -> tuple:
 
 
 def admin_data(now: float, cookie: str, month: str) -> dict:
-    d = role_view(ADMIN, now)
+    d = role_view(ADMIN, now, every_branch=True)
     if not re.fullmatch(r"\d{4}-\d{2}", month or ""):
         month = datetime.fromtimestamp(now, LOCAL_TZ).strftime("%Y-%m")
     tv = []

@@ -251,6 +251,8 @@ Bảng tổng gom máy theo mạng mà máy gửi số liệu từ đó.
 
 - **Nhóm máy chưa đặt tên:** chọn một nhóm, chọn tỉnh hoặc thành phố, đặt tên (để trống thì lấy tên tỉnh).
 - Máy mới ở cùng mạng tự vào đúng chi nhánh.
+- Một chi nhánh hiện trên bản đồ của bảng khi đã có máy ở đó gửi số liệu, và còn hiện chừng nào có máy đã gửi trong 30 ngày gần đây. Chi nhánh mới chỉ khai báo, chưa có máy nào, thì có trong trang Quản trị nhưng chưa có trên bản đồ.
+- Người chuyển sang văn phòng khác được tính ở đó từ lần kế tiếp máy họ gửi số liệu từ mạng của văn phòng ấy; không ai phải sửa gì.
 - Nhân viên ở nhà, dùng 4G hay đi công tác nằm trong nhóm "Di động / chưa gắn".
 
 ### 3.5 Gói Team
