@@ -51,6 +51,9 @@ Gõ trong ô chat của thẻ Code:
 | `/update` | Kiểm tra bản mới trên máy chủ công ty và cài |
 | `/ai-worker:help` | Liệt kê những gì plugin có trên máy này: lệnh, skill, trợ lý phụ |
 | `/ai-worker:board` | Cho quản lý: ghép máy này với bảng công ty, để Claude trả lời được câu hỏi về cả đội (xem 2.5) |
+| `/ai-worker:voice` | Nói thay vì gõ, có cả tiếng Việt: mở trang cài đặt đọc chính tả của máy này và hiện các bước |
+
+**Nói thay vì gõ.** Bạn không cần tự tìm trang cài đặt: gõ `/ai-worker:voice`, hoặc cứ nói với Claude là bạn muốn nói thay vì gõ. Trên Mac, lệnh mở trang Keyboard của System Settings, ở đó bạn bật Dictation và tick ngôn ngữ của mình một lần; sau đó chỉ cần bấm phím micro một lần trong ô soạn tin (đừng giữ: giữ phím là gọi Siri) rồi nói. Trên Windows, lệnh mở trang Language & region, ở đó bạn thêm ngôn ngữ của mình một lần; sau đó bấm phím Windows + H. Plugin không đổi cài đặt nào và không nghe gì cả: tính năng đọc chính tả là của chính máy bạn. Mac ghi ngay dưới mục Dictation là giọng nói ở lại trên máy hay gửi về Apple; Windows gửi về Microsoft. Khi giọng nói rời khỏi máy thì đừng đọc tên người hay số liệu nội bộ.
 
 **Plugin còn mang theo gì.** Gõ `/ai-worker:help` để xem danh sách đúng như trên máy bạn. Tóm tắt:
 
@@ -219,7 +222,7 @@ Quản lý có thể hỏi Claude về cả đội bằng lời của mình, gõ
 
 - **Claude đọc được gì:** đúng những gì màn hình treo tường hiện: tên từng người, trạng thái, số phút đang chờ, chi phí hôm nay và 7 ngày, hạn mức và mô hình, cùng các văn phòng. Không bao giờ có email hay IP.
 - **Số liệu đi đâu:** những con số Claude đọc trở thành một phần cuộc trò chuyện của bạn với Claude, như mọi thứ khác bạn làm cùng nó. Máy chủ bảng không lưu câu hỏi hay câu trả lời nào.
-- **Muốn nói thay vì gõ:** dùng đọc chính tả của máy trong ô nhập của Claude: phím micro trên Mac, phím Windows + H trên Windows. Lệnh `/voice` của Claude Code không có đủ mọi ngôn ngữ, trong đó chưa có tiếng Việt.
+- **Muốn nói thay vì gõ:** gõ `/ai-worker:voice` một lần để cài đọc chính tả của máy (xem 1.2), rồi dùng nó trong ô nhập của Claude: phím micro trên Mac, phím Windows + H trên Windows. Lệnh `/voice` của Claude Code không có đủ mọi ngôn ngữ, trong đó chưa có tiếng Việt.
 - **Muốn dừng:** gõ `/ai-worker:board unpair`, hoặc người quản trị bấm **Thu hồi** ở trang Quản trị. Ngoài mạng văn phòng thì bảng không trả lời, và lần ghép vẫn được giữ.
 - Máy chưa ghép thì không có công cụ này, nên với nhân viên không có gì thay đổi.
 

@@ -51,6 +51,9 @@ Type these in the chat box of the Code tab:
 | `/update` | Checks the company server for a new version and installs it |
 | `/ai-worker:help` | Lists what the plugin gives on this computer: commands, skills, helper assistants |
 | `/ai-worker:board` | For managers: pairs this computer with the company board, so Claude can answer questions about the team (see 2.5) |
+| `/ai-worker:voice` | Speak instead of typing, in Vietnamese too: opens the dictation settings of this computer and shows the steps |
+
+**Speak instead of typing.** You do not need to find the settings yourself: type `/ai-worker:voice`, or just tell Claude you want to speak instead of typing. On a Mac it opens the Keyboard page of System Settings, where you turn Dictation on and tick your language once; after that, press the microphone key once in the message box (do not hold it: holding calls Siri) and speak. On Windows it opens the Language & region page, where you add your language once; after that, press the Windows key + H. The plugin changes no setting and listens to nothing: the dictation is your computer's own. A Mac says under Dictation whether your voice stays on the Mac or goes to Apple; Windows sends it to Microsoft. Do not say names of people or internal figures aloud when it leaves the computer.
 
 **What else comes with the plugin.** Type `/ai-worker:help` to see the list as it is on your computer. In short:
 
@@ -219,7 +222,7 @@ A manager can ask Claude about the team in their own words, typed or dictated, i
 
 - **What Claude can read:** what a wall screen shows: each person's name, state, minutes waiting, cost today and over 7 days, quota and model, and the offices. Never an email or an IP.
 - **Where it goes:** the numbers Claude reads become part of your conversation with Claude, like anything else you work on with it. The board server keeps no question and no answer.
-- **To speak instead of typing:** use your system's dictation in the Claude message box: the microphone key on a Mac, Windows key + H on Windows. Claude Code's own `/voice` does not list every language.
+- **To speak instead of typing:** type `/ai-worker:voice` once to set up your system's dictation (see 1.2), then use it in the Claude message box: the microphone key on a Mac, Windows key + H on Windows. Claude Code's own `/voice` does not list every language.
 - **To stop:** type `/ai-worker:board unpair`, or an admin clicks **Revoke** on the Admin page. Away from the office network the board does not answer, and the pairing is kept.
 - A computer that is not paired has no such tool, so nothing changes for staff.
 

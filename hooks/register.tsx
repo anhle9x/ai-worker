@@ -21,6 +21,8 @@ import { pageLanguageScript, setLang, tx } from './lang'
 import { BOARD_CODE_MS, BOARD_KEY, BOARD_SCHEMA, BOARD_TOOL, boardToolDescription, boardUnreachable, boardUserAgent, pairedText, pairingSteps, summarizeBoard } from './board'
 import type { BoardPairing } from './board'
 import { buildHelp, skillLine } from './help'
+import { voiceSettingsCommand, voiceSteps } from './voice'
+import type { VoiceSystem } from './voice'
 import type { SkillLine } from './help'
 import { BADGE_MS, BRAND, FX_MS, WORKERS, applyConfig, setInstalled, buildOfficeSvg, clockLabel, dayLabel, formatSecs, workerView } from './office'
 import type { OfficeConfig } from './office'
@@ -106,6 +108,7 @@ const sharedRules = () => [
   tx('- Do not send to outside AI services (ChatGPT, Gemini...): names or personal information, internal documents, unpublished company figures, keys, passwords, internal addresses.'),
   tx('- Split work across many assistants that check each other only when the task is large or hard to undo, and first ask the user one question with buttons saying what the task is, why, and that it uses a lot of quota; once agreed, run exactly that task. Do not make the user turn on the Ultracode switch.'),
   tx('- If the user pastes something that looks like a password, a key or someone else\'s personal data, point it out before going on.'),
+  tx('- When the user wants to speak instead of typing, or asks how to dictate in Vietnamese or another language: tell them to type `/ai-worker:voice`. It opens the dictation settings of their computer and shows the steps; do not walk them through the settings yourself.'),
   tx('- After changing an interface, open the real page and look at both the desktop and the phone size before saying it is done; if you could not look, say clearly that you did not.'),
   tx('- Facts such as prices, dates, versions and rules: open at least one original source to check and name the source; if you could not check, say clearly "not verified".'),
   tx('- End with one clear recommendation and the reason for it, not just a list of options for the user to choose from.'),
@@ -1339,18 +1342,21 @@ const techRules = () => [
 /** /ai-worker:help: những gì plugin có trên máy này, đọc từ thư mục của chính plugin và từ phiên này. */
 const BOARD_TOOL_NAME = /^mcp__ai-worker__office_board$/
 
+/** Which system this computer runs, in the plugin's own words for it. */
+/** Máy này chạy hệ nào, theo cách gọi của plugin. */
+async function hostSystem($: EngineInterface): Promise<VoiceSystem> {
+  if ((await $.env.get('OS')) === 'Windows_NT') return 'Windows'
+  try {
+    return (await $.process.run(['uname', '-s'])).stdout.trim() === 'Darwin' ? 'Mac' : 'Linux'
+  } catch {
+    return 'Linux'
+  }
+}
+
 /** One request to the board with a key in the Authorization header. A network error reads as status 0, so the caller has one shape to handle. */
 /** Một yêu cầu tới bảng kèm khoá trong header Authorization. Lỗi mạng đọc thành trạng thái 0, để nơi gọi chỉ phải xử lý một dạng. */
 async function boardFetch($: EngineInterface, path: string, key: string | undefined, method: 'GET' | 'POST' = 'GET') {
-  const windows = (await $.env.get('OS')) === 'Windows_NT'
-  let system = 'Windows'
-  if (!windows) {
-    try {
-      system = (await $.process.run(['uname', '-s'])).stdout.trim() === 'Darwin' ? 'Mac' : 'Linux'
-    } catch {
-      system = 'Linux'
-    }
-  }
+  const system = await hostSystem($)
   try {
     const r = await $.http.fetch(`${share.webhook}${path}`, {
       method,
@@ -1477,6 +1483,23 @@ async function runHelp($: EngineInterface): Promise<{ text: string }> {
   }
   skills.sort((a, b) => a.name.localeCompare(b.name))
   return { text: buildHelp({ title: BRAND.title, version: await pluginVersion($), skills, workers: own, viaMcp, sharing: share.enabled }) }
+}
+
+/** /ai-worker:voice: opens the settings page of the computer's own dictation and shows the steps. It changes no setting. */
+/** /ai-worker:voice: mở trang cài đặt của tính năng đọc chính tả có sẵn trên máy và hiện các bước. Không đổi cài đặt nào. */
+async function runVoice($: EngineInterface): Promise<{ text: string }> {
+  const system = await hostSystem($)
+  const argv = voiceSettingsCommand(system)
+  let opened = false
+  if (argv) {
+    try {
+      opened = (await $.process.run(argv, { timeoutMs: 15_000 })).exitCode === 0
+    } catch {
+      // the page did not open: the steps then say how to get there by hand
+      // trang không mở được: khi đó các bước chỉ cách tự đi tới
+    }
+  }
+  return { text: voiceSteps(system, opened) }
 }
 
 /** /office: the dashboard in the browser, or the side panel when no browser opens. */
@@ -1627,6 +1650,9 @@ export const register: Register = on => {
   // no short name: /help is Claude Code's own
   // không có tên ngắn: /help là của chính Claude Code
   on('command.run', { command: 'ai-worker:help' }, $ => runHelp($))
+  // no short name either: /voice is Claude Code's own dictation
+  // cũng không có tên ngắn: /voice là tính năng đọc chính tả của chính Claude Code
+  on('command.run', { command: 'ai-worker:voice' }, $ => runVoice($))
   on('command.run', { command: 'board' }, ($, e) => runBoard($, e.args))
   on('command.run', { command: 'ai-worker:board' }, ($, e) => runBoard($, e.args))
 

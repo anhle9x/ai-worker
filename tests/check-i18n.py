@@ -28,7 +28,7 @@ GROUPS = {
                                 "server/static/map2d.js", "server/static/map25d.js", "server/static/map3d.js"],
     "server/static/admin.vi.js": ["server/static/admin.js"],
     "web/index.vi.js": ["web/index.html"],
-    "hooks/lang.vi.ts": ["hooks/activity.ts", "hooks/board.ts", "hooks/edits.ts", "hooks/help.ts", "hooks/office.ts", "hooks/register.tsx", "hooks/team.ts", "hooks/update.ts", "hooks/workers.ts"],
+    "hooks/lang.vi.ts": ["hooks/activity.ts", "hooks/board.ts", "hooks/edits.ts", "hooks/help.ts", "hooks/office.ts", "hooks/register.tsx", "hooks/team.ts", "hooks/update.ts", "hooks/voice.ts", "hooks/workers.ts"],
 }
 
 

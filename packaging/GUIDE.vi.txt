@@ -25,6 +25,7 @@ CÀI ĐẶT
    /office-pane   mở bản 2D cạnh khung chat
    /ai-worker:help   liệt kê những gì plugin có trên máy này: lệnh, skill, trợ lý phụ
    /ai-worker:board  cho quản lý: ghép với bảng công ty, để Claude trả lời được câu hỏi về cả đội
+   /ai-worker:voice  nói thay vì gõ, có cả tiếng Việt: mở trang cài đặt đọc chính tả của máy này và hiện các bước
 
 Plugin được chép vào thư mục claude-plugins-ai-worker trong thư mục người dùng,
 nên xoá thư mục giải nén sau khi cài cũng không sao.

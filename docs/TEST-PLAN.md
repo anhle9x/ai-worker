@@ -28,6 +28,7 @@ GitHub Actions runs `.github/workflows/test-install.yml` on every push. A releas
 | A computer cannot send for another person; send limits | `test_webhook.py` |
 | Office labels and pins on the maps: pins that meet are drawn side by side; with many offices the labels with no free place are hidden; no label covers another label, another office's pin or the list of offices, none leaves the frame | `tests/check-map-layout.js` |
 | A manager's Claude plugin and the board: pairing by code, reading only the wall view, revoke, unpair, refused network, denied permission | `test_webhook.py` (class `ExtensionPairing`), `tests/board.test.ts` |
+| `/ai-worker:voice`: the right settings page and steps for a Mac, Windows and Linux; steps by hand when the page does not open; nothing else is run | `tests/voice.test.ts` |
 | The demo with sample people: starts, opens with the code it prints, ignores a real board's settings, deletes its data when stopped | `test_demo.py` |
 | Cost by hour, no double count after reopening a session | `tests/cost.test.ts` |
 | No prompt, chat or secret file content leaves the machine | `tests/activity.test.ts`, `tests/edits.test.ts`, `tests/team.test.ts`, `tests/office.test.tsx` |
@@ -71,6 +72,7 @@ Automatic tests use fake servers and fake browsers. Before a release that touche
 | Part | Machine | Check | Correct result |
 |---|---|---|---|
 | Plugin install | A real Mac and a real Windows PC | Run the installer, open Claude Code, type `/office` | The office page opens; the computer appears on the dashboard within 5 minutes |
+| Speaking instead of typing | A real Mac and a real Windows PC with a microphone | Type `/ai-worker:voice`, follow the steps, then dictate a Vietnamese sentence in the message box | The settings page opens; the sentence appears in Vietnamese with its accents |
 | Update | A computer on the previous version | Wait for or force the update check, click **Update**, restart the app | The new version number shows in `/office` |
 | Login with OTP | A real phone with Google or Microsoft Authenticator | Scan the QR on `/admin`, log in | Logged in; a wrong code 5 times locks for 15 minutes |
 | Login with Telegram | A real Telegram account and the bot of the server | On `/telegram` enter the code and press the button, log out, press **Log in with Telegram** on the login page | Back on the dashboard without typing the name or code |

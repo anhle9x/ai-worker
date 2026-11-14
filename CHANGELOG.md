@@ -2,7 +2,10 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.31.8 - 2026-11-14
+
+### Added
+- `/ai-worker:voice` helps people speak instead of typing, in Vietnamese too. It opens the settings page of the computer's own dictation (Keyboard on a Mac, Language & region on Windows) and shows the few steps to do once. Telling Claude "I want to speak instead of typing" points to the same command. The plugin changes no setting and brings no speech recognition of its own.
 
 ### Changed
 - The example question shown after `/ai-worker:board` pairs, and in the README and the user guide, is now "who is waiting longest right now?". The board knows who is waiting at this moment and for how long, not who waited earlier in the day.
