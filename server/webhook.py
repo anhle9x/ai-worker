@@ -119,6 +119,7 @@ from board.settings import (
     CONNECTION_DEADLINE_SECONDS,
     DATA_DIR,
     KIND_EXTENSION,
+    KIND_PLUGIN,
     MAX_BODY_BYTES,
     MAX_CONNECTIONS,
     MAX_CONNECTIONS_PER_IP,
@@ -142,6 +143,7 @@ from board.stores import (
     MenubarLimit,
     device_label,
     is_menubar_client,
+    is_plugin_client,
     is_tv,
 )
 from board.views import (
@@ -678,7 +680,9 @@ class Handler(BaseHTTPRequestHandler):
         # tiện ích trình duyệt (/ext/...) dùng cùng quy trình, nhưng khoá đi trong header Authorization và trong JSON trả về:
         # cookie sẽ nằm trong chính trình duyệt của quản lý và đè lên phiên đăng nhập bảng của họ
         extension = self.path.startswith("/ext/")
-        kind = KIND_EXTENSION if extension else ""
+        # a manager's Claude plugin pairs on the extension's paths and names itself, so /admin can tell the two apart
+        # plugin Claude của quản lý ghép trên các đường dẫn của tiện ích và tự xưng tên, để /admin phân biệt được hai loại
+        kind = (KIND_PLUGIN if is_plugin_client(user_agent) else KIND_EXTENSION) if extension else ""
         key = self.bearer() if extension else self.pending_key()
         if self.path in ("/tv/request-code", "/ext/request-code"):
             # only a menu bar client's code may later be approved by its owner on /mini/pair; a TV's or an extension's needs an admin

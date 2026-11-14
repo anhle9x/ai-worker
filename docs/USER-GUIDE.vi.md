@@ -50,6 +50,7 @@ Gõ trong ô chat của thẻ Code:
 | `/office-pane` | Mở văn phòng trong khung bên cạnh ô chat |
 | `/update` | Kiểm tra bản mới trên máy chủ công ty và cài |
 | `/ai-worker:help` | Liệt kê những gì plugin có trên máy này: lệnh, skill, trợ lý phụ |
+| `/ai-worker:board` | Cho quản lý: ghép máy này với bảng công ty, để Claude trả lời được câu hỏi về cả đội (xem 2.5) |
 
 **Plugin còn mang theo gì.** Gõ `/ai-worker:help` để xem danh sách đúng như trên máy bạn. Tóm tắt:
 
@@ -205,6 +206,22 @@ Cho quản lý thích dùng trình duyệt: tiện ích Chrome hoặc Edge hiệ
 **Đúng là:** trong vòng 1 phút sau khi người quản trị duyệt, biểu tượng hiện số người đang chờ.
 
 Tiện ích không giữ mật khẩu, mã OTP hay cookie đăng nhập nào.
+
+### 2.5 Hỏi Claude về bảng
+
+Quản lý có thể hỏi Claude về cả đội bằng lời của mình, gõ hoặc nói, bằng tiếng Việt: "hôm nay ai chờ lâu nhất?", "tuần này văn phòng nào tốn nhất?". Claude đọc số liệu của bảng rồi trả lời.
+
+1. Trong Claude Code trên máy bạn, gõ `/ai-worker:board`. Lệnh hiện một mã 8 số, dùng được trong 10 phút.
+2. Đọc mã cho người quản trị của bảng. Người đó mở trang Quản trị, mục **Màn hình TV**, nhập mã, bấm **Xem yêu cầu**, xem đúng loại là "plugin Claude của quản lý", rồi bấm **Duyệt**.
+3. Gõ lại `/ai-worker:board`.
+
+**Đúng là:** lệnh báo máy đã ghép, và từ tin nhắn kế tiếp Claude trả lời được câu hỏi về cả đội.
+
+- **Claude đọc được gì:** đúng những gì màn hình treo tường hiện: tên từng người, trạng thái, số phút đang chờ, chi phí hôm nay và 7 ngày, hạn mức và mô hình, cùng các văn phòng. Không bao giờ có email hay IP.
+- **Số liệu đi đâu:** những con số Claude đọc trở thành một phần cuộc trò chuyện của bạn với Claude, như mọi thứ khác bạn làm cùng nó. Máy chủ bảng không lưu câu hỏi hay câu trả lời nào.
+- **Muốn nói thay vì gõ:** dùng đọc chính tả của máy trong ô nhập của Claude: phím micro trên Mac, phím Windows + H trên Windows. Lệnh `/voice` của Claude Code không có đủ mọi ngôn ngữ, trong đó chưa có tiếng Việt.
+- **Muốn dừng:** gõ `/ai-worker:board unpair`, hoặc người quản trị bấm **Thu hồi** ở trang Quản trị. Ngoài mạng văn phòng thì bảng không trả lời, và lần ghép vẫn được giữ.
+- Máy chưa ghép thì không có công cụ này, nên với nhân viên không có gì thay đổi.
 
 ---
 

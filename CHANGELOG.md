@@ -2,6 +2,15 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.31.7 - 2026-11-14
+
+### Added
+- A manager can ask Claude about the team in their own words. `/ai-worker:board` pairs the manager's computer with the company board: it shows an 8-digit code, an admin approves it on the Admin page, and from then on Claude reads the board when asked ("who has waited longest today?"). Claude gets what a wall screen shows, names, states, cost and quota, never an email or an IP. `/ai-worker:board unpair` or **Revoke** on the Admin page ends it. A computer that is not paired carries no such tool.
+- The Admin page names a Claude plugin apart from TV screens and browser extensions, in the pairing request, the list and the audit log.
+
+### Changed
+- The rule for the `planner` assistant: a session that already runs on Opus or a stronger model plans a big decision itself, instead of asking whether to call the planner.
+
 ## 0.31.6 - 2026-11-14
 
 ### Changed

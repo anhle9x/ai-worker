@@ -79,6 +79,7 @@ export function buildHelp(i: HelpInfo): string {
     `- /office — ${tx('open the office page in your browser')}`,
     `- /office-pane — ${tx('open the office next to the chat')}`,
     `- /update — ${tx('install the newest version')}`,
+    `- /ai-worker:board — ${tx('for managers: pair with the company board, then ask Claude about the team in your own words')}`,
     `- /ai-worker:help — ${tx('show this list')}`,
     '',
     tx('Skills. You do not need to remember the names: say what you need in your own words and Claude picks the right one.'),

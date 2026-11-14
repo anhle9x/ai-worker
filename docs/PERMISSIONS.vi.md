@@ -16,6 +16,7 @@ Ai được xem gì và làm gì trên máy chủ bảng tổng. Quy tắc nằm
 | Màn hình TV | Khoá ghép do quản trị duyệt (30 ngày, tự gia hạn khi đang dùng) | `wall` |
 | Biểu tượng thanh menu | Khoá ghép, do quản lý tự duyệt bằng tài khoản và OTP của mình, tối đa 2 máy mỗi tài khoản | Luôn là `wall` |
 | Tiện ích trình duyệt | Khoá ghép trong header `Authorization`, do quản trị duyệt | Luôn là `wall` |
+| Plugin Claude của quản lý (`/ai-worker:board`) | Cùng loại khoá ghép với tiện ích, do quản trị duyệt; ghi là "plugin" trong danh sách và nhật ký | Luôn là `wall`: Claude trên máy đó đọc được tên, trạng thái, chi phí và hạn mức, không bao giờ có email hay IP |
 
 Máy chủ chỉ tin IP ghi trong yêu cầu khi yêu cầu đi qua proxy trên chính máy (`TRUST_PROXY`). Danh sách IP văn phòng được vào do Caddy hoặc nginx đứng trước chặn, không phải webhook.
 

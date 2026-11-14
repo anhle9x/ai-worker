@@ -289,6 +289,12 @@ def is_menubar_client(ua: str) -> bool:
     return bool(re.search(r"menu ?bar|thanh ?menu", ua or "", re.I))
 
 
+def is_plugin_client(ua: str) -> bool:
+    """The Claude plugin names itself in its User-Agent when it asks to pair. Used only to name the pairing in /admin: it gives no extra right.
+    Plugin Claude tự xưng tên trong User-Agent khi xin ghép. Chỉ dùng để gọi tên lần ghép trong /admin: không cho thêm quyền gì."""
+    return bool(re.search(r"ai-worker-plugin", ua or "", re.I))
+
+
 def device_label(ua: str) -> str:
     """Shorten the User-Agent so an admin can tell which device is asking to pair. For reading only, it can be faked.
     Rút gọn User-Agent để quản trị nhìn biết thiết bị nào đang xin ghép. Chỉ để đọc, giả được."""
@@ -298,6 +304,8 @@ def device_label(ua: str) -> str:
             return label
     # the menu bar scripts name themselves (Python on Mac/Linux, PowerShell on Windows)
     # script thanh menu tự xưng tên (Python trên Mac/Linux, PowerShell trên Windows)
+    if is_plugin_client(ua):
+        return tx("Claude plugin on {os}", os="Windows" if "Windows" in ua else "Mac" if "Mac" in ua else "Linux" if "Linux" in ua else tx("unknown device"))
     if is_menubar_client(ua):
         return tx("Menu bar on {os}", os="Windows" if "Windows" in ua else "Mac" if "macOS" in ua else "Linux" if "Linux" in ua else tx("unknown device"))
     os_name = "Windows" if "Windows" in ua else "iPhone/iPad" if "iPhone" in ua or "iPad" in ua else "Mac" if "Mac OS" in ua else "Android" if "Android" in ua else "Linux" if "Linux" in ua else tx("unknown device")

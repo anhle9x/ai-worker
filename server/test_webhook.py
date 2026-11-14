@@ -1043,6 +1043,40 @@ class ExtensionPairing(unittest.TestCase):
         self.assertTrue(done["token"].startswith("tv_"))
         return done["token"]
 
+    PLUGIN_UA = "AI-Worker-Plugin/1.2.3 (Mac)"
+
+    def test_a_claude_plugin_pairs_like_the_extension_and_is_named_apart(self):
+        status, b, cookie = self.call("POST", "/ext/request-code", "", User_Agent=self.PLUGIN_UA)
+        self.assertEqual(status, 200)
+        self.assertIsNone(cookie)
+        d = json.loads(b)
+        pending = {"Authorization": "Bearer " + d["key"]}
+        # the key that waits for approval reads nothing
+        # khoá đang chờ duyệt không đọc được gì
+        self.assertEqual(self.call("GET", "/ext/data", **pending)[0], 401)
+        status, b, _ = self.admin("/admin/tv-view", {"code": d["code"]})
+        view = json.loads(b)
+        self.assertEqual((status, view["kind"], view["device"]), (200, "plugin", "Claude plugin on Mac"))
+        self.assertEqual(self.admin("/admin/tv-approve", {"code": d["code"], "name": "Claude of Hoa"})[0], 200)
+        done = json.loads(self.call("POST", "/ext/poll", "", **pending)[1])
+        self.assertEqual((done["status"], done["name"]), ("done", "Claude of Hoa"))
+        token = {"Authorization": "Bearer " + done["token"]}
+        # what Claude gets to read: the wall view, so names and numbers but no email and no IP
+        # thứ Claude được đọc: phần treo tường, tức tên và số liệu nhưng không có email và không có IP
+        status, b, _ = self.call("GET", "/ext/data", **token)
+        board = json.loads(b)
+        self.assertEqual((status, board["role"]), (200, security.WALL))
+        self.assertIn("An", [p["name"] for p in board["people"]])
+        for private in ("@example.com", IP_LAN, IP_PUBLIC, NET_CUSTOM):
+            self.assertNotIn(private, b.decode())
+        row = next(t for t in json.loads(self.call("GET", "/admin/data", Cookie="session=tok-ext-adm")[1])["screens"] if t["name"] == "Claude of Hoa")
+        self.assertEqual((row["kind"], row["device"], row["upToDate"]), ("plugin", "Claude plugin on Mac", None))
+        self.assertIn("tv-joined", [x.get("action") for x in self.audit_rows() if x.get("kind") == "plugin"])
+        # revoked in /admin: the key stops working at once
+        # thu hồi trong /admin: khoá hết dùng được ngay
+        self.assertEqual(self.admin("/admin/tv-revoke", {"id": row["id"]})[0], 200)
+        self.assertEqual(self.call("GET", "/ext/data", **token)[0], 401)
+
     def test_pair_read_and_revoke(self):
         token = self.pair()
         auth = {"Authorization": "Bearer " + token}

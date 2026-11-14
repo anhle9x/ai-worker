@@ -50,6 +50,7 @@ Type these in the chat box of the Code tab:
 | `/office-pane` | Opens the office next to the chat |
 | `/update` | Checks the company server for a new version and installs it |
 | `/ai-worker:help` | Lists what the plugin gives on this computer: commands, skills, helper assistants |
+| `/ai-worker:board` | For managers: pairs this computer with the company board, so Claude can answer questions about the team (see 2.5) |
 
 **What else comes with the plugin.** Type `/ai-worker:help` to see the list as it is on your computer. In short:
 
@@ -205,6 +206,22 @@ For a manager who prefers the browser: a Chrome or Edge extension shows the numb
 **Correct result:** within a minute of the admin approving it, the icon shows the number waiting.
 
 The extension holds no password, OTP or login cookie.
+
+### 2.5 Ask Claude about the board
+
+A manager can ask Claude about the team in their own words, typed or dictated, in any language: "who has waited longest today?", "which office spent the most this week?". Claude reads the board's numbers and answers.
+
+1. In Claude Code on your computer, type `/ai-worker:board`. It shows an 8-digit code, good for 10 minutes.
+2. Read the code to an admin of the board, who opens the Admin page, **TV screens**, types the code, clicks **View request**, checks that the type is "Claude plugin of a manager", then clicks **Approve**.
+3. Type `/ai-worker:board` again.
+
+**Correct result:** it says the computer is paired, and from the next message Claude answers questions about the team.
+
+- **What Claude can read:** what a wall screen shows: each person's name, state, minutes waiting, cost today and over 7 days, quota and model, and the offices. Never an email or an IP.
+- **Where it goes:** the numbers Claude reads become part of your conversation with Claude, like anything else you work on with it. The board server keeps no question and no answer.
+- **To speak instead of typing:** use your system's dictation in the Claude message box: the microphone key on a Mac, Windows key + H on Windows. Claude Code's own `/voice` does not list every language.
+- **To stop:** type `/ai-worker:board unpair`, or an admin clicks **Revoke** on the Admin page. Away from the office network the board does not answer, and the pairing is kept.
+- A computer that is not paired has no such tool, so nothing changes for staff.
 
 ---
 

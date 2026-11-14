@@ -11,6 +11,7 @@ VI = {
     "unknown device": "máy lạ",
     "unknown browser": "trình duyệt lạ",
     "{browser} on {os}": "{browser} trên {os}",
+    "Claude plugin on {os}": "Plugin Claude trên {os}",
     "Too many wrong tries, try again in 10 minutes": "Nhập sai nhiều lần, thử lại sau 10 phút",
     "The code is wrong or has expired": "Mã không đúng hoặc đã hết hạn",
     "Not paired": "Chưa ghép",

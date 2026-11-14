@@ -16,6 +16,7 @@ Who can see and do what on the dashboard server. The rules live in one place: th
 | TV screen | Pairing key approved by an admin (30 days, renewed while used) | `wall` |
 | Menu bar icon | Pairing key, approved by a manager with their own account and OTP, at most 2 computers per account | Always `wall` |
 | Browser extension | Pairing key in the `Authorization` header, approved by an admin | Always `wall` |
+| Claude plugin of a manager (`/ai-worker:board`) | The same pairing key as the extension, approved by an admin; named "plugin" in the list and the audit log | Always `wall`: Claude on that computer reads names, states, cost and quota, never an email or an IP |
 
 The server does not trust the IP of a request unless the request comes through the local proxy (`TRUST_PROXY`). The office IP allow-list is enforced by Caddy or nginx in front, not by the webhook.
 

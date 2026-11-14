@@ -10,7 +10,7 @@
     'login': tx('Log in'), 'login-failed': tx('Login failed'), 'confirmed': tx('Re-enter OTP'), 'confirm-failed': tx('Wrong OTP re-entered'), 'confirm-required': tx('OTP not re-entered'),
     'role-denied': tx('Denied by role'), error: tx('Error'), assign: tx('Add network'), unassign: tx('Remove network'), 'unassign-delete-location': tx('Last network removed, location deleted'), 'set-sales': tx('Mark as sales'), csv: tx('Load CSV'),
     'account-create': tx('Create account'), 'account-reissue': tx('Reissue key'), 'account-role': tx('Change role'), 'account-delete': tx('Delete account'), 'end-session': tx('End session'),
-    'tv-request-code': tx('Screen asked for code'), 'tv-refused': tx('Code request refused'), 'tv-view': tx('Viewed screen request'), 'tv-approve': tx('Approved screen'), 'tv-joined': tx('Screen joined board'), 'tv-revoke': tx('Revoked screen'), 'tv-self-exit': tx('Screen exited by itself'), 'tv-reload': tx('Reloaded screen remotely'), 'tv-rename': tx('Renamed screen'), 'tv-ip-changed': tx('Screen changed IP'), 'tv-renewed': tx('Renewed screen'),
+    'tv-request-code': tx('Screen asked for code'), 'tv-refused': tx('Code request refused'), 'tv-view': tx('Viewed screen request'), 'tv-approve': tx('Approved screen'), 'tv-joined': tx('Screen joined board'), 'tv-revoke': tx('Revoked screen'), 'tv-self-exit': tx('Screen exited by itself'), 'tv-unpaired-itself': tx('Paired device unpaired itself'), 'tv-reload': tx('Reloaded screen remotely'), 'tv-rename': tx('Renamed screen'), 'tv-ip-changed': tx('Screen changed IP'), 'tv-renewed': tx('Renewed screen'),
     'tv-revoked-key-used': tx('Revoked device asked again'),
     'account-telegram-unlink': tx('Unlink Telegram'), 'telegram-link': tx('Link Telegram'), 'telegram-unlink': tx('Unlink Telegram'), 'telegram-link-failed': tx('Telegram link failed'),
   }
@@ -284,8 +284,11 @@
       el.append(o('b', '', tx('Request from code {code}', { code: y.code.slice(0, 4) + '-' + y.code.slice(4) })), o('span', '', tx('Device: {device}', { device: y.device })), o('span', '', `IP: ${y.ip}`))
       // A browser extension of a manager pairs with the same code: say so, so an admin can tell a laptop from a TV.
       // Tiện ích trình duyệt của quản lý ghép bằng cùng loại mã: nói rõ, để quản trị phân biệt laptop với TV.
-      const isExtension = y.kind === 'extension'
+      const isExtension = y.kind === 'extension', isPlugin = y.kind === 'plugin'
       if (isExtension) el.append(o('span', '', tx('Type: browser extension for a manager')))
+      // A manager's Claude plugin pairs the same way; once approved, Claude on that computer can read the wall view of the board.
+      // Plugin Claude của quản lý ghép theo cùng cách; duyệt xong thì Claude trên máy đó đọc được phần treo tường của bảng.
+      if (isPlugin) el.append(o('span', '', tx('Type: Claude plugin of a manager. Once approved, Claude on that computer can read the board: names, states, cost and quota, no email or IP.')))
       if (y.branch) el.append(o('span', '', tx('Branch: {branch}', { branch: y.branch })))
       else el.append(o('div', 'qt-hint', tx('This IP is outside the declared branches. Approve only if you are sure this is a company screen.')))
       el.append(o('span', '', tx('Asked at {time}', { time: dateTime(y.createdAt) })), o('small', '', tx('Approve only if it is really the screen you are setting up. An approved device can see people names and costs.')))
@@ -318,7 +321,7 @@
         if (!name.value.trim()) return toast(tx('Give the screen a name first'), true)
         post('/admin/tv-approve', { code: y.code, name: name.value, ...(picker.value && picker.value !== 'new' ? { replaceId: picker.value } : {}) }, () => {
           tvRequest = null
-          toast(isExtension ? tx('Approved, the extension will be paired within a minute') : tx('Approved, the screen will join the board by itself within about 10 seconds'))
+          toast(isPlugin ? tx('Approved. The plugin is paired the next time /ai-worker:board is typed on that computer.') : isExtension ? tx('Approved, the extension will be paired within a minute') : tx('Approved, the screen will join the board by itself within about 10 seconds'))
         })
       }, 'qt-button primary'), button(tx('Skip'), () => {
         tvRequest = null
@@ -337,20 +340,22 @@
         const actions = o('td', 'qt-action')
         // Once exited there is no page left to reload; the row only remains to keep the name when pairing again, delete it when no longer needed.
         // Đã thoát thì không còn trang nào để tải lại; dòng chỉ còn để ghép lại giữ tên, không cần nữa thì xoá.
-        if (!t.exitedAt) actions.append(button(tx('Reload'), () => post('/admin/tv-reload', { id: t.id }, () => countdown(t.name, 10))))
+        // a Claude plugin shows no page, so there is nothing to reload
+        // plugin Claude không hiện trang nào, nên không có gì để tải lại
+        if (!t.exitedAt && t.kind !== 'plugin') actions.append(button(tx('Reload'), () => post('/admin/tv-reload', { id: t.id }, () => countdown(t.name, 10))))
         actions.append(button(tx('Rename'), () => {
           const newName = prompt(tx('New name for the screen'), t.name)
           if (newName && newName.trim()) post('/admin/tv-rename', { id: t.id, name: newName })
         }), t.exitedAt ? button(tx('Delete'), () => {
           if (confirm(tx('Remove {name} from the list? This name will no longer be available to choose when pairing again.', { name: t.name }))) post('/admin/tv-revoke', { id: t.id }, () => toast(tx('Deleted {name}', { name: t.name })))
         }, 'qt-button critical') : button(tx('Revoke'), () => {
-          const question = t.kind === 'extension' ? tx('Revoke {name}? Within a minute that browser shows it is not paired.', { name: t.name }) : tx('Revoke {name}? That screen goes back to the pairing page at once.', { name: t.name })
+          const question = t.kind === 'plugin' ? tx('Revoke {name}? Claude on that computer can no longer read the board.', { name: t.name }) : t.kind === 'extension' ? tx('Revoke {name}? Within a minute that browser shows it is not paired.', { name: t.name }) : tx('Revoke {name}? That screen goes back to the pairing page at once.', { name: t.name })
           if (confirm(question)) post('/admin/tv-revoke', { id: t.id }, () => toast(tx('Revoked {name}', { name: t.name })))
         }, 'qt-button critical'))
         const statusText = t.exitedAt ? tx('Exited at {time}', { time: dateTime(t.exitedAt * 1000) }) : t.running ? tx('Running') : t.lastSeenAt ? tx('Not seen for a while, last seen {time}', { time: dateTime(t.lastSeenAt) }) : tx('Not seen since the server started')
         const statusCell = o('td', t.running ? '' : 'qt-muted', statusText)
         const versionCell = o('td', t.upToDate === false ? 'qt-old' : '', t.upToDate === null ? '—' : t.upToDate ? tx('Latest') : tx('Old version'))
-        h.append(o('td', '', t.name), statusCell, versionCell, o('td', '', t.kind === 'extension' ? tx('Browser extension · {device}', { device: t.device }) : t.device), o('td', '', t.branch || '—'), o('td', '', t.lastIp), o('td', '', t.owner ? tx('{name} (paired by themselves)', { name: t.owner }) : t.approvedBy), actions)
+        h.append(o('td', '', t.name), statusCell, versionCell, o('td', '', t.kind === 'plugin' ? t.device : t.kind === 'extension' ? tx('Browser extension · {device}', { device: t.device }) : t.device), o('td', '', t.branch || '—'), o('td', '', t.lastIp), o('td', '', t.owner ? tx('{name} (paired by themselves)', { name: t.owner }) : t.approvedBy), actions)
         board.append(h)
       }
       p.append(addLabel(board))

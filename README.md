@@ -32,6 +32,7 @@ AI Worker is a Claude Code plugin on each employee's computer and a small server
 
 - **One board for the whole company:** who is working, who waits for an answer and for how long, cost today and over 7 days, quota left, per office on a map.
 - **Rewind the last 24 hours** to see how the day went.
+- **Ask in your own words:** a manager pairs their Claude with the board once, then asks "who has waited longest today?" and Claude answers from the board's numbers, in any language, typed or dictated.
 - **Alerts without the browser:** a menu bar icon (macOS, Windows, Ubuntu) and a Chrome or Edge extension count the people waiting.
 - **Shared skills and rules** for every computer, and self-update with signed packages.
 - **Roles and audit:** admins, managers and wall screens see different data; log in with a 6-digit OTP code or with Telegram (Telegram needs a bot set up first, see the [install guide](docs/INSTALL.md)); every change is logged for 12 months.

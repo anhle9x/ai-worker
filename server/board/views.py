@@ -32,6 +32,7 @@ from board.packages import menubar_extension, menubar_mac_dmg
 from board.security import ACCOUNT_NAME_RE, ADMIN, VIEWER, WALL
 from board.settings import (
     KIND_EXTENSION,
+    KIND_PLUGIN,
     LOCAL_TZ,
     OFFLINE_SECONDS,
     OTP_LABEL,
@@ -320,7 +321,7 @@ def admin_data(now: float, cookie: str, month: str) -> dict:
     tv = []
     for x in TV.list_screens(now):
         seen_state = None if x["exitedAt"] else TV_STATUS.read(x["id"])
-        tv.append(dict(x, branch=branch_name_for_ip(x["lastIp"]), device=device_label(x["device"]), upToDate=None if x.get("owner") or x["kind"] == KIND_EXTENSION or re.search(r"menu ?bar", x["device"], re.I) else (seen_state["ui"] == UI_VERSION) if seen_state else None,
+        tv.append(dict(x, branch=branch_name_for_ip(x["lastIp"]), device=device_label(x["device"]), upToDate=None if x.get("owner") or x["kind"] in (KIND_EXTENSION, KIND_PLUGIN) or re.search(r"menu ?bar", x["device"], re.I) else (seen_state["ui"] == UI_VERSION) if seen_state else None,
                        lastSeenAt=int(seen_state["seenAt"] * 1000) if seen_state else None, running=bool(seen_state) and now - seen_state["seenAt"] < TV_ABSENT_SECONDS))
     return {"accounts": ACCOUNTS.list_accounts(), "screens": tv, "sessions": SESSIONS.list_sessions(cookie, now), "unnamedGroups": d["unnamedGroups"], "branches": d["branches"], "team": d["team"],
             "usdRate": USD_RATE, "month": month, "auditLog": AUDIT_LOG.read(month), "menubarDmg": bool(menubar_mac_dmg()),

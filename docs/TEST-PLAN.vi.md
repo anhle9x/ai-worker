@@ -27,6 +27,7 @@ GitHub Actions chạy `.github/workflows/test-install.yml` mỗi lần đẩy co
 | Ghép TV, thanh menu, tiện ích; thu hồi; hết hạn | `test_webhook.py`, `check-extension.js`, các test thanh menu |
 | Một máy không gửi thay người khác được; giới hạn gửi | `test_webhook.py` |
 | Nhãn và ghim văn phòng trên bản đồ: ghim chạm nhau được vẽ cạnh nhau; khi nhiều văn phòng thì nhãn không còn chỗ trống bị ẩn; không nhãn nào đè nhãn khác, đè ghim của văn phòng khác hay đè danh sách văn phòng, không nhãn nào ra khỏi khung | `tests/check-map-layout.js` |
+| Plugin Claude của quản lý và bảng: ghép bằng mã, chỉ đọc phần treo tường, thu hồi, bỏ ghép, mạng bị từ chối, quyền bị chặn | `test_webhook.py` (lớp `ExtensionPairing`), `tests/board.test.ts` |
 | Bản thử với dữ liệu giả lập: bật được, vào được bằng mã nó in ra, bỏ qua cấu hình của bảng thật, xoá dữ liệu khi dừng | `test_demo.py` |
 | Chi phí theo giờ, không tính trùng khi mở lại phiên | `tests/cost.test.ts` |
 | Không có câu hỏi, nội dung chat hay nội dung file bí mật nào rời máy | `tests/activity.test.ts`, `tests/edits.test.ts`, `tests/team.test.ts`, `tests/office.test.tsx` |

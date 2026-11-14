@@ -94,6 +94,11 @@ TV_REVOKED_LOG_SECONDS = 3600
 # the kind of a pairing made by the manager browser extension, shown apart from screens in /admin
 # loại của lần ghép do tiện ích trình duyệt cho quản lý tạo, hiện riêng với màn hình trong /admin
 KIND_EXTENSION = "extension"
+# the kind of a pairing made by a manager's Claude plugin, which reads the board so Claude can answer questions about it:
+# the same pairing, the same wall view and the same revoking as the extension, named apart in /admin
+# loại của lần ghép do plugin Claude của quản lý tạo, plugin đọc bảng để Claude trả lời câu hỏi về bảng:
+# cùng cách ghép, cùng phần treo tường và cùng cách thu hồi như tiện ích, được gọi tên riêng trong /admin
+KIND_PLUGIN = "plugin"
 KEYS_DIR = os.environ.get("KEYS_DIR", os.path.join(SERVER_DIR, "keys"))
 OTP_LABEL = os.environ.get("OTP_LABEL", "AI-Worker")
 MAX_FAILS = 5

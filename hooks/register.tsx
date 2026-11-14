@@ -18,6 +18,8 @@ import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_
 import { AGY_BRAIN, IMAGE_DIR, IMAGE_SCHEMA, IMAGE_SETTLE_MS, OLLAMA_URL, PROMPT_LEVEL_SCHEMA, PROMPT_SCHEMA, WORKER_TIMEOUT_MS, imageArgv, imageTargets, newImages, safeImageName, sendingNeedsAsking, sendingRefusal, agyArgv, codexArgv, codexInput, isBatchLauncher, delegationRules, gemmaAnswer, gemmaRequest, mcpConfigured, ownTools, pickGemma } from './workers'
 import type { OwnWorkers } from './workers'
 import { pageLanguageScript, setLang, tx } from './lang'
+import { BOARD_CODE_MS, BOARD_KEY, BOARD_SCHEMA, BOARD_TOOL, boardToolDescription, boardUnreachable, boardUserAgent, pairedText, pairingSteps, summarizeBoard } from './board'
+import type { BoardPairing } from './board'
 import { buildHelp, skillLine } from './help'
 import type { SkillLine } from './help'
 import { BADGE_MS, BRAND, FX_MS, WORKERS, applyConfig, setInstalled, buildOfficeSvg, clockLabel, dayLabel, formatSecs, workerView } from './office'
@@ -1329,12 +1331,130 @@ const techRules = () => [
   tx('# Rules for technical work'),
   tx('- After changing the interface, open the real page and check both the desktop and the phone size before saying it is done. If you cannot check, say clearly that you have not.'),
   tx('- When the user says "split sessions": make a plan first, then evaluate. Only split when there are at least 2 large parts that can be done independently without touching the same file; otherwise give the reason in one sentence and work in the current session. If you split, show the assignment table and then create the sessions right away: mechanical parts use Sonnet, read-only parts use Haiku, design and checking stay in the main session. When done, check each session result before reporting. Commit only when the user says so. When the user says "split anyway", split the parts that can be separated and say clearly which parts cannot be.'),
-  tx('- Call the `planner` assistant only after the user has agreed, because it uses a lot of quota; use it for big decisions that are hard to undo.'),
+  tx('- Call the `planner` assistant only after the user has agreed, because it uses a lot of quota; use it for big decisions that are hard to undo. It runs on Claude Opus: when this session itself runs on Opus or a stronger model (Fable, Mythos), do not ask about it and do not call it; plan the decision yourself and show the user the plan.'),
   tx('- The skill `improve-codebase-architecture` starts only when the user types its name. When the user asks, in any words, to look over or improve the structure of a whole project, do not do that scan yourself, and do not first ask for a folder or read any file: answer at once by telling them to type `/ai-worker:improve-codebase-architecture`, and say in one line that it reads the whole project and takes a while. A remark that some code is messy, or a request about one function, file or module, is not that: just help with it.'),
 ].join('\n')
 
 /** /ai-worker:help: what the plugin gives on this computer, read from the plugin's own folder and this session. */
 /** /ai-worker:help: những gì plugin có trên máy này, đọc từ thư mục của chính plugin và từ phiên này. */
+const BOARD_TOOL_NAME = /^mcp__ai-worker__office_board$/
+
+/** One request to the board with a key in the Authorization header. A network error reads as status 0, so the caller has one shape to handle. */
+/** Một yêu cầu tới bảng kèm khoá trong header Authorization. Lỗi mạng đọc thành trạng thái 0, để nơi gọi chỉ phải xử lý một dạng. */
+async function boardFetch($: EngineInterface, path: string, key: string | undefined, method: 'GET' | 'POST' = 'GET') {
+  const windows = (await $.env.get('OS')) === 'Windows_NT'
+  let system = 'Windows'
+  if (!windows) {
+    try {
+      system = (await $.process.run(['uname', '-s'])).stdout.trim() === 'Darwin' ? 'Mac' : 'Linux'
+    } catch {
+      system = 'Linux'
+    }
+  }
+  try {
+    const r = await $.http.fetch(`${share.webhook}${path}`, {
+      method,
+      headers: { 'User-Agent': boardUserAgent(await pluginVersion($), system), ...(key ? { Authorization: `Bearer ${key}` } : {}) },
+      ...(method === 'POST' ? { body: '' } : {}),
+    })
+    return { ok: r.ok, status: r.status, text: r.text }
+  } catch {
+    return { ok: false, status: 0, text: '' }
+  }
+}
+
+async function readPairing($: EngineInterface): Promise<BoardPairing> {
+  const kept = await $.store.get(BOARD_KEY).catch(() => undefined)
+  return kept && typeof kept === 'object' ? (kept as BoardPairing) : {}
+}
+
+/** Put the board tool in this session's list. Called once the computer is paired, never before: an unpaired computer carries no extra tool. */
+/** Đưa công cụ đọc bảng vào danh sách của phiên này. Chỉ gọi khi máy đã ghép: máy chưa ghép không mang thêm công cụ nào. */
+async function registerBoardTool($: EngineInterface) {
+  try {
+    await $.tool.register({ name: BOARD_TOOL, description: boardToolDescription(), inputSchema: BOARD_SCHEMA, isDeferred: false })
+  } catch {
+    // the tool stays off this session; the next session registers it
+    // công cụ vắng mặt trong phiên này; phiên sau sẽ đăng ký
+  }
+}
+
+/** /ai-worker:board: shows where the pairing stands and moves it one step: ask for a code, collect the key once an admin approved, or unpair. */
+/** /ai-worker:board: cho biết việc ghép đang ở đâu và đi tiếp một bước: xin mã, nhận khoá khi quản trị đã duyệt, hoặc bỏ ghép. */
+async function runBoard($: EngineInterface, args: string): Promise<{ text: string }> {
+  if (!share.webhook) return { text: tx('This computer has no company server set up, so there is no board to read.') }
+  const now = await $.clock.now()
+  let pairing = await readPairing($)
+  if (/^(unpair|off)$/i.test(args.trim())) {
+    if (pairing.token) await boardFetch($, '/ext/unpair', pairing.token, 'POST')
+    await $.store.set(BOARD_KEY, {})
+    return { text: tx('This computer is no longer paired with the board. Claude here can no longer read it.') }
+  }
+  let note = ''
+  if (pairing.token) {
+    const r = await boardFetch($, '/ext/state', pairing.token)
+    if (r.ok) {
+      await registerBoardTool($)
+      return { text: pairedText(pairing.name || '') }
+    }
+    if (r.status !== 401) return { text: boardUnreachable(r.status) }
+    note = `${tx('The earlier pairing was revoked or has expired.')}\n\n`
+    pairing = {}
+  }
+  if (pairing.pending && now - pairing.pending.at < BOARD_CODE_MS) {
+    const r = await boardFetch($, '/ext/poll', pairing.pending.key, 'POST')
+    if (!r.ok) return { text: boardUnreachable(r.status) }
+    let answer: { status?: unknown; name?: unknown; token?: unknown } = {}
+    try {
+      answer = JSON.parse(r.text)
+    } catch {
+      // treated as an expired code below
+      // bên dưới coi như mã đã hết hạn
+    }
+    if (answer.status === 'done' && typeof answer.token === 'string') {
+      const name = typeof answer.name === 'string' ? answer.name : ''
+      await $.store.set(BOARD_KEY, { token: answer.token, name })
+      await registerBoardTool($)
+      return { text: pairedText(name) }
+    }
+    if (answer.status === 'pending') return { text: `${tx('Not approved yet.')}\n\n${pairingSteps(pairing.pending.code, share.webhook)}` }
+    note = `${tx('The earlier code has expired.')}\n\n`
+  }
+  const r = await boardFetch($, '/ext/request-code', undefined, 'POST')
+  if (!r.ok) return { text: boardUnreachable(r.status) }
+  let fresh: { code?: unknown; key?: unknown } = {}
+  try {
+    fresh = JSON.parse(r.text)
+  } catch {
+    // an answer that is not the server's: reported below
+    // câu trả lời không phải của máy chủ: báo ở dưới
+  }
+  if (typeof fresh.code !== 'string' || typeof fresh.key !== 'string' || !/^\d{8}$/.test(fresh.code)) return { text: tx('The board sent an answer that could not be read.') }
+  await $.store.set(BOARD_KEY, { pending: { key: fresh.key, code: fresh.code, at: now } })
+  return { text: note + pairingSteps(fresh.code, share.webhook) }
+}
+
+/** The board tool: the wall view as plain lines. It reads from the company server into this conversation and sends nothing out. */
+/** Công cụ đọc bảng: phần treo tường thành các dòng chữ. Nó đọc từ máy chủ công ty vào cuộc trò chuyện này và không gửi gì ra ngoài. */
+async function serveBoard($: EngineInterface, args: Record<string, unknown>): Promise<ToolCallResult> {
+  const answer = (text: string, isError = false) => ({ result: text, isError }) as unknown as ToolCallResult
+  const verdict = await $.tool.check({ tool: `mcp__ai-worker__${BOARD_TOOL}`, input: args }).catch(() => ({ decision: 'ask' as const }))
+  if (verdict.decision === 'deny') return answer(tx('Your permission settings do not allow this.'), true)
+  const pairing = await readPairing($)
+  if (!share.webhook || !pairing.token) return answer(tx('This computer is not paired with the board. Tell the user to type /ai-worker:board to pair it.'), true)
+  const r = await boardFetch($, '/ext/data', pairing.token)
+  if (r.status === 401) {
+    await $.store.set(BOARD_KEY, {}).catch(() => undefined)
+    return answer(tx('The pairing with the board was revoked or has expired. Tell the user to type /ai-worker:board to pair again.'), true)
+  }
+  if (!r.ok) return answer(boardUnreachable(r.status), true)
+  try {
+    return answer(summarizeBoard(JSON.parse(r.text), await $.clock.now()))
+  } catch {
+    return answer(tx('The board sent an answer that could not be read.'), true)
+  }
+}
+
 async function runHelp($: EngineInterface): Promise<{ text: string }> {
   const root = $.plugin.root.replace(/[\\/]+$/, '')
   const skills: SkillLine[] = []
@@ -1388,6 +1508,7 @@ export const register: Register = on => {
     await $.command.register({ name: 'office', description: tx('Open the dashboard of the sessions on this computer in the browser') })
     await $.command.register({ name: 'office-pane', description: tx('Open the virtual office in a panel next to the chat') })
     await $.command.register({ name: 'update', description: tx('Check for and install a new version of the plugin from the company server') })
+    await $.command.register({ name: 'board', description: tx('For managers: pair this computer with the company board, so Claude can answer questions about the team') })
     try {
       await writeLedger($, (await $.store.get(LEDGER_KEY)) as Ledger | undefined)
     } catch {
@@ -1423,6 +1544,9 @@ export const register: Register = on => {
       }
     }
     if (viaMcp) await tuckOwnTools($)
+    // a manager's computer already paired with the board: Claude can read it from the first message
+    // máy của quản lý đã ghép với bảng: Claude đọc được bảng ngay từ tin nhắn đầu
+    if ((await readPairing($)).token) await registerBoardTool($)
     await writeOwnWorkers($)
     return next(e)
   })
@@ -1503,6 +1627,8 @@ export const register: Register = on => {
   // no short name: /help is Claude Code's own
   // không có tên ngắn: /help là của chính Claude Code
   on('command.run', { command: 'ai-worker:help' }, $ => runHelp($))
+  on('command.run', { command: 'board' }, ($, e) => runBoard($, e.args))
+  on('command.run', { command: 'ai-worker:board' }, ($, e) => runBoard($, e.args))
 
   // the chat's title rides on the settings hooks' session start and prompt events
   // tiêu đề cuộc trò chuyện đi theo các sự kiện bắt đầu phiên và gửi lời nhắc của các hook cài đặt
@@ -1600,6 +1726,7 @@ export const register: Register = on => {
       if (PLAN_TOOL.test(e.tool)) await commit($, s => ({ ...s, plan: applyPlan(s.plan, args) }))
       if (WRAP_UP.test(e.tool)) await commit($, s => ({ ...s, plan: finishPlan(s.plan) }))
     }
+    if (BOARD_TOOL_NAME.test(e.tool)) return serveBoard($, e as unknown as Record<string, unknown>)
     const match = WORKER_TOOL.exec(e.tool)
     const name = match?.[1]
     const op = name ? OPS[name] : undefined
