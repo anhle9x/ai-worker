@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.31.16 - 2026-11-15
+
+### Changed
+- `AGENTS.md` lists all nine checks to run before a change is done. `packaging/check-clean.sh` is explained apart from them: it belongs on what gets published.
+
 ## 0.31.15 - 2026-11-15
 
 ### Fixed

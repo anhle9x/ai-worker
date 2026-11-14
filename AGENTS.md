@@ -21,12 +21,14 @@ A Claude Code plugin (`.claude-plugin/`, `hooks/`, `skills/`, `web/`) on each em
 
 ## Checks
 
+Run all nine before calling a change done. CI runs the same ones.
+
 ```bash
 claude plugin test .
 ```
 
 ```bash
-cd server && python3 -m unittest test_webhook
+cd server && python3 -m unittest
 ```
 
 ```bash
@@ -34,10 +36,29 @@ node tests/extension/check-extension.js
 ```
 
 ```bash
+node tests/check-map-layout.js
+```
+
+```bash
 python3 tests/check-i18n.py
+```
+
+```bash
 python3 tests/check-maps.py
 ```
 
 ```bash
-bash packaging/check-clean.sh
+python3 tests/check-frontmatter.py
 ```
+
+```bash
+bash tests/test-check-clean.sh
+```
+
+```bash
+uvx ruff check .
+```
+
+Without `uv`, the last one is `pipx run ruff check .`.
+
+`bash packaging/check-clean.sh` is not in this list: it looks for private data in the folder it runs in, so it belongs on what gets published. In a checkout that holds your own `packaging/company.json` it reports that file, and that is expected.
