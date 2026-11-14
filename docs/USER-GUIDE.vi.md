@@ -142,6 +142,7 @@ Rồi xoá thư mục `claude-plugins-ai-worker` trong thư mục người dùng
 | Bộ cài báo không tới được máy chủ | Số liệu của bạn chưa lên bảng tổng. Kiểm tra máy đang ở mạng công ty và gửi ảnh chụp cho người quản trị |
 | Thiếu bàn của một trợ lý phụ | Trợ lý đó chưa cài hoặc chưa đăng nhập; xem 1.4 |
 | Cập nhật không được | Kiểm tra máy đang ở mạng công ty; nếu vẫn lỗi, xin người quản trị gói cài mới |
+| `/update` báo mạng bạn đang dùng chưa được phép vào máy chủ công ty | Máy bạn không bị lỗi gì: máy chủ chỉ trả lời những mạng mà quản trị viên đã thêm. Gõ lại `/update` khi ở văn phòng, hoặc nhờ quản trị viên thêm mạng bạn đang dùng |
 
 ---
 

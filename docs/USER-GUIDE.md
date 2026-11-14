@@ -142,6 +142,7 @@ Then delete the `claude-plugins-ai-worker` folder in your user folder.
 | The installer says the server cannot be reached | Your numbers are not on the board yet. Check you are on the company network and send a screenshot to your admin |
 | A helper assistant's desk is missing | It is not installed or not signed in; see 1.4 |
 | The update fails | Make sure you are on the company network; otherwise ask your admin for the new install package |
+| `/update` says the network you are on is not allowed to reach the company server | Nothing is wrong with your computer: the server answers only the networks your admin has added. Type `/update` again at the office, or ask your admin to add the network you are on |
 
 ---
 

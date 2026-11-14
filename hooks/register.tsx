@@ -1072,6 +1072,18 @@ async function checkSignature($: EngineInterface, manifest: string, sigPath: str
 
 const ingestHeaders = () => ({ Authorization: `Bearer ${share.ingestKey}` })
 
+/** The server refused the network this computer is on. Only its front door answers 403 for a release file, so this is never a wrong key or a missing file. */
+/** Máy chủ từ chối mạng mà máy này đang dùng. Chỉ cửa trước của máy chủ mới trả 403 cho một file phát hành, nên đây không bao giờ là sai khoá hay thiếu file. */
+class NetworkRefused extends Error {}
+
+/** What /update says when the network is refused: what happened, what to do, and one line for the admin. No error code up front. */
+/** Điều /update nói khi mạng bị từ chối: chuyện gì xảy ra, cần làm gì, và một dòng cho quản trị viên. Không đưa mã lỗi ra trước. */
+const networkRefusedText = () => [
+  tx('The network you are on is not allowed to reach the company server, so the new version could not be checked. Nothing is wrong with this computer.'),
+  tx('The server answers only the networks your admin has added, usually the office one. Back on that network, type /update again.'),
+  tx('Working somewhere else for a while? Ask your admin to add the network you are on. (For the admin: the server answered 403.)'),
+].join('\n')
+
 /** The newest signed manifest, if the server has one and it should be offered; says in state what it found. */
 /** Manifest có chữ ký mới nhất, nếu máy chủ có và nên đưa ra; ghi vào trạng thái những gì nó tìm thấy. */
 async function checkNewVersion($: EngineInterface): Promise<{ m?: Manifest; signature?: SignatureResult; text?: string }> {
@@ -1081,6 +1093,7 @@ async function checkNewVersion($: EngineInterface): Promise<{ m?: Manifest; sign
   const dir = `${await webFolder($)}/update`
   const fetchRelease = async (name: string) => {
     const r = await $.http.fetch(`${share.webhook}/releases/${name}`, { headers: ingestHeaders() })
+    if (r.status === 403) throw new NetworkRefused('403')
     if (!r.ok) throw new Error(tx('server returned {code}', { code: r.status }))
     return r.text
   }
@@ -1513,7 +1526,13 @@ async function runOffice($: EngineInterface): Promise<{ text: string }> {
 /** /update: checks for a new version, installs it and says what happened. */
 /** /update: kiểm tra bản mới, cài nó và báo điều đã xảy ra. */
 async function runUpdate($: EngineInterface): Promise<{ text: string }> {
-  return { text: await updatePlugin($).catch(err => tx('Could not check for a new version ({reason}). Try again later, or tell your admin if this computer is away from the office.', { reason: String(err instanceof Error ? err.message : err) })) }
+  return {
+    text: await updatePlugin($).catch(err =>
+      err instanceof NetworkRefused
+        ? networkRefusedText()
+        : tx('Could not check for a new version ({reason}). Try again later, or tell your admin if this computer is away from the office.', { reason: String(err instanceof Error ? err.message : err) }),
+    ),
+  }
 }
 
 /** /office-pane: the virtual office in a panel next to the chat. */

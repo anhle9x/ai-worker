@@ -49,8 +49,8 @@ const PS = [
   '  564   563 /bin/sh',
 ].join('\n')
 
-/** `found` is what the Linux or Windows find script prints: nothing outside the Claude desktop app. */
-type Machine = { system: 'Darwin' | 'Linux' | 'Windows'; surface: 'desktop' | 'terminal'; bundle?: string; found?: string; answer: string | undefined }
+/** `found` is what the Linux or Windows find script prints: nothing outside the Claude desktop app. `serverStatus` makes the server answer every request with that status instead of the update. */
+type Machine = { system: 'Darwin' | 'Linux' | 'Windows'; surface: 'desktop' | 'terminal'; bundle?: string; found?: string; answer: string | undefined; serverStatus?: number }
 type Ran = { argv: string[]; env: Record<string, string> }
 
 /** A computer with a signed update waiting on its server: returns what the plugin ran and asked. */
@@ -78,8 +78,8 @@ function updateWaiting(on: On, machine: Machine) {
   })
   on('http.fetch', (_, e) => ({
     value: {
-      ok: true,
-      status: 200,
+      ok: !machine.serverStatus,
+      status: machine.serverStatus ?? 200,
       headers: {},
       text: e.url.endsWith('latest.json') ? JSON.stringify({ version: '9.9.9', name: 'ai-worker-9.9.9.zip', sha256: HASH, date: 100 }) : 'signature',
     },
@@ -206,6 +206,22 @@ test('/ai-worker:update, the name the app lists before a session starts, is the 
   expect(r.asked.length).toBe(1)
   expect(r.text).toContain(BY_HAND)
   expect(r.text).toContain('9.9.9')
+})
+
+test('/update on a network the server refuses says so in plain words, not as an error code', async ($, on) => {
+  // the server's front door refuses the network
+  const { text } = await runUpdate($, on, { system: 'Darwin', surface: 'desktop', answer: 'Later', serverStatus: 403 })
+  expect(text).toContain('The network you are on is not allowed to reach the company server')
+  expect(text).toContain('Nothing is wrong with this computer.')
+  expect(text).toContain('type /update again')
+  // the code is still there for the admin, at the end
+  expect(text).toContain('(For the admin: the server answered 403.)')
+  expect(text).not.toContain('Could not check for a new version')
+})
+
+test('/update still names the status when the server fails in another way', async ($, on) => {
+  const { text } = await runUpdate($, on, { system: 'Darwin', surface: 'desktop', answer: 'Later', serverStatus: 502 })
+  expect(text).toContain('Could not check for a new version (server returned 502).')
 })
 
 test('/ai-worker:help answers from the plugin folder, without the model', async ($, on) => {
