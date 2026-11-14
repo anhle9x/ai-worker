@@ -28,6 +28,8 @@ GitHub Actions runs `.github/workflows/test-install.yml` on every push. A releas
 | A computer cannot send for another person; send limits | `test_webhook.py` |
 | Office labels and pins on the maps: pins that meet are drawn side by side; with many offices the labels with no free place are hidden; no label covers another label, another office's pin or the list of offices, none leaves the frame | `tests/check-map-layout.js` |
 | A manager's Claude plugin and the board: pairing by code, reading only the wall view, revoke, unpair, refused network, denied permission | `test_webhook.py` (class `ExtensionPairing`), `tests/board.test.ts` |
+| Text for ChatGPT or Gemini: asked about in a permission mode that asks nothing, kept on the computer on a no, sent without a question only under an allow rule | `tests/sending.test.ts`, `tests/workers.test.ts` |
+| The question before a command that destroys work: which commands are caught and which are left alone, yes, no, nobody to answer, no second question when the engine asks, the switch in `config.js` | `tests/guard.test.ts` |
 | `/ai-worker:voice`: the right settings page and steps for a Mac, Windows and Linux; steps by hand when the page does not open; nothing else is run | `tests/voice.test.ts` |
 | The demo with sample people: starts, opens with the code it prints, ignores a real board's settings, deletes its data when stopped | `test_demo.py` |
 | Cost by hour, no double count after reopening a session | `tests/cost.test.ts` |

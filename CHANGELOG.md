@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.31.11 - 2026-11-14
+
+### Added
+- A question before a shell command that destroys work. When Claude is about to delete a whole folder, run `git reset --hard`, `git push --force` or `git clean`, and a rule or the permission mode already lets the command through, the plugin asks the person in plain words first; on a no, or with nobody to answer, the command does not run. Build folders and the system's temporary folder are left alone. `"askBeforeDestructive": false` in `config.js` turns it off. It reads the command as text, so it is a safety net for the common forms, not a guarantee.
+
+### Changed
+- Text for ChatGPT or Gemini is now asked about in every permission mode. A mode that asks nothing used to let it go out without a question; only an allow rule the person set for that assistant skips the question now.
+
 ## 0.31.10 - 2026-11-14
 
 ### Added

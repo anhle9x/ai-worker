@@ -60,8 +60,14 @@ test('an ai-workers server set up in an MCP config is found before it connects',
 
 test('text for ChatGPT or Gemini is sent only with an allow rule or a clear yes', () => {
   expect(sendingNeedsAsking('ask', 'ChatGPT')).toBe(true)
-  expect(sendingNeedsAsking('allow', 'ChatGPT')).toBe(false)
+  // an allow rule the person set for this tool: no question
+  expect(sendingNeedsAsking('allow', 'ChatGPT', true)).toBe(false)
+  // a permission mode that asks nothing allows every tool, with no rule behind it: the text still leaves the computer, so ask
+  expect(sendingNeedsAsking('allow', 'ChatGPT')).toBe(true)
+  expect(sendingNeedsAsking('allow', 'Gemini', false)).toBe(true)
+  // Gemma stays on this computer
   expect(sendingNeedsAsking('ask', undefined)).toBe(false)
+  expect(sendingNeedsAsking('allow', undefined)).toBe(false)
   expect(sendingRefusal('allow', undefined, 'Send')).toBe(undefined)
   expect(sendingRefusal('ask', 'Send', 'Send')).toBe(undefined)
   expect(sendingRefusal('ask', 'Do not send', 'Send')).toBeTruthy()

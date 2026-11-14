@@ -55,6 +55,8 @@ Gõ trong ô chat của thẻ Code:
 
 **Nói thay vì gõ.** Bạn không cần tự tìm trang cài đặt: gõ `/ai-worker:voice`, hoặc cứ nói với Claude là bạn muốn nói thay vì gõ. Trên Mac, lệnh mở trang Keyboard của System Settings, ở đó bạn bật Dictation và tick ngôn ngữ của mình một lần; sau đó chỉ cần bấm phím micro một lần trong ô soạn tin (đừng giữ: giữ phím là gọi Siri) rồi nói. Trên Windows, lệnh mở trang Language & region, ở đó bạn thêm ngôn ngữ của mình một lần; sau đó bấm phím Windows + H. Plugin không đổi cài đặt nào và không nghe gì cả: tính năng đọc chính tả là của chính máy bạn. Mac ghi ngay dưới mục Dictation là giọng nói ở lại trên máy hay gửi về Apple; Windows gửi về Microsoft. Khi giọng nói rời khỏi máy thì đừng đọc tên người hay số liệu nội bộ.
 
+**Trước một lệnh phá huỷ công việc.** Khi Claude sắp xoá cả một thư mục, bỏ các thay đổi chưa lưu vào git (`git reset --hard`), ghi đè máy chủ git dùng chung (`git push --force`) hay xoá các file chưa được theo dõi (`git clean`), mà không có gì khác hỏi bạn, plugin hỏi trước bằng lời thường: **Cho chạy** hay **Không chạy**. Bạn chọn không, hoặc không có ai để trả lời, thì lệnh không chạy. Các thư mục mà một lần build sẽ tạo lại (`node_modules`, `dist`, `build` và tương tự) và thư mục tạm của hệ thống thì được bỏ qua. Đây là lưới an toàn cho các dạng phổ biến, không phải bảo đảm: lệnh xoá viết kiểu khác, hoặc nằm trong một script, sẽ không được thấy. Muốn tắt thì xem 1.7.
+
 **Plugin còn mang theo gì.** Gõ `/ai-worker:help` để xem danh sách đúng như trên máy bạn. Tóm tắt:
 
 - **Skill,** là các bài hướng dẫn Claude làm theo khi bạn gõ tên hoặc nói bằng lời của mình: cho việc hằng ngày có `/ai-worker:handoff` (ghi bàn giao để phiên sau làm tiếp), `/ai-worker:meeting-notes` (biến ghi chú thô thành biên bản họp), `/ai-worker:lesson-generator` (dựng một khoá học nhỏ), `/ai-worker:make-skill` (biến một tài liệu hay quy trình của phòng bạn thành skill mới: nó từ chối nguồn có mật khẩu hay khoá, giữ skill ở dạng bản nháp, và chỉ bật khi bạn đồng ý).
@@ -90,7 +92,7 @@ Claude giao việc phụ cho các trợ lý theo quy định của công ty:
 | **ChatGPT** | Xem lại code, tìm lỗi | Không bao giờ nhận tên người, tài liệu nội bộ, số liệu hay mật khẩu |
 | **Gemini** | Tra cứu web, tạo ảnh | Như ChatGPT |
 
-Trước khi gửi gì sang ChatGPT hay Gemini, Claude hỏi bạn, trừ khi quy định công ty đã cho phép sẵn. Trợ lý nào chưa cài thì bàn của trợ lý đó bị ẩn trong văn phòng.
+Trước khi gửi gì sang ChatGPT hay Gemini, Claude hỏi bạn, trừ khi đã có một quy tắc quyền cho phép sẵn trợ lý đó. Chế độ quyền không hỏi gì thì không được tính là quy tắc như vậy: bạn vẫn được hỏi, vì chữ sẽ rời khỏi máy bạn. Trợ lý nào chưa cài thì bàn của trợ lý đó bị ẩn trong văn phòng.
 
 Đăng nhập sau: mở Terminal hoặc PowerShell, gõ `codex login` (ChatGPT) hoặc `agy` (Gemini).
 
@@ -119,7 +121,7 @@ Hai file trong thư mục người dùng, ở `.local/share/ai-worker/` (Windows
 | File | Sửa được gì |
 |---|---|
 | `user.json` | Họ tên, email, và `language` (`"en"` hoặc `"vi"`) |
-| `config.js` | Tên hiển thị, `usdRate` (tỉ giá đô la ra đồng, chỉ dùng khi hiện tiếng Việt), bật tắt từng trợ lý trong `workers` |
+| `config.js` | Tên hiển thị, `usdRate` (tỉ giá đô la ra đồng, chỉ dùng khi hiện tiếng Việt), bật tắt từng trợ lý trong `workers`, và `"askBeforeDestructive": false` để tắt câu hỏi trước lệnh phá huỷ công việc |
 
 Cập nhật không bao giờ ghi đè `config.js`. Các trang trên trình duyệt còn có nút **EN / VI** ở trên cùng.
 

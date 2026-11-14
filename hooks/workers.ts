@@ -332,10 +332,14 @@ export function delegationRules(own: OwnWorkers): string | undefined {
   ].join('\n')
 }
 
-/** Text for ChatGPT or Gemini leaves this computer: anything short of a clear allow goes to the person. Gemma stays here. */
-/** Chữ gửi cho ChatGPT hay Gemini rời khỏi máy này: chưa được cho phép rõ ràng thì hỏi người dùng. Gemma ở lại trên máy. */
-export function sendingNeedsAsking(decision: 'allow' | 'ask' | 'deny', worker: string | undefined): boolean {
-  return decision === 'ask' && worker !== undefined
+// Text for ChatGPT or Gemini leaves this computer, so the person is asked unless a rule of theirs allows this very tool.
+// A permission mode that asks nothing ("allow" with no rule behind it) does not count: the person chose not to be asked
+// about commands, not to send their text out. Gemma stays on this computer and is never asked about.
+// Chữ gửi cho ChatGPT hay Gemini rời khỏi máy này, nên người dùng được hỏi, trừ khi một quy tắc của họ cho phép đúng công cụ này.
+// Chế độ quyền không hỏi gì ("allow" mà không có quy tắc nào đứng sau) thì không tính: người dùng chọn không bị hỏi
+// về các lệnh, chứ không chọn gửi chữ của mình ra ngoài. Gemma ở lại trên máy này và không bao giờ bị hỏi.
+export function sendingNeedsAsking(decision: 'allow' | 'ask' | 'deny', worker: string | undefined, byRule = false): boolean {
+  return worker !== undefined && (decision === 'ask' || (decision === 'allow' && !byRule))
 }
 
 /** Why a call is refused, or undefined to go ahead. A question that fails or gets no answer counts as no. */

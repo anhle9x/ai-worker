@@ -31,5 +31,6 @@ window.__aiWorkerConfig = {
     "chatgpt": "GPT",
     "gemma": "Gm"
   },
-  "usdRate": 26000
+  "usdRate": 26000,
+  "askBeforeDestructive": true
 };

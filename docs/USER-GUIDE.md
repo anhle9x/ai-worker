@@ -55,6 +55,8 @@ Type these in the chat box of the Code tab:
 
 **Speak instead of typing.** You do not need to find the settings yourself: type `/ai-worker:voice`, or just tell Claude you want to speak instead of typing. On a Mac it opens the Keyboard page of System Settings, where you turn Dictation on and tick your language once; after that, press the microphone key once in the message box (do not hold it: holding calls Siri) and speak. On Windows it opens the Language & region page, where you add your language once; after that, press the Windows key + H. The plugin changes no setting and listens to nothing: the dictation is your computer's own. A Mac says under Dictation whether your voice stays on the Mac or goes to Apple; Windows sends it to Microsoft. Do not say names of people or internal figures aloud when it leaves the computer.
 
+**Before a command that destroys work.** When Claude is about to delete a whole folder, throw away changes not saved in git (`git reset --hard`), overwrite the shared git server (`git push --force`) or delete untracked files (`git clean`), and nothing else would ask you, the plugin asks in plain words first: **Let it run** or **Do not run**. On a no, or when nobody is there to answer, the command does not run. Folders a build makes again (`node_modules`, `dist`, `build` and the like) and the system's temporary folder are left alone. This is a safety net for the common forms, not a guarantee: a delete written another way, or inside a script, is not seen. To turn it off, see 1.7.
+
 **What else comes with the plugin.** Type `/ai-worker:help` to see the list as it is on your computer. In short:
 
 - **Skills,** which Claude follows when you type their name or ask in your own words: for everyday work, `/ai-worker:handoff` (write a handoff note so the next session can carry on), `/ai-worker:meeting-notes` (turn rough notes into minutes), `/ai-worker:lesson-generator` (build a small course), `/ai-worker:make-skill` (turn a document or your team's procedure into a new skill: it refuses a source holding a password or a key, keeps the skill as a draft, and switches it on only when you say yes).
@@ -90,7 +92,7 @@ Claude hands side jobs to the helper assistants following the company rules:
 | **ChatGPT** | Code review, finding bugs | Never receives names, internal documents, figures or passwords |
 | **Gemini** | Web research, images | Same as ChatGPT |
 
-Before sending anything to ChatGPT or Gemini, Claude asks you, unless your company rules already allow it. A desk for an assistant that is not installed is hidden in the office.
+Before sending anything to ChatGPT or Gemini, Claude asks you, unless a permission rule already allows that assistant. A permission mode that asks nothing does not count as such a rule: you are still asked, because the text leaves your computer. A desk for an assistant that is not installed is hidden in the office.
 
 To sign in later: open Terminal or PowerShell and type `codex login` (ChatGPT) or `agy` (Gemini).
 
@@ -119,7 +121,7 @@ Two files in your user folder, under `.local/share/ai-worker/` (Windows: `%USERP
 | File | What you can change |
 |---|---|
 | `user.json` | Your name, your email, and `language` (`"en"` or `"vi"`) |
-| `config.js` | Display names, `usdRate` (dollar to dong, used only in Vietnamese), each assistant on or off under `workers` |
+| `config.js` | Display names, `usdRate` (dollar to dong, used only in Vietnamese), each assistant on or off under `workers`, and `"askBeforeDestructive": false` to turn off the question before a command that destroys work |
 
 Updates never overwrite `config.js`. Pages in the browser also have an **EN / VI** switch at the top.
 

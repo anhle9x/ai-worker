@@ -22,6 +22,7 @@ import { BOARD_CODE_MS, BOARD_KEY, BOARD_SCHEMA, BOARD_TOOL, boardToolDescriptio
 import type { BoardPairing } from './board'
 import { buildHelp, skillLine } from './help'
 import { voiceSettingsCommand, voiceSteps } from './voice'
+import { dangerQuestion, dangerRefusal, destructiveCommand } from './guard'
 import type { VoiceSystem } from './voice'
 import type { SkillLine } from './help'
 import { BADGE_MS, BRAND, FX_MS, WORKERS, applyConfig, setInstalled, buildOfficeSvg, clockLabel, dayLabel, formatSecs, workerView } from './office'
@@ -925,13 +926,24 @@ async function writeOwnWorkers($: EngineInterface) {
   }
 }
 
+// A tool call's own input, without the fields the event carries beside it (tool, tool_use_id, agentId).
+// `$.tool.check` is given this: for Bash, whose rules read the command, the event's fields beside the input made the
+// engine answer "ask" for a command it then let through. For the plugin's own tools the answer was the same either way.
+// Đầu vào của chính lệnh gọi công cụ, không kèm các trường mà sự kiện mang theo (tool, tool_use_id, agentId).
+// `$.tool.check` nhận đúng phần này: với Bash, nơi quy tắc đọc câu lệnh, các trường của sự kiện nằm cạnh đầu vào làm
+// engine trả lời "ask" cho một lệnh mà sau đó nó vẫn cho chạy. Với công cụ riêng của plugin thì kết quả như nhau.
+function toolInput(args: Record<string, unknown>): Record<string, unknown> {
+  const { tool: _tool, tool_use_id: _id, agentId: _agent, ...input } = args
+  return input
+}
+
 /** The plugin answers these tools itself, so the engine's permission step must be asked here. Text for ChatGPT or Gemini leaves this computer. */
 /** Plugin tự trả lời các công cụ này, nên phải hỏi bước kiểm quyền của engine ở đây. Chữ gửi cho ChatGPT hay Gemini rời khỏi máy này. */
 async function refuseToSend($: EngineInterface, name: string, args: Record<string, unknown>, prompt: string): Promise<string | undefined> {
   const tool = `mcp__ai-worker__${name}`
-  const verdict = await $.tool.check({ tool, input: args }).catch(() => ({ decision: 'ask' as const }))
+  const verdict = await $.tool.check({ tool, input: toolInput(args) }).catch(() => ({ decision: 'ask' as const }))
   const worker = name === 'ask_chatgpt' ? 'ChatGPT' : name === 'ask_gemini' || name === 'generate_image' ? 'Gemini' : undefined
-  const answer = sendingNeedsAsking(verdict.decision, worker)
+  const answer = sendingNeedsAsking(verdict.decision, worker, !!(verdict as { rule?: unknown }).rule)
     ? await $.ui.ask(tx('Send this text to {worker}?\n\n{preview}', { worker: worker ?? '', preview: prompt.slice(0, 600) }), {
         options: [tx('Send'), tx('Do not send')],
         header: tx('Send out'),
@@ -1048,6 +1060,9 @@ async function loadConfig($: EngineInterface, dir: string) {
   // trang cũng theo lựa chọn này, trừ khi người xem đã chọn bằng nút EN / VI
   await $.fs.write(`${dir}/language.js`, pageLanguageScript((await $.env.get('AI_WORKER_LANG')) || person.language || mine?.language)).catch(() => undefined)
   applyConfig(mine ?? {})
+  // on unless this computer's config.js says false: someone who writes code all day may turn the question off
+  // bật, trừ khi config.js của máy này ghi false: người viết code cả ngày có thể tắt câu hỏi
+  askBeforeDestructive = (mine as Record<string, unknown> | undefined)?.askBeforeDestructive !== false
   share = readShareConfig(mergeShare(shipped?.sharing, mine?.sharing, person), dir.slice(0, -WEB_DIR.length))
 }
 
@@ -1457,7 +1472,7 @@ async function runBoard($: EngineInterface, args: string): Promise<{ text: strin
 /** Công cụ đọc bảng: phần treo tường thành các dòng chữ. Nó đọc từ máy chủ công ty vào cuộc trò chuyện này và không gửi gì ra ngoài. */
 async function serveBoard($: EngineInterface, args: Record<string, unknown>): Promise<ToolCallResult> {
   const answer = (text: string, isError = false) => ({ result: text, isError }) as unknown as ToolCallResult
-  const verdict = await $.tool.check({ tool: `mcp__ai-worker__${BOARD_TOOL}`, input: args }).catch(() => ({ decision: 'ask' as const }))
+  const verdict = await $.tool.check({ tool: `mcp__ai-worker__${BOARD_TOOL}`, input: toolInput(args) }).catch(() => ({ decision: 'ask' as const }))
   if (verdict.decision === 'deny') return answer(tx('Your permission settings do not allow this.'), true)
   const pairing = await readPairing($)
   if (!share.webhook || !pairing.token) return answer(tx('This computer is not paired with the board. Tell the user to type /ai-worker:board to pair it.'), true)
@@ -1513,6 +1528,29 @@ async function runVoice($: EngineInterface): Promise<{ text: string }> {
     }
   }
   return { text: voiceSteps(system, opened) }
+}
+
+let askBeforeDestructive = true
+const SHELL_TOOL = /^(Bash|PowerShell)$/
+
+// A shell command that destroys work (a whole folder, unsaved changes, the shared git server, untracked files) and that
+// a rule or the permission mode already lets through: the person is asked in plain words first. Returns the refusal when
+// they say no or nobody can be asked, undefined when the command may go on.
+// Một lệnh shell phá huỷ công việc (cả thư mục, thay đổi chưa lưu, máy chủ git dùng chung, file chưa theo dõi) mà
+// một quy tắc hay chế độ quyền đã cho đi qua: người dùng được hỏi bằng lời thường trước. Trả về lời từ chối khi
+// họ nói không hoặc không có ai để hỏi, undefined khi lệnh được chạy tiếp.
+async function guardDestructive($: EngineInterface, e: { tool: string }): Promise<ToolCallResult | undefined> {
+  if (!askBeforeDestructive || !SHELL_TOOL.test(e.tool)) return undefined
+  const args = e as unknown as Record<string, unknown>
+  const danger = typeof args.command === 'string' ? destructiveCommand(args.command) : undefined
+  if (!danger) return undefined
+  // when the engine is going to ask by itself, one question is enough: the plugin steps in only where nothing would ask
+  // khi engine sẽ tự hỏi thì một câu hỏi là đủ: plugin chỉ chen vào ở chỗ không có gì hỏi
+  const verdict = await $.tool.check({ tool: e.tool, input: toolInput(args) }).catch(() => ({ decision: 'ask' as const }))
+  if (verdict.decision !== 'allow') return undefined
+  const yes = tx('Let it run')
+  const answer = await $.ui.ask(dangerQuestion(danger), { options: [yes, tx('Do not run')], header: tx('Careful') }).catch(() => '')
+  return answer === yes ? undefined : ({ deny: dangerRefusal() } as unknown as ToolCallResult)
 }
 
 /** /office: the dashboard in the browser, or the side panel when no browser opens. */
@@ -1776,6 +1814,8 @@ export const register: Register = on => {
   })
 
   on('tool.call', async ($, e, next) => {
+    const refused = await guardDestructive($, e)
+    if (refused) return refused
     if (!e.agentId) {
       const args = e as unknown as Record<string, unknown>
       const line = describeTool(e.tool, args)
