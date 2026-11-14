@@ -1,6 +1,6 @@
 ---
 name: qa-site
-description: "Test a WHOLE web project: discover every page and flow, make a test plan, run each flow (in parallel when possible), and merge everything into one overall report to send to the developers. Use when the user types /qa-site, or says \"test the whole site\", \"QA the whole system\", \"check every page\". For a single flow use qa-test. Test TOÀN BỘ một dự án web: khám phá mọi trang/flow, lập kế hoạch test, chạy test từng flow (song song khi được), gộp thành một báo cáo tổng để gửi dev. Dùng khi người dùng gõ /qa-site, hoặc nói \"test full dự án\", \"test toàn bộ site\", \"QA cả hệ thống\", \"rà hết các trang\". Với một flow đơn lẻ thì dùng qa-test."
+description: "Test a WHOLE web project: discover every page and flow, make a test plan, run each flow (in parallel when possible), and merge everything into one overall report to send to the developers. Use when the user types /qa-site, or says \"test the whole site\", \"QA the whole system\", \"check every page\". Not for a single page or flow (use qa-test for that). Test TOÀN BỘ một dự án web: khám phá mọi trang/flow, lập kế hoạch test, chạy test từng flow (song song khi được), gộp thành một báo cáo tổng để gửi dev. Dùng khi người dùng gõ /qa-site, hoặc nói \"test full dự án\", \"test toàn bộ site\", \"QA cả hệ thống\", \"rà hết các trang\". Không dùng cho một trang hay một flow đơn lẻ (việc đó dùng qa-test)."
 ---
 
 # QA Site: test the whole project

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Try the board on your own computer, with sample people: python3 server/demo.py [--port 8799]  (Windows: py server\\demo.py)
 
-Starts the real board server on 127.0.0.1 with 12 made-up people in 4 offices, prints the address, the account name and
+Starts the real board server on 127.0.0.1 with 12 sample people in 4 offices, prints the address, the account name and
 the 6-digit code to log in with. Needs only Python 3.8+: no server, no install, no account anywhere.
 
 Everything lives in a temporary folder that is deleted when the demo stops. It never reads or writes the data of a real

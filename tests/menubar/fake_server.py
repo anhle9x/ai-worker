@@ -1,4 +1,4 @@
-# A board server with made-up people for the menu bar tests: it approves every pairing code by itself. Never run on a real server.
+# A board server with sample people for the menu bar tests: it approves every pairing code by itself. Never run on a real server.
 # Máy chủ bảng với người giả cho bài thử thanh menu: tự duyệt mọi mã ghép. Không bao giờ chạy trên máy chủ thật.
 import os
 import sys

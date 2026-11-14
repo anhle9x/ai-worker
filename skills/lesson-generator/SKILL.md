@@ -1,6 +1,6 @@
 ---
 name: lesson-generator
-description: Build compact, standalone multi-lesson course artifacts with lesson navigation, objectives, flashcards, quizzes, and source links.
+description: Build compact, standalone multi-lesson course artifacts with lesson navigation, objectives, flashcards, quizzes, and source links. Use when the user asks for an interactive lesson, a mini-course, a study guide, flashcards or quizzes on a topic or from their own material. Not for a one-off explanation in the chat.
 category: "education"
 risk: "safe"
 source: "official"

@@ -5,7 +5,7 @@ import { boardUserAgent, modelLabel, summarizeBoard } from '../hooks/board'
 type Engine = Parameters<TestBody>[0]
 
 const AT = Date.UTC(2026, 10, 14, 7, 5)
-// what /ext/data gives a paired device: the wall view, all of it made up
+// what /ext/data gives a paired device: the wall view, all of it sample data
 const WALL = {
   role: 'wall',
   updatedAt: AT,

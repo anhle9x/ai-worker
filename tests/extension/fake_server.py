@@ -1,4 +1,4 @@
-# A board server with made-up people for the browser extension test, on 127.0.0.1 only. Never run on a real server.
+# A board server with sample people for the browser extension test, on 127.0.0.1 only. Never run on a real server.
 # Commands on stdin, one per line: approve, revoke, wait NAME, stop NAME, audit. Each answers one line on stdout.
 # Máy chủ bảng với người giả cho bài thử tiện ích trình duyệt, chỉ trên 127.0.0.1. Không bao giờ chạy trên máy chủ thật.
 # Lệnh qua stdin, mỗi dòng một lệnh: approve, revoke, wait TÊN, stop TÊN, audit. Mỗi lệnh trả một dòng ra stdout.

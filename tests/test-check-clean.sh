@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests packaging/check-clean.sh with made-up private words. Run from anywhere; it only writes in a temporary folder.
+# Tests packaging/check-clean.sh with sample private words. Run from anywhere; it only writes in a temporary folder.
 # Thử packaging/check-clean.sh bằng từ riêng giả. Chạy ở đâu cũng được; chỉ ghi trong thư mục tạm.
 set -u
 CHECK="$(cd "$(dirname "$0")/.." && pwd)/packaging/check-clean.sh"

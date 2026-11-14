@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.31.14 - 2026-11-15
+
+### Added
+- `make-skill` checks its own draft before showing it: the description says when to use the skill and, where it could be taken for another job, what it is not for; each step says where, what and what the right result looks like; no secret or personal data got in; the file stays short. What it cannot fix without guessing it asks you about.
+
+### Changed
+- Six skills say more clearly when they are the right one, so Claude picks them at the right moment. `browser-testing-with-devtools` and `lesson-generator` now say when to use them. `domain-modeling`, `draw-flow`, `qa-site` and `ui-ux-pro-max` now say what they are not for and which skill to use instead. Only the descriptions changed, not what the skills do.
+
 ## 0.31.13 - 2026-11-14
 
 ### Added

@@ -1,4 +1,4 @@
-// Tests the manager extension's logic (extensions/manager/core.js) against a real local webhook with made-up people. Run: node tests/extension/check-extension.js
+// Tests the manager extension's logic (extensions/manager/core.js) against a real local webhook with sample people. Run: node tests/extension/check-extension.js
 // The browser APIs are replaced by small fakes; the popup and the real badge still need a look in Chrome.
 // Thử logic của tiện ích cho quản lý (extensions/manager/core.js) với webhook thật chạy trên máy, người giả. Chạy: node tests/extension/check-extension.js
 // API trình duyệt được thay bằng bản giả nhỏ; cửa sổ nhỏ và biểu tượng thật vẫn cần xem trong Chrome.

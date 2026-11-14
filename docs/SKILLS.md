@@ -17,7 +17,7 @@ Sources and licenses of the skills: `skills/SOURCES.md`. The skills written by o
 | `meeting-notes` | Everyone | Turns rough meeting notes into minutes: decisions, actions with an owner and a deadline | Muse (alapha888/agent-skills-en) | MIT |
 | `lesson-generator` | Everyone | Builds a short multi-lesson course with flashcards and quizzes | Elvis Saravia, DAIR.AI | MIT |
 | `handoff` | Everyone | Writes the handoff note so the next session can carry on | This project | MIT |
-| `make-skill` | Everyone | Turns a document or a team's procedure into a new skill: refuses a source holding secrets, keeps a draft, switches it on only after a yes | This project | MIT |
+| `make-skill` | Everyone | Turns a document or a team's procedure into a new skill: refuses a source holding secrets, checks its own draft, keeps it as a draft, switches it on only after a yes | This project | MIT |
 | `qa-test` | Coding and systems | Tests one web flow and writes a bug report | This project | MIT |
 | `qa-site` | Coding and systems | Tests a whole web project, flow by flow, into one report | This project | MIT |
 | `write-spec` | Coding and systems | Writes a specification: goal, scope, roles, numbered requirements | This project | MIT |

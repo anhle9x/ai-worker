@@ -17,7 +17,7 @@ Nguồn và giấy phép skill: `skills/SOURCES.md`. Skill do người khác vi�
 | `meeting-notes` | Mọi người | Biến ghi chép họp thành biên bản: quyết định, việc cần làm có người phụ trách và hạn | Muse (alapha888/agent-skills-en) | MIT |
 | `lesson-generator` | Mọi người | Tạo khoá học ngắn nhiều bài, có thẻ ghi nhớ và câu hỏi | Elvis Saravia, DAIR.AI | MIT |
 | `handoff` | Mọi người | Viết ghi chú bàn giao để phiên sau làm tiếp | Dự án này | MIT |
-| `make-skill` | Mọi người | Biến một tài liệu hay quy trình của phòng thành skill mới: từ chối nguồn có bí mật, giữ bản nháp, chỉ bật sau khi được đồng ý | Dự án này | MIT |
+| `make-skill` | Mọi người | Biến một tài liệu hay quy trình của phòng thành skill mới: từ chối nguồn có bí mật, tự kiểm bản nháp, giữ bản nháp, chỉ bật sau khi được đồng ý | Dự án này | MIT |
 | `qa-test` | Viết code, vận hành | Thử một luồng của trang web và viết báo cáo lỗi | Dự án này | MIT |
 | `qa-site` | Viết code, vận hành | Thử cả dự án web, từng luồng một, gộp thành một báo cáo | Dự án này | MIT |
 | `write-spec` | Viết code, vận hành | Viết đặc tả: mục tiêu, phạm vi, vai, yêu cầu có mã | Dự án này | MIT |

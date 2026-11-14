@@ -90,7 +90,7 @@ Automatic tests use fake servers and fake browsers. Before a release that touche
 1. Every GitHub Actions job is green.
 2. The checks in section 3 are done for every part this release changed.
 3. `version` in `.claude-plugin/plugin.json` is raised, and `CHANGELOG.md` lists the changes.
-   If the dashboard looks different, retake `assets/dashboard.png` and `assets/dashboard.vi.png` from a test server with made-up people, never a real one.
+   If the dashboard looks different, retake `assets/dashboard.png` and `assets/dashboard.vi.png` from a test server with sample people, never a real one.
 4. `bash packaging/release.sh` succeeds, and the signature is checked on one computer before the release goes out to everyone.
 5. Write down in the site record what was released, when and by whom ([OPERATIONS.md](OPERATIONS.md), section 7).
 

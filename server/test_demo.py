@@ -27,8 +27,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 class SampleData(unittest.TestCase):
-    """The sample itself: made-up, complete, and the same on every run.
-    Chính dữ liệu mẫu: bịa hoàn toàn, đủ, và lần chạy nào cũng giống nhau."""
+    """The sample itself: sample data only, complete, and the same on every run.
+    Chính dữ liệu mẫu: toàn dữ liệu giả lập, đủ, và lần chạy nào cũng giống nhau."""
 
     def test_same_seed_gives_the_same_numbers(self):
         self.assertEqual(demo.sample_reports(1_800_000_000.0), demo.sample_reports(1_800_000_000.0))

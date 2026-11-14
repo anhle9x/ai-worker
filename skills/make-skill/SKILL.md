@@ -31,7 +31,7 @@ A skill is a short instruction file that Claude follows each time a certain kind
    ```
    ---
    name: <name>
-   description: "<What it does, in one sentence>. Use when <the words people here really say when they need it>."
+   description: "<What it does, in one sentence>. <When to use it: the words people here really say when they need it>."
    ---
 
    # <Title>
@@ -48,26 +48,38 @@ A skill is a short instruction file that Claude follows each time a certain kind
    <What comes out: its format, its file name, where it is saved>
 
    ## Example
-   <One short made-up example, with no real name or figure>
+   <One short example with sample data: no real name or figure>
 
    ## Source
    Written from <file name or "the user's description"> on <yyyy-mm-dd>. Review it when the source changes.
    ```
 
    Rules for the draft:
-   - Write the whole skill in the language of the source, the headings of the frame and the words "Use when" too. Only the `name` stays plain ASCII.
+   - Write the whole skill in the language of the source, the headings of the frame and every word of the description too. Only the `name` stays plain ASCII.
    - Only what the source says. Do not invent a step, a number or a rule. Where the source leaves a gap, do not fill it: list it as a question for the user.
    - The description decides when Claude picks the skill, so put in it the words the user's team really uses, in their language. Keep it inside double quotes.
+   - When the skill could be taken for another job, end the description with one more sentence: what it is not for, and what to use instead.
    - Short beats complete: under 150 lines. Do not copy the source word for word.
 
-7. **Show the user the draft**, in this order: its name, when it will be used, the steps as a short list, what you left out and why, and your open questions. Then ask one question with these choices: switch it on, change something, keep it as a draft.
+7. **Check the draft yourself before showing it.** Read the file you just wrote and go through this list. Fix what fails and check again. What you cannot fix without guessing becomes an open question for the user.
+   - The description says what the skill does and when to use it, and it speaks about the skill: no "I", no "you".
+   - If the description also fits another job, or another skill the user already has (the names in the `skills` folder from step 5), it says what this skill is not for and what to use instead.
+   - The description is one to three sentences and under 1,024 characters; the name is under 64.
+   - Each step says where to do it, what to do and what the right result looks like.
+   - Every file the skill tells Claude to open or run is in the draft folder.
+   - No password, key, token or personal data got in while writing: look again as in steps 2 and 3.
+   - The example holds sample data only.
+   - The whole draft is in the language of the source, the description included: no sentence that starts in one language and ends in another.
+   - The file is under 150 lines.
 
-8. **Switch it on only after a clear yes.** Copy the draft folder to `skills/<name>/` inside the `.claude` folder of the user's home folder. If a skill of that name is already there, ask before replacing it. Then tell the user:
+8. **Show the user the draft**, in this order: its name, when it will be used and when not, the steps as a short list, what you left out and why, and your open questions. Then ask one question with these choices: switch it on, change something, keep it as a draft.
+
+9. **Switch it on only after a clear yes.** Copy the draft folder to `skills/<name>/` inside the `.claude` folder of the user's home folder. If a skill of that name is already there, ask before replacing it. Then tell the user:
    - it works in new sessions: open a new session if this one does not show it;
    - how to call it: type `/<name>`, or just ask for the job in their own words;
    - how to remove it: delete that folder.
 
-9. **Say where it lives.** The skill is on this computer only. To give it to the whole team, the user sends the folder to their admin, who can put it in the company package. Do not upload or send it anywhere yourself.
+10. **Say where it lives.** The skill is on this computer only. To give it to the whole team, the user sends the folder to their admin, who can put it in the company package. Do not upload or send it anywhere yourself.
 
 ## Limits
 

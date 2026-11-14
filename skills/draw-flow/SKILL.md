@@ -1,6 +1,6 @@
 ---
 name: draw-flow
-description: Draw how a system or process really works as Mermaid diagrams, one flow per diagram, including the paths that fail, checked so they display correctly. Use when the user types /draw-flow, asks for a flow, flowchart, sequence diagram or Mermaid diagram, or wants to see how the parts of a system connect. Vẽ cách một hệ thống hay quy trình thực sự chạy bằng sơ đồ Mermaid, mỗi sơ đồ một luồng, gồm cả nhánh thất bại, có kiểm để hiển thị đúng. Dùng khi người dùng gõ /draw-flow, nhờ vẽ flow, lưu đồ, sơ đồ tuần tự, sơ đồ Mermaid, hoặc muốn xem các phần của hệ thống nối với nhau ra sao.
+description: Draw how a system or process really works as Mermaid diagrams, one flow per diagram, including the paths that fail, checked so they display correctly. Use when the user types /draw-flow, asks for a flow, flowchart, sequence diagram or Mermaid diagram, or wants to see how the parts of a system connect. Not for charts of numbers or for screen mockups. Vẽ cách một hệ thống hay quy trình thực sự chạy bằng sơ đồ Mermaid, mỗi sơ đồ một luồng, gồm cả nhánh thất bại, có kiểm để hiển thị đúng. Dùng khi người dùng gõ /draw-flow, nhờ vẽ flow, lưu đồ, sơ đồ tuần tự, sơ đồ Mermaid, hoặc muốn xem các phần của hệ thống nối với nhau ra sao. Không dùng để vẽ biểu đồ số liệu hay bản phác giao diện.
 ---
 
 # Draw a flow

@@ -67,7 +67,7 @@ A Chrome or Edge extension shows, on its icon, how many people are waiting for a
 
 Once paired, the popup is the same small window as the menu bar apps (five tabs, Settings with notifications, language and unpair). It runs copies of `server/static/mini.js`, `mini.css` and the logos kept in `extensions/manager/mini/`: after changing those files, copy them again (`cp server/static/mini.js server/static/mini.css extensions/manager/mini/`, and `server/menubar/icons/generic-black.png` and `generic-white.png` to `extensions/manager/mini/logo-black.png` and `logo-white.png`), then hand out the folder again.
 
-Test: `node tests/extension/check-extension.js` (runs a local webhook with made-up people, and fails when the copies differ).
+Test: `node tests/extension/check-extension.js` (runs a local webhook with sample people, and fails when the copies differ).
 
 ## Log in with Telegram (optional)
 
