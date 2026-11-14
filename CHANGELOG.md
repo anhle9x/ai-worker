@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.31.12 - 2026-11-14
+
+### Fixed
+- The question before a command that destroys work did not appear in the app's automatic permission mode: the command went to the automatic approval, which let it run. The plugin now marks such a command as one a person must answer, in the app's own permission box, in every mode; where nobody can be asked it is refused.
+
 ## 0.31.11 - 2026-11-14
 
 ### Added

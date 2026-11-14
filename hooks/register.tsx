@@ -22,7 +22,7 @@ import { BOARD_CODE_MS, BOARD_KEY, BOARD_SCHEMA, BOARD_TOOL, boardToolDescriptio
 import type { BoardPairing } from './board'
 import { buildHelp, skillLine } from './help'
 import { voiceSettingsCommand, voiceSteps } from './voice'
-import { dangerQuestion, dangerRefusal, destructiveCommand } from './guard'
+import { dangerQuestion, destructiveCommand } from './guard'
 import type { VoiceSystem } from './voice'
 import type { SkillLine } from './help'
 import { BADGE_MS, BRAND, FX_MS, WORKERS, applyConfig, setInstalled, buildOfficeSvg, clockLabel, dayLabel, formatSecs, workerView } from './office'
@@ -1533,26 +1533,6 @@ async function runVoice($: EngineInterface): Promise<{ text: string }> {
 let askBeforeDestructive = true
 const SHELL_TOOL = /^(Bash|PowerShell)$/
 
-// A shell command that destroys work (a whole folder, unsaved changes, the shared git server, untracked files) and that
-// a rule or the permission mode already lets through: the person is asked in plain words first. Returns the refusal when
-// they say no or nobody can be asked, undefined when the command may go on.
-// Một lệnh shell phá huỷ công việc (cả thư mục, thay đổi chưa lưu, máy chủ git dùng chung, file chưa theo dõi) mà
-// một quy tắc hay chế độ quyền đã cho đi qua: người dùng được hỏi bằng lời thường trước. Trả về lời từ chối khi
-// họ nói không hoặc không có ai để hỏi, undefined khi lệnh được chạy tiếp.
-async function guardDestructive($: EngineInterface, e: { tool: string }): Promise<ToolCallResult | undefined> {
-  if (!askBeforeDestructive || !SHELL_TOOL.test(e.tool)) return undefined
-  const args = e as unknown as Record<string, unknown>
-  const danger = typeof args.command === 'string' ? destructiveCommand(args.command) : undefined
-  if (!danger) return undefined
-  // when the engine is going to ask by itself, one question is enough: the plugin steps in only where nothing would ask
-  // khi engine sẽ tự hỏi thì một câu hỏi là đủ: plugin chỉ chen vào ở chỗ không có gì hỏi
-  const verdict = await $.tool.check({ tool: e.tool, input: toolInput(args) }).catch(() => ({ decision: 'ask' as const }))
-  if (verdict.decision !== 'allow') return undefined
-  const yes = tx('Let it run')
-  const answer = await $.ui.ask(dangerQuestion(danger), { options: [yes, tx('Do not run')], header: tx('Careful') }).catch(() => '')
-  return answer === yes ? undefined : ({ deny: dangerRefusal() } as unknown as ToolCallResult)
-}
-
 /** /office: the dashboard in the browser, or the side panel when no browser opens. */
 /** /office: bảng trong trình duyệt, hoặc khung bên cạnh khi không mở được trình duyệt. */
 async function runOffice($: EngineInterface): Promise<{ text: string }> {
@@ -1813,9 +1793,21 @@ export const register: Register = on => {
     return step
   })
 
+  // a shell command that destroys work (a whole folder, unsaved changes, the shared git server, untracked files) is
+  // put to a person, in plain words, whatever the permission mode. A hook's "ask" is the person's to answer: no
+  // automatic approval settles it, and where nobody can be asked the command is refused. A deny beneath stays a deny.
+  // một lệnh shell phá huỷ công việc (cả thư mục, thay đổi chưa lưu, máy chủ git dùng chung, file chưa theo dõi) được
+  // đưa cho một người trả lời, bằng lời thường, ở mọi chế độ quyền. "ask" của một hook là của người dùng: không có
+  // bước tự duyệt nào trả lời thay, và ở nơi không hỏi được ai thì lệnh bị từ chối. Một lệnh đã bị cấm vẫn bị cấm.
+  on('tool.check', async ($, e, next) => {
+    const verdict = await next(e)
+    if (!askBeforeDestructive || !SHELL_TOOL.test(e.tool) || verdict.decision === 'deny') return verdict
+    const command = (e.input as Record<string, unknown> | undefined)?.command
+    const danger = typeof command === 'string' ? destructiveCommand(command) : undefined
+    return danger ? { decision: 'ask' as const, reason: dangerQuestion(danger) } : verdict
+  })
+
   on('tool.call', async ($, e, next) => {
-    const refused = await guardDestructive($, e)
-    if (refused) return refused
     if (!e.agentId) {
       const args = e as unknown as Record<string, unknown>
       const line = describeTool(e.tool, args)

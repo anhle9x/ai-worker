@@ -1,10 +1,10 @@
 // A safety net for the few shell commands that destroy work and cannot be undone: deleting a whole folder,
 // throwing away unsaved changes, overwriting the shared git server, deleting untracked files.
-// When a rule or the permission mode already lets such a command through, the plugin asks the person in plain
-// words first. It reads the command as text, so it catches the common forms, not every way to delete something.
+// Such a command is put to a person in plain words, whatever the permission mode: an automatic approval does not
+// answer for them. It reads the command as text, so it catches the common forms, not every way to delete something.
 // Lưới an toàn cho vài lệnh shell phá huỷ công việc và không hoàn tác được: xoá cả thư mục,
 // bỏ các thay đổi chưa lưu, ghi đè máy chủ git dùng chung, xoá file chưa được theo dõi.
-// Khi một quy tắc hay chế độ quyền đã cho lệnh như vậy đi qua, plugin hỏi người dùng bằng lời thường trước.
+// Lệnh như vậy được đưa cho một người trả lời bằng lời thường, ở mọi chế độ quyền: bước tự duyệt không trả lời thay họ.
 // Nó đọc lệnh dưới dạng chữ, nên bắt được các dạng phổ biến, không phải mọi cách xoá.
 import { tx } from './lang'
 
@@ -130,25 +130,20 @@ export function destructiveCommand(command: string): Danger | undefined {
   return undefined
 }
 
-/** The question put to the person, in plain words: what is about to happen and that it cannot be undone. */
-/** Câu hỏi đưa cho người dùng, bằng lời thường: điều gì sắp xảy ra và rằng nó không hoàn tác được. */
+/** What the permission dialog tells the person, in plain words: what is about to happen and that it cannot be undone. */
+/** Điều hộp xin phép nói với người dùng, bằng lời thường: điều gì sắp xảy ra và rằng nó không hoàn tác được. */
 export function dangerQuestion(d: Danger): string {
+  const only = tx('Allow it only if that is what you want.')
   switch (d.kind) {
     case 'delete-folder':
       return d.target
-        ? tx('Claude is about to delete a whole folder and everything in it: {target}. It cannot be brought back. Let it run?', { target: d.target })
-        : tx('Claude is about to delete whole folders and everything in them. They cannot be brought back. Let it run?')
+        ? `${tx('This deletes a whole folder and everything in it: {target}. It cannot be brought back.', { target: d.target })} ${only}`
+        : `${tx('This deletes whole folders and everything in them. They cannot be brought back.')} ${only}`
     case 'reset-hard':
-      return tx('Claude is about to throw away every change in this project that is not saved in git yet (git reset --hard). They cannot be brought back. Let it run?')
+      return `${tx('This throws away every change in this project that is not saved in git yet (git reset --hard). They cannot be brought back.')} ${only}`
     case 'force-push':
-      return tx('Claude is about to overwrite what is on the shared git server with what is on this computer (git push --force). Work that others put there can be lost. Let it run?')
+      return `${tx('This overwrites what is on the shared git server with what is on this computer (git push --force). Work that others put there can be lost.')} ${only}`
     case 'clean':
-      return tx('Claude is about to delete every file in this project that git does not track (git clean). They cannot be brought back. Let it run?')
+      return `${tx('This deletes every file in this project that git does not track (git clean). They cannot be brought back.')} ${only}`
   }
-}
-
-/** What Claude is told when the person said no, or nobody was there to ask. */
-/** Điều Claude được báo khi người dùng nói không, hoặc không có ai để hỏi. */
-export function dangerRefusal(): string {
-  return tx('The person did not allow this command: it destroys work that cannot be brought back. Do not run it, and do not reach the same result another way. Tell them what you wanted to do and why, then wait for their answer.')
 }
