@@ -28,24 +28,20 @@ AI Worker gồm một plugin Claude Code trên máy từng nhân viên và một
 
 ## Các màn hình
 
-Mọi ảnh đều dùng người và số liệu bịa. Bấm vào ảnh để xem cỡ đầy đủ.
+Mọi ảnh đều dùng người và số liệu bịa. Kéo ngang hàng ảnh để xem đủ bảy ảnh; bấm vào ảnh để xem cỡ đầy đủ.
 
+<!-- one row that scrolls sideways: nowrap keeps each caption on one line, and that line stops GitHub from shrinking the cell. Keep every caption wider than its picture -->
 <table>
   <tr>
-    <td width="50%" valign="top"><img src="assets/map-2d.jpg" alt="Bản đồ phẳng với bốn văn phòng" width="100%"><br><sub><b>Bản đồ phẳng.</b> Mỗi văn phòng hiện số người đang làm, chi phí hôm nay và trợ lý nào đang dùng.</sub></td>
-    <td width="50%" valign="top"><img src="assets/map-25d.jpg" alt="Bản đồ nghiêng, mỗi văn phòng có một cột" width="100%"><br><sub><b>Bản đồ 2.5D.</b> Cột trên mỗi văn phòng thể hiện chi phí, số người hoặc hạn mức.</sub></td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top"><img src="assets/globe.jpg" alt="Quả địa cầu có đánh dấu các văn phòng" width="100%"><br><sub><b>Quả địa cầu.</b> Vẫn các văn phòng đó trên quả địa cầu 3D, xoay và phóng to được.</sub></td>
-    <td width="50%" valign="top"><img src="assets/wall.jpg" alt="Màn hình treo tường với sơ đồ và ba vòng hạn mức" width="100%"><br><sub><b>Màn hình treo tường.</b> Dành cho TV: toàn màn hình, có vòng hạn mức, ghép bằng mã do quản trị viên duyệt.</sub></td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top"><img src="assets/board.jpg" alt="Bảng mỗi người một dòng" width="100%"><br><sub><b>Bảng chi tiết.</b> Mỗi người một dòng: trạng thái, mô hình, hạn mức, chi phí, token, việc đã giao, phiên bản plugin.</sub></td>
-    <td width="50%" valign="top"><img src="assets/admin.jpg" alt="Trang quản trị với tài khoản, màn hình TV và các bản tải về" width="100%"><br><sub><b>Trang quản trị.</b> Tài khoản và vai trò, ghép màn hình TV, tải biểu tượng thanh menu và tiện ích trình duyệt.</sub></td>
+    <td nowrap align="center" valign="top"><img src="assets/map-2d.jpg" alt="Bản đồ phẳng với bốn văn phòng" width="400"><br><sub><b>Bản đồ phẳng.</b> Mỗi văn phòng hiện số người đang làm, chi phí hôm nay và trợ lý đang dùng.</sub></td>
+    <td nowrap align="center" valign="top"><img src="assets/map-25d.jpg" alt="Bản đồ nghiêng, mỗi văn phòng có một cột" width="400"><br><sub><b>Bản đồ 2.5D.</b> Cột trên mỗi văn phòng thể hiện chi phí, số người hoặc hạn mức, tuỳ bạn chọn.</sub></td>
+    <td nowrap align="center" valign="top"><img src="assets/globe.jpg" alt="Quả địa cầu có đánh dấu các văn phòng" width="400"><br><sub><b>Quả địa cầu.</b> Vẫn các văn phòng đó trên quả địa cầu 3D: kéo để xoay, cuộn để phóng to, thu nhỏ.</sub></td>
+    <td nowrap align="center" valign="top"><img src="assets/wall.jpg" alt="Màn hình treo tường với sơ đồ và ba vòng hạn mức" width="400"><br><sub><b>Màn hình treo tường.</b> Dành cho TV: toàn màn hình, có vòng hạn mức, ghép bằng mã do quản trị duyệt.</sub></td>
+    <td nowrap align="center" valign="top"><img src="assets/board.jpg" alt="Bảng mỗi người một dòng" width="400"><br><sub><b>Bảng chi tiết.</b> Mỗi người một dòng: trạng thái, mô hình, hạn mức, chi phí, token, bản plugin.</sub></td>
+    <td nowrap align="center" valign="top"><img src="assets/admin.jpg" alt="Trang quản trị với tài khoản, màn hình TV và các bản tải về" width="400"><br><sub><b>Trang quản trị.</b> Tài khoản và vai trò, ghép màn hình TV, tải biểu tượng thanh menu và tiện ích.</sub></td>
+    <td nowrap align="center" valign="top"><img src="assets/phone.jpg" alt="Bảng trên màn hình hẹp, các ô xếp chồng lên nhau" height="187"><br><sub><b>Màn hình hẹp.</b> Trên điện thoại các ô xếp chồng lên nhau, từ trên xuống dưới.</sub></td>
   </tr>
 </table>
-
-<p align="center"><img src="assets/phone.jpg" alt="Bảng trên màn hình hẹp, các ô xếp chồng lên nhau" width="300"><br><sub><b>Màn hình hẹp.</b> Trên điện thoại các ô xếp chồng lên nhau.</sub></p>
 
 ## Cách hoạt động
 
