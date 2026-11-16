@@ -2,7 +2,7 @@ Tiếng Việt | [English](README.md)
 
 # Văn phòng AI Worker
 
-Xem công ty đang dùng Claude và các trợ lý phụ thế nào, theo thời gian thực, trên một bảng.
+Triển khai Claude cho cả văn phòng, kể cả người không viết code, và nhìn là biết ai đang chờ trả lời.
 
 <p>
   <a href="LICENSE"><img alt="Giấy phép MIT" src="https://img.shields.io/badge/license-MIT-0a0a0a.svg?style=for-the-badge&amp;labelColor=000000" height="28"></a>
@@ -11,7 +11,7 @@ Xem công ty đang dùng Claude và các trợ lý phụ thế nào, theo thời
   <img alt="Máy chủ: thư viện chuẩn Python và SQLite" src="https://img.shields.io/badge/server-Python%20%2B%20SQLite-0a0a0a.svg?style=for-the-badge&amp;labelColor=000000" height="28">
 </p>
 
-AI Worker gồm một plugin Claude Code trên máy từng nhân viên và một máy chủ nhỏ trên một máy Linux. Plugin đếm Claude và các trợ lý phụ (Gemini, ChatGPT, Gemma) đang làm gì: số phiên, ai đang chờ trả lời, token, chi phí, việc đã giao. Máy chủ gom số liệu thành bảng 3D trực tiếp cho quản lý, màn hình treo tường, biểu tượng thanh menu và tiện ích trình duyệt. Không bao giờ gửi nội dung chat, câu hỏi, tên file hay tên dự án.
+AI Worker dành cho người phải triển khai Claude cho cả văn phòng rồi trả lời hai câu hỏi: mọi người có dùng không, và ai đang kẹt? Nó gồm một plugin Claude Code trên máy từng nhân viên và một máy chủ nhỏ trên một máy Linux do bạn tự chạy. Nhân viên bấm đúp vào bộ cài, gõ họ tên là xong. Quản lý có một bảng cập nhật theo thời gian thực, cho thấy ai đang làm, ai đang chờ trả lời và đã chờ bao lâu, cho cả Claude lẫn các trợ lý phụ (Gemini, ChatGPT, Gemma). Không cần gói Team hay Enterprise, không cần phần mềm quản lý thiết bị. Máy nhân viên gửi lên máy chủ tên người dùng, tài khoản Claude, vài thông tin về máy và các con số (số phiên, token, chi phí, hạn mức); không bao giờ gửi nội dung chat, prompt, tên file hay tên dự án.
 
 <!-- one row that scrolls sideways, one picture to a view. GitHub shrinks pictures in a table to fit the page; the line of em spaces under each caption cannot wrap (nowrap), so it holds the cell at the width of the page -->
 <table>
@@ -28,14 +28,25 @@ AI Worker gồm một plugin Claude Code trên máy từng nhân viên và một
   </tr>
 </table>
 
-## Làm được gì
+## Điểm khác biệt
 
-- **Một bảng cho cả công ty:** ai đang làm, ai chờ trả lời và chờ bao lâu, chi phí hôm nay và 7 ngày, hạn mức còn lại, theo từng văn phòng trên bản đồ.
-- **Tua lại 24 giờ qua** để xem cả ngày diễn ra thế nào.
-- **Hỏi bằng lời của mình:** quản lý ghép Claude của mình với bảng một lần, rồi hỏi "ai đang chờ lâu nhất?" và Claude trả lời từ số liệu của bảng, bằng tiếng Việt, gõ hoặc nói đều được.
-- **Báo mà không cần mở trình duyệt:** biểu tượng thanh menu (macOS, Windows, Ubuntu) và tiện ích Chrome, Edge đếm người đang chờ.
-- **Skill và quy tắc dùng chung** cho mọi máy, tự cập nhật bằng gói có chữ ký.
-- **Phân quyền và nhật ký:** quản trị, quản lý, màn hình treo tường thấy dữ liệu khác nhau; đăng nhập bằng mã OTP 6 số hoặc bằng Telegram (Telegram cần cài thêm bot, xem [hướng dẫn cài đặt](docs/INSTALL.vi.md)); mọi thay đổi được ghi 12 tháng.
+- **Thấy ngay ai đang kẹt.** Bảng cho thấy ai đang làm, ai đang chờ trả lời và chờ bao lâu, theo từng văn phòng trên bản đồ. Cũng xem được trên màn hình treo tường, hoặc qua số người đang chờ hiện trên biểu tượng thanh menu (macOS, Windows, Ubuntu) và tiện ích Chrome, Edge. Tua lại 24 giờ qua để xem cả ngày diễn ra thế nào.
+- **Cả văn phòng dùng được, không riêng lập trình viên.** Một gói cho cả công ty: nhân viên bấm đúp vào bộ cài trên macOS, Windows hoặc Linux, skill và quy tắc dùng chung được đưa tới mọi máy, bản cập nhật có chữ ký số. Hướng dẫn viết dễ hiểu, có tiếng Việt và tiếng Anh.
+- **Tự host: số liệu của bảng nằm trên máy chủ của bạn.** Máy chủ chạy trên máy Linux của chính bạn, chỉ cần thư viện chuẩn Python và SQLite. Máy nhân viên gửi thông tin ai đang dùng và các con số, không gửi nội dung công việc; từng trường dữ liệu ghi trong [docs/DATA-MODEL.vi.md](docs/DATA-MODEL.vi.md).
+
+## Tính năng khác
+
+- **Chi phí và hạn mức:** chi phí hôm nay và 7 ngày, hạn mức còn lại, theo từng người và từng văn phòng.
+- **Hỏi Claude về team:** quản lý ghép Claude của mình với bảng một lần, rồi cứ hỏi tự nhiên, ví dụ "ai đang chờ lâu nhất?". Hỏi bằng tiếng Việt cũng được, gõ hoặc nói đều được; Claude trả lời từ số liệu của bảng.
+- **Biến quy trình thành skill:** đưa cho `/ai-worker:make-skill` một SOP hoặc mô tả cách làm một việc. Nó viết bản nháp skill, dừng lại khi thấy mật khẩu hay khoá, bỏ dữ liệu cá nhân, và chỉ bật skill sau khi bạn đồng ý.
+- **Hỏi lại trước khi xoá hay gửi ra ngoài:** lệnh xoá cả thư mục, `git reset --hard`, `git push --force` và `git clean` phải được bạn xác nhận; gửi nội dung sang AI của hãng khác cũng vậy, trừ khi bạn đã tự cho phép.
+- **Phân quyền và nhật ký:** quản trị viên, quản lý và màn hình treo tường được xem những phần dữ liệu khác nhau; đăng nhập bằng mã OTP 6 số hoặc bằng Telegram (Telegram cần cài thêm bot, xem [hướng dẫn cài đặt](docs/INSTALL.vi.md)); nhật ký mọi thay đổi được lưu 12 tháng.
+
+## Có hợp với bạn không?
+
+- **Bạn chỉ muốn biết chi phí token trên máy mình:** một công cụ đếm chạy trên máy là đủ và gọn hơn, không cần máy chủ.
+- **Tổ chức của bạn dùng gói Team hoặc Enterprise và có quản lý thiết bị:** [bảng thống kê](https://code.claude.com/docs/en/analytics) và [phần quản lý plugin](https://code.claude.com/docs/en/plugins/org) của chính Anthropic đã có báo cáo sử dụng và cách đưa plugin tới mọi máy. AI Worker thêm bảng theo thời gian thực cho thấy ai đang chờ, và chạy được mà không cần hai thứ đó.
+- **Văn phòng nhỏ hoặc vừa, nhiều người không viết code, không có quản lý thiết bị:** đây là trường hợp AI Worker hợp nhất.
 
 ## Cách hoạt động
 

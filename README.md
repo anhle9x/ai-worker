@@ -2,7 +2,7 @@
 
 # AI Worker Office
 
-See how your company uses Claude and its helper assistants, live, on one board.
+Bring Claude to your whole office, including people who do not write code, and see at a glance who is waiting for an answer.
 
 <p>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-0a0a0a.svg?style=for-the-badge&amp;labelColor=000000" height="28"></a>
@@ -11,7 +11,7 @@ See how your company uses Claude and its helper assistants, live, on one board.
   <img alt="Server: Python standard library and SQLite" src="https://img.shields.io/badge/server-Python%20%2B%20SQLite-0a0a0a.svg?style=for-the-badge&amp;labelColor=000000" height="28">
 </p>
 
-AI Worker is a Claude Code plugin on each employee's computer and a small server on one Linux machine. The plugin counts what Claude and the helper assistants (Gemini, ChatGPT, Gemma) are doing: sessions, who is waiting for an answer, tokens, cost, tasks handed off. The server gathers those numbers into a live 3D board for managers, a TV wall screen, a menu bar icon and a browser extension. It never sends chat content, prompts, file names or project names.
+AI Worker is for the person who has to roll Claude out to an office and then answer two questions: is it being used, and who is stuck? It is a Claude Code plugin on each employee's computer and a small server on one Linux machine that you run yourself. Staff double-click an installer and type their name. Managers get a live board of who is working, who is waiting for an answer and for how long, for Claude and for the helper assistants (Gemini, ChatGPT, Gemma). It needs no Team or Enterprise plan and no device-management software. An employee's computer sends the server the person's name, their Claude account, a few facts about the computer and the numbers (sessions, tokens, cost, quota); it never sends chat content, prompts, file names or project names.
 
 <!-- one row that scrolls sideways, one picture to a view. GitHub shrinks pictures in a table to fit the page; the line of em spaces under each caption cannot wrap (nowrap), so it holds the cell at the width of the page -->
 <table>
@@ -28,14 +28,25 @@ AI Worker is a Claude Code plugin on each employee's computer and a small server
   </tr>
 </table>
 
-## What it does
+## What makes it different
 
-- **One board for the whole company:** who is working, who waits for an answer and for how long, cost today and over 7 days, quota left, per office on a map.
-- **Rewind the last 24 hours** to see how the day went.
-- **Ask in your own words:** a manager pairs their Claude with the board once, then asks "who is waiting longest right now?" and Claude answers from the board's numbers, in any language, typed or dictated.
-- **Alerts without the browser:** a menu bar icon (macOS, Windows, Ubuntu) and a Chrome or Edge extension count the people waiting.
-- **Shared skills and rules** for every computer, and self-update with signed packages.
+- **You see who is stuck, as it happens.** The board shows who is working, who is waiting for an answer and for how long, per office on a map. You can also watch it on a TV wall screen, or see the number of people waiting on a menu bar icon (macOS, Windows, Ubuntu) and a Chrome or Edge extension. Rewind the last 24 hours to see how the day went.
+- **A whole office can use it, not only developers.** One package for the company: staff double-click an installer on macOS, Windows or Linux, shared rules and skills reach every computer, and updates arrive signed. The guides use simple language, in English and Vietnamese.
+- **Self-hosted: the board's data stays on your own server.** The server runs on your own Linux machine with Python's standard library and SQLite. Employee computers send who is using Claude and the numbers, not what they are working on; every field is listed in [docs/DATA-MODEL.md](docs/DATA-MODEL.md).
+
+## Other features
+
+- **Cost and quota:** cost today and over 7 days and quota left, per person and per office.
+- **Ask Claude about the team:** a manager pairs their Claude with the board once, then simply asks, for example "who is waiting longest right now?". You can type or dictate the question in your own language; Claude answers from the board's numbers.
+- **Turn a procedure into a skill:** give `/ai-worker:make-skill` an SOP or a description of how a job is done. It writes a draft skill, stops at passwords and keys, leaves personal data out, and switches the skill on only after you say yes.
+- **Asks before deleting or sending out:** a command that deletes a whole folder, `git reset --hard`, `git push --force` and `git clean` need your confirmation, and so does sending text to another company's AI unless you allowed it yourself.
 - **Roles and audit:** admins, managers and wall screens see different data; log in with a 6-digit OTP code or with Telegram (Telegram needs a bot set up first, see the [install guide](docs/INSTALL.md)); every change is logged for 12 months.
+
+## Is it the right tool?
+
+- **You only want the token cost on your own computer:** a local usage counter is simpler. You do not need a server.
+- **Your organization is on a Team or Enterprise plan and manages its devices:** Anthropic's own [analytics](https://code.claude.com/docs/en/analytics) and [managed plugin settings](https://code.claude.com/docs/en/plugins/org) already give usage reports and roll plugins out. AI Worker adds the live board of who is waiting, and works without either.
+- **A small or mid-size office where many people do not write code and there is no device management:** this is the case AI Worker fits best.
 
 ## How it works
 

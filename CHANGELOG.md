@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.31.17 - 2026-11-16
+
+### Changed
+- The README opens with what sets AI Worker apart: the live board of who is waiting, and a rollout a whole office can use without a Team or Enterprise plan or device management. A new section says when another tool fits better.
+
 ## 0.31.16 - 2026-11-15
 
 ### Changed
