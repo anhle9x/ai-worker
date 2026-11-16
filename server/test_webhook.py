@@ -301,6 +301,110 @@ class BoardPage(unittest.TestCase):
             drop_device("device-iphist")
 
 
+class ConnectorReports(unittest.TestCase):
+    """Reports from the connector for Codex, Cursor and Gemini CLI: a "tools" table next to the plugin's own report.
+    Báo cáo của bộ nối cho Codex, Cursor và Gemini CLI: một bảng "tools" bên cạnh báo cáo của chính plugin."""
+
+    def connector(self, minutes_ago: float = 0, **fields):
+        base = {"v": 1, "device": "device-conn1", "name": "Tool", "account": "tool@example.com", "updatedAt": int((NOW - minutes_ago * 60) * 1000),
+                "tools": {"codex": {"openSessions": 2, "working": 1, "waiting": 1}}}
+        return dict(base, **fields)
+
+    def plugin(self, minutes_ago: float = 0, **fields):
+        base = {"v": 1, "device": "device-conn2", "name": "Tool", "account": "tool@example.com", "updatedAt": int((NOW - minutes_ago * 60) * 1000),
+                "openSessions": 1, "working": 1, "waiting": 0, "pluginVersion": "0.31.17"}
+        return dict(base, **fields)
+
+    def person(self, *reports):
+        return devices.group_by_person([devices.clean_payload(r, NOW) for r in reports], NOW)[0]
+
+    def test_only_known_tools_and_counts_are_kept_and_the_totals_are_rebuilt(self):
+        raw = self.connector(openSessions=99, working=99, waiting=99, tools={
+            "codex": {"openSessions": 2, "working": 1, "waiting": 0, "prompt": "secret"}, "cursor": {"openSessions": 1, "working": "x", "waiting": -4},
+            "gemini": "x", "other-tool": {"openSessions": 5}})
+        clean = devices.clean_payload(raw, NOW)
+        self.assertEqual(clean["tools"], {"codex": {"openSessions": 2, "working": 1, "waiting": 0}, "cursor": {"openSessions": 1, "working": 0, "waiting": 0}})
+        self.assertEqual([clean[k] for k in devices.SESSION_COUNTS], [3, 1, 0])
+        self.assertNotIn("secret", json.dumps(clean))
+
+    def test_a_plugin_report_has_no_tools_table(self):
+        self.assertNotIn("tools", devices.clean_payload(self.plugin(), NOW))
+        self.assertNotIn("tools", devices.clean_payload(self.plugin(tools="codex"), NOW))
+        self.assertFalse(devices.from_connector(devices.clean_payload(self.plugin(), NOW)))
+        self.assertTrue(devices.from_connector(devices.clean_payload(self.connector(tools={}), NOW)))
+
+    def test_one_person_shows_each_tool_with_its_own_counts(self):
+        r = self.person(self.plugin(), self.connector(tools={"codex": {"openSessions": 2, "working": 1, "waiting": 1}, "gemini": {"openSessions": 0}}))
+        self.assertEqual(r["tools"], {"claude": {"openSessions": 1, "working": 1, "waiting": 0}, "codex": {"openSessions": 2, "working": 1, "waiting": 1}})
+        self.assertEqual([r[k] for k in devices.SESSION_COUNTS], [3, 2, 1])
+        self.assertEqual(devices.status_of(r, NOW), "waiting")
+
+    def test_the_connector_is_not_counted_as_a_computer_or_a_plugin(self):
+        r = self.person(self.plugin(), self.connector(pluginVersion="9.9.9"))
+        self.assertEqual(r["deviceCount"], 1)
+        self.assertEqual(r["pluginVersion"], ["0.31.17"])
+        self.assertEqual(len(r["devices"]), 1)
+        alone = self.person(self.connector())
+        self.assertEqual((alone["deviceCount"], alone["devices"], alone["pluginVersion"]), (0, [], []))
+        self.assertIn("—", pages.device_version_cell(alone, "0.31.17", NOW))
+
+    def test_a_connector_report_counts_for_two_hours_a_plugin_report_for_twelve_minutes(self):
+        self.assertEqual(devices.status_of(self.person(self.connector(30)), NOW), "waiting")
+        self.assertEqual(devices.status_of(self.person(self.connector(119)), NOW), "waiting")
+        late = self.person(self.connector(121))
+        self.assertEqual(devices.status_of(late, NOW), "offline")
+        self.assertEqual((late["tools"], late["waiting"], late["openSessions"]), ({}, 0, 0))
+        self.assertEqual(devices.status_of(self.person(self.plugin(11)), NOW), "working")
+        self.assertEqual(devices.status_of(self.person(self.plugin(13)), NOW), "offline")
+
+    def test_a_connector_with_no_session_open_does_not_keep_a_person_online(self):
+        closed = self.person(self.connector(tools={}))
+        self.assertEqual((devices.status_of(closed, NOW), closed["tools"]), ("offline", {}))
+        self.assertEqual(devices.status_of(self.person(self.connector(tools={"codex": {"openSessions": 0, "working": 0, "waiting": 0}})), NOW), "offline")
+        # with Claude open on the same computer the person is there all the same
+        # khi Claude đang mở trên cùng máy thì người đó vẫn đang ở đó
+        self.assertEqual(devices.status_of(self.person(self.plugin(working=0), self.connector(tools={})), NOW), "open")
+
+    def test_working_from_a_connector_is_believed_for_thirty_minutes_waiting_for_two_hours(self):
+        busy = {"codex": {"openSessions": 1, "working": 1, "waiting": 0}}
+        self.assertEqual(devices.status_of(self.person(self.connector(29, tools=busy)), NOW), "working")
+        quiet = self.person(self.connector(31, tools=busy))
+        self.assertEqual((devices.status_of(quiet, NOW), quiet["working"]), ("open", 0))
+        self.assertEqual(quiet["tools"], {"codex": {"openSessions": 1, "working": 0, "waiting": 0}})
+        both = self.person(self.connector(31))
+        self.assertEqual((devices.status_of(both, NOW), both["tools"]["codex"]), ("waiting", {"openSessions": 2, "working": 0, "waiting": 1}))
+        # the plugin sends on a beat, so its "working" needs no such limit inside its own 12 minutes
+        # plugin gửi theo nhịp, nên "đang làm" của nó không cần giới hạn này trong 12 phút của chính nó
+        self.assertEqual(devices.status_of(self.person(self.plugin(11)), NOW), "working")
+
+    def test_an_old_plugin_report_does_not_hide_a_fresh_connector_report(self):
+        r = self.person(self.plugin(20), self.connector(20))
+        self.assertEqual(devices.status_of(r, NOW), "waiting")
+        self.assertEqual(r["tools"], {"codex": {"openSessions": 2, "working": 1, "waiting": 1}})
+        self.assertEqual([r[k] for k in devices.SESSION_COUNTS], [2, 1, 1])
+
+    def test_every_role_gets_the_tools_and_the_board_page_names_them(self):
+        devices.save_device(devices.clean_payload(self.connector(20, name="Codex Only", account="", tools={"codex": {"openSessions": 1, "waiting": 1}, "cursor": {"openSessions": 2, "working": 1}}), NOW))
+        self.addCleanup(drop_device, "device-conn1")
+        for role in (security.ADMIN, security.VIEWER, security.WALL):
+            p = [x for x in views.role_view(role, NOW)["people"] if x["name"] == "Codex Only"][0]
+            self.assertEqual(p["tools"], {"codex": {"openSessions": 1, "working": 0, "waiting": 1}, "cursor": {"openSessions": 2, "working": 1, "waiting": 0}})
+            self.assertEqual((p["status"], p["deviceCount"], p["pluginVersion"]), ("waiting", 0, []))
+            self.assertIsNotNone(p["waitingSince"])
+        b = pages.page_board("adm", NOW).decode()
+        self.assertIn("<span class=note>Codex 1 · Cursor 2</span>", b)
+        row = b[b.index("Codex Only"):]
+        row = row[:row.index("</tr>")]
+        # quota, cost, tokens, delegated tasks and plugin version: a dash each, because only the plugin counts them
+        # hạn mức, chi phí, token, việc đã giao và phiên bản plugin: mỗi ô một gạch, vì chỉ plugin đếm những thứ đó
+        self.assertEqual(row.count('<span class="off">—</span>'), 5)
+
+    def test_the_board_page_names_no_tool_for_a_person_on_claude_code_only(self):
+        self.assertEqual(pages.tools_note({"claude": {"openSessions": 2, "working": 1, "waiting": 0}}), "")
+        self.assertEqual(pages.tools_note({}), "")
+        self.assertIn("Claude Code 2 · Gemini CLI 1", pages.tools_note({"gemini": {"openSessions": 1}, "claude": {"openSessions": 2}}))
+
+
 class MsiPackage(unittest.TestCase):
     """AI Worker.msi: the server fills its own address into the placeholder at the same length, and refuses when that is not safe.
     Gói AI Worker.msi: máy chủ điền địa chỉ của nó vào chỗ giữ chỗ, giữ nguyên độ dài, và từ chối khi không an toàn."""
@@ -1459,6 +1563,15 @@ class SecurityLimits(unittest.TestCase):
     def test_only_known_fields_are_stored(self):
         self.assertEqual(self.ingest(json.dumps(self.report(device="device-extra", secret="x" * 5000))), 200)
         self.assertNotIn("secret", stored_device("device-extra"))
+
+    def test_a_connector_report_is_stored_with_its_tools(self):
+        report = self.report(device="device-conn9", name="Conn", account="", tools={"codex": {"openSessions": 1, "working": 0, "waiting": 1}, "zed": {"openSessions": 3}})
+        self.assertEqual(self.ingest(json.dumps(report)), 200)
+        self.addCleanup(drop_device, "device-conn9")
+        stored = stored_device("device-conn9")
+        self.assertEqual(stored["tools"], {"codex": {"openSessions": 1, "working": 0, "waiting": 1}})
+        self.assertEqual((stored["openSessions"], stored["waiting"]), (1, 1))
+        self.pages_still_work()
 
     def test_a_real_report_keeps_its_numbers(self):
         hour = str(int(time.time() // 3600))

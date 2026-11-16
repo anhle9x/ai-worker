@@ -36,6 +36,17 @@
     const list = Object.entries(p.models || {}).sort((a, b) => b[1] - a[1])
     return list.length ? modelName(list[0][0]) : ''
   }
+  // Coding tools a person may have open: Claude Code through the plugin, the others through the connector.
+  // A person who uses one of the others gets one tag per open tool, as [name, status]; everyone else gets none.
+  // Các công cụ lập trình một người có thể đang mở: Claude Code qua plugin, các công cụ khác qua bộ nối.
+  // Người dùng một trong các công cụ khác thì mỗi công cụ đang mở có một nhãn, dạng [tên, trạng thái]; người còn lại không có nhãn.
+  const TOOL_NAMES = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor', gemini: 'Gemini CLI' }
+  const openTools = p => {
+    const tools = p.tools || {}
+    const keys = Object.keys(TOOL_NAMES).filter(k => tools[k])
+    return keys.some(k => k !== 'claude') ? keys.map(k => [TOOL_NAMES[k], tools[k].waiting ? 'waiting' : tools[k].working ? 'working' : 'open', k]) : []
+  }
+  const otherToolNames = p => openTools(p).filter(t => t[2] !== 'claude').map(t => t[0]).join(', ')
   // Fable costs about 2.5 times more than Opus: give it its own color so it stands out
   // Fable đắt hơn khoảng 2,5 lần Opus: tô màu riêng để dễ thấy
   const modelColor = name => (/^Fable|^Mythos/.test(name) ? COLORS.yellow : /^Opus/.test(name) ? COLORS.cyan : /^Sonnet/.test(name) ? COLORS.green : COLORS.muted)
@@ -57,6 +68,7 @@
       tx('Yellow dot: Claude is waiting for that person to reply.'),
       tx('Light blue dot: Claude is open but idle.'),
       tx('Grey dot: the computer is off or offline.'),
+      tx('Codex, Cursor, Gemini CLI: a person who uses one of these has a line naming each tool they have open and what it is doing; there, waiting means the tool asked a question or wants an approval. Their cost is not counted.'),
       tx('% number: that person\'s share of what the whole team spent today.'),
       tx('5H / 7D (next to the %): how much of the subscription quota that person\'s Claude account has used in the 5-hour / 7-day window; at 100% they must wait for it to reset. Yellow from 60%, red from 80%. Hover to see the reset time.'),
       tx('Click a name to see details.')],
@@ -1116,15 +1128,26 @@
           const fill = o('i')
           fill.style.width = `${Math.max(2, (p.usdToday / maxUsd) * 100)}%`
           b.append(fill)
-          const s = o('span', 's', `${STATUS_INFO[p.status].name} · `)
+          const s = o('span', 's', STATUS_INFO[p.status].name)
           const model = mainModel(p)
           if (model) {
             const t = o('b', '', model)
             t.style.color = modelColor(model)
             t.style.fontWeight = '600'
-            s.append(t, ' · ')
+            s.append(' · ', t)
           }
-          s.append(money(p.usdToday, rate))
+          // a person seen only through the connector has no cost reading: show none, not a zero
+          // người chỉ được thấy qua bộ nối thì không có số chi phí: không hiện gì, thay vì hiện số không
+          if (p.deviceCount !== 0) s.append(' · ', money(p.usdToday, rate))
+          const toolList = openTools(p)
+          const toolTag = toolList.length ? o('span', 's o-tools') : null
+          for (const [name, status] of toolList) {
+            const t = o('b', '', name)
+            t.style.color = STATUS_INFO[status].color
+            const tag = o('span')
+            tag.append(t, ' ' + STATUS_INFO[status].name)
+            toolTag.append(tag)
+          }
           const subagentText = subagentNames(p)
           const subagentTag = subagentText ? o('span', 's o-subagent', tx('ASSISTANTS · {list}', { list: subagentText })) : null
           // the account's Claude plan quota (5 hours / 7 days), compact on the right
@@ -1140,8 +1163,9 @@
             h.append(v)
           }
           const pc = o('span', 'p')
-          pc.append(h, o('span', '', pct + '%'))
+          pc.append(h, o('span', '', p.deviceCount === 0 ? '' : pct + '%'))
           r.append(d, o('span', 'n', p.name), pc, b, s)
+          if (toolTag) r.append(toolTag)
           if (subagentTag) r.append(subagentTag)
           r.addEventListener('click', () => selectPerson(i))
           return r
@@ -1317,11 +1341,16 @@
       for (const lines of M && M.cardLines ? M.cardLines(p) : [
         wallMode ? '' : `${p.account}${p.lanIps.length ? ' · ' + p.lanIps.join(', ') : ''}`,
         `STATUS   ${STATUS_INFO[p.status].name}`,
+        ...(openTools(p).length ? [`TOOLS    ${openTools(p).map(t => `${t[0]} ${p.tools[t[2]].openSessions} ${STATUS_INFO[t[1]].name}`).join(' · ')}`] : []),
         ...(subagentNames(p) ? [tx('ASSISTANTS {list}', { list: subagentNames(p) })] : []),
-        `MODEL    ${Object.keys(p.models || {}).map(modelName).join(', ') || '—'}`,
-        `TODAY    ${money(p.usdToday, rate)} · 7D ${money(p.usd7d, rate)}`,
-        `TOKENS   ${compact(p.tokensIn)} in / ${compact(p.tokensOut)} out`,
-        `AI TASKS Gemini ${p.tasks[0]} · ChatGPT ${p.tasks[1]} · Gemma ${p.tasks[2]}`,
+        // the lines below come from the plugin; a person seen only through the connector has none of them
+        // các dòng dưới đây đến từ plugin; người chỉ được thấy qua bộ nối thì không có dòng nào
+        ...(p.deviceCount === 0 ? [] : [
+          `MODEL    ${Object.keys(p.models || {}).map(modelName).join(', ') || '—'}`,
+          `TODAY    ${money(p.usdToday, rate)} · 7D ${money(p.usd7d, rate)}`,
+          `TOKENS   ${compact(p.tokensIn)} in / ${compact(p.tokensOut)} out`,
+          `AI TASKS Gemini ${p.tasks[0]} · ChatGPT ${p.tasks[1]} · Gemma ${p.tasks[2]}`,
+        ]),
       ]) hoverCard.append(lines, o('br'))
       hoverCard.hidden = false
       keepCardInside()
@@ -1516,7 +1545,7 @@
         // tài khoản sắp hết hạn mức: ô đỏ, nhấp nháy, nhìn từ xa cũng thấy
         const critical = nearQuotaLimit(p)
         if (critical) g.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(t * 2.5))
-        card(g, node.x, node.y, node.w, node.h, p.name, critical ? tx('⛔ QUOTA {pct}%', { pct: critical }) : `${st.name} · ${mainModel(p) || compact(p.tokensIn) + ' tok'}`, critical ? COLORS.red : st.color, critical > 0 || p.status === 'working' || node.i === selected, p.usdToday / maxUsd)
+        card(g, node.x, node.y, node.w, node.h, p.name, critical ? tx('⛔ QUOTA {pct}%', { pct: critical }) : `${st.name} · ${mainModel(p) || otherToolNames(p) || compact(p.tokensIn) + ' tok'}`, critical ? COLORS.red : st.color, critical > 0 || p.status === 'working' || node.i === selected, p.usdToday / maxUsd)
         g.globalAlpha = 1
         rects.push(node)
       }

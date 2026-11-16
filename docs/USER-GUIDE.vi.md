@@ -111,6 +111,7 @@ Bản mới chỉ được cài khi có chữ ký đúng của người quản t
 Chỉ gói của công ty mới gửi; gói thường không gửi gì.
 
 - **Gửi lên máy chủ công ty:** họ tên, email tài khoản Claude, mã máy, địa chỉ IP, số phiên đang mở, đang làm, đang chờ, token, chi phí, hạn mức, số việc giao cho từng trợ lý, phiên bản plugin.
+- **Bộ nối cho Codex, Cursor và Gemini CLI gửi,** nếu bạn đã cài (xem 1.10): họ tên và email, mã máy, và với mỗi công cụ là số phiên đang mở, đang làm, đang chờ.
 - **Không bao giờ gửi:** nội dung chat, câu hỏi, câu trả lời, tên file, nội dung file, tên dự án.
 
 Muốn tắt gửi trên một máy: thêm `"sharing": { "enabled": false }` vào `config.js` (xem 1.7) và báo người quản trị.
@@ -148,6 +149,18 @@ Rồi xoá thư mục `claude-plugins-ai-worker` trong thư mục người dùng
 | Cập nhật không được | Kiểm tra máy đang ở mạng công ty; nếu vẫn lỗi, xin người quản trị gói cài mới |
 | `/update` báo mạng bạn đang dùng chưa được phép vào máy chủ công ty | Máy bạn không bị lỗi gì: máy chủ chỉ trả lời những mạng mà quản trị viên đã thêm. Gõ lại `/update` khi ở văn phòng, hoặc nhờ quản trị viên thêm mạng bạn đang dùng |
 
+### 1.10 Codex, Cursor và Gemini CLI
+
+Nếu bạn còn làm việc trong Codex, Cursor hoặc Gemini CLI, các phiên đó cũng hiện được trên bảng của công ty. Việc này không cần Claude Code.
+
+1. **Ở đâu:** thư mục đã giải nén mà người quản trị gửi bạn. **Làm gì:** bấm đúp `INSTALL-Other-Tools-Mac.command` (Windows: `INSTALL-Other-Tools-Windows.bat`; Ubuntu: gõ `bash INSTALL-Other-Tools-Linux.sh` trong Terminal). **Kết quả đúng:** một cửa sổ hỏi, với từng công cụ nó tìm thấy, có cho hiện lên bảng không.
+2. **Làm gì:** nhấn Enter để đồng ý hoặc gõ `n` để từ chối, với từng công cụ. **Kết quả đúng:** cửa sổ báo `Bảng trả lời: đã nhận.`
+3. **Riêng Codex. Ở đâu:** Terminal. **Làm gì:** gõ `codex`, rồi gõ `/hooks`, và bấm tin cậy bảy hook có lệnh kết thúc bằng `ai-worker-hook.sh` (hook là một chương trình nhỏ mà công cụ tự chạy ở những thời điểm nhất định). **Kết quả đúng:** `/hooks` ghi các hook đó là đã tin cậy. Cursor và Gemini CLI không cần bước này: chỉ cần đóng rồi mở lại.
+
+**Nó gửi gì:** họ tên và email của bạn, mã máy, và với mỗi công cụ là số phiên đang mở, đang làm, đang chờ. Không bao giờ gửi những gì bạn gõ hay công cụ trả lời.
+
+**Muốn gỡ:** trong Terminal gõ `bash ~/.local/share/ai-worker/connector/install.sh --uninstall`. Cửa sổ báo `Xong. Codex, Cursor và Gemini CLI không còn gửi gì lên bảng.`
+
 ---
 
 ## 2. Quản lý
@@ -180,7 +193,9 @@ Trang tự cập nhật 10 giây một lần:
 
 Màu: xanh lá là đang làm, vàng là đang chờ trả lời, xanh nhạt là đang rảnh, xám là không kết nối.
 
-Bảng chỉ biết về Claude Code trên các máy đã cài plugin. Chat trên claude.ai bằng trình duyệt, thẻ Chat của app Claude và phiên Claude Code chạy trên đám mây đều không được đếm, nên người làm việc ở đó sẽ hiện là đang rảnh hoặc không kết nối. Đừng đọc bảng là "ai dùng Claude nhiều nhất".
+Người dùng Codex, Cursor hoặc Gemini CLI có thêm một dòng dưới tên, ghi từng công cụ đang mở và nó đang làm gì. Với các công cụ này, đang chờ nghĩa là công cụ xin duyệt hoặc kết thúc lượt bằng một câu hỏi; chi phí, token và hạn mức của chúng không biết được, nên người chỉ dùng các công cụ đó không có số chi phí trên bảng.
+
+Bảng chỉ biết về Claude Code trên các máy đã cài plugin, và về Codex, Cursor, Gemini CLI trên các máy đã cài bộ nối. Chat trên claude.ai bằng trình duyệt, thẻ Chat của app Claude và phiên Claude Code chạy trên đám mây đều không được đếm, nên người làm việc ở đó sẽ hiện là đang rảnh hoặc không kết nối. Đừng đọc bảng là "ai dùng Claude nhiều nhất".
 
 ### 2.3 Biểu tượng thanh menu
 

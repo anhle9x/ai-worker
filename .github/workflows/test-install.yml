@@ -24,6 +24,8 @@ jobs:
       - name: Test the server
         working-directory: server
         run: python3 -m unittest test_webhook test_demo
+      - name: Test the connector for Codex, Cursor and Gemini CLI
+        run: python3 tests/connectors/test_connectors.py
       - name: Test the Chrome extension against the server
         run: node tests/extension/check-extension.js
       - name: Check where the maps put the office labels
@@ -94,6 +96,10 @@ jobs:
       - name: Test-install the cases
         shell: pwsh
         run: pwsh -NoProfile -File tests/windows/test-install.ps1 -Package "$env:RUNNER_TEMP\package\AI-Worker"
+      # the same test file drives the PowerShell hook and installer here
+      # cùng file test đó ở đây chạy hook và bộ cài bản PowerShell
+      - name: Test the connector for Codex, Cursor and Gemini CLI
+        run: python tests/connectors/test_connectors.py
       - name: Test the icon next to the clock
         shell: pwsh
         run: pwsh -NoProfile -File tests/menubar/test-menubar.ps1

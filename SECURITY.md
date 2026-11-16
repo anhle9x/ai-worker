@@ -36,4 +36,14 @@ AI Worker is designed to defend against these eight common web risks, from the O
 | **Security misconfiguration** | There are no default accounts or keys, and the server will not start without `INGEST_KEY`. Behind Caddy it listens only inside the server. The service runs as its own user with limited rights; key and data files are private to it | You must set your own IP list, turn on HTTPS and keep the number of sudo users small |
 | **Sensitive data exposure** | Chat content, file names and project names are never sent. Wall screens get no emails or internal IPs. TV sessions are stored as hashes, the log holds no keys, and files that look like secrets are recorded by name only | Without HTTPS the numbers travel unencrypted. OTP keys sit unencrypted on the server, readable by the service and by sudo users. The install package holds the send key |
 
+### The connector for Codex, Cursor and Gemini CLI
+
+The connector (`connectors/`) is optional and separate from the plugin. What to know before allowing it:
+
+- **It runs as a hook inside another company's tool,** with the rights of the person who uses that tool. Each tool hands the hook its event, and that event holds the prompt or the answer. The hook reads the session id and whether the last message ends with a question mark; it stores and sends neither the prompt nor the answer. The whole hook is one short file you can read: `connectors/ai-worker-hook.sh` (Windows: `ai-worker-hook.ps1`).
+- **It holds a second copy of the send key,** in `~/.local/share/ai-worker/connector/config`. On macOS and Linux only that account can read the file; on Windows it sits in the person's profile folder. The key gives the same rights as the plugin's copy: sending numbers, nothing else.
+- **It changes other tools' settings.** The installer adds hooks to `~/.codex`, `~/.cursor` and `~/.gemini`, keeps a copy of each file it changes, and `--uninstall` takes the hooks out again. Codex runs them only after the person has reviewed and trusted them with `/hooks`; the installer never skips that step.
+- **It has no signed update.** The connector does not update itself; a new version arrives only when someone runs its installer again from a package they trust.
+- **What remains:** a person can send false counts under their own name, as with the plugin. Cursor, Gemini CLI and the Windows files have not been tried in the real tools yet.
+
 More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

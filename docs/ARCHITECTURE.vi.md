@@ -16,6 +16,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 
 - Đọc nội dung trò chuyện, câu hỏi, câu trả lời, tên file hay tên dự án.
 - Theo dõi tab Chat của app Claude, vì tab này không có plugin.
+- Token và chi phí của Codex, Cursor và Gemini CLI: hook của các công cụ này không đưa ra, và muốn đọc thì phải đọc nhật ký phiên, nơi có nội dung trò chuyện.
 - Ngăn nhân viên gửi số sai dưới tên người khác: mọi người dùng chung một mã gửi (xem [Giới hạn đã biết](#6-giới-hạn-đã-biết)).
 
 ### Ai dùng
@@ -43,6 +44,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | F8 | Máy chỉ cài bản cập nhật khi chữ ký và mã kiểm đều đúng | `hooks/update.ts`, `updatePlugin` |
 | F9 | Chữ gửi cho ChatGPT hay Gemini phải được phép; câu hỏi lỗi thì tính là không | `refuseToSend`, `hooks/workers.ts` |
 | F10 | Trang, plugin và file cài có tiếng Anh và tiếng Việt | `i18n.js`, `hooks/lang.ts`, `packaging/lang.sh` |
+| F11 | Người dùng Codex, Cursor hoặc Gemini CLI hiện trên bảng mà không cần Claude Code: số phiên mở, đang làm và đang chờ, theo từng công cụ | `connectors/ai-worker-hook.sh`, `connectors/ai-worker-hook.ps1`; `from_connector`, `is_fresh` trong `server/board/devices.py` |
 
 ### Giới hạn máy chủ áp dụng
 
@@ -62,6 +64,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 |---|---|
 | Số liệu theo giờ của một máy | 8 ngày |
 | Máy không gửi nữa | Hiện ngoại tuyến sau 12 phút, xoá sau 30 ngày |
+| Báo cáo của bộ nối cho Codex, Cursor và Gemini CLI | Được tính trong 2 giờ kể từ lúc gửi, riêng "đang làm" trong 30 phút; trên máy, phiên không có sự kiện nào trong 2 giờ thì bị bỏ |
 | Nhật ký thao tác | 12 tháng |
 | Phiên đăng nhập | 8 giờ, tài khoản treo tường 7 ngày; mất khi webhook khởi động lại |
 | Phiên TV | 30 ngày, tự gia hạn khi đang dùng; tối đa 1 năm; không mất khi khởi động lại |
@@ -97,9 +100,10 @@ flowchart TD
 | `server/` | Webhook, các trang trong `static/`, test, file cài |
 | `server/menubar/` | Biểu tượng thanh menu cho quản lý: app cho macOS, app cho Windows (`windows-app/`, C#, cài từ file .msi; script khay PowerShell giữ làm dự phòng), chương trình AppIndicator trong gói .deb cho Ubuntu (script Argos vẫn dùng được) |
 | `extensions/manager/` | Tiện ích trình duyệt cho quản lý (Chrome, Edge), cài tay |
+| `connectors/` | Bộ nối cho Codex, Cursor và Gemini CLI: hook (`ai-worker-hook.sh`, `.ps1`), bộ cài của nó (`install.sh`, `.ps1`) và phần gộp JSON mà bộ cài dùng (`merge-hooks.js`). Không cần có plugin |
 | `packaging/` | Đóng gói, file cài, ký bản phát hành, kiểm tra trước khi công khai |
 | `skills/`, `agents/`, `commands/` | Các skill (loại dùng hằng ngày và loại cho viết code, vận hành), trợ lý `planner`, và các lệnh app liệt kê trước khi phiên bắt đầu |
-| `tests/` | Test plugin, test cài trên Linux và Windows, kiểm tra ngôn ngữ, test thanh menu (`tests/menubar/`) và bước kiểm tiện ích (`tests/extension/`) |
+| `tests/` | Test plugin, test cài trên Linux và Windows, kiểm tra ngôn ngữ, test thanh menu (`tests/menubar/`), test bộ nối (`tests/connectors/`) và bước kiểm tiện ích (`tests/extension/`) |
 
 ### Ngôn ngữ lập trình
 
@@ -108,13 +112,14 @@ Mỗi phần dùng thứ có sẵn trên nền của nó, nên gần như không
 | Ngôn ngữ | Ở đâu | Vì sao |
 |---|---|---|
 | TypeScript | `hooks/` | App Claude chạy mã plugin viết bằng TypeScript |
-| JavaScript, HTML, CSS | `web/`, `server/static/`, `extensions/manager/` | Trang trong trình duyệt và tiện ích trình duyệt; không cần bước dựng |
+| JavaScript, HTML, CSS | `web/`, `server/static/`, `extensions/manager/`, `connectors/merge-hooks.js` | Trang trong trình duyệt và tiện ích trình duyệt; không cần bước dựng. `merge-hooks.js` chạy bằng `osascript` trên macOS và Node ở nơi khác |
 | Python 3 | `server/webhook.py` và `server/board/`, `server/menubar/ai-worker.1m.py`, `server/menubar/ai-worker-indicator.py`, các bước kiểm trong `tests/` | Có sẵn trên mọi máy chủ Linux và trên Ubuntu. Chỉ dùng thư viện chuẩn, trừ `ai-worker-indicator.py` dùng python3-gi, AppIndicator và WebKit2 do apt cài |
 | Swift | `server/menubar/macos-app/main.swift` | App thanh menu macOS: khung gốc của macOS dưới biểu tượng |
-| PowerShell | `server/menubar/ai-worker-tray.ps1` (biểu tượng Windows dự phòng), file cài Windows trong `packaging/` | Có sẵn trong Windows |
+| PowerShell | `server/menubar/ai-worker-tray.ps1` (biểu tượng Windows dự phòng), file cài Windows trong `packaging/`, bộ nối cho Windows trong `connectors/` | Có sẵn trong Windows |
 | C# | `server/menubar/windows-app/`, `server/menubar/menubar-popup.cs` | App Windows `AI Worker.exe` trên .NET Framework 4.8 và khung của nó (WebView2); dựng được trên Mac bằng .NET SDK hoặc trên Windows |
 | WiX | `server/menubar/windows-app/AIWorker.wxs` | Gói cài `AI Worker.msi`, dựng trên Windows của GitHub; `fetch-msi.sh` đưa vào `server/menubar/`, máy chủ tự điền địa chỉ của nó |
-| Shell (bash), Batchfile | `packaging/`, `server/install.sh` | File cài và script đóng gói trên macOS, Linux, Windows |
+| Shell (bash), Batchfile | `packaging/`, `server/install.sh`, `connectors/install.sh` | File cài và script đóng gói trên macOS, Linux, Windows |
+| Shell (sh) | `connectors/ai-worker-hook.sh` | Hook của bộ nối: máy macOS và Linux nào cũng có sh, awk, sed và grep |
 
 Thanh ngôn ngữ của GitHub chỉ hiện sáu ngôn ngữ lớn nhất; Swift và C# được tính trong "Other". Mã của người khác (xem `THIRD-PARTY.md`) không được tính, nhờ `.gitattributes`.
 
@@ -143,6 +148,29 @@ sequenceDiagram
 ```
 
 Gửi lỗi thì plugin thử lại ở nhịp sau, và báo một lần khi lỗi kéo dài.
+
+### Báo cáo từ Codex, Cursor và Gemini CLI
+
+Bộ nối (`connectors/`) là một hook trong từng công cụ này. Nó không cần Claude Code, không cần Python hay Node: sh, awk, sed, grep và curl hoặc wget trên macOS và Linux, PowerShell trên Windows.
+
+```mermaid
+sequenceDiagram
+  participant T as Codex, Cursor hoặc Gemini CLI
+  participant H as ai-worker-hook
+  participant F as file phiên
+  participant W as webhook.py
+  T->>H: Sự kiện: mở phiên, gửi câu hỏi, xin duyệt, hết lượt, đóng phiên
+  H-->>T: Trả lời ngay, không làm thay đổi gì ở công cụ
+  H->>F: Có khoá: mỗi phiên một dòng, bỏ dòng im lặng quá 2 giờ
+  H->>H: Bật phần gửi chạy ở nền
+  H->>F: Đếm số phiên mở, đang làm, đang chờ theo từng công cụ
+  H->>H: Số giống lần gửi trước, cách chưa tới 5 phút? Dừng
+  H->>W: POST /ingest kèm khoá gửi: các số trong "tools"
+  W->>W: Kiểm như với plugin, rồi chỉ giữ công cụ đã biết và tự cộng tổng
+  W-->>H: 200, hoặc lời từ chối mà hook ghi lại cho --status
+```
+
+Một phiên là đang chờ khi công cụ xin duyệt, hoặc khi câu cuối của nó kết thúc bằng dấu hỏi; hook chỉ nhìn đúng ký tự đó và không giữ lại gì của câu. Máy chủ tính một báo cáo của bộ nối trong 2 giờ (`is_fresh` trong `server/board/devices.py`), vì giữa các sự kiện không có nhịp gửi nào, và không bao giờ tính nó là một máy hay một bản cài plugin. Một bộ nối báo cho cả ba công cụ, nên mỗi máy có nhiều nhất hai mã máy: của plugin và của bộ nối.
 
 ### Đăng nhập và xem bảng
 
@@ -292,6 +320,7 @@ claude plugin test .
 npx -y -p typescript@5.9.3 tsc -p tsconfig.json
 uvx ruff check .
 cd server && python3 -m unittest test_webhook test_demo
+python3 tests/connectors/test_connectors.py
 python3 tests/check-i18n.py --comments
 node tests/extension/check-extension.js
 node tests/check-map-layout.js
@@ -307,5 +336,6 @@ Mỗi lần đẩy code còn chạy `.github/workflows/test-install.yml`: trên 
 - **HTTP khi không có proxy.** Kết nối chỉ được mã hoá khi đi qua Caddy hoặc nginx.
 - **Người có sudo trên máy chủ** đọc được mọi số liệu và tự cấp được tài khoản. Nên giữ ít người.
 - **File lớn.** Máy chủ đã tách vào `server/board/` (cấu hình, đăng nhập, máy gửi, kho lưu, quyền xem, trang, gói cài), `server/webhook.py` giữ phần nhận yêu cầu và bảng đường dẫn. `hooks/register.tsx` và `server/static/ops.js` vẫn lớn: các phần trong đó dùng chung biến trong một khối và chưa có test riêng, nên chờ có test rồi mới tách.
+- **Bộ nối biết ít hơn plugin.** Nó chỉ gửi khi có sự kiện, nên công cụ bị đóng mà không có sự kiện kết thúc còn hiện trên bảng tới 2 giờ. Lượt bị lỗi cũng không gửi sự kiện nào: đã thấy với Codex CLI 0.164.0, khi một yêu cầu mô hình bị từ chối để phiên kẹt ở đang làm. (Lượt bị cắt ngang bằng Esc thì gửi `Interrupt` thay cho `Stop`, và sự kiện đó đã được gắn hook.) Vì vậy máy chủ chỉ tin "đang làm" của bộ nối trong 30 phút kể từ lần gửi cuối; trong Cursor, nơi không có hook sau từng bước, một lượt chạy lâu hơn thế sẽ hiện là rảnh cho tới khi lượt đó kết thúc. Nó không biết token, chi phí, hạn mức hay mô hình. Bản sao khoá gửi của nó nằm ở một chỗ thứ hai trên máy. Tên và email của nó phải đúng cặp mà plugin gửi, nếu không một người sẽ hiện thành hai dòng. Cursor, Gemini CLI và Windows chưa được thử trong công cụ thật.
 - **File chép đôi.** `web/` và `server/static/` cùng có `ops.js`, `ops.css`, `ops3d.js`, `i18n.js`, `ops.vi.js`. Script đóng gói kiểm các bản này khớp nhau. `extensions/manager/mini/` giữ bản chép của `mini.js`, `mini.css` và logo; `tests/extension/check-extension.js` kiểm các bản đó.
 - **Kiểm kiểu TypeScript chỉ chạy trên máy.** `tsc` cần file kiểu Claude Code ghi vào `.claude-plugin/types` (không có trong git), nên CI chỉ chạy ruff và các bộ test; chạy `tsc` trên máy trước khi đẩy.

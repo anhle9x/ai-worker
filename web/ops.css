@@ -52,6 +52,8 @@ body.ops-mode{margin:0}
 .o-row .bar i{display:block;height:100%;border-radius:2px;background:linear-gradient(90deg,var(--o-cyan),var(--o-purple))}
 .o-row .s{grid-column:2/4;font-size:10.5px;color:var(--o-muted);letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .o-row .s.o-subagent{color:var(--o-purple)}
+.o-row .s.o-tools{display:flex;flex-wrap:wrap;gap:2px 12px;white-space:normal}
+.o-row .s.o-tools b{font-weight:600}
 .o-row .p{display:flex;gap:10px;align-items:baseline;white-space:nowrap}
 .o-row .h{display:flex;gap:6px;font-size:10.5px;letter-spacing:.04em}
 .o-row .h b{font-weight:600}

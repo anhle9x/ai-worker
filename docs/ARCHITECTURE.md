@@ -16,6 +16,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 
 - Reading chat content, questions, answers, file names or project names.
 - Tracking the Chat tab of the Claude app, which has no plugins.
+- Tokens and cost of Codex, Cursor and Gemini CLI: their hooks do not hand them over, and reading them would mean reading the session logs, which hold the chat.
 - Stopping a staff member from sending false numbers under another name: everyone shares one send key (see [Known limits](#6-known-limits)).
 
 ### Who uses it
@@ -43,6 +44,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | F8 | A computer installs an update only with a valid signature and checksum | `hooks/update.ts`, `updatePlugin` |
 | F9 | Text for ChatGPT or Gemini is sent only with permission; a failed question counts as no | `refuseToSend`, `hooks/workers.ts` |
 | F10 | Pages, plugin and installers come in English and Vietnamese | `i18n.js`, `hooks/lang.ts`, `packaging/lang.sh` |
+| F11 | A person on Codex, Cursor or Gemini CLI shows on the board without Claude Code: sessions open, working and waiting, per tool | `connectors/ai-worker-hook.sh`, `connectors/ai-worker-hook.ps1`; `from_connector`, `is_fresh` in `server/board/devices.py` |
 
 ### Limits the server enforces
 
@@ -62,6 +64,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 |---|---|
 | Hourly numbers of a device | 8 days |
 | A computer that stopped sending | Shown as offline after 12 minutes, deleted after 30 days |
+| A report from the connector for Codex, Cursor and Gemini CLI | Counted for 2 hours after it was sent, its "working" for 30 minutes; on the computer, a session with no event for 2 hours is dropped |
 | Action log | 12 months |
 | Login sessions | 8 hours, wall accounts 7 days; lost when the webhook restarts |
 | TV sessions | 30 days, renewed while in use; 1 year at most; survive restarts |
@@ -97,9 +100,10 @@ flowchart TD
 | `server/` | The webhook, its pages in `static/`, its tests, the installer |
 | `server/menubar/` | The menu bar icon for managers: an app for macOS, an app for Windows (`windows-app/`, C#, installed from an .msi; the PowerShell tray script stays as the fallback), an AppIndicator program in a .deb for Ubuntu (the Argos script still works) |
 | `extensions/manager/` | The browser extension for managers (Chrome, Edge), installed by hand |
+| `connectors/` | The connector for Codex, Cursor and Gemini CLI: the hook (`ai-worker-hook.sh`, `.ps1`), its installer (`install.sh`, `.ps1`) and the JSON merge the installer uses (`merge-hooks.js`). It does not need the plugin |
 | `packaging/` | Building packages, installers, signing releases, checks before publishing |
 | `skills/`, `agents/`, `commands/` | The skills (everyday ones and those for coding and systems), the `planner` assistant, and the commands the app lists before a session starts |
-| `tests/` | Plugin tests, install tests for Linux and Windows, language checks, the menu bar tests (`tests/menubar/`) and the extension check (`tests/extension/`) |
+| `tests/` | Plugin tests, install tests for Linux and Windows, language checks, the menu bar tests (`tests/menubar/`), the connector tests (`tests/connectors/`) and the extension check (`tests/extension/`) |
 
 ### Languages
 
@@ -108,13 +112,14 @@ Each part uses what its platform already has, so almost nothing extra needs inst
 | Language | Where | Why |
 |---|---|---|
 | TypeScript | `hooks/` | The Claude app runs plugin code written in TypeScript |
-| JavaScript, HTML, CSS | `web/`, `server/static/`, `extensions/manager/` | Pages in the browser and the browser extension; no build step |
+| JavaScript, HTML, CSS | `web/`, `server/static/`, `extensions/manager/`, `connectors/merge-hooks.js` | Pages in the browser and the browser extension; no build step. `merge-hooks.js` runs with `osascript` on macOS and Node elsewhere |
 | Python 3 | `server/webhook.py` and `server/board/`, `server/menubar/ai-worker.1m.py`, `server/menubar/ai-worker-indicator.py`, checks in `tests/` | Present on every Linux server and on Ubuntu. Standard library only, except `ai-worker-indicator.py`, which uses python3-gi, AppIndicator and WebKit2 from apt |
 | Swift | `server/menubar/macos-app/main.swift` | The macOS menu bar app: a native popover under the icon |
-| PowerShell | `server/menubar/ai-worker-tray.ps1` (the fallback Windows icon), Windows installers in `packaging/` | Built into Windows |
+| PowerShell | `server/menubar/ai-worker-tray.ps1` (the fallback Windows icon), Windows installers in `packaging/`, the connector for Windows in `connectors/` | Built into Windows |
 | C# | `server/menubar/windows-app/`, `server/menubar/menubar-popup.cs` | The Windows app `AI Worker.exe` on .NET Framework 4.8 and its window (WebView2); builds on a Mac with the .NET SDK or on Windows |
 | WiX | `server/menubar/windows-app/AIWorker.wxs` | The `AI Worker.msi` installer, built on GitHub's Windows; `fetch-msi.sh` puts it in `server/menubar/`, and the server fills in its own address |
-| Shell (bash), Batchfile | `packaging/`, `server/install.sh` | Installers and build scripts on macOS, Linux and Windows |
+| Shell (bash), Batchfile | `packaging/`, `server/install.sh`, `connectors/install.sh` | Installers and build scripts on macOS, Linux and Windows |
+| Shell (sh) | `connectors/ai-worker-hook.sh` | The connector's hook: every macOS and Linux computer has sh, awk, sed and grep |
 
 GitHub's language bar shows only the largest six; Swift and C# are counted under "Other". Code from other people (see `THIRD-PARTY.md`) is left out of the count by `.gitattributes`.
 
@@ -143,6 +148,29 @@ sequenceDiagram
 ```
 
 If sending fails, the plugin tries again on the next beat and warns once the problem lasts.
+
+### Reporting from Codex, Cursor and Gemini CLI
+
+The connector (`connectors/`) is a hook in each of these tools. It needs no Claude Code, no Python and no Node: sh, awk, sed, grep and curl or wget on macOS and Linux, PowerShell on Windows.
+
+```mermaid
+sequenceDiagram
+  participant T as Codex, Cursor or Gemini CLI
+  participant H as ai-worker-hook
+  participant F as sessions file
+  participant W as webhook.py
+  T->>H: Event: session start, prompt, approval asked, turn end, session end
+  H-->>T: Answer at once, nothing that changes the tool
+  H->>F: Under a lock: one line per session, lines silent for 2 hours dropped
+  H->>H: Start the sender in the background
+  H->>F: Count sessions open, working, waiting per tool
+  H->>H: Same counts as the last send, less than 5 minutes ago? Stop
+  H->>W: POST /ingest with the send key: the counts in "tools"
+  W->>W: Same checks as for the plugin, then keep known tools only and add the totals itself
+  W-->>H: 200, or a refusal the hook notes for --status
+```
+
+A session is waiting when the tool asked for an approval, or when its last message ended with a question mark; the hook looks at that one character and keeps nothing of the message. The server counts a connector report for 2 hours (`is_fresh` in `server/board/devices.py`), because no beat comes between events, and never counts it as a computer or a plugin install. One connector reports for all three tools, so a computer has at most two device ids: the plugin's and the connector's.
 
 ### Logging in and viewing
 
@@ -292,6 +320,7 @@ claude plugin test .
 npx -y -p typescript@5.9.3 tsc -p tsconfig.json
 uvx ruff check .
 cd server && python3 -m unittest test_webhook test_demo
+python3 tests/connectors/test_connectors.py
 python3 tests/check-i18n.py --comments
 node tests/extension/check-extension.js
 node tests/check-map-layout.js
@@ -307,5 +336,6 @@ Each push also runs `.github/workflows/test-install.yml`: on Ubuntu it builds th
 - **HTTP without a proxy.** The connection is encrypted only behind Caddy or nginx.
 - **People with sudo on the server** can read all numbers and issue accounts for themselves. Keep them few.
 - **Large files.** The server is split into `server/board/` (settings, login, devices, stores, views, pages, packages) with `server/webhook.py` keeping the request handler and routes. `hooks/register.tsx` and `server/static/ops.js` are still large: their parts share state in one closure and have no tests of their own yet, so they wait for those tests before being split.
+- **The connector knows less than the plugin.** It sends only on an event, so a tool closed without its end event stays on the board for up to 2 hours. A turn that fails sends no event either: seen with Codex CLI 0.164.0, where a refused model request left the session as working. (A turn cut short with Esc sends `Interrupt` instead of `Stop`, and that one is hooked.) The server therefore believes "working" from the connector for 30 minutes after the last send; in Cursor, which has no hook after each step, a turn that runs longer than that shows as idle until it ends. It knows no tokens, cost, quota or model. Its copy of the send key sits in a second place on the computer. Its name and email must be the ones the plugin sends, or the person shows as two rows. Cursor, Gemini CLI and Windows have not been tried in the real tools yet.
 - **Copied files.** `web/` and `server/static/` hold the same `ops.js`, `ops.css`, `ops3d.js`, `i18n.js`, `ops.vi.js`. The packaging script checks that they match. `extensions/manager/mini/` holds copies of `mini.js`, `mini.css` and the logos; `tests/extension/check-extension.js` checks those.
 - **The TypeScript type check runs only locally.** `tsc` needs the type files Claude Code writes to `.claude-plugin/types` (not in git), so CI runs ruff and the test suites; run `tsc` before pushing.

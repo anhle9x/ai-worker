@@ -41,6 +41,36 @@ Muốn xem bảng trước khi triển khai, chạy `python3 server/demo.py` (tr
 - `/office-pane`: mở bản 2D cạnh khung chat.
 - `/update`: kiểm tra và cài bản mới.
 
+## Codex, Cursor và Gemini CLI trên bảng
+
+Người làm việc trong Codex, Cursor hoặc Gemini CLI cũng hiện được trên cùng bảng, dù máy có Claude Code hay không. Việc này do một bộ nối nhỏ (`connectors/`) đảm nhận: một hook mà từng công cụ tự chạy khi mở phiên, khi gửi câu hỏi, khi công cụ xin duyệt, khi kết thúc lượt và khi đóng phiên.
+
+**Cài trên một máy.** Trong gói công ty đã giải nén:
+
+- macOS: bấm đúp `INSTALL-Other-Tools-Mac.command`.
+- Ubuntu: mở Terminal trong thư mục đã giải nén rồi gõ `bash INSTALL-Other-Tools-Linux.sh`.
+- Windows: bấm đúp `INSTALL-Other-Tools-Windows.bat`.
+
+Nếu dùng bản sao của kho mã này thay cho gói: `bash connectors/install.sh --server https://board.example.com` (Windows: `powershell -ExecutionPolicy Bypass -File connectors\install.ps1 -Server https://board.example.com`); bộ cài sẽ hỏi khoá gửi.
+
+Bộ cài hỏi về từng công cụ nó tìm thấy trên máy. Nó thêm hook của mình vào cấu hình của chính công cụ đó (`~/.codex/hooks.json` hoặc `config.toml`, `~/.cursor/hooks.json`, `~/.gemini/settings.json`) và để nguyên mọi thứ khác trong đó; một bản sao của file như lúc trước được giữ ngay bên cạnh, tên kết thúc bằng `.ai-worker-backup`. File cấu hình nào nó không đọc được như JSON thuần thì không bị sửa: bộ cài in ra các hook để bạn tự thêm. Nó dùng đúng tên và email mà plugin đã có trên máy, nên một người vẫn là một dòng trên bảng. Khi được yêu cầu, nó chép thêm 16 skill của plugin vào `~/.agents/skills/`, thư mục mà cả ba công cụ đều đọc; `make-skill` và `improve-codebase-architecture` dựa vào Claude Code nên không được chép.
+
+**Codex hỏi một lần.** Codex chỉ chạy hook sau khi chủ máy đã xem qua: mở Codex, gõ `/hooks`, rồi bấm tin cậy bảy hook có lệnh kết thúc bằng `ai-worker-hook.sh`. Cursor và Gemini CLI nhận hook ở lần mở kế tiếp.
+
+**Kiểm tra và gỡ.** `bash ~/.local/share/ai-worker/connector/install.sh --status` cho biết đã cài gì và lần gần nhất bảng trả lời gì; cùng lệnh đó với `--uninstall` sẽ gỡ hook, skill và thư mục của bộ nối. Trên Windows: `powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.local\share\ai-worker\connector\install.ps1" -Status` hoặc `-Uninstall`.
+
+**Bảng hiện gì cho các công cụ này:** số phiên đang mở, đang làm và đang chờ, theo từng công cụ. Đang chờ nghĩa là công cụ xin duyệt, hoặc kết thúc lượt bằng một câu hỏi. Token, chi phí, hạn mức và mô hình của các công cụ này không biết được nên hiện gạch ngang.
+
+**Giới hạn cần biết:**
+
+- Bộ nối chỉ gửi khi có việc xảy ra trong công cụ. Phiên không có sự kiện nào trong 2 giờ thì thôi không tính, và công cụ bị đóng mà không có sự kiện kết thúc (gập máy, tắt ngang cửa sổ lệnh) có thể còn hiện trên bảng tới 2 giờ. Lượt kết thúc bằng lỗi không gửi sự kiện nào: phiên đó hiện là đang làm cho tới sự kiện kế tiếp, nhiều nhất 30 phút.
+- Mỗi máy có bộ nối được tính thêm một máy vào các giới hạn ghi trong [ARCHITECTURE.vi.md](ARCHITECTURE.vi.md): tổng cộng 300 máy, mỗi IP mỗi ngày 10 máy mới. Văn phòng dùng chung một IP công cộng mà cài cho nhiều người trong cùng một ngày sẽ thấy một số máy bị từ chối tới hôm sau.
+- Bộ nối không tự cập nhật: sau khi có bản AI Worker mới, hãy chạy lại bộ cài.
+- Máy chủ phải từ bản này trở lên. Máy chủ bản cũ vẫn nhận báo cáo nhưng hiện người đó là ngoại tuyến sau 12 phút và không ghi tên công cụ.
+- **Đã thử tới đâu.** Hook và bộ cài đã qua các bài test với sự kiện mẫu và thư mục nhà tạm trên macOS, Ubuntu và Windows (hai hệ sau chạy trên máy thử của GitHub); trong một phiên Codex CLI 0.164.0 thật trên macOS, các hook mở phiên, gửi câu hỏi, hết lượt và đóng phiên đã chạy, một câu hỏi của Codex đã hiện trên bảng mẫu là đang chờ, và việc bấm Esc cắt ngang một lượt được thấy là gửi `Interrupt` chứ không gửi `Stop`, sau đó phiên hiện là rảnh; còn hook xin duyệt và hook sau từng bước thì chưa thấy chạy trong phiên thật. Cursor và Gemini CLI được viết theo tài liệu của hai công cụ, chưa thử bên trong công cụ thật, và chưa có công cụ thật nào được thử trên Windows hay Linux. Trên Windows mỗi lần hook chạy tốn thời gian khởi động PowerShell, khoảng nửa giây trên máy thử. Nếu bạn thử, hãy cho chúng tôi biết bạn thấy gì.
+
+Quy cách báo cáo, để viết bộ nối cho công cụ khác: [connectors/README.vi.md](../connectors/README.vi.md).
+
 ## Biểu tượng thanh menu cho quản lý
 
 Quản lý thấy ngay trên thanh menu có bao nhiêu người đang chờ trả lời, không cần mở bảng: app riêng trên macOS, app cạnh đồng hồ trên Windows (cài từ file .msi, không cần quyền quản trị), biểu tượng trên thanh trên cùng của Ubuntu (gói .deb). Bấm vào là mở khung nhỏ có Đang chờ, Đang làm, Hạn mức, Chi phí hôm nay và Cài đặt. Chi tiết: [docs/menu-bar-spec.vi.md](menu-bar-spec.vi.md).
@@ -117,6 +147,8 @@ Máy nhân viên hỏi máy chủ tối đa 4 giờ một lần, thất bại th
 Chỉ gói công ty mới gửi; gói thường không gửi gì. Số liệu lên máy chủ của công ty, không gửi cho bên ngoài.
 
 **Có gửi:** họ tên, email tài khoản Claude và email nhập lúc cài, mã máy ngẫu nhiên, dấu máy (mã phần cứng đã băm một chiều, để nhận ra cùng máy khi cài lại plugin, không hiện trên bảng), IP nội bộ, số phiên mở, đang làm, chờ trả lời, mô hình đang dùng, hạn mức tài khoản Claude, token và chi phí theo giờ, số việc giao cho từng trợ lý, tên loại trợ lý phụ đang chạy, trợ lý có trên máy, phiên bản plugin. Máy chủ tự ghi thêm IP công cộng của máy gửi, và nhớ các IP nội bộ mỗi máy đã dùng trong 30 ngày.
+
+**Bộ nối cho Codex, Cursor và Gemini CLI gửi:** họ tên và email gõ lúc cài, một mã máy ngẫu nhiên, thời điểm, và với mỗi công cụ là số phiên đang mở, đang làm và đang chờ. Máy chủ tự ghi IP công cộng của máy gửi. Ngoài ra không gửi gì khác. Trên máy, `~/.local/share/ai-worker/connector/` chứa khoá gửi (file chỉ tài khoản đó đọc được), mỗi phiên đang mở một dòng kèm mã phiên của chính công cụ, và báo cáo gần nhất. Mỗi công cụ đưa cho hook sự kiện của nó, trong đó có câu hỏi hoặc câu trả lời; hook đọc mã phiên và việc câu cuối có kết thúc bằng dấu hỏi hay không, và không giữ lại câu hỏi lẫn câu trả lời.
 
 **Không gửi:** nội dung chat, câu hỏi, câu trả lời, tiêu đề chat, tên file, nội dung file, tên thư mục dự án, mô tả việc giao trợ lý.
 

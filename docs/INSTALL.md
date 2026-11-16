@@ -41,6 +41,36 @@ Real addresses, the `INGEST_KEY` and the keys do not go into git. The repo only 
 - `/office-pane`: opens the 2D view next to the chat box.
 - `/update`: checks for a new version and installs it.
 
+## Codex, Cursor and Gemini CLI on the board
+
+Someone who works in Codex, Cursor or Gemini CLI can show on the same board, with or without Claude Code on their computer. A small connector (`connectors/`) does it: a hook that each tool runs when a session starts, a prompt is sent, the tool asks for an approval, a turn ends and the session closes.
+
+**Install on one computer.** In the unzipped company package:
+
+- macOS: double-click `INSTALL-Other-Tools-Mac.command`.
+- Ubuntu: open Terminal in the unzipped folder and type `bash INSTALL-Other-Tools-Linux.sh`.
+- Windows: double-click `INSTALL-Other-Tools-Windows.bat`.
+
+From a copy of this repository instead of a package: `bash connectors/install.sh --server https://board.example.com` (Windows: `powershell -ExecutionPolicy Bypass -File connectors\install.ps1 -Server https://board.example.com`); it asks for the send key.
+
+The installer asks about each tool it finds on the computer. It adds its hooks to that tool's own settings (`~/.codex/hooks.json` or `config.toml`, `~/.cursor/hooks.json`, `~/.gemini/settings.json`) and leaves everything else in them alone; a copy of the file as it was is kept next to it, ending in `.ai-worker-backup`. A settings file it cannot read as plain JSON is not changed: the installer prints the hooks to add by hand. It uses the name and email the plugin already has on that computer, so one person stays one row on the board. When asked, it also copies 16 of the plugin's skills to `~/.agents/skills/`, the folder all three tools read; `make-skill` and `improve-codebase-architecture` lean on Claude Code and are not copied.
+
+**Codex asks once.** Codex runs a hook only after its owner has looked at it: open Codex, type `/hooks`, and trust the seven hooks whose command ends in `ai-worker-hook.sh`. Cursor and Gemini CLI pick the hooks up at their next start.
+
+**Check and remove.** `bash ~/.local/share/ai-worker/connector/install.sh --status` shows what is installed and what the board last answered; the same command with `--uninstall` takes the hooks, the skills and the connector's folder out again. On Windows: `powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.local\share\ai-worker\connector\install.ps1" -Status` or `-Uninstall`.
+
+**What the board shows for these tools:** sessions open, working and waiting, per tool. Waiting means the tool asked for an approval, or ended its turn with a question. Tokens, cost, quota and model are not known for them and show as a dash.
+
+**Limits to know:**
+
+- The connector sends only when something happens in a tool. A session with no event for 2 hours is no longer counted, and a tool closed without its end event (a closed laptop lid, a killed terminal) can stay on the board for up to 2 hours. A turn that ends in an error sends no event: that session shows as working until its next event, for 30 minutes at most.
+- Each computer with the connector counts as one more device for the limits in [ARCHITECTURE.md](ARCHITECTURE.md): 300 devices in all, 10 new ones per IP per day. An office behind one shared public IP that installs it for many people on one day will see some computers refused until the next day.
+- The connector does not update itself: after a new version of AI Worker, run the installer again.
+- The server must be this version or newer. An older server accepts the report but shows the person as offline after 12 minutes and does not name the tool.
+- **How far it is tested.** The hook and the installer pass their tests with sample events and a temporary home folder on macOS, on Ubuntu and on Windows (the last two on GitHub's test machines); in a real Codex CLI 0.164.0 session on macOS the start, prompt, stop and end hooks ran, a question from Codex showed on a sample board as waiting, and cutting a turn short with Esc was seen to send `Interrupt` and no `Stop`, after which the session showed as idle; the approval and tool hooks have not been seen in a real session yet. Cursor and Gemini CLI are written from their documentation and have not been tried inside the real tools, and no real tool has been tried on Windows or Linux yet. On Windows each hook costs the start of PowerShell, about half a second on the test machine. If you try one, please tell us what you see.
+
+The report format, for writing a connector for another tool: [connectors/README.md](../connectors/README.md).
+
 ## Menu bar icon for managers
 
 Managers see in the menu bar how many people are waiting for an answer, without opening the board: a native app on macOS, an app next to the clock on Windows (installed from an .msi, no admin rights), a top bar icon on Ubuntu (a .deb package). A click opens a small window with Waiting, Working, Quota, Cost today and Settings. Details: [docs/menu-bar-spec.md](menu-bar-spec.md).
@@ -117,6 +147,8 @@ Employee computers ask the server at most once every 4 hours, and 30 minutes lat
 Only the company package sends; the normal package sends nothing. The numbers go to the company's own server, not to outsiders.
 
 **Sent:** full name, the email of the Claude account and the email typed at install, a random computer ID, a hardware mark (the computer's own id after a one-way hash, so a reinstalled plugin is still the same computer; never shown on the board), internal IP, number of open sessions, working, waiting for an answer, the model in use, the Claude account quota, tokens and cost per hour, number of tasks given to each assistant, the kinds of helper assistants running, the assistants present on the computer, the plugin version. The server also records the public IP of the sending computer by itself, and keeps the internal IPs each computer used in the last 30 days.
+
+**The connector for Codex, Cursor and Gemini CLI sends:** the full name and email typed at install, a random computer ID, the time, and for each tool the number of sessions open, working and waiting. The server records the public IP of the sending computer by itself. Nothing else is sent. On the computer, `~/.local/share/ai-worker/connector/` holds the send key (a file only that account can read), one line per open session with the tool's own session id, and the last report. Each tool hands the hook its event, which holds the prompt or the answer; the hook reads the session id and whether the last message ends with a question mark, and keeps neither the prompt nor the answer.
 
 **Not sent:** chat content, questions, answers, chat titles, file names, file contents, project folder names, descriptions of the tasks given to assistants.
 

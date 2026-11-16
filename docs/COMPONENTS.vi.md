@@ -8,11 +8,12 @@ Mọi phần của AI Worker: chạy ở đâu, cần gì, phiên bản nào đ�
 
 | Phần | Chạy trên | Ngôn ngữ | Phiên bản |
 |---|---|---|---|
-| Plugin (hook, `/office`, skill) | Máy nhân viên, bên trong Claude Code | TypeScript | `version` trong `.claude-plugin/plugin.json` (hiện 0.31.17) |
+| Plugin (hook, `/office`, skill) | Máy nhân viên, bên trong Claude Code | TypeScript | `version` trong `.claude-plugin/plugin.json` (hiện 0.32.0) |
 | Máy chủ bảng tổng (webhook) | Máy chủ Linux | Python, chỉ thư viện chuẩn; dữ liệu trong SQLite | Theo bản phát hành của plugin |
 | Trang văn phòng 3D | Trình duyệt | JavaScript, three.js | Theo bản phát hành của plugin |
 | Biểu tượng thanh menu | macOS, Windows, Ubuntu | Python (SwiftBar trên Mac, Ubuntu), app Swift (`macos-app/`), PowerShell và C# (Windows) | Máy chủ dựng cho mỗi lần tải |
 | Tiện ích trình duyệt cho quản lý | Chrome | JavaScript | `version` trong `extensions/manager/manifest.json` (hiện 0.1.0) |
+| Bộ nối cho Codex, Cursor và Gemini CLI (`connectors/`) | Máy nhân viên, dưới dạng hook trong từng công cụ | sh và PowerShell; bộ cài của nó còn dùng `osascript` hoặc Node để gộp JSON | Nằm trong gói cài; cập nhật bằng cách chạy lại bộ cài của nó |
 | File cài | macOS, Windows, Linux | Bash, PowerShell | Nằm trong gói cài |
 
 ## 2. Mỗi máy cần gì

@@ -49,6 +49,19 @@ LOCAL_TZ = timezone(timedelta(hours=float(os.environ.get("TZ_OFFSET", "7"))))
 # a device that has not sent for over 12 minutes counts as offline (same as the board on the manager's machine)
 # máy không gửi quá 12 phút thì coi là ngoại tuyến (giống bảng trên máy quản lý)
 OFFLINE_SECONDS = 12 * 60
+# coding tools other than Claude Code whose sessions a computer may report, through the connector in connectors/
+# các công cụ lập trình ngoài Claude Code mà một máy có thể báo phiên, qua bộ nối trong connectors/
+CONNECTOR_TOOLS = ("codex", "cursor", "gemini")
+# the connector sends only when something happens in a tool, with no beat in between, so its report counts for longer:
+# with the 12 minutes above, a person whose tool has waited 20 minutes for an answer would already be shown as offline
+# bộ nối chỉ gửi khi có việc xảy ra trong công cụ, không có nhịp ở giữa, nên báo cáo của nó được tính lâu hơn:
+# với 12 phút ở trên, người có công cụ đã chờ trả lời 20 phút sẽ bị hiện là ngoại tuyến
+CONNECTOR_OFFLINE_SECONDS = 2 * 3600
+# "working" from the connector is believed for less long: a tool whose turn fails or is cut short sends no event,
+# so its session would stay "working". While work really goes on the connector sends again at least every 5 minutes.
+# "đang làm" từ bộ nối được tin trong thời gian ngắn hơn: công cụ có lượt bị lỗi hoặc bị cắt ngang không gửi sự kiện nào,
+# nên phiên của nó sẽ kẹt ở "đang làm". Khi việc thật sự còn chạy thì bộ nối gửi lại ít nhất 5 phút một lần.
+CONNECTOR_WORKING_SECONDS = 30 * 60
 # a device silent for more than a day: dimmed on /board and not counted (its file is still kept KEEP_DAYS days)
 # máy không gửi quá 1 ngày: trên /board làm mờ và không tính vào số máy (file vẫn giữ KEEP_DAYS ngày)
 STALE_DEVICE_SECONDS = 24 * 3600

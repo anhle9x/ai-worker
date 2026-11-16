@@ -111,6 +111,7 @@ A version is installed only when it carries the admin's signature. Your computer
 Only a company package sends anything; a normal package sends nothing.
 
 - **Sent to the company server:** your name, your Claude account email, a computer ID, IP addresses, how many sessions are open, working or waiting, tokens, cost, quota, how many tasks went to each assistant, the plugin version.
+- **Sent by the connector for Codex, Cursor and Gemini CLI,** if you installed it (see 1.10): your name and email, a computer ID, and for each tool how many sessions are open, working or waiting.
 - **Never sent:** chat content, questions, answers, file names, file contents, project names.
 
 To stop sending from one computer, add `"sharing": { "enabled": false }` to `config.js` (see 1.7) and tell your admin.
@@ -148,6 +149,18 @@ Then delete the `claude-plugins-ai-worker` folder in your user folder.
 | The update fails | Make sure you are on the company network; otherwise ask your admin for the new install package |
 | `/update` says the network you are on is not allowed to reach the company server | Nothing is wrong with your computer: the server answers only the networks your admin has added. Type `/update` again at the office, or ask your admin to add the network you are on |
 
+### 1.10 Codex, Cursor and Gemini CLI
+
+If you also work in Codex, Cursor or Gemini CLI, those sessions can show on the company board too. You do not need Claude Code for this.
+
+1. **Where:** the unzipped folder your admin gave you. **Do:** double-click `INSTALL-Other-Tools-Mac.command` (Windows: `INSTALL-Other-Tools-Windows.bat`; Ubuntu: type `bash INSTALL-Other-Tools-Linux.sh` in Terminal). **Right result:** a window asks, for each tool it finds, whether to show it on the board.
+2. **Do:** press Enter for yes or type `n` for no, for each tool. **Right result:** the window says `The board answered: received.`
+3. **Codex only. Where:** Terminal. **Do:** type `codex`, then `/hooks`, and trust the seven hooks whose command ends in `ai-worker-hook.sh` (a hook is a small program the tool runs by itself at certain moments). **Right result:** `/hooks` lists them as trusted. Cursor and Gemini CLI need no such step: close and reopen them.
+
+**What it sends:** your name and email, a computer ID, and for each tool how many sessions are open, working or waiting. Never what you type or what the tool answers.
+
+**To remove it:** in Terminal type `bash ~/.local/share/ai-worker/connector/install.sh --uninstall`. The window says `Done. Codex, Cursor and Gemini CLI no longer send anything to the board.`
+
 ---
 
 ## 2. Managers
@@ -180,7 +193,9 @@ It updates by itself every 10 seconds:
 
 Colours: green is working, yellow is waiting for an answer, light blue is idle, grey is offline.
 
-The board only knows about Claude Code on computers where the plugin is installed. Chatting on claude.ai in a browser, the Chat tab of the Claude app and Claude Code sessions that run in the cloud are not counted, so a person who works there shows as idle or offline. Do not read the board as "who uses Claude the most".
+A person who uses Codex, Cursor or Gemini CLI has one more line under their name with each tool they have open and what it is doing. For those tools, waiting means the tool asked for an approval or ended its turn with a question; their cost, tokens and quota are not known, so someone who uses only those tools has no cost on the board.
+
+The board only knows about Claude Code on computers where the plugin is installed, and about Codex, Cursor and Gemini CLI on computers where the connector is installed. Chatting on claude.ai in a browser, the Chat tab of the Claude app and Claude Code sessions that run in the cloud are not counted, so a person who works there shows as idle or offline. Do not read the board as "who uses Claude the most".
 
 ### 2.3 Menu bar icon
 

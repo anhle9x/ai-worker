@@ -11,7 +11,7 @@ Bring Claude to your whole office, including people who do not write code, and s
   <img alt="Server: Python standard library and SQLite" src="https://img.shields.io/badge/server-Python%20%2B%20SQLite-0a0a0a.svg?style=for-the-badge&amp;labelColor=000000" height="28">
 </p>
 
-AI Worker is for the person who has to roll Claude out to an office and then answer two questions: is it being used, and who is stuck? It is a Claude Code plugin on each employee's computer and a small server on one Linux machine that you run yourself. Staff double-click an installer and type their name. Managers get a live board of who is working, who is waiting for an answer and for how long, for Claude and for the helper assistants (Gemini, ChatGPT, Gemma). It needs no Team or Enterprise plan and no device-management software. An employee's computer sends the server the person's name, their Claude account, a few facts about the computer and the numbers (sessions, tokens, cost, quota); it never sends chat content, prompts, file names or project names.
+AI Worker is for the person who has to roll Claude out to an office and then answer two questions: is it being used, and who is stuck? It is a Claude Code plugin on each employee's computer and a small server on one Linux machine that you run yourself. Staff double-click an installer and type their name. Managers get a live board of who is working, who is waiting for an answer and for how long, for Claude and for the helper assistants (Gemini, ChatGPT, Gemma). A small connector puts people who work in Codex, Cursor or Gemini CLI on the same board, with or without Claude Code. It needs no Team or Enterprise plan and no device-management software. An employee's computer sends the server the person's name, their Claude account, a few facts about the computer and the numbers (sessions, tokens, cost, quota); it never sends chat content, prompts, file names or project names.
 
 <!-- one row that scrolls sideways, one picture to a view. GitHub shrinks pictures in a table to fit the page; the line of em spaces under each caption cannot wrap (nowrap), so it holds the cell at the width of the page -->
 <table>
@@ -36,6 +36,7 @@ AI Worker is for the person who has to roll Claude out to an office and then ans
 
 ## Other features
 
+- **Codex, Cursor and Gemini CLI on the same board:** a connector, installed per tool by whoever uses it, shows sessions open, working and waiting for each tool. It needs no Claude Code, Python or Node, and it sends counts only. New: tried inside a real Codex CLI on macOS; on Linux and Windows, and for Cursor and Gemini CLI, tested with sample events only, not inside the real tools. See the [install guide](docs/INSTALL.md#codex-cursor-and-gemini-cli-on-the-board).
 - **Cost and quota:** cost today and over 7 days and quota left, per person and per office.
 - **Ask Claude about the team:** a manager pairs their Claude with the board once, then simply asks, for example "who is waiting longest right now?". You can type or dictate the question in your own language; Claude answers from the board's numbers.
 - **Turn a procedure into a skill:** give `/ai-worker:make-skill` an SOP or a description of how a job is done. It writes a draft skill, stops at passwords and keys, leaves personal data out, and switches the skill on only after you say yes.
@@ -101,18 +102,19 @@ How to use each screen: [docs/USER-GUIDE.md](docs/USER-GUIDE.md).
 
 | Part | Runs on | Needs |
 |---|---|---|
-| Plugin | macOS, Windows, Linux | Claude Code (desktop app Code tab or CLI) |
+| Plugin | macOS, Windows, Linux | Claude Code: the desktop app's Code tab, the CLI, or the VS Code extension |
+| Connector for Codex, Cursor, Gemini CLI | macOS, Linux, Windows | The tool itself, and curl or wget; no Claude Code |
 | Dashboard server | Linux with systemd | Python 3.8 or newer, Caddy or nginx; no other library |
 | Menu bar icon | macOS, Windows 10/11, Ubuntu (X11 and Wayland) | Downloaded from the server's Admin page |
 | Browser extension | Chrome, Edge | Download from the server's Admin page, pair with a code |
 
 ### What is not counted
 
-The board shows Claude Code on computers where the plugin is installed, and nothing else:
+The board shows Claude Code on computers where the plugin is installed, and Codex, Cursor and Gemini CLI on computers where the connector is installed (sessions only: no tokens, cost or quota). It does not show:
 
 - **claude.ai in a browser, and the Chat tab of the Claude app.** They have no plugins.
 - **Claude Code sessions that run in the cloud** (claude.ai/code). They run on Anthropic's servers, not on the staff computer, so the plugin installed there is not loaded. Not tried yet: treat them as not counted.
-- **A computer without the plugin,** or one that cannot reach the server.
+- **A computer without the plugin or the connector,** or one that cannot reach the server.
 
 Someone who only chats on claude.ai therefore shows as not using Claude, though that use may still count against the same account's quota. Read the board as "who uses Claude Code, and how much", not "who uses Claude the most".
 

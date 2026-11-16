@@ -17,6 +17,7 @@ Từ ngày [ngày], [công ty] sẽ cài plugin AI Worker cho Claude Code trên 
 - Email bạn gõ lúc cài plugin, nếu có gõ
 - Dấu máy: mã cố định của máy tính đã băm một chiều, không đọc ngược ra mã gốc được. Dấu này chỉ để bảng nhận ra cùng một máy khi cài lại plugin, không hiện trên bảng
 - Số phiên đang mở, và Claude đang làm việc hay đang chờ bạn
+- [Chỉ khi có cài bộ nối cho Codex, Cursor và Gemini CLI] Với từng công cụ đó: số phiên đang mở, đang làm hay đang chờ bạn
 - Số token đã dùng, chi phí ước tính, số việc giao cho từng trợ lý, phần hạn mức đã dùng
 - Mô hình AI và trợ lý đang dùng, Claude đang chạy những loại trợ lý phụ nào và bao nhiêu, phiên bản plugin
 

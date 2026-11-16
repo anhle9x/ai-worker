@@ -34,7 +34,6 @@ from board.settings import (
     KIND_EXTENSION,
     KIND_PLUGIN,
     LOCAL_TZ,
-    OFFLINE_SECONDS,
     OTP_LABEL,
     TV_ABSENT_SECONDS,
     TV_MAX,
@@ -220,7 +219,7 @@ COMMON_FIELDS_BY_ROLE = {
 }
 PERSON_FIELDS_ALL = frozenset({
     "branch", "name", "account", "shared", "deviceCount", "status", "openSessions", "working", "waiting", "delegating", "subagents",
-    "usdToday", "usd7d", "tokensIn", "tokensOut", "tasks", "updatedAt", "waitingSince", "models", "assistants", "quota", "pluginVersion", "hourly24",
+    "usdToday", "usd7d", "tokensIn", "tokensOut", "tasks", "updatedAt", "waitingSince", "models", "assistants", "quota", "pluginVersion", "hourly24", "tools",
 })
 PERSON_FIELDS_BY_ROLE = {
     ADMIN: PERSON_FIELDS_ALL | {"lanIps", "enteredAccounts"},
@@ -387,10 +386,13 @@ def _raw_data(now: float) -> dict:
             "name": r["name"], "account": r["account"], "shared": r["shared"], "deviceCount": r["deviceCount"],
             "lanIps": r["lanIps"], "enteredAccounts": r["enteredAccounts"], "status": status_of(r, now),
             "openSessions": r["openSessions"], "working": r["working"], "waiting": r["waiting"], "delegating": r["delegating"],
+            # which tools have a session open now, each with its own counts
+            # công cụ nào đang có phiên mở, mỗi công cụ kèm số của nó
+            "tools": r["tools"],
             "subagents": [{"name": k, "count": v} for k, v in sorted(r["subagents"].items())],
             "usdToday": round(r["usdToday"], 4), "usd7d": round(r["usd7d"], 4), "tokensIn": r["tokensIn"], "tokensOut": r["tokensOut"],
             "tasks": r["tasks"], "updatedAt": r["updatedAt"],
-            "waitingSince": WAIT_TRACKER.note(r["account"] + "|" + r["name"], r["waiting"] if now - r["updatedAt"] / 1000 < OFFLINE_SECONDS else 0, now),
+            "waitingSince": WAIT_TRACKER.note(r["account"] + "|" + r["name"], r["waiting"] if r["online"] else 0, now),
             "models": r["models"], "assistants": {"known": r["known"], "gemma": r["gemma"], "chatgpt": r["chatgpt"], "gemini": r["gemini"],
                                              "chatgptModels": r["chatgptModels"], "geminiModels": r["geminiModels"]},
             "quota": r["quota"], "pluginVersion": r["pluginVersion"],

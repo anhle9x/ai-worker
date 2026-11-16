@@ -54,6 +54,11 @@ PEOPLE = (
 )
 
 
+# sample people who also use another coding tool, reported by the connector: index in PEOPLE, tool, open sessions, working, waiting
+# nhân viên giả lập dùng thêm một công cụ lập trình khác, do bộ nối báo: vị trí trong PEOPLE, công cụ, số phiên mở, đang làm, đang chờ
+OTHER_TOOLS = ((4, "codex", 1, 0, 1), (7, "cursor", 2, 1, 0), (10, "gemini", 1, 1, 0))
+
+
 def email_of(i: int) -> str:
     return "person%02d@example.com" % (i + 1)
 
@@ -100,6 +105,13 @@ def sample_reports(now: float, plugin_version: str = "1.0.0", seed: int = 7) -> 
                                                               {"kind": "seven_day", "pct": seven_day, "resetsAt": int((now + 86400 * 3) * 1000)}]},
         })
     return reports
+
+
+def sample_connector_reports(now: float) -> list:
+    """What the connector for Codex, Cursor and Gemini CLI sends for the sample people in OTHER_TOOLS: session counts per tool, nothing else.
+    Thứ bộ nối cho Codex, Cursor và Gemini CLI gửi cho các nhân viên giả lập trong OTHER_TOOLS: số phiên theo từng công cụ, không gì khác."""
+    return [{"v": 1, "device": "device-demotool%02d" % i, "name": PEOPLE[i][0], "account": email_of(i), "updatedAt": int(now * 1000),
+             "tools": {tool: {"openSessions": opened, "working": working, "waiting": waiting}}} for i, tool, opened, working, waiting in OTHER_TOOLS]
 
 
 def refresh_reports(reports: list, now: float, rnd: random.Random) -> None:
@@ -199,10 +211,14 @@ def main(argv=None) -> int:
         w.ACCOUNTS.import_from_env()
         now = time.time()
         reports = sample_reports(now, plugin_version())
+        tool_reports = sample_connector_reports(now)
         waiting_since = {r["account"] + "|" + r["name"]: int((now - p[4] * 60) * 1000) for r, p in zip(reports, PEOPLE) if p[2] == "waiting"}
+        # the person whose Codex is waiting has waited a while too
+        # người có Codex đang chờ cũng đã chờ một lúc
+        waiting_since.update({r["account"] + "|" + r["name"]: int((now - 18 * 60) * 1000) for r in tool_reports if r["tools"].get("codex", {}).get("waiting")})
 
         def send_all(at: float) -> None:
-            for r in reports:
+            for r in reports + tool_reports:
                 devices.save_ingest(devices.clean_payload(r, at), at)
 
         send_all(now)
@@ -215,12 +231,17 @@ def main(argv=None) -> int:
             while not stop.wait(REFRESH_SECONDS):
                 at = time.time()
                 refresh_reports(reports, at, rnd)
+                for r in tool_reports:
+                    r["updatedAt"] = int(at * 1000)
                 send_all(at)
 
         server = w.LimitedServer(("127.0.0.1", args.port), w.Handler)
         print("AI Worker demo: %d sample people in %d offices. Nothing leaves this computer." % (len(PEOPLE), len(OFFICES)))
         print("Open      http://127.0.0.1:%d" % server.server_address[1])
         print("Account   %s" % ACCOUNT)
+        # for trying a connector (connectors/) against this demo: the key is made new at every start and opens nothing else
+        # để thử một bộ nối (connectors/) với bản thử này: khoá được tạo mới mỗi lần chạy và không mở được gì khác
+        print("Send key  %s" % os.environ["INGEST_KEY"])
         print("Stop      Ctrl+C (the sample data is deleted)", flush=True)
         for target in (w.history_loop, keep_alive, lambda: show_codes(secret, security.totp_code, stop)):
             threading.Thread(target=target, daemon=True).start()

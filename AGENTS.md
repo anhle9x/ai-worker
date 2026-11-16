@@ -4,7 +4,7 @@ Read this before changing anything in this repository. People read [CONTRIBUTING
 
 ## What this is
 
-A Claude Code plugin (`.claude-plugin/`, `hooks/`, `skills/`, `web/`) on each employee's computer, and a dashboard server (`server/`) on one Linux machine. Design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Data: [docs/DATA-MODEL.md](docs/DATA-MODEL.md). Permissions: [docs/PERMISSIONS.md](docs/PERMISSIONS.md).
+A Claude Code plugin (`.claude-plugin/`, `hooks/`, `skills/`, `web/`) on each employee's computer, a connector for Codex, Cursor and Gemini CLI that needs no Claude Code (`connectors/`), and a dashboard server (`server/`) on one Linux machine. Design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Data: [docs/DATA-MODEL.md](docs/DATA-MODEL.md). Permissions: [docs/PERMISSIONS.md](docs/PERMISSIONS.md).
 
 ## Do not move
 
@@ -18,10 +18,11 @@ A Claude Code plugin (`.claude-plugin/`, `hooks/`, `skills/`, `web/`) on each em
 - `web/ops.js`, `ops.css`, `ops3d.js`, `i18n.js`, `ops.vi.js` must equal their copies in `server/static/`.
 - Never commit real names, emails, IPs, domains, keys or company numbers. Use `board.example.com` and `example.com`.
 - The employee's computer never sends chat content, prompts, file names or project names. Keep it that way.
+- `connectors/ai-worker-hook.sh` and `connectors/ai-worker-hook.ps1` do the same thing, as do `install.sh` and `install.ps1`: change both. The hook runs with sh, awk, sed, grep and curl or wget only: no Python, no Node.
 
 ## Checks
 
-Run all nine before calling a change done. CI runs the same ones.
+Run all ten before calling a change done. CI runs the same ones.
 
 ```bash
 claude plugin test .
@@ -29,6 +30,10 @@ claude plugin test .
 
 ```bash
 cd server && python3 -m unittest
+```
+
+```bash
+python3 tests/connectors/test_connectors.py
 ```
 
 ```bash

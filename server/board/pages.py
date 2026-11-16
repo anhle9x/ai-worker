@@ -13,7 +13,6 @@ from board.security import WALL
 from board.settings import (
     LOCAL_TZ,
     MINI_NOTIFY_MINUTES,
-    OFFLINE_SECONDS,
     STALE_DEVICE_SECONDS,
     USD_RATE,
 )
@@ -660,10 +659,25 @@ def short_time(at_ms: float, now: float) -> str:
     return t.strftime("%H:%M") if t.date() == datetime.fromtimestamp(now, LOCAL_TZ).date() else t.strftime(tx("%b %d %H:%M"))
 
 
+TOOL_NAMES = {"claude": "Claude Code", "codex": "Codex", "cursor": "Cursor", "gemini": "Gemini CLI"}
+
+
+def tools_note(tools: dict) -> str:
+    """Under the status on /board: which tools have a session open, with the number of sessions. Nothing for a person who uses Claude Code only.
+    Dưới trạng thái trên /board: công cụ nào đang có phiên mở, kèm số phiên. Không hiện gì với người chỉ dùng Claude Code."""
+    if not any(tool != "claude" for tool in tools):
+        return ""
+    return '<span class=note>%s</span>' % html.escape(" · ".join("%s %d" % (TOOL_NAMES[tool], tools[tool]["openSessions"]) for tool in TOOL_NAMES if tool in tools))
+
+
 def device_version_cell(r: dict, latest_version: str, now: float) -> str:
     """The Plugin column on /board: one device shows only its version; several show one line each with IP, last send and earlier IPs; quiet ones dimmed.
     Cột Plugin trên /board: một máy thì chỉ phiên bản; nhiều máy thì mỗi máy một dòng kèm IP, lần gửi, IP trước; máy lâu không gửi làm mờ."""
     items = sorted(physical_devices(r), key=lambda m: -m["at"])
+    # a person seen only through the connector has no plugin on any computer
+    # người chỉ được thấy qua bộ nối thì không có plugin trên máy nào
+    if not r["deviceCount"]:
+        return '<span class="off">—</span>'
     if not items:
         return version_cell(r["pluginVersion"], latest_version)
     if len(items) == 1 and not items[0]["earlier"]:
@@ -716,7 +730,7 @@ def page_board(viewer_name: str, now: float) -> bytes:
         ip = ", ".join(r["lanIps"] or r["ip"])
         device_count = len(active_devices(r, now)) if r.get("devices") else r["deviceCount"]
         stale_count = len(physical_devices(r)) - device_count if r.get("devices") else 0
-        if now - r["updatedAt"] / 1000 >= OFFLINE_SECONDS:
+        if not r["online"]:
             status_text = '<span class="off">%s</span>' % html.escape(tx("offline"))
         elif r["waiting"]:
             status_text = '<span class="waiting">%s</span>' % html.escape(tx("waiting for reply ({n})", n=r["waiting"]))
@@ -724,21 +738,27 @@ def page_board(viewer_name: str, now: float) -> bytes:
             status_text = '<span class="working">%s</span>' % html.escape(tx("working ({n})", n=r["working"]))
         else:
             status_text = html.escape(tx("{n} sessions open", n=r["openSessions"])) if r["openSessions"] else '<span class="off">%s</span>' % html.escape(tx("idle"))
+        status_text += tools_note(r["tools"])
         updated = datetime.fromtimestamp(r["updatedAt"] / 1000, LOCAL_TZ)
         updated_text = updated.strftime("%H:%M") if updated.date() == datetime.fromtimestamp(now, LOCAL_TZ).date() else updated.strftime(tx("%b %d, %Y %H:%M"))
         model_names = ", ".join(model_label(k) for k in sorted(r["models"], key=lambda k: -r["models"][k])) or "—"
+        # cost, tokens and delegated tasks are counted by the plugin: a person seen only through the connector has a dash, not a zero
+        # chi phí, token và việc đã giao do plugin đếm: người chỉ được thấy qua bộ nối thì hiện gạch, không hiện số không
+        if r["deviceCount"]:
+            plugin_cells = ('%s<span class=note>%s</span>' % (format_money(r["usdToday"]), html.escape(tx("7 days {amount}", amount=format_money(r["usd7d"])))),
+                            "%s / %s" % (compact(r["tokensIn"]), compact(r["tokensOut"])), "%d · %d · %d" % tuple(r["tasks"]))
+        else:
+            plugin_cells = ('<span class="off">—</span>',) * 3
         row_html.append((
             "<tr><td class=person>%s %s<span class=account>%s</span>%s</td><td data-label='" + label_status + "'><div>%s</div></td><td data-label='" + label_model + "'><div>%s</div></td><td data-label='" + label_quota + "'><div>%s</div></td>"
-            "<td class=num data-label='" + label_today + "'><div>%s<span class=note>%s</span></div></td><td class=num data-label='" + label_tokens + "'><div>%s / %s</div></td>"
-            "<td class=num data-label='" + label_tasks + "'><div>%d · %d · %d</div></td><td class=pv data-label='Plugin'><div>%s</div></td><td class=num data-label='" + label_updated + "'><div>%s</div></td></tr>") % (
+            "<td class=num data-label='" + label_today + "'><div>%s</div></td><td class=num data-label='" + label_tokens + "'><div>%s</div></td>"
+            "<td class=num data-label='" + label_tasks + "'><div>%s</div></td><td class=pv data-label='Plugin'><div>%s</div></td><td class=num data-label='" + label_updated + "'><div>%s</div></td></tr>") % (
                 html.escape(r["name"]), '<span class="tag">%s</span>' % html.escape(tx("shared")) if r["shared"] else "",
                 html.escape(r["account"]).replace("@", "<wbr>@", 1) + (' · ' + html.escape(tx("{n} devices", n=device_count)) if device_count > 1 else "")
                 + (' · ' + html.escape(tx("{n} old devices", n=stale_count) if stale_count > 1 else tx("1 old device")) if stale_count else "")
                 + ('<br>' + html.escape(tx("entered at install: {accounts}", accounts=", ".join(r["enteredAccounts"]))) if r["enteredAccounts"] else ""),
                 '<span class="ip">%s</span>' % html.escape(ip) if ip else "",
-                status_text, html.escape(model_names), quota_cell(r["quota"], now), format_money(r["usdToday"]), html.escape(tx("7 days {amount}", amount=format_money(r["usd7d"]))),
-                compact(r["tokensIn"]), compact(r["tokensOut"]),
-                r["tasks"][0], r["tasks"][1], r["tasks"][2], device_version_cell(r, latest_version, now), updated_text))
+                status_text, html.escape(model_names), quota_cell(r["quota"], now), *plugin_cells, device_version_cell(r, latest_version, now), updated_text))
         for k in ("usdToday", "usd7d", "tokensIn", "tokensOut", "openSessions"):
             total[k] += r[k]
         total["tasks"] = [a + b for a, b in zip(total["tasks"], r["tasks"])]

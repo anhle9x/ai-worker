@@ -17,6 +17,7 @@ From [date], [company] will install the AI Worker plugin for Claude Code on [whi
 - The email you typed when the plugin was installed, if you typed one
 - A hardware mark: your computer's own id after a one-way hash, which cannot be turned back into the id. It only tells the board that a reinstalled plugin is the same computer, and is never shown
 - Number of open sessions, and whether Claude is working or waiting for you
+- [Only if the connector for Codex, Cursor and Gemini CLI is installed] For each of those tools: how many sessions are open, working or waiting for you
 - Tokens used, estimated cost, number of tasks given to each assistant, and quota used
 - The AI models and assistants in use, which kinds of helper assistants Claude is running and how many, and the plugin version
 

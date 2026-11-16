@@ -102,6 +102,22 @@ WHAT THE OFFICE PAGE SHOWS (/office)
 - The page opens from a file on this computer; chat content goes nowhere. Your admin sees only the totals
   (sessions, tokens, cost, quota, plugin version, the kinds of helper assistants running), not what you asked.
 
+CODEX, CURSOR AND GEMINI CLI ON THE COMPANY BOARD (company package only)
+If you work in Codex, Cursor or Gemini CLI, those sessions can show on the company board too. Claude Code is not needed for this.
+1. Double-click:
+   - macOS:   INSTALL-Other-Tools-Mac.command
+   - Windows: INSTALL-Other-Tools-Windows.bat
+   - Ubuntu:  open Terminal in the unzipped folder and type: bash INSTALL-Other-Tools-Linux.sh
+2. The window asks about each tool it finds on this computer: press Enter for yes, type n for no.
+   The right result is the line "The board answered: received."
+3. Codex only: open Terminal, type codex, then /hooks, and trust the seven hooks whose command ends in ai-worker-hook.sh.
+   Cursor and Gemini CLI: close and reopen them.
+What is sent: your name and email, a computer ID, and for each tool how many sessions are open, working or waiting.
+Never sent: what you type, what the tool answers, file names, folders or project names.
+To remove it, in Terminal: bash ~/.local/share/ai-worker/connector/install.sh --uninstall
+(Windows, in PowerShell: powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.local\share\ai-worker\connector\install.ps1" -Uninstall)
+New: tried inside a real Codex on macOS only, not yet inside a real Cursor or Gemini CLI, nor inside any of the tools on Windows. Tell your admin what you see.
+
 UPDATE TO A NEW VERSION
 Unzip the new version and run the installer again. Your changes in config.js are kept.
 

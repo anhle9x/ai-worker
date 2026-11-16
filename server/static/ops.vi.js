@@ -17,6 +17,7 @@ window.I18n.add({
   'Yellow dot: Claude is waiting for that person to reply.': 'Chấm vàng: Claude đang chờ người đó trả lời.',
   'Light blue dot: Claude is open but idle.': 'Chấm xanh lơ: có mở Claude nhưng đang rảnh.',
   'Grey dot: the computer is off or offline.': 'Chấm xám: máy đang tắt hoặc mất mạng.',
+  'Codex, Cursor, Gemini CLI: a person who uses one of these has a line naming each tool they have open and what it is doing; there, waiting means the tool asked a question or wants an approval. Their cost is not counted.': 'Codex, Cursor, Gemini CLI: người dùng một trong các công cụ này có thêm một dòng ghi tên từng công cụ đang mở và nó đang làm gì; ở đó, đang chờ nghĩa là công cụ vừa hỏi một câu hoặc đang xin duyệt. Chi phí của các công cụ này không được tính.',
   '% number: that person\'s share of what the whole team spent today.': 'Số %: người đó chiếm bao nhiêu phần tiền dùng hôm nay của cả team.',
   '5H / 7D (next to the %): how much of the subscription quota that person\'s Claude account has used in the 5-hour / 7-day window; at 100% they must wait for it to reset. Yellow from 60%, red from 80%. Hover to see the reset time.': '5H / 7N (cạnh số %): tài khoản Claude của người đó đã dùng bao nhiêu phần hạn mức gói đăng ký trong khung 5 giờ / 7 ngày; hết 100% thì phải chờ làm mới. Vàng từ 60%, đỏ từ 80%. Rê chuột xem giờ làm mới.',
   'Click a name to see details.': 'Bấm vào tên để xem chi tiết.',

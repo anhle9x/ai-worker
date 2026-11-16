@@ -11,7 +11,7 @@ Triển khai Claude cho cả văn phòng, kể cả người không viết code,
   <img alt="Máy chủ: thư viện chuẩn Python và SQLite" src="https://img.shields.io/badge/server-Python%20%2B%20SQLite-0a0a0a.svg?style=for-the-badge&amp;labelColor=000000" height="28">
 </p>
 
-AI Worker dành cho người phải triển khai Claude cho cả văn phòng rồi trả lời hai câu hỏi: mọi người có dùng không, và ai đang kẹt? Nó gồm một plugin Claude Code trên máy từng nhân viên và một máy chủ nhỏ trên một máy Linux do bạn tự chạy. Nhân viên bấm đúp vào bộ cài, gõ họ tên là xong. Quản lý có một bảng cập nhật theo thời gian thực, cho thấy ai đang làm, ai đang chờ trả lời và đã chờ bao lâu, cho cả Claude lẫn các trợ lý phụ (Gemini, ChatGPT, Gemma). Không cần gói Team hay Enterprise, không cần phần mềm quản lý thiết bị. Máy nhân viên gửi lên máy chủ tên người dùng, tài khoản Claude, vài thông tin về máy và các con số (số phiên, token, chi phí, hạn mức); không bao giờ gửi nội dung chat, prompt, tên file hay tên dự án.
+AI Worker dành cho người phải triển khai Claude cho cả văn phòng rồi trả lời hai câu hỏi: mọi người có dùng không, và ai đang kẹt? Nó gồm một plugin Claude Code trên máy từng nhân viên và một máy chủ nhỏ trên một máy Linux do bạn tự chạy. Nhân viên bấm đúp vào bộ cài, gõ họ tên là xong. Quản lý có một bảng cập nhật theo thời gian thực, cho thấy ai đang làm, ai đang chờ trả lời và đã chờ bao lâu, cho cả Claude lẫn các trợ lý phụ (Gemini, ChatGPT, Gemma). Một bộ nối nhỏ đưa người làm việc trong Codex, Cursor hoặc Gemini CLI lên cùng bảng, dù máy có Claude Code hay không. Không cần gói Team hay Enterprise, không cần phần mềm quản lý thiết bị. Máy nhân viên gửi lên máy chủ tên người dùng, tài khoản Claude, vài thông tin về máy và các con số (số phiên, token, chi phí, hạn mức); không bao giờ gửi nội dung chat, prompt, tên file hay tên dự án.
 
 <!-- one row that scrolls sideways, one picture to a view. GitHub shrinks pictures in a table to fit the page; the line of em spaces under each caption cannot wrap (nowrap), so it holds the cell at the width of the page -->
 <table>
@@ -36,6 +36,7 @@ AI Worker dành cho người phải triển khai Claude cho cả văn phòng r�
 
 ## Tính năng khác
 
+- **Codex, Cursor và Gemini CLI trên cùng bảng:** một bộ nối, do chính người dùng cài cho từng công cụ, cho thấy số phiên đang mở, đang làm và đang chờ của mỗi công cụ. Không cần Claude Code, Python hay Node, và chỉ gửi các con số đếm. Tính năng mới: đã thử trong Codex CLI thật trên macOS; trên Linux và Windows, và với Cursor và Gemini CLI, mới chỉ kiểm bằng sự kiện mẫu, chưa thử trong công cụ thật. Xem [hướng dẫn cài đặt](docs/INSTALL.vi.md#codex-cursor-và-gemini-cli-trên-bảng).
 - **Chi phí và hạn mức:** chi phí hôm nay và 7 ngày, hạn mức còn lại, theo từng người và từng văn phòng.
 - **Hỏi Claude về team:** quản lý ghép Claude của mình với bảng một lần, rồi cứ hỏi tự nhiên, ví dụ "ai đang chờ lâu nhất?". Hỏi bằng tiếng Việt cũng được, gõ hoặc nói đều được; Claude trả lời từ số liệu của bảng.
 - **Biến quy trình thành skill:** đưa cho `/ai-worker:make-skill` một SOP hoặc mô tả cách làm một việc. Nó viết bản nháp skill, dừng lại khi thấy mật khẩu hay khoá, bỏ dữ liệu cá nhân, và chỉ bật skill sau khi bạn đồng ý.
@@ -101,18 +102,19 @@ Cách dùng từng màn hình: [docs/USER-GUIDE.vi.md](docs/USER-GUIDE.vi.md).
 
 | Phần | Chạy trên | Cần |
 |---|---|---|
-| Plugin | macOS, Windows, Linux | Claude Code (thẻ Code của app máy tính hoặc CLI) |
+| Plugin | macOS, Windows, Linux | Claude Code: thẻ Code của app máy tính, CLI, hoặc phần mở rộng VS Code |
 | Máy chủ bảng tổng | Linux có systemd | Python 3.8 trở lên, Caddy hoặc nginx; không thư viện nào khác |
+| Bộ nối cho Codex, Cursor, Gemini CLI | macOS, Linux, Windows | Chính công cụ đó, và curl hoặc wget; không cần Claude Code |
 | Biểu tượng thanh menu | macOS, Windows 10/11, Ubuntu (X11 và Wayland) | Tải ở trang Quản trị của máy chủ |
 | Tiện ích trình duyệt | Chrome, Edge | Tải ở trang Quản trị, ghép bằng mã |
 
 ### Những gì không được đếm
 
-Bảng chỉ cho thấy Claude Code trên các máy đã cài plugin, ngoài ra không gì khác:
+Bảng cho thấy Claude Code trên các máy đã cài plugin, và Codex, Cursor, Gemini CLI trên các máy đã cài bộ nối (chỉ có số phiên: không có token, chi phí hay hạn mức). Bảng không cho thấy:
 
 - **claude.ai trên trình duyệt, và thẻ Chat của app Claude.** Hai nơi này không có plugin.
 - **Phiên Claude Code chạy trên đám mây** (claude.ai/code). Phiên chạy trên máy chủ của Anthropic, không phải máy nhân viên, nên plugin cài trên máy không được nạp. Chưa thử thật: hãy coi như không đếm.
-- **Máy chưa cài plugin,** hoặc máy không tới được máy chủ.
+- **Máy chưa cài plugin hoặc bộ nối,** hoặc máy không tới được máy chủ.
 
 Vì vậy người chỉ chat trên claude.ai sẽ hiện là không dùng Claude, dù phần dùng đó vẫn có thể tính vào hạn mức của cùng tài khoản. Hãy đọc bảng là "ai dùng Claude Code, và dùng bao nhiêu", không phải "ai dùng Claude nhiều nhất".
 

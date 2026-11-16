@@ -40,6 +40,16 @@ class SampleData(unittest.TestCase):
                 self.assertTrue(ipaddress.ip_address(r["lanIp"]).is_private)
                 self.assertRegex(r["device"], r"^device-demo\d\d$")
 
+    def test_connector_reports_belong_to_sample_people_and_carry_only_counts(self):
+        people = {(r["name"], r["account"]) for r in demo.sample_reports(time.time())}
+        reports = demo.sample_connector_reports(time.time())
+        self.assertEqual(len(reports), len(demo.OTHER_TOOLS))
+        for r in reports:
+            with self.subTest(device=r["device"]):
+                self.assertIn((r["name"], r["account"]), people)
+                self.assertEqual(set(r), {"v", "device", "name", "account", "updatedAt", "tools"})
+                self.assertRegex(r["device"], r"^device-demotool\d\d$")
+
     def test_every_person_sits_in_one_office(self):
         branches = demo.sample_branches()["branches"]
         seated = [e for b in branches for e in b["people"]]
@@ -88,6 +98,7 @@ class RunsForReal(unittest.TestCase):
         threading.Thread(target=lambda: [cls.lines.put(line) for line in cls.proc.stdout], daemon=True).start()
         cls.printed = []
         cls.port = int(cls.wait_for(r"^Open\s+http://127\.0\.0\.1:(\d+)$"))
+        cls.send_key = cls.wait_for(r"^Send key\s+([A-Z2-7]+)$")
         cls.code = cls.wait_for(r"^Code\s+(\d{6})$")
 
     @classmethod
@@ -137,6 +148,17 @@ class RunsForReal(unittest.TestCase):
         self.assertEqual([b["name"] for b in board["branches"]], [o[1] for o in demo.OFFICES])
         self.assertEqual({p["status"] for p in board["people"]} - {"working", "waiting", "open", "offline"}, set())
         self.assertEqual([p["status"] for p in board["people"]].count("offline"), 1)
+        people = {p["name"]: p for p in board["people"]}
+        for i, tool, opened, _, _ in demo.OTHER_TOOLS:
+            self.assertEqual(people[demo.PEOPLE[i][0]]["tools"][tool]["openSessions"], opened)
+
+    def test_3_the_printed_send_key_takes_a_connector_report(self):
+        report = {"v": 1, "device": "device-demotry", "name": demo.PEOPLE[0][0], "account": demo.email_of(0), "updatedAt": int(time.time() * 1000),
+                  "tools": {"codex": {"openSessions": 1, "working": 1, "waiting": 0}}}
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        conn.request("POST", "/ingest", json.dumps(report), {"Authorization": "Bearer " + self.send_key, "Content-Type": "application/json"})
+        self.assertEqual(conn.getresponse().status, 200)
+        conn.close()
 
     def test_3_a_real_board_s_settings_are_ignored(self):
         # the account and the send key from the environment do not exist in the demo, and nothing was written to that data folder

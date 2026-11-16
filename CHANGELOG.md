@@ -2,6 +2,19 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.32.0 - 2026-11-16
+
+### Added
+- **Codex, Cursor and Gemini CLI on the board.** A connector (`connectors/`) lets a person who works in one of these tools show on the board: sessions open, working and waiting, per tool. It needs no Claude Code, Python or Node. The package has `INSTALL-Other-Tools-*` installers, which ask about each tool, add hooks to that tool's own settings without touching the rest, and can be undone with `--uninstall`. Waiting means the tool asked for an approval or ended its turn with a question. Tokens, cost and quota are not known for these tools. Update the server first: an older server does not name the tool and shows the person as offline after 12 minutes. Tried inside a real Codex CLI session on macOS, and tested with sample events on macOS, Ubuntu and Windows; Cursor and Gemini CLI are written from documentation, and neither they nor any tool on Windows has been tried for real yet.
+- The board names the tools a person has open, next to their name, on the dashboard and the detail board.
+- The connector's installer can copy 16 of the plugin's skills to `~/.agents/skills/`, which Codex, Cursor and Gemini CLI read.
+- `python3 server/demo.py` prints its send key, so a connector can be tried against the demo, and three of its sample people use another tool.
+
+### Changed
+- A report from the connector counts for 2 hours instead of 12 minutes, because the connector sends only when something happens in a tool; its "working" is believed for 30 minutes, because a turn that fails sends no event.
+- `AGENTS.md` lists ten checks: the connector tests are new.
+- The README says the plugin also runs in the Claude Code extension for VS Code: checked on macOS, where the commands and skills load the same as in the desktop app.
+
 ## 0.31.17 - 2026-11-16
 
 ### Changed

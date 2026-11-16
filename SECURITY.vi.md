@@ -36,4 +36,14 @@ AI Worker được thiết kế để chống tám rủi ro web thường gặp 
 | **Sai cấu hình bảo mật** | Không có tài khoản hay khoá mặc định, thiếu `INGEST_KEY` thì máy chủ không chạy. Sau Caddy thì chỉ nghe trong máy. Dịch vụ chạy bằng người dùng riêng với quyền hạn chế; file khoá và dữ liệu chỉ dịch vụ đọc được | Bạn phải tự đặt danh sách IP, bật HTTPS và giữ ít người có sudo |
 | **Lộ dữ liệu nhạy cảm** | Không bao giờ gửi nội dung trò chuyện, tên file, tên dự án. Màn hình treo tường không nhận email, IP nội bộ. Phiên TV lưu dạng mã băm, nhật ký không chứa khoá, file trông như chứa bí mật chỉ được ghi tên | Không có HTTPS thì số liệu đi không mã hoá. Khoá OTP nằm trên máy chủ không mã hoá, dịch vụ và người có sudo đọc được. Gói cài có chứa mã gửi |
 
+### Bộ nối cho Codex, Cursor và Gemini CLI
+
+Bộ nối (`connectors/`) là phần tuỳ chọn, tách riêng khỏi plugin. Những điều cần biết trước khi cho phép dùng:
+
+- **Nó chạy như một hook bên trong công cụ của hãng khác,** với quyền của chính người dùng công cụ đó. Mỗi công cụ đưa cho hook sự kiện của nó, và trong sự kiện có câu hỏi hoặc câu trả lời. Hook đọc mã phiên và việc câu cuối có kết thúc bằng dấu hỏi hay không; nó không lưu và không gửi câu hỏi lẫn câu trả lời. Toàn bộ hook là một file ngắn bạn tự đọc được: `connectors/ai-worker-hook.sh` (Windows: `ai-worker-hook.ps1`).
+- **Nó giữ một bản sao thứ hai của khoá gửi,** trong `~/.local/share/ai-worker/connector/config`. Trên macOS và Linux chỉ tài khoản đó đọc được file; trên Windows file nằm trong thư mục hồ sơ của người dùng. Khoá này có đúng quyền như bản của plugin: gửi số liệu, không gì khác.
+- **Nó sửa cấu hình của công cụ khác.** Bộ cài thêm hook vào `~/.codex`, `~/.cursor` và `~/.gemini`, giữ một bản sao của từng file nó sửa, và `--uninstall` gỡ các hook ra. Codex chỉ chạy hook sau khi người dùng đã xem và bấm tin cậy bằng `/hooks`; bộ cài không bao giờ bỏ qua bước đó.
+- **Nó không có bản cập nhật có chữ ký.** Bộ nối không tự cập nhật; bản mới chỉ tới khi có người chạy lại bộ cài từ một gói mà họ tin.
+- **Phần còn lại:** một người vẫn gửi được số đếm sai dưới tên của chính mình, giống như với plugin. Cursor, Gemini CLI và các file cho Windows chưa được thử trong công cụ thật.
+
 Chi tiết hơn: [docs/ARCHITECTURE.vi.md](docs/ARCHITECTURE.vi.md).

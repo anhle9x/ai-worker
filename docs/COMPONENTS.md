@@ -8,11 +8,12 @@ Every part of AI Worker, where it runs, what it needs and which version is pinne
 
 | Part | Runs on | Language | Version |
 |---|---|---|---|
-| Plugin (hooks, `/office`, skills) | Staff computers, inside Claude Code | TypeScript | `version` in `.claude-plugin/plugin.json` (now 0.31.17) |
+| Plugin (hooks, `/office`, skills) | Staff computers, inside Claude Code | TypeScript | `version` in `.claude-plugin/plugin.json` (now 0.32.0) |
 | Dashboard server (webhook) | Linux server | Python, standard library only; data in SQLite | Same as the plugin release |
 | 3D office page | Browser | JavaScript, three.js | Same as the plugin release |
 | Menu bar icon | macOS, Windows, Ubuntu | Python (SwiftBar on Mac, Ubuntu), Swift app (`macos-app/`), PowerShell and C# (Windows) | Built by the server for each download |
 | Manager browser extension | Chrome | JavaScript | `version` in `extensions/manager/manifest.json` (now 0.1.0) |
+| Connector for Codex, Cursor and Gemini CLI (`connectors/`) | Staff computers, as a hook inside each tool | sh and PowerShell; its installer also uses `osascript` or Node to merge JSON | Inside the package; updated by running its installer again |
 | Installers | macOS, Windows, Linux | Bash, PowerShell | Inside the package |
 
 ## 2. What each machine needs

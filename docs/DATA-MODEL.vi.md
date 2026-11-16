@@ -22,7 +22,7 @@ Tài khoản nằm ở file riêng, thư mục riêng, để bản sao lưu số
 
 | Bảng | Nội dung | Ghi khi | Giữ |
 |---|---|---|---|
-| `devices` | Mỗi máy một dòng: số liệu mới nhất trong `body` (mục 3), `seen_at` = lúc máy chủ nhận | Mỗi lần máy gửi, nhiều nhất 30 giây một lần | Xoá sau 30 ngày kể từ `seen_at` (`KEEP_DAYS`) |
+| `devices` | Mỗi máy một dòng cho plugin, và thêm một dòng cho bộ nối Codex, Cursor và Gemini CLI ở máy có cài: số liệu mới nhất trong `body` (mục 3), `seen_at` = lúc máy chủ nhận | Mỗi lần máy gửi, nhiều nhất 30 giây một lần | Xoá sau 30 ngày kể từ `seen_at` (`KEEP_DAYS`) |
 | `identities` | `máy → tài khoản, tên` của lần gửi đầu | Máy mới gửi lần đầu | Tới khi xoá bằng `--forget-device` |
 | `history` | Mỗi lần trạng thái một người đổi thì thêm một dòng: thời điểm, người, trạng thái, số việc đang giao | Trạng thái đổi | 24 giờ (nút tua lại) |
 | `screens` | Màn hình TV, biểu tượng thanh menu và tiện ích trình duyệt đã ghép: bản băm của khoá, tên, chủ, loại, hạn; phần còn lại trong `body` | Ghép, dùng, đổi tên, thu hồi | 30 ngày, tự gia hạn khi đang dùng, tối đa 1 năm |
@@ -56,6 +56,9 @@ Chỉ nằm trong bộ nhớ, mất khi khởi động lại: phiên đăng nh�
 | `models`, `subagents` | Số lượt theo từng model và từng trợ lý con |
 | `assistants`, `quota` | Trợ lý phụ nào đã cài; hạn mức sử dụng theo phần trăm |
 | `pluginVersion`, `updatedAt` | Phiên bản plugin và thời điểm của số liệu |
+| `tools` | Chỉ có trong báo cáo của bộ nối cho Codex, Cursor và Gemini CLI: với mỗi công cụ `codex`, `cursor`, `gemini` là ba số đếm phiên. Báo cáo có bảng này là báo cáo của bộ nối |
+
+**Báo cáo của bộ nối** gồm `device`, `name`, `account`, `updatedAt`, `tools` và các trường IP do máy chủ thêm, không có gì khác trong những thứ plugin gửi. Máy chủ tự cộng `openSessions`, `working` và `waiting` từ `tools`. Báo cáo được tính trong 2 giờ kể từ `updatedAt` (`CONNECTOR_OFFLINE_SECONDS`), trong khi báo cáo của plugin được tính 12 phút, vì bộ nối chỉ gửi khi có việc xảy ra trong công cụ; báo cáo không có phiên nào đang mở thì không làm người đó hiện là trực tuyến, và số `working` của nó chỉ được tin trong 30 phút (`CONNECTOR_WORKING_SECONDS`), vì công cụ có lượt bị lỗi không gửi sự kiện nào. Nó được gộp vào người có cùng tài khoản và tên, và không tính là một máy hay một bản cài plugin. Quy cách đầy đủ: [connectors/README.vi.md](../connectors/README.vi.md).
 
 **Không bao giờ lưu:** nội dung chat, câu hỏi, tên file, tên dự án.
 

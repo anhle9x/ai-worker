@@ -14,6 +14,9 @@ from datetime import datetime, timedelta
 
 from board.db import data_db, device_row
 from board.settings import (
+    CONNECTOR_OFFLINE_SECONDS,
+    CONNECTOR_TOOLS,
+    CONNECTOR_WORKING_SECONDS,
     DEVICE_NAME_RE,
     INGEST_PER_IP,
     IP_HISTORY_MAX,
@@ -88,6 +91,23 @@ def clean_hours(v, now_ms: float, keys=None) -> dict:
     return out
 
 
+SESSION_COUNTS = ("openSessions", "working", "waiting")
+
+
+def from_connector(m: dict) -> bool:
+    """Whether a report comes from the connector for other coding tools, not from the Claude Code plugin: only the connector sends a "tools" table.
+    Báo cáo này đến từ bộ nối cho các công cụ lập trình khác, không phải từ plugin Claude Code: chỉ bộ nối gửi bảng "tools"."""
+    return isinstance(m.get("tools"), dict)
+
+
+def is_fresh(m: dict, now: float) -> bool:
+    """Whether a report still says what its computer is doing: 12 minutes for the plugin, which sends on a beat;
+    longer for the connector, which sends only on an event.
+    Báo cáo còn nói đúng máy đang làm gì hay không: 12 phút với plugin, vì plugin gửi theo nhịp;
+    lâu hơn với bộ nối, vì bộ nối chỉ gửi khi có sự kiện."""
+    return now - m["updatedAt"] / 1000 < (CONNECTOR_OFFLINE_SECONDS if from_connector(m) else OFFLINE_SECONDS)
+
+
 def clean_payload(d, now: float):
     """Rebuild what a device sent from a fixed list of fields, types and sizes; None if it is not a device report.
     Runs on /ingest and again on every file read, so one bad file cannot take down the pages for everyone.
@@ -104,8 +124,20 @@ def clean_payload(d, now: float):
         text = clean_text(d.get(field), limit)
         if text:
             out[field] = text
-    for field in ("openSessions", "working", "waiting"):
+    for field in SESSION_COUNTS:
         out[field] = int(clean_number(d.get(field), 100000) or 0)
+    # a report from the connector for other coding tools: session counts per tool, tool names from a fixed list.
+    # The totals are added up here, so they always agree with the parts.
+    # báo cáo của bộ nối cho các công cụ lập trình khác: số phiên theo từng công cụ, tên công cụ theo danh sách cố định.
+    # Tổng được cộng ở đây, nên luôn khớp với từng phần.
+    if isinstance(d.get("tools"), dict):
+        out["tools"] = {}
+        for tool in CONNECTOR_TOOLS:
+            counts = d["tools"].get(tool)
+            if isinstance(counts, dict):
+                out["tools"][tool] = {field: int(clean_number(counts.get(field), 100000) or 0) for field in SESSION_COUNTS}
+        for field in SESSION_COUNTS:
+            out[field] = sum(counts[field] for counts in out["tools"].values())
     # one-way hash of the hardware id: the same computer even when a reinstalled plugin gets a new device id
     # dấu phần cứng đã băm một chiều: cùng máy vật lý dù plugin cài lại có mã máy mới
     if isinstance(d.get("hardwareMark"), str) and re.fullmatch(r"[0-9a-f]{32}", d["hardwareMark"]):
@@ -299,8 +331,12 @@ def group_by_person(devices: list, now: float) -> list:
                                     "enteredAccounts": [], "delegating": [0, 0, 0], "subagents": {}, "costByHour": {}, "tasksByHour": {}, "models": {},
                                     "gemma": [], "chatgpt": 0, "gemini": 0, "known": 0, "chatgptModels": [], "geminiModels": [], "updatedAt": 0, "openSessions": 0, "working": 0, "waiting": 0,
                                     "usdToday": 0.0, "tokensIn": 0, "tokensOut": 0, "usd7d": 0.0, "tasks": [0, 0, 0], "quota": None, "pluginVersion": [], "devices": [],
-                                    "latestIp": "", "latestIpAt": 0})
-        r["deviceCount"] += 1
+                                    "latestIp": "", "latestIpAt": 0, "online": False, "tools": {}})
+        connector = from_connector(m)
+        # the connector is not a plugin install: it is not counted as a computer and has no plugin version to show
+        # bộ nối không phải một bản cài plugin: không tính là một máy và không có phiên bản plugin để hiện
+        if not connector:
+            r["deviceCount"] += 1
         # where this person sent from most recently: so an old computer at the office does not keep a person who is travelling
         # nơi người này gửi gần nhất: để máy cũ ở văn phòng không giữ người đang đi công tác
         if ip and m["updatedAt"] >= r["latestIpAt"]:
@@ -315,12 +351,13 @@ def group_by_person(devices: list, now: float) -> list:
         # plugin version of each device (an old device that has not sent it: leave empty)
         # phiên bản plugin từng máy (máy bản cũ chưa gửi: để trống)
         version = m.get("pluginVersion")
-        if isinstance(version, str) and re.fullmatch(r"[0-9][0-9A-Za-z.+-]{0,19}", version) and version not in r["pluginVersion"]:
+        if not connector and isinstance(version, str) and re.fullmatch(r"[0-9][0-9A-Za-z.+-]{0,19}", version) and version not in r["pluginVersion"]:
             r["pluginVersion"].append(version)
         # each device on its own: which version is on which device, and which device went quiet
         # từng máy riêng: biết phiên bản nào của máy nào, máy nào lâu không gửi
-        r["devices"].append({"ip": lan_ip or ip, "version": version if isinstance(version, str) and re.fullmatch(r"[0-9][0-9A-Za-z.+-]{0,19}", version) else "",
-                             "at": m["updatedAt"], "mark": m.get("hardwareMark") or m.get("device") or "", "ipHistory": m.get("ipHistory") or []})
+        if not connector:
+            r["devices"].append({"ip": lan_ip or ip, "version": version if isinstance(version, str) and re.fullmatch(r"[0-9][0-9A-Za-z.+-]{0,19}", version) else "",
+                                 "at": m["updatedAt"], "mark": m.get("hardwareMark") or m.get("device") or "", "ipHistory": m.get("ipHistory") or []})
         # 5-hour / 7-day quota of the account: take the newest reading among this person's devices
         # hạn mức 5 giờ / 7 ngày của tài khoản: lấy lần đọc mới nhất trong các máy của người này
         quota = filter_quota(m.get("quota"), now)
@@ -342,9 +379,29 @@ def group_by_person(devices: list, now: float) -> list:
                 v = assistants.get(source_key)
                 if isinstance(v, str) and v and v[:60] not in r[target_key]:
                     r[target_key].append(v[:60])
-        if now - m["updatedAt"] / 1000 < OFFLINE_SECONDS:
-            for k in ("openSessions", "working", "waiting"):
-                r[k] += int(m.get(k) or 0)
+        if is_fresh(m, now):
+            # the plugin sends on a beat while Claude is open, so a fresh report means the person is there;
+            # the connector also sends when the last session closes, and that report means no tool is open
+            # plugin gửi theo nhịp khi Claude đang mở, nên báo cáo còn mới nghĩa là người đó đang ở đó;
+            # bộ nối còn gửi cả khi phiên cuối đóng lại, và báo cáo đó nghĩa là không công cụ nào đang mở
+            if not connector or int(m.get("openSessions") or 0) > 0:
+                r["online"] = True
+            # sessions per tool, for the tools that have a session open: the plugin's report is Claude Code, the connector's names its tools
+            # số phiên theo từng công cụ, với công cụ đang có phiên mở: báo cáo của plugin là Claude Code, của bộ nối thì ghi tên từng công cụ
+            for tool, counts in (m["tools"] if connector else {"claude": m}).items():
+                if not isinstance(counts, dict) or not (tool == "claude" or tool in CONNECTOR_TOOLS):
+                    continue
+                numbers = {k: int(counts.get(k) or 0) for k in SESSION_COUNTS}
+                # a connector report this old no longer proves that work goes on: the session stays open, not working
+                # báo cáo của bộ nối cũ tới mức này không còn chứng tỏ việc vẫn đang chạy: phiên vẫn mở, không còn đang làm
+                if connector and now - m["updatedAt"] / 1000 >= CONNECTOR_WORKING_SECONDS:
+                    numbers["working"] = 0
+                for k in SESSION_COUNTS:
+                    r[k] += numbers[k]
+                if numbers["openSessions"] > 0:
+                    per_tool = r["tools"].setdefault(tool, dict.fromkeys(SESSION_COUNTS, 0))
+                    for k in SESSION_COUNTS:
+                        per_tool[k] += numbers[k]
             model = m.get("models") or {}
             if isinstance(model, dict):
                 for model_key, amount in model.items():
@@ -410,9 +467,11 @@ def group_by_person(devices: list, now: float) -> list:
 
 
 def status_of(r: dict, now: float) -> str:
-    """working: Claude is working; waiting: waiting for a person to reply; open: a session is open but idle; offline: the machine is offline.
-    working: Claude đang làm; waiting: đang chờ người trả lời; open: mở phiên nhưng rảnh; offline: máy ngoại tuyến."""
-    if now - r["updatedAt"] / 1000 >= OFFLINE_SECONDS:
+    """working: Claude or another tool is working; waiting: waiting for a person to reply; open: a session is open but idle;
+    offline: no report of this person is fresh (see is_fresh).
+    working: Claude hoặc công cụ khác đang làm; waiting: đang chờ người trả lời; open: mở phiên nhưng rảnh;
+    offline: không báo cáo nào của người này còn mới (xem is_fresh)."""
+    if not r["online"]:
         return "offline"
     if r["waiting"]:
         return "waiting"

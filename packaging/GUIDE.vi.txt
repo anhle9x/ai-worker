@@ -99,6 +99,22 @@ TRANG VĂN PHÒNG XEM ĐƯỢC GÌ (/office)
 - Trang mở từ file trên máy; nội dung chat không đi đâu cả. Người quản trị chỉ thấy số liệu tổng
   (số phiên, token, chi phí, hạn mức, phiên bản plugin, tên loại trợ lý phụ đang chạy), không thấy bạn hỏi gì.
 
+CODEX, CURSOR VÀ GEMINI CLI TRÊN BẢNG CỦA CÔNG TY (chỉ gói công ty)
+Nếu bạn làm việc trong Codex, Cursor hoặc Gemini CLI, các phiên đó cũng hiện được trên bảng của công ty. Việc này không cần Claude Code.
+1. Bấm đúp:
+   - macOS:   INSTALL-Other-Tools-Mac.command
+   - Windows: INSTALL-Other-Tools-Windows.bat
+   - Ubuntu:  mở Terminal trong thư mục đã giải nén rồi gõ: bash INSTALL-Other-Tools-Linux.sh
+2. Cửa sổ hỏi về từng công cụ nó tìm thấy trên máy: nhấn Enter để đồng ý, gõ n để từ chối.
+   Kết quả đúng là dòng "Bảng trả lời: đã nhận."
+3. Riêng Codex: mở Terminal, gõ codex, rồi gõ /hooks, và bấm tin cậy bảy hook có lệnh kết thúc bằng ai-worker-hook.sh.
+   Cursor và Gemini CLI: đóng rồi mở lại.
+Thứ được gửi: họ tên và email của bạn, mã máy, và với mỗi công cụ là số phiên đang mở, đang làm, đang chờ.
+Không bao giờ gửi: những gì bạn gõ, những gì công cụ trả lời, tên file, thư mục hay tên dự án.
+Muốn gỡ, trong Terminal: bash ~/.local/share/ai-worker/connector/install.sh --uninstall
+(Windows, trong PowerShell: powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.local\share\ai-worker\connector\install.ps1" -Uninstall)
+Tính năng mới: mới thử trong Codex thật trên macOS, chưa thử trong Cursor hay Gemini CLI thật, và chưa thử trong công cụ nào trên Windows. Thấy gì lạ thì báo người quản trị.
+
 CẬP NHẬT BẢN MỚI
 Giải nén bản mới và chạy lại file cài. Phần tuỳ chỉnh trong config.js được giữ nguyên.
 

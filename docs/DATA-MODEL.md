@@ -22,7 +22,7 @@ The accounts are in their own file, in their own folder, so a backup of the numb
 
 | Table | Content | Written when | Kept |
 |---|---|---|---|
-| `devices` | One row per computer: its latest numbers in `body` (section 3), `seen_at` = when the server received them | Each send, at most every 30 seconds | Deleted 30 days after `seen_at` (`KEEP_DAYS`) |
+| `devices` | One row per computer for the plugin, and one more for the connector for Codex, Cursor and Gemini CLI where it is installed: the latest numbers in `body` (section 3), `seen_at` = when the server received them | Each send, at most every 30 seconds | Deleted 30 days after `seen_at` (`KEEP_DAYS`) |
 | `identities` | `device → account, name` of the first send | A new computer's first send | Until removed with `--forget-device` |
 | `history` | One row each time a person's state changes: time, person, state, tasks delegated | State changes | 24 hours (rewind button) |
 | `screens` | Paired TV screens, menu bar icons and browser extensions: hash of the key, name, owner, kind, expiry; the rest in `body` | Pairing, use, rename, revoke | 30 days, renewed while in use, 1 year at most |
@@ -56,6 +56,9 @@ Kept only in memory, lost on restart: login sessions (8 hours, 7 days for wall a
 | `models`, `subagents` | Counts per model and per helper agent |
 | `assistants`, `quota` | Which helper assistants are set up; usage limit windows in percent |
 | `pluginVersion`, `updatedAt` | Plugin version and time of the numbers |
+| `tools` | Only in a report from the connector for Codex, Cursor and Gemini CLI: for each of `codex`, `cursor`, `gemini`, the three session counts. A report with this table is a connector report |
+
+**A connector report** holds `device`, `name`, `account`, `updatedAt`, `tools` and the IP fields the server adds, nothing else that the plugin sends. The server adds up `openSessions`, `working` and `waiting` from `tools` itself. It counts for 2 hours after `updatedAt` (`CONNECTOR_OFFLINE_SECONDS`), where a plugin report counts for 12 minutes, because the connector sends only when something happens in a tool; a report with no session open does not show the person as online, and its `working` count is believed for 30 minutes only (`CONNECTOR_WORKING_SECONDS`), because a tool whose turn fails sends no event. It is merged into the person with the same account and name, and is not counted as a computer or a plugin install. The format in full: [connectors/README.md](../connectors/README.md).
 
 **Never stored:** chat content, questions, file names, project names.
 
