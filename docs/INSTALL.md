@@ -220,7 +220,7 @@ printf "Bot token: "; read -rs TELEGRAM_ASK_TOKEN; echo; export TELEGRAM_ASK_TOK
 
 The sample people's names then go through Telegram. Log in to `http://127.0.0.1:8799` as `demo` with the code the first window shows, and approve your chat on `/admin`.
 
-**Tried so far.** With the real Telegram, by hand on macOS as above: pairing a chat, the buttons, the command menu, and answers in both languages. The service the installer sets up, with its own user and its network limit, is covered by the install test on Ubuntu (`tests/linux/test-server.sh`) and has been installed on one production server, where the bot reached Telegram through the limit and a chat that reads totals only was paired. On a phone, Telegram's app refused to forward an answer. A chat that reads each person has not been tried through the real Telegram yet.
+**Tried so far.** With the real Telegram, by hand on macOS as above: pairing a chat, the buttons, the command menu, and answers in both languages. The service the installer sets up, with its own user and its network limit, is covered by the install test on Ubuntu (`tests/linux/test-server.sh`) and has been installed on one production server, where the bot reached Telegram through the limit and a chat that reads totals only was paired. On a phone, Telegram's app refused to forward an answer. A chat that reads each person was tried there once, on 2026-11-17: the cost answer named the person with the highest cost and gave each office its own line. The waiting and quota answers with names in them were not seen, because nobody was waiting and nobody was near a quota.
 
 ## Releasing an update
 

@@ -2,6 +2,12 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.33.1 - 2026-11-17
+
+### Changed
+- The documents say how far asking from Telegram has been tried: a chat that reads each person was tried once with the real Telegram on a production server. The cost answer named a person; the waiting and quota answers with names were not seen.
+- The Vietnamese install guide uses the same words for the demo's sample people as the rest of the Vietnamese documents.
+
 ## 0.33.0 - 2026-11-17
 
 ### Added

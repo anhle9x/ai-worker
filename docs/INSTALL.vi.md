@@ -218,9 +218,9 @@ và trong cửa sổ thứ hai, nơi nó hỏi token mà không hiện lên màn
 printf "Bot token: "; read -rs TELEGRAM_ASK_TOKEN; echo; export TELEGRAM_ASK_TOKEN; TELEGRAM_ASK_KEY="$(cat /tmp/ai-worker-ask-key)" PORT=8799 python3 server/telegram_bot.py
 ```
 
-Khi đó tên của những người mẫu sẽ đi qua Telegram. Đăng nhập `http://127.0.0.1:8799` bằng tài khoản `demo` với mã hiện ở cửa sổ thứ nhất, rồi duyệt chat của bạn ở `/admin`.
+Khi đó tên của các nhân viên giả lập sẽ đi qua Telegram. Đăng nhập `http://127.0.0.1:8799` bằng tài khoản `demo` với mã hiện ở cửa sổ thứ nhất, rồi duyệt chat của bạn ở `/admin`.
 
-**Đã thử tới đâu.** Với Telegram thật, chạy tay trên macOS như trên: ghép một chat, các nút, menu lệnh, và câu trả lời bằng cả hai ngôn ngữ. Dịch vụ do bộ cài dựng, cùng người dùng riêng và giới hạn mạng của nó, được bài kiểm cài đặt trên Ubuntu (`tests/linux/test-server.sh`) kiểm và đã được cài lên một máy chủ thật, nơi bot tới được Telegram qua giới hạn mạng và một chat chỉ đọc số gộp đã được ghép. Trên điện thoại, app Telegram không cho chuyển tiếp câu trả lời. Chat đọc từng người thì chưa được thử qua Telegram thật.
+**Đã thử tới đâu.** Với Telegram thật, chạy tay trên macOS như trên: ghép một chat, các nút, menu lệnh, và câu trả lời bằng cả hai ngôn ngữ. Dịch vụ do bộ cài dựng, cùng người dùng riêng và giới hạn mạng của nó, được bài kiểm cài đặt trên Ubuntu (`tests/linux/test-server.sh`) kiểm và đã được cài lên một máy chủ thật, nơi bot tới được Telegram qua giới hạn mạng và một chat chỉ đọc số gộp đã được ghép. Trên điện thoại, app Telegram không cho chuyển tiếp câu trả lời. Chat đọc từng người đã được thử ở đó một lần, ngày 2026-11-17: câu trả lời về chi phí nêu tên người có chi phí cao nhất và cho mỗi văn phòng một dòng riêng. Câu trả lời về người đang chờ và về hạn mức có kèm tên thì chưa thấy, vì lúc đó không ai chờ và chưa ai gần hết hạn mức.
 
 ## Phát hành bản cập nhật
 

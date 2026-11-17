@@ -87,6 +87,6 @@ Còn lại:
 - **Ai cũng nhắn được cho bot:** tên của nó là công khai. Người lạ chỉ nhận được một mã ghép, không gì khác. Chỉ duyệt mã do chính người đó đọc cho bạn.
 - **Tên là chữ do nhân viên gõ.** Trong chat nó chỉ được hiện ra, không mô hình nào đọc. Các dấu mà Telegram biến thành liên kết hay lệnh đã bị gỡ khỏi tên. Việc này làm một liên kết cài cắm khó viết hơn chứ không chặn hẳn.
 - **Các mạng của Telegram có thể đổi.** Danh sách cho phép là danh sách Telegram công bố, đọc ngày 2026-11-16. Nếu Telegram chuyển mạng, bot không tới được nữa cho tới khi bạn sửa `TELEGRAM_NETS`. `any` bỏ giới hạn, và bỏ luôn lớp bảo vệ đó.
-- **Mới dùng trên một máy chủ thật,** từ 2026-11-17, với một chat chỉ đọc số gộp. Chat đọc từng người thì chưa được thử qua Telegram thật.
+- **Mới dùng trên một máy chủ thật,** từ 2026-11-17, với một chat chỉ đọc số gộp. Chat đọc từng người đã được thử ở đó một lần, ngày 2026-11-17: câu trả lời về chi phí nêu tên người có chi phí cao nhất và cho mỗi văn phòng một dòng riêng. Câu trả lời về người đang chờ và về hạn mức có kèm tên thì chưa thấy, vì lúc đó không ai chờ và chưa ai gần hết hạn mức.
 
 Chi tiết hơn: [docs/ARCHITECTURE.vi.md](docs/ARCHITECTURE.vi.md).

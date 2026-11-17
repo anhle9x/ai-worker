@@ -87,6 +87,6 @@ What remains:
 - **Anyone can write to the bot:** its name is public. A stranger gets a pairing code and nothing else. Approve only a code the person read to you themselves.
 - **A name is text a staff member typed.** In a chat it is only shown, never read by a model. The marks Telegram turns into links or commands are taken out of names. That makes a planted link harder to write, not impossible.
 - **Telegram's networks may change.** The allow-list is Telegram's published list as read on 2026-11-16. If Telegram moves, the bot stops reaching it until you update `TELEGRAM_NETS`. `any` removes the limit, and that protection with it.
-- **Used on one production server so far,** since 2026-11-17, with a chat that reads totals only. A chat that reads each person has not been tried through the real Telegram yet.
+- **Used on one production server so far,** since 2026-11-17, with a chat that reads totals only. A chat that reads each person was tried there once, on 2026-11-17: the cost answer named the person with the highest cost and gave each office its own line. The waiting and quota answers with names in them were not seen, because nobody was waiting and nobody was near a quota.
 
 More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
