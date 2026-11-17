@@ -47,20 +47,30 @@ GitHub Actions runs `.github/workflows/test-install.yml` on every push. In a pri
 
 ## 2. Run locally
 
-```bash
-python3 -m unittest test_webhook
-```
-
-Run it in `server/`. Correct result: `OK`.
+Run all ten before calling a change done. CI runs the same ones. Run each at the repository root.
 
 ```bash
-npx -y @anthropic-ai/claude-code plugin test .
+claude plugin test .
 ```
 
-Run it at the repository root. Correct result: every test passes.
+Correct result: every test passes. Without Claude Code installed: `npx -y @anthropic-ai/claude-code plugin test .`
+
+```bash
+cd server && python3 -m unittest
+```
+
+Correct result: `OK`. Go back to the repository root afterwards.
+
+```bash
+python3 tests/connectors/test_connectors.py
+```
 
 ```bash
 node tests/extension/check-extension.js
+```
+
+```bash
+node tests/check-map-layout.js
 ```
 
 ```bash
@@ -68,10 +78,24 @@ python3 tests/check-i18n.py
 ```
 
 ```bash
-bash packaging/check-clean.sh
+python3 tests/check-maps.py
 ```
 
-Correct result of the last one: `Clean.`
+```bash
+python3 tests/check-frontmatter.py
+```
+
+```bash
+bash tests/test-check-clean.sh
+```
+
+```bash
+uvx ruff check .
+```
+
+Correct result of each of these eight: exit code 0. Without `uv`, the last one is `pipx run ruff check .`.
+
+`bash packaging/check-clean.sh` is not in this list: it looks for private data in the folder it runs in, so it belongs on what gets published, where its correct result is `Clean.` In a checkout that holds your own `packaging/company.json` it reports that file, and that is expected.
 
 ## 3. Checks that still need a person
 

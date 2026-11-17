@@ -55,7 +55,7 @@ AI Worker is for the person who has to roll Claude out to an office and then ans
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/architecture-dark.svg">
-  <img alt="Employee computers send counts to the dashboard server and get signed updates back. The server, behind Caddy with HTTPS and an office IP list, keeps data in SQLite and serves the browser dashboard, TV wall screens, the menu bar icon and the browser extension." src="assets/architecture-light.svg" width="860">
+  <img alt="Employee computers send their numbers to the dashboard server (the name, the Claude account, a few details about the computer, and counts of sessions, tokens, cost and tasks; never chat, prompts or file names) and get signed updates back. The server, behind Caddy with HTTPS and an office IP list, keeps data in SQLite and serves the browser dashboard, TV wall screens, the menu bar icon, the browser extension, AI tools over a read-only MCP endpoint, and an optional Telegram chat." src="assets/architecture-light.svg" width="860">
 </picture>
 
 Without a server the plugin still runs on each computer, with its own office page, but there is no company board and no self-update. The design is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

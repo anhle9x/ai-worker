@@ -2,6 +2,15 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.33.2 - 2026-11-17
+
+### Changed
+- The contributor guide and the test plan list all ten checks to run before a change is done, the same ten as `AGENTS.md`.
+- The description of the `ui-ux-pro-max` skill says to load it before writing or changing interface code, in English and Vietnamese. On a computer with many skills installed, a request to redesign a page was often done without it.
+
+### Fixed
+- The "How it works" diagram in the README said employee computers send counts only. It now says what is sent (the name, the account and a few details about the computer, with the counts) and shows the two ways to read the board that 0.33.0 added: AI tools over MCP and a Telegram chat.
+
 ## 0.33.1 - 2026-11-17
 
 ### Changed

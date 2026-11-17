@@ -20,22 +20,33 @@ Thank you for helping. Bug reports, fixes, translations and documents are all we
 
 ## Checks to run
 
+Run all ten from the repository root before sending a change. GitHub Actions runs the same ones.
+
 ```bash
 claude plugin test .
-cd server && python3 -m unittest test_webhook
-python3 tests/check-i18n.py --comments
+cd server && python3 -m unittest
 ```
+
+```bash
+python3 tests/connectors/test_connectors.py
+node tests/extension/check-extension.js
+node tests/check-map-layout.js
+python3 tests/check-i18n.py
+python3 tests/check-maps.py
+python3 tests/check-frontmatter.py
+bash tests/test-check-clean.sh
+uvx ruff check .
+```
+
+The first block ends inside `server/`, so go back to the repository root before the second one. Without `uv`, the last one is `pipx run ruff check .`. `python3 tests/check-i18n.py --comments` also checks that every comment has an English line followed by a Vietnamese line.
+
+`bash packaging/check-clean.sh` is not in this list: it looks for private data in the folder it runs in, so it belongs on what gets published. In a checkout that holds your own `packaging/company.json` it reports that file, and that is expected.
 
 `web/ops.js`, `ops.css`, `ops3d.js` (and `i18n.js`, `ops.vi.js`) must be identical to the copies in `server/static/`; the packaging script checks this. After editing `web/`, type `/reload-plugins` and then `/office` so the on-computer page picks up the new version.
 
 How it is designed, with its specification, flow diagrams and the languages each part uses: see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 Bundled libraries and skills: see [THIRD-PARTY.md](THIRD-PARTY.md).
-
-```bash
-python3 tests/check-i18n.py
-bash packaging/check-clean.sh
-```
 
 GitHub Actions runs every check on Ubuntu and Windows; what each one covers is in [docs/TEST-PLAN.md](docs/TEST-PLAN.md).
 

@@ -55,7 +55,7 @@ AI Worker dành cho người phải triển khai Claude cho cả văn phòng r�
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/architecture-dark.vi.svg">
-  <img alt="Máy nhân viên gửi số đếm lên máy chủ bảng tổng và nhận lại bản cập nhật có chữ ký. Máy chủ đứng sau Caddy có HTTPS và danh sách IP văn phòng, lưu dữ liệu trong SQLite, phục vụ bảng trên trình duyệt, màn hình TV, biểu tượng thanh menu và tiện ích trình duyệt." src="assets/architecture-light.vi.svg" width="860">
+  <img alt="Máy nhân viên gửi số liệu lên máy chủ bảng tổng (tên người dùng, tài khoản Claude, vài thông tin về máy, và số phiên, token, chi phí, việc giao; không bao giờ gửi chat, câu hỏi hay tên file) và nhận lại bản cập nhật có chữ ký. Máy chủ đứng sau Caddy có HTTPS và danh sách IP văn phòng, lưu dữ liệu trong SQLite, phục vụ bảng trên trình duyệt, màn hình TV, biểu tượng thanh menu, tiện ích trình duyệt, công cụ AI qua một cổng MCP chỉ đọc, và một chat Telegram tuỳ chọn." src="assets/architecture-light.vi.svg" width="860">
 </picture>
 
 Không có máy chủ thì plugin vẫn chạy trên từng máy với trang văn phòng riêng, nhưng không có bảng cả công ty và không tự cập nhật. Thiết kế xem [docs/ARCHITECTURE.vi.md](docs/ARCHITECTURE.vi.md).

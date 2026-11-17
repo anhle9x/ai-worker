@@ -20,22 +20,33 @@ Cảm ơn bạn đã giúp. Báo lỗi, sửa lỗi, dịch và viết tài li�
 
 ## Các bước kiểm
 
+Chạy đủ mười bước từ thư mục gốc repo trước khi gửi thay đổi. GitHub Actions chạy đúng các bước này.
+
 ```bash
 claude plugin test .
-cd server && python3 -m unittest test_webhook
-python3 tests/check-i18n.py --comments
+cd server && python3 -m unittest
 ```
+
+```bash
+python3 tests/connectors/test_connectors.py
+node tests/extension/check-extension.js
+node tests/check-map-layout.js
+python3 tests/check-i18n.py
+python3 tests/check-maps.py
+python3 tests/check-frontmatter.py
+bash tests/test-check-clean.sh
+uvx ruff check .
+```
+
+Khối lệnh đầu kết thúc ở trong `server/`, nên quay về thư mục gốc repo trước khi chạy khối thứ hai. Không có `uv` thì lệnh cuối là `pipx run ruff check .`. `python3 tests/check-i18n.py --comments` kiểm thêm việc mỗi chú thích có một dòng tiếng Anh rồi một dòng tiếng Việt.
+
+`bash packaging/check-clean.sh` không nằm trong danh sách này: nó tìm dữ liệu riêng trong thư mục đang chạy, nên dùng cho phần sẽ được công bố. Ở bản checkout có file `packaging/company.json` của riêng bạn, nó sẽ báo file đó, và như vậy là đúng.
 
 `web/ops.js`, `ops.css`, `ops3d.js` (và `i18n.js`, `ops.vi.js`) phải giống hệt bản trong `server/static/`; script đóng gói sẽ kiểm. Sửa `web/` thì gõ `/reload-plugins` rồi `/office` để trang trên máy nhận bản mới.
 
 Thiết kế, đặc tả, sơ đồ luồng và ngôn ngữ lập trình từng phần dùng: xem [docs/ARCHITECTURE.vi.md](docs/ARCHITECTURE.vi.md).
 
 Thư viện và kỹ năng đi kèm: xem [THIRD-PARTY.md](THIRD-PARTY.md).
-
-```bash
-python3 tests/check-i18n.py
-bash packaging/check-clean.sh
-```
 
 GitHub Actions chạy mọi bước kiểm trên Ubuntu và Windows; mỗi bước kiểm gì xem [docs/TEST-PLAN.vi.md](docs/TEST-PLAN.vi.md).
 

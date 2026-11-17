@@ -47,20 +47,30 @@ GitHub Actions chạy `.github/workflows/test-install.yml` mỗi lần đẩy co
 
 ## 2. Chạy trên máy mình
 
-```bash
-python3 -m unittest test_webhook
-```
-
-Chạy trong `server/`. Kết quả đúng: `OK`.
+Chạy đủ mười bước trước khi coi một thay đổi là xong. CI chạy đúng các bước này. Mỗi lệnh chạy ở thư mục gốc repo.
 
 ```bash
-npx -y @anthropic-ai/claude-code plugin test .
+claude plugin test .
 ```
 
-Chạy ở thư mục gốc repo. Kết quả đúng: mọi test đạt.
+Kết quả đúng: mọi test đạt. Chưa cài Claude Code: `npx -y @anthropic-ai/claude-code plugin test .`
+
+```bash
+cd server && python3 -m unittest
+```
+
+Kết quả đúng: `OK`. Sau đó quay về thư mục gốc repo.
+
+```bash
+python3 tests/connectors/test_connectors.py
+```
 
 ```bash
 node tests/extension/check-extension.js
+```
+
+```bash
+node tests/check-map-layout.js
 ```
 
 ```bash
@@ -68,10 +78,24 @@ python3 tests/check-i18n.py
 ```
 
 ```bash
-bash packaging/check-clean.sh
+python3 tests/check-maps.py
 ```
 
-Kết quả đúng của lệnh cuối: `Clean.`
+```bash
+python3 tests/check-frontmatter.py
+```
+
+```bash
+bash tests/test-check-clean.sh
+```
+
+```bash
+uvx ruff check .
+```
+
+Kết quả đúng của cả tám lệnh này: thoát với mã 0. Không có `uv` thì lệnh cuối là `pipx run ruff check .`.
+
+`bash packaging/check-clean.sh` không nằm trong danh sách này: nó tìm dữ liệu riêng trong thư mục đang chạy, nên dùng cho phần sẽ được công bố, ở đó kết quả đúng là `Clean.` Ở bản checkout có file `packaging/company.json` của riêng bạn, nó sẽ báo file đó, và như vậy là đúng.
 
 ## 3. Phần vẫn cần người kiểm
 
