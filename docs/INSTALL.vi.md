@@ -79,7 +79,7 @@ Máy chủ có một cổng MCP ở `/mcp`. MCP (Model Context Protocol) là cá
 
 **Cách lấy khoá.**
 
-1. Người cần khoá mở `https://board.example.com/mcp/connect` bằng trình duyệt trong mạng công ty rồi bấm **Lấy mã**. Trang hiện một mã 8 số.
+1. Người cần khoá mở `https://board.example.com/mcp/connect` bằng trình duyệt trong mạng công ty rồi bấm **Lấy mã**. Trang hiện một mã 8 số. Quản trị và tài khoản chỉ xem vào trang này bằng nút **Nối một công cụ AI** trên `/board`; trang Quản trị cũng hiện link kèm nút **Chép link** ở mục **Màn hình TV**.
 2. Quản trị mở `/admin`, vào mục **Màn hình TV**, gõ mã rồi bấm **Xem yêu cầu**. Thẻ hiện ra ghi rõ đây là khoá cho công cụ AI. Quản trị chọn khoá được đọc gì (chỉ số gộp của cả đội và từng văn phòng, hoặc cả từng người), đặt tên cho khoá rồi bấm **Duyệt**.
 3. Trang của người xin sẽ hiện khoá một lần, kèm dòng để dán vào từng công cụ. Chỉ duyệt mã do chính người xin đọc cho bạn: bản thân mã không nói lên ai đang xin.
 

@@ -79,7 +79,7 @@ The server has an MCP endpoint at `/mcp`. MCP (Model Context Protocol) is the co
 
 **Getting a key.**
 
-1. The person opens `https://board.example.com/mcp/connect` in a browser on the company network and clicks **Get a code**. The page shows an 8-digit code.
+1. The person opens `https://board.example.com/mcp/connect` in a browser on the company network and clicks **Get a code**. The page shows an 8-digit code. Admins and view-only accounts reach this page from the **Connect an AI tool** button on `/board`, and the Admin page shows the link with a **Copy link** button under **TV screens**.
 2. An admin opens `/admin`, goes to **TV screens**, types the code and clicks **View request**. The card says it is a key for an AI tool. The admin chooses what the key may read (team and office totals only, or each person too), names the key and clicks **Approve**.
 3. The person's page then shows the key once, with the line to paste into each tool. Approve only a code the person read to you themselves: the code says nothing about who is asking.
 

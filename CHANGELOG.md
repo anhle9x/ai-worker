@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.33.3 - 2026-11-17
+
+### Added
+- The board links to `/mcp/connect`, the page where a person asks for a key for their AI tool: a **Connect an AI tool** button on `/board` for admins and view-only accounts, and the link with a **Copy link** button next to the code box under **TV screens** on the Admin page. Wall displays do not show it, and with `MCP=0` neither appears.
+
+### Changed
+- The page `/mcp/connect` and the hint on the Admin page name Claude Code, not Claude, among the AI tools that can connect: claude.ai is off by default.
+
 ## 0.33.2 - 2026-11-17
 
 ### Changed

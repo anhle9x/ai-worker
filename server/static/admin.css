@@ -46,6 +46,8 @@ summary{cursor:pointer;color:var(--m);padding:6px 0}
 .qt-secret select,.qt-secret .qt-row{max-width:100%}
 .qt-tv-card{margin-top:10px}
 .qt-bot{margin:2px 0 12px}
+.qt-mcp{margin:10px 0 12px}.qt-mcp .qt-row{margin-top:4px}
+.qt-mcp-link{flex:0 1 auto;min-width:0;color:var(--s);font-size:12.5px;overflow-wrap:anywhere}.qt-mcp-link:hover{text-decoration:underline}
 .qt-secret b{color:#e8fbff}
 .qt-secret img{display:block;background:#fff;border-radius:4px;image-rendering:pixelated}
 .qt-secret code{font-size:14px;color:#e8fbff;overflow-wrap:anywhere}

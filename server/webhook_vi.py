@@ -33,7 +33,7 @@ VI = {
     "This endpoint needs a key from the board, sent as Authorization: Bearer. Open /mcp/connect on the board to ask for one; an admin approves each key.": "Đường này cần một khoá của bảng, gửi dạng Authorization: Bearer. Mở /mcp/connect trên bảng để xin khoá; quản trị duyệt từng khoá.",
     "AI Worker · Connect an AI tool": "AI Worker · Nối một công cụ AI",
     "Connect an AI tool": "Nối một công cụ AI",
-    "Ask the board from Claude, Cursor, Codex or Gemini CLI": "Hỏi bảng từ Claude, Cursor, Codex hoặc Gemini CLI",
+    "Ask the board from Claude Code, Cursor, Codex or Gemini CLI": "Hỏi bảng từ Claude Code, Cursor, Codex hoặc Gemini CLI",
     "With a key from this page, an AI tool that speaks MCP can read the board when you ask about the team: names, who is working or waiting, cost and quota. It never gets an email or an IP address, and it cannot change anything.": "Có khoá lấy từ trang này, công cụ AI nói được MCP sẽ đọc được bảng khi bạn hỏi về cả đội: tên, ai đang làm hay đang chờ, chi phí và hạn mức. Nó không bao giờ nhận email hay địa chỉ IP, và không sửa được gì.",
     "What the tool reads is sent to the company that makes it, as part of your question. Use a tool your company allows.": "Những gì công cụ đọc sẽ được gửi tới hãng làm ra nó, như một phần câu hỏi của bạn. Hãy dùng công cụ mà công ty bạn cho phép.",
     "This page is not on HTTPS, so the key travels unencrypted on the network.": "Trang này không chạy trên HTTPS, nên khoá đi trên mạng mà không được mã hoá.",

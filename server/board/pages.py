@@ -11,6 +11,7 @@ from board.assets import UI_VERSION, asset_version
 from board.devices import group_by_person, read_all_devices
 from board.lang import current_lang, tx
 from board.security import WALL
+from board import settings
 from board.settings import (
     DAILY_KEEP_MONTHS,
     DAILY_RECOUNT_SECONDS,
@@ -300,7 +301,7 @@ def page_mcp_connect() -> bytes:
     return ('<!doctype html><html lang="' + current_lang() + '" data-lang="' + current_lang() + '"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1"><title>' + html.escape(tx("AI Worker · Connect an AI tool")) + '</title>'
             '<style>' + CSS_LOGIN + CSS_MCP_CONNECT + '</style></head><body><div class="login-box connect">'
-            '<h1>' + html.escape(tx("Connect an AI tool")) + '</h1><p class="sub">' + html.escape(tx("Ask the board from Claude, Cursor, Codex or Gemini CLI")) + '</p>'
+            '<h1>' + html.escape(tx("Connect an AI tool")) + '</h1><p class="sub">' + html.escape(tx("Ask the board from Claude Code, Cursor, Codex or Gemini CLI")) + '</p>'
             '<p>' + html.escape(tx("With a key from this page, an AI tool that speaks MCP can read the board when you ask about the team: names, who is working or waiting, cost and quota. It never gets an email or an IP address, and it cannot change anything.")) + '</p>'
             '<p class="warn">' + html.escape(tx("What the tool reads is sent to the company that makes it, as part of your question. Use a tool your company allows.")) + '</p>'
             '<p class="warn" id="insecure" hidden>' + html.escape(tx("This page is not on HTTPS, so the key travels unencrypted on the network.")) + '</p>'
@@ -1208,6 +1209,9 @@ def page_board(viewer_name: str, now: float, role: str = WALL) -> bytes:
     body = ((
         '<div class="head"><div><h1>' + lit(tx("AI Worker // detail board")) + '</h1><p class="muted">%s</p></div>'
         '<div class="actions"><a href="/">' + lit(tx("▸ Dashboard")) + '</a>' + ('<a href="/telegram">Telegram</a>' if bot_name() else '') +
+        # the page where a person asks for a key for their AI tool; only when the MCP gate is on (MCP=0 removes the page)
+        # trang để một người xin khoá cho công cụ AI của mình; chỉ khi cổng MCP đang bật (MCP=0 bỏ trang đó)
+        ('<a href="/mcp/connect">' + lit(tx("Connect an AI tool")) + '</a>' if settings.MCP_ENABLED and role != WALL else '') +
         '<form method="post" action="/logout" style="margin:0"><button>%s</button></form></div></div>'
         '<div class="card"><table><thead><tr><th>' + lit(tx("Person · account · internal IP")) + '</th><th>' + lit(tx("Status")) + '</th><th>' + lit(tx("Model")) + '</th>'
         '<th title="' + lit(tx("Share used of the 5-hour and 7-day windows of the Claude account (subscription plan); at 100% you wait for the reset")) + '">' + lit(tx("Quota")) + '</th>'

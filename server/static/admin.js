@@ -284,6 +284,39 @@
     return o('div', 'qt-hint', problem)
   }
 
+  // Where a person gets the code for a key for their AI tool. The link is not secret: the safety is the admin approving the code here.
+  // Only when the MCP gate is on, so it never points to a page that is not there.
+  // Nơi một người lấy mã để xin khoá cho công cụ AI của mình. Link không bí mật: an toàn nằm ở bước quản trị duyệt mã tại đây.
+  // Chỉ khi cổng MCP đang bật, để không bao giờ trỏ tới một trang không có.
+  function mcpConnectLine() {
+    if (!snapshot.mcpOn) return null
+    const url = location.origin + '/mcp/connect'
+    const box = o('div', 'qt-mcp')
+    box.append(o('small', '', tx('To connect an AI tool (Claude Code, Cursor, Codex, Gemini CLI), the person opens this page, presses Get a code and reads the code to you:')))
+    const line = o('div', 'qt-row')
+    const link = o('a', 'qt-mcp-link', url)
+    link.href = url
+    link.target = '_blank'
+    link.rel = 'noopener'
+    // without HTTPS the browser gives no clipboard: select the link, so one key press copies it
+    // không có HTTPS thì trình duyệt không cho dùng bộ nhớ tạm: bôi sẵn link, để bấm một phím là chép được
+    const select = () => {
+      const range = document.createRange()
+      range.selectNodeContents(link)
+      const s = window.getSelection()
+      s.removeAllRanges()
+      s.addRange(range)
+      try { if (document.execCommand('copy')) return toast(tx('Link copied')) } catch (e) { /* the link stays selected */ }
+      toast(tx('The link is selected: press Ctrl+C or Cmd+C to copy it'))
+    }
+    line.append(link, button(tx('Copy link'), () => {
+      if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(url).then(() => toast(tx('Link copied')), select)
+      else select()
+    }))
+    box.append(line)
+    return box
+  }
+
   function tvSection() {
     const p = section(tx('TV screens'), tx('Scan the QR code on the TV with a phone camera, or enter the code here'))
     const row = o('div', 'qt-row')
@@ -295,6 +328,8 @@
     code.value = tvCode
     row.append(code, button(tx('View request'), () => viewTv(code.value.replace(/\D/g, '')), 'qt-button primary'))
     p.append(row)
+    const mcp = mcpConnectLine()
+    if (mcp) p.append(mcp)
     const bot = telegramBotLine()
     if (bot) p.append(bot)
     if (tvRequest) {

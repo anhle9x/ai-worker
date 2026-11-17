@@ -405,7 +405,10 @@ def admin_data(now: float, cookie: str, month: str) -> dict:
             "menubarMsi": os.path.isfile(os.path.join(packages.MENUBAR_DIR, "AI-Worker.msi")), "menubarExtension": bool(menubar_extension()),
             # asking the board from Telegram: whether it is turned on, and what the bot process last said about itself
             # hỏi bảng qua Telegram: có đang bật không, và tiến trình bot nói gì gần nhất về chính nó
-            "telegramAsk": dict(TELEGRAM_BOT.read(), on=settings.TELEGRAM_ASK_ENABLED)}
+            "telegramAsk": dict(TELEGRAM_BOT.read(), on=settings.TELEGRAM_ASK_ENABLED),
+            # whether /mcp/connect exists, so the page points to it only when it does (MCP=0 turns it off)
+            # /mcp/connect có tồn tại không, để trang chỉ trỏ tới khi có (MCP=0 tắt nó)
+            "mcpOn": settings.MCP_ENABLED}
 
 
 def manage_account(body: dict, actor: str, token: str) -> tuple:

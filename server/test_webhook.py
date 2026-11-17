@@ -1716,6 +1716,44 @@ class McpEndpoint(unittest.TestCase):
         for needed in ("y.kind === 'mcp'", "scope: scope.value", "t.kind !== 'mcp'", "snapshot.mcpCalls"):
             self.assertIn(needed, admin_js)
 
+    def test_the_board_points_to_the_connect_page_only_while_mcp_is_on(self):
+        """Admins and view-only accounts find the way to /mcp/connect on /board and on the Admin page; a wall display does not,
+        and with MCP=0 nothing points to a page that is not there.
+        Quản trị và tài khoản chỉ xem thấy đường tới /mcp/connect ở /board và trang Quản trị; màn hình treo tường thì không,
+        và khi MCP=0 thì không có gì trỏ tới một trang không có."""
+        stores.ACCOUNTS.d["accounts"]["wall"] = {"role": security.WALL, "secret": ""}
+        login.SESSIONS.sessions["tok-mcp-wall"] = ("wall", NOW + 3600)
+        try:
+            for cookie in ("session=tok-mcp-adm", "session=tok-mcp-viewer"):
+                status, b, _ = self.call("GET", "/board", Cookie=cookie)
+                self.assertEqual(status, 200)
+                self.assertIn('<a href="/mcp/connect">Connect an AI tool</a>', b.decode())
+            page_vi = self.call("GET", "/board", Cookie="session=tok-mcp-viewer", Accept_Language="vi")[1].decode()
+            self.assertIn('<a href="/mcp/connect">', page_vi)
+            self.assertNotIn("Connect an AI tool", page_vi)
+            self.assertTrue(json.loads(self.call("GET", "/admin/data", Cookie="session=tok-mcp-adm")[1])["mcpOn"])
+            # a wall display cannot open /board, its own page has no such link, and the board drawn for it would not have one either
+            # màn hình treo tường không mở được /board, trang của nó không có link này, và bảng vẽ cho nó cũng không có
+            self.assertNotEqual(self.call("GET", "/board", Cookie="session=tok-mcp-wall")[0], 200)
+            self.assertNotIn("/mcp/connect", self.call("GET", "/", Cookie="session=tok-mcp-wall")[1].decode())
+            self.assertNotIn("/mcp/connect", pages.page_board("wall", NOW, security.WALL).decode())
+            settings.MCP_ENABLED = False
+            try:
+                for cookie in ("session=tok-mcp-adm", "session=tok-mcp-viewer"):
+                    self.assertNotIn("/mcp/connect", self.call("GET", "/board", Cookie=cookie)[1].decode())
+                self.assertFalse(json.loads(self.call("GET", "/admin/data", Cookie="session=tok-mcp-adm")[1])["mcpOn"])
+            finally:
+                settings.MCP_ENABLED = True
+        finally:
+            del stores.ACCOUNTS.d["accounts"]["wall"]
+            del login.SESSIONS.sessions["tok-mcp-wall"]
+        with open(os.path.join(os.path.dirname(w.__file__), "static", "admin.js"), encoding="utf-8") as f:
+            admin_js = f.read()
+        # the Admin page draws the link and its copy button only when the server says the gate is on
+        # trang Quản trị chỉ vẽ link và nút chép khi máy chủ báo cổng đang bật
+        for needed in ("if (!snapshot.mcpOn) return null", "location.origin + '/mcp/connect'", "tx('Copy link')"):
+            self.assertIn(needed, admin_js)
+
     def test_old_call_rows_are_dropped_sooner_than_the_rest(self):
         folder = tempfile.mkdtemp(dir=TMP)
         log = stores.AuditLog(db.Database(os.path.join(folder, "board.db"), db.DATA_STEPS, "NORMAL"))

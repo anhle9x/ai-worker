@@ -236,4 +236,8 @@ window.I18n.add({
   "Asking from Telegram: Telegram refuses the bot's token. Check TELEGRAM_ASK_TOKEN on the server.": 'Hỏi bảng qua Telegram: Telegram từ chối khoá của bot. Hãy kiểm tra TELEGRAM_ASK_TOKEN trên máy chủ.',
   'Asking from Telegram: another program reads the same bot. One bot can have one reader.': 'Hỏi bảng qua Telegram: một chương trình khác đang đọc cùng bot. Một bot chỉ có được một nơi đọc.',
   'Asking from Telegram: the server cannot reach Telegram.': 'Hỏi bảng qua Telegram: máy chủ không tới được Telegram.',
+  'To connect an AI tool (Claude Code, Cursor, Codex, Gemini CLI), the person opens this page, presses Get a code and reads the code to you:': 'Muốn nối một công cụ AI (Claude Code, Cursor, Codex, Gemini CLI), người đó mở trang này, bấm Lấy mã rồi đọc mã cho bạn:',
+  'Copy link': 'Chép link',
+  'Link copied': 'Đã chép link',
+  'The link is selected: press Ctrl+C or Cmd+C to copy it': 'Đã bôi đen link: bấm Ctrl+C hoặc Cmd+C để chép',
 })
