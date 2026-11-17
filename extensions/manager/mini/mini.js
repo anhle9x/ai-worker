@@ -49,10 +49,27 @@
     return li
   }
   function empty(text) { var li = document.createElement('li'); li.className = 'empty'; li.textContent = text; return li }
-  function bar(pct) {
+  // a short bar inside a row: a quota turns red from 80%; a wait or a cost passes its own class and never turns red
+  // thanh ngắn trong một dòng: hạn mức chuyển đỏ từ 80%; thời gian chờ hay chi phí truyền lớp riêng và không bao giờ đỏ
+  function bar(pct, cls) {
     var b = document.createElement('span'); b.className = 'bar'
-    var i = document.createElement('i'); i.style.width = Math.min(100, pct) + '%'; if (pct >= 80) i.className = 'hi'
+    var i = document.createElement('i'); i.style.width = Math.max(4, Math.min(100, pct)) + '%'
+    if (cls) i.className = cls
+    else if (pct >= 80) i.className = 'hi'
     b.appendChild(i); return b
+  }
+  // the big number at the top: how many people wait for an answer, with how many work and today's cost underneath
+  // con số to ở đầu khung: bao nhiêu người đang chờ trả lời, bên dưới là số người đang làm và chi phí hôm nay
+  function hero(people, waiting) {
+    var box = $('hero')
+    if (!box) return
+    $('bigLabel').textContent = t('waiting for an answer')
+    if (!data) { $('big').textContent = '\u2013'; $('sub').textContent = ''; box.classList.remove('alert'); return }
+    var working = people.filter(function (p) { return p.working && !p.waiting }).length
+    var total = (data.people || []).reduce(function (sum, p) { return sum + (p.usdToday || 0) }, 0)
+    $('big').textContent = String(waiting.length)
+    $('sub').textContent = t('{n} working', working) + ' \u00b7 ' + t('Cost today') + ' ' + money(total)
+    box.classList.toggle('alert', waiting.length > 0)
   }
 
   // the highlight under the selected tab: placed on that tab, slides to the new one on a switch
@@ -86,17 +103,22 @@
     list.textContent = ''
     $('settings').hidden = tab !== 'settings'
     list.hidden = tab === 'settings'
-    if (!data || tab === 'settings') return
-    var people = (data.people || []).filter(function (p) { return p.status !== 'offline' })
+    var people = data ? (data.people || []).filter(function (p) { return p.status !== 'offline' }) : []
     var waiting = people.filter(function (p) { return p.waiting })
+    hero(people, waiting)
+    if (!data || tab === 'settings') return
     var badge = $('badge')
     badge.hidden = !waiting.length
     badge.textContent = String(waiting.length)
     if (tab === 'waiting') {
       waiting.sort(function (a, b) { return (a.waitingSince || 0) - (b.waitingSince || 0) })
+      // each bar is the wait against the longest one, or against the notify time when nobody has waited that long yet
+      // mỗi thanh là thời gian chờ so với người chờ lâu nhất, hoặc so với mốc báo khi chưa ai chờ tới mốc đó
+      var longest = settings.notifyMinutes
+      waiting.forEach(function (p) { longest = Math.max(longest, minutesSince(p.waitingSince)) })
       waiting.forEach(function (p) {
         var m = minutesSince(p.waitingSince)
-        list.appendChild(row(m >= settings.notifyMinutes ? 'long' : '', p.name, m ? t('{n} min', m) : t('just now')))
+        list.appendChild(row(m >= settings.notifyMinutes ? 'long' : '', p.name, m ? t('{n} min', m) : t('just now'), bar(100 * m / longest, 'w')))
       })
       if (!waiting.length) list.appendChild(empty(t('Nobody is waiting')))
     } else if (tab === 'working') {
@@ -116,16 +138,18 @@
         if (!w.length) return
         seen++
         var worst = w.reduce(function (a, b) { return b.pct > a.pct ? b : a })
-        list.appendChild(row(worst.pct >= 80 ? 'long' : '', p.name, Math.round(worst.pct) + '% ' + (KINDS[worst.kind] ? t(KINDS[worst.kind]) : worst.kind), bar(worst.pct)))
+        list.appendChild(row(worst.pct >= 80 ? 'long hi' : '', p.name, Math.round(worst.pct) + '% ' + (KINDS[worst.kind] ? t(KINDS[worst.kind]) : worst.kind), bar(worst.pct)))
       })
       if (!seen) list.appendChild(empty(t('No quota reading yet')))
     } else {
       var total = 0
-      ;(data.people || []).slice().sort(function (a, b) { return (b.usdToday || 0) - (a.usdToday || 0) }).forEach(function (p) {
+      var sorted = (data.people || []).slice().sort(function (a, b) { return (b.usdToday || 0) - (a.usdToday || 0) })
+      var top = sorted.length ? sorted[0].usdToday || 0 : 0
+      sorted.forEach(function (p) {
         total += p.usdToday || 0
-        if (p.usdToday) list.appendChild(row('', p.name, money(p.usdToday)))
+        if (p.usdToday) list.appendChild(row('', p.name, money(p.usdToday), bar(top ? 100 * p.usdToday / top : 0, 'c')))
       })
-      list.insertBefore(row('work', t('Whole team'), money(total)), list.firstChild)
+      list.insertBefore(row('work total', t('Whole team'), money(total)), list.firstChild)
     }
   }
 

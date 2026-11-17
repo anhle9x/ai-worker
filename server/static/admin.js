@@ -318,10 +318,10 @@
   }
 
   function tvSection() {
-    const p = section(tx('TV screens'), tx('Scan the QR code on the TV with a phone camera, or enter the code here'))
+    const p = section(tx('TV screens'), tx('Every 8-digit code is approved here: TV screens, menu bar icons, browser extensions, Telegram chats and AI tools. A TV also shows a QR code to scan with a phone.'))
     const row = o('div', 'qt-row')
     const code = o('input')
-    code.placeholder = tx('8-digit code on the TV')
+    code.placeholder = tx('8-digit code')
     code.inputMode = 'numeric'
     code.maxLength = 9
     code.setAttribute('aria-label', tx('Code on the TV'))

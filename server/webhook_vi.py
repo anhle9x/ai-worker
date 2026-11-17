@@ -168,6 +168,8 @@ VI = {
     "Unpair this browser": "Bỏ ghép trình duyệt này",
     "Unpair this browser? You will need a new code from an admin.": "Bỏ ghép trình duyệt này? Muốn dùng lại phải xin mã mới và nhờ quản trị duyệt.",
     "Waiting": "Đang chờ",
+    "waiting for an answer": "đang chờ trả lời",
+    "{n} working": "{n} đang làm",
     "Working": "Đang làm",
     "minutes": "phút",
     "Nobody is waiting": "Không ai đang chờ",

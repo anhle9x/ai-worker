@@ -2,6 +2,13 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.34.0 - 2026-11-17
+
+### Changed
+- The window under the menu bar icon, and the same window in the manager browser extension, has a new look: the number of people waiting for an answer in large type at the top, with how many are working and today's cost under it; the tabs as one segmented control; short bars next to each wait and each cost; one accent colour, with red kept for a quota close to its limit; and Open board as the one filled button. The menu bar apps on macOS, Windows and Ubuntu show the page the server sends, so they get the new look as soon as the server is updated, with nothing to install again. The browser extension carries its own copy: a manager sees the new look after installing the extension again from the Admin page.
+- On the Admin page, the line under **TV screens** says that every 8-digit code is approved there (TV screens, menu bar icons, browser extensions, Telegram chats and AI tools), and the code box no longer says the code is on the TV. The section keeps its name, which older plugins and the bot point admins to.
+- On `/mcp/connect`, "Claude Code" and "Gemini CLI" stay whole when the subtitle wraps.
+
 ## 0.33.3 - 2026-11-17
 
 ### Added

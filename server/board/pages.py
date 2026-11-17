@@ -293,6 +293,12 @@ def page_tv(ua: str = "") -> bytes:
             '<script src="/tv-qr.js"></script><script src="/tv.js"></script></body></html>').encode()
 
 
+def _keep_names(text: str) -> str:
+    """Two-word tool names stay on one line when a short line wraps, so "CLI" is never left alone on the next line.
+    Tên công cụ hai chữ nằm trọn một dòng khi dòng ngắn bị ngắt, để chữ "CLI" không bao giờ rơi một mình xuống dòng sau."""
+    return text.replace("Claude Code", "Claude&nbsp;Code").replace("Gemini CLI", "Gemini&nbsp;CLI")
+
+
 def page_mcp_connect() -> bytes:
     """The page a person opens to connect their own AI tool to the board: it asks for a code, an admin approves the code, and the page then
     shows the key once with the lines to paste into each tool. The key lives in the page's memory only: never in a cookie, the address or the browser's storage.
@@ -301,7 +307,7 @@ def page_mcp_connect() -> bytes:
     return ('<!doctype html><html lang="' + current_lang() + '" data-lang="' + current_lang() + '"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1"><title>' + html.escape(tx("AI Worker · Connect an AI tool")) + '</title>'
             '<style>' + CSS_LOGIN + CSS_MCP_CONNECT + '</style></head><body><div class="login-box connect">'
-            '<h1>' + html.escape(tx("Connect an AI tool")) + '</h1><p class="sub">' + html.escape(tx("Ask the board from Claude Code, Cursor, Codex or Gemini CLI")) + '</p>'
+            '<h1>' + html.escape(tx("Connect an AI tool")) + '</h1><p class="sub">' + _keep_names(html.escape(tx("Ask the board from Claude Code, Cursor, Codex or Gemini CLI"))) + '</p>'
             '<p>' + html.escape(tx("With a key from this page, an AI tool that speaks MCP can read the board when you ask about the team: names, who is working or waiting, cost and quota. It never gets an email or an IP address, and it cannot change anything.")) + '</p>'
             '<p class="warn">' + html.escape(tx("What the tool reads is sent to the company that makes it, as part of your question. Use a tool your company allows.")) + '</p>'
             '<p class="warn" id="insecure" hidden>' + html.escape(tx("This page is not on HTTPS, so the key travels unencrypted on the network.")) + '</p>'
@@ -588,6 +594,8 @@ def page_mini(paired: bool, browser: bool = False) -> bytes:
         "Working": tx("Working"),
         "Quota": tx("Quota"),
         "Cost today": tx("Cost today"),
+        "waiting for an answer": tx("waiting for an answer"),
+        "{n} working": tx("{n} working"),
         "Nobody is waiting": tx("Nobody is waiting"),
         "Nobody is working": tx("Nobody is working"),
         "No quota reading yet": tx("No quota reading yet"),
@@ -628,6 +636,7 @@ def page_mini(paired: bool, browser: bool = False) -> bytes:
                 )).encode()
     return (head + '<body data-words="%s" data-lang="%s" data-rate="%s"><main class="mini">'
             '<header><span class="logo" aria-hidden="true"></span><div><b>%s</b><small id="updated"></small></div><span id="badge" class="badge" hidden></span></header>'
+            '<section id="hero" class="hero" aria-live="polite"><div class="big"><strong id="big">–</strong><span id="bigLabel"></span></div><p id="sub" class="sub"></p></section>'
             '<nav role="tablist">'
             '<button role="tab" data-tab="waiting" aria-selected="true" title="%s"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>'
             '<button role="tab" data-tab="working" title="%s"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg></button>'
@@ -641,7 +650,7 @@ def page_mini(paired: bool, browser: bool = False) -> bytes:
             '<div class="row"><label for="lang">%s</label> <select id="lang"><option value="en">English</option><option value="vi">Tiếng Việt</option></select></div>'  # i18n-allow: each language is named in itself
             '<small id="saved" role="status"></small>'
             '<div class="actions"><button id="unpair" class="btn">%s</button><button id="quit" class="btn app-only">%s</button><button id="uninstall" class="btn danger app-only">%s</button></div></section>'
-            '<footer><a class="btn" href="/board" target="_blank" rel="noopener">%s</a></footer>'
+            '<footer><a class="btn primary" href="/board" target="_blank" rel="noopener">%s</a></footer>'
             '</main><script src="/static/mini.js?v=__V_MINI_JS__"></script></body></html>' % (
                 html.escape(words, quote=True), current_lang(), USD_RATE, html.escape(tx("AI Worker")),
                 html.escape(tx("Waiting")), html.escape(tx("Working")), html.escape(tx("Quota")), html.escape(tx("Cost today")), html.escape(tx("Settings")),
