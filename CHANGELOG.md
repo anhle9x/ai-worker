@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.35.1 - 2026-11-17
+
+### Changed
+- The window under the menu bar icon shows three more numbers under the chart: today's tokens, open sessions, and tasks handed to Gemini, ChatGPT and Gemma in the last 24 hours. All three come from what `/data` already holds: nothing new is collected or sent. The tabs no longer show a tooltip that repeats the name written under them. As before, the browser extension shows the change after it is installed again from the Admin page.
+
 ## 0.35.0 - 2026-11-17
 
 ### Changed

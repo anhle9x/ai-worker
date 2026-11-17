@@ -66,7 +66,7 @@
     var box = $('hero')
     if (!box) return
     var big = $('big')
-    if (!data) { big.textContent = '\u2013'; $('bigLabel').textContent = t('waiting for an answer'); $('sub').textContent = ''; $('chart').hidden = true; return }
+    if (!data) { big.textContent = '\u2013'; $('bigLabel').textContent = t('waiting for an answer'); $('sub').textContent = ''; $('chart').hidden = true; $('stats').hidden = true; return }
     var working = people.filter(function (p) { return p.working && !p.waiting }).length
     var total = (data.people || []).reduce(function (sum, p) { return sum + (p.usdToday || 0) }, 0)
     if (waiting.length) {
@@ -81,6 +81,29 @@
     big.className = big.textContent.length > 9 ? 'long' : ''
     box.classList.toggle('alert', waiting.length > 0)
     chart(total)
+    stats(people)
+  }
+  // three small numbers under the chart, from what /data already holds: today's tokens, open sessions, tasks handed to the helper assistants in 24 hours
+  // ba con số nhỏ dưới biểu đồ, lấy từ thứ /data vốn có: token hôm nay, phiên đang mở, việc giao cho trợ lý phụ trong 24 giờ
+  function stats(people) {
+    var box = $('stats')
+    var tokens = 0, sessions = 0, tasks = 0
+    ;(data.people || []).forEach(function (p) { tokens += (p.tokensIn || 0) + (p.tokensOut || 0) })
+    people.forEach(function (p) { sessions += p.openSessions || 0 })
+    ;(data.tasks24 || []).forEach(function (hours) { (hours || []).forEach(function (n) { tasks += n || 0 }) })
+    box.textContent = ''
+    box.hidden = false
+    ;[[short(tokens), t('Tokens today')], [String(sessions), t('Open sessions')], [String(tasks), t('Delegated, 24 h')]].forEach(function (x) {
+      var cell = document.createElement('div'); cell.className = 'stat'
+      var v = document.createElement('b'); v.textContent = x[0]
+      var l = document.createElement('small'); l.textContent = x[1]
+      cell.appendChild(v); cell.appendChild(l); box.appendChild(cell)
+    })
+  }
+  function short(n) {
+    var units = [[1e9, 'B'], [1e6, 'M'], [1e3, 'K']]
+    for (var i = 0; i < units.length; i++) if (n >= units[i][0]) return (n / units[i][0]).toFixed(n >= units[i][0] * 100 ? 0 : 1).replace(/\.0$/, '') + units[i][1]
+    return String(n)
   }
   // the team's cost on each of the last 7 days, today last and in full colour, with a dashed line at the average;
   // today's column takes the live total, which the server's daily count only catches up with every few minutes

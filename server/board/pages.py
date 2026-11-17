@@ -598,6 +598,9 @@ def page_mini(paired: bool, browser: bool = False) -> bytes:
         "{n} working": tx("{n} working"),
         "spent today": tx("spent today"),
         "Last 7 days": tx("Last 7 days"),
+        "Tokens today": tx("Tokens today"),
+        "Open sessions": tx("Open sessions"),
+        "Delegated, 24 h": tx("Delegated, 24 h"),
         "Nobody is waiting": tx("Nobody is waiting"),
         "Nobody is working": tx("Nobody is working"),
         "No quota reading yet": tx("No quota reading yet"),
@@ -638,13 +641,13 @@ def page_mini(paired: bool, browser: bool = False) -> bytes:
                 )).encode()
     return ((head + '<body data-words="%s" data-lang="%s" data-rate="%s"><main class="mini">'
             '<header><span class="logo" aria-hidden="true"></span><div><b>%s</b><small id="updated"></small></div><span id="badge" class="badge" hidden></span></header>'
-            '<section id="hero" class="hero" aria-live="polite"><div class="big"><strong id="big">–</strong><span id="bigLabel"></span></div><p id="sub" class="sub"></p><div id="chart" class="chart7" hidden></div></section>'
+            '<section id="hero" class="hero" aria-live="polite"><div class="big"><strong id="big">–</strong><span id="bigLabel"></span></div><p id="sub" class="sub"></p><div id="chart" class="chart7" hidden></div><div id="stats" class="stats" hidden></div></section>'
             '<nav role="tablist">'
-            '<button role="tab" data-tab="waiting" aria-selected="true" title="%s"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">__L_waiting__</span></button>'
-            '<button role="tab" data-tab="working" title="%s"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg><span class="lbl">__L_working__</span></button>'
-            '<button role="tab" data-tab="quota" title="%s"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15a8 8 0 1 1 16 0"/><path d="M12 15l4-5"/></svg><span class="lbl">__L_quota__</span></button>'
-            '<button role="tab" data-tab="cost" title="%s"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg><span class="lbl">__L_cost__</span></button>'
-            '<button role="tab" data-tab="settings" title="%s"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2.2"/><path stroke-width="3" stroke-linecap="butt" d="M12 2.6v3M12 18.4v3M2.6 12h3M18.4 12h3M5.4 5.4l2.1 2.1M16.5 16.5l2.1 2.1M5.4 18.6l2.1-2.1M16.5 7.5l2.1-2.1"/></svg><span class="lbl">__L_settings__</span></button></nav>'
+            '<button role="tab" data-tab="waiting" aria-selected="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">__L_waiting__</span></button>'
+            '<button role="tab" data-tab="working"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg><span class="lbl">__L_working__</span></button>'
+            '<button role="tab" data-tab="quota"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15a8 8 0 1 1 16 0"/><path d="M12 15l4-5"/></svg><span class="lbl">__L_quota__</span></button>'
+            '<button role="tab" data-tab="cost"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg><span class="lbl">__L_cost__</span></button>'
+            '<button role="tab" data-tab="settings"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2.2"/><path stroke-width="3" stroke-linecap="butt" d="M12 2.6v3M12 18.4v3M2.6 12h3M18.4 12h3M5.4 5.4l2.1 2.1M16.5 16.5l2.1 2.1M5.4 18.6l2.1-2.1M16.5 7.5l2.1-2.1"/></svg><span class="lbl">__L_settings__</span></button></nav>'
             '<h2 id="title"></h2><ul id="list"></ul>'
             '<section id="settings" class="settings" hidden>'
             '<div class="row"><label><input type="checkbox" id="notify"> <span>%s</span></label> <select id="minutes">%s</select> <span>%s</span></div>'
@@ -655,7 +658,6 @@ def page_mini(paired: bool, browser: bool = False) -> bytes:
             '<footer><a class="btn primary" href="/board" target="_blank" rel="noopener">%s</a></footer>'
             '</main><script src="/static/mini.js?v=__V_MINI_JS__"></script></body></html>' % (
                 html.escape(words, quote=True), current_lang(), USD_RATE, html.escape(tx("AI Worker")),
-                html.escape(tx("Waiting")), html.escape(tx("Working")), html.escape(tx("Quota")), html.escape(tx("Cost today")), html.escape(tx("Settings")),
                 html.escape(tx("Notify when a wait passes")),
                 "".join('<option value="%d">%d</option>' % (m, m) for m in MINI_NOTIFY_MINUTES), html.escape(tx("min")),
                 html.escape(tx("Start at login")), html.escape(tx("Language")), html.escape(unpair if browser else tx("Unpair")), html.escape(tx("Quit")), html.escape(tx("Uninstall")),

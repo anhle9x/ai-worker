@@ -197,3 +197,9 @@ nav button .lbl{font-size:10.5px;line-height:1.2;white-space:nowrap}
 footer{justify-content:flex-end}
 .mini footer .btn.primary{flex:none;background:var(--accent-bg)!important;color:var(--accent);font-weight:600;font-size:12.5px;padding:5px 14px;border-radius:7px}
 .mini footer .btn.primary:hover{background:var(--accent-bg)!important;filter:brightness(1.1)}
+/* three small numbers under the chart, side by side, set apart by space only */
+/* ba con số nhỏ dưới biểu đồ, đứng cạnh nhau, chỉ tách bằng khoảng trống */
+.stats{display:flex;gap:10px;margin-top:12px}
+.stat{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.stat b{font-size:17px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.01em;color:var(--fg)}
+.stat small{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
