@@ -176,3 +176,24 @@ footer{border-top:0;margin-top:10px;padding-top:0}
 li.hi .dot{background:var(--bad)}
 li.hi .val{color:var(--bad)}
 li .bar+.val{min-width:84px}
+/* round two: the big number always in the accent colour (a shorter size for a long amount), words under the tab icons,
+   a 7-day chart under the big number, and Open board as a small button on the right instead of a wide filled bar */
+/* vòng hai: con số to luôn mang màu nhấn (cỡ nhỏ hơn khi số tiền dài), chữ dưới biểu tượng thẻ,
+   biểu đồ 7 ngày dưới con số to, và Mở bảng là nút nhỏ bên phải thay cho thanh tô màu kín bề ngang */
+#big,.hero.alert #big{color:var(--accent)}
+#big.long{font-size:32px}
+nav button{display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 0 4px}
+nav button svg{width:16px;height:16px}
+nav button .lbl{font-size:10.5px;line-height:1.2;white-space:nowrap}
+.chart7{margin-top:12px}
+.c-head{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-bottom:6px}
+.c-sum{font-variant-numeric:tabular-nums}
+.c-plot{position:relative;display:flex;align-items:flex-end;gap:6px;height:56px}
+.c-col{flex:1;min-height:2px;border-radius:3px 3px 1px 1px;background:var(--accent);opacity:.35}
+.c-col.today{opacity:1}
+.c-avg{position:absolute;left:0;right:0;height:0;border-top:1px dashed var(--muted);opacity:.6;pointer-events:none}
+.c-days{display:flex;gap:6px;margin-top:4px}
+.c-days span{flex:1;text-align:center;font-size:10px;color:var(--muted)}
+footer{justify-content:flex-end}
+.mini footer .btn.primary{flex:none;background:var(--accent-bg)!important;color:var(--accent);font-weight:600;font-size:12.5px;padding:5px 14px;border-radius:7px}
+.mini footer .btn.primary:hover{background:var(--accent-bg)!important;filter:brightness(1.1)}

@@ -75,7 +75,7 @@ Mỗi máy giữ số liệu theo giờ trong 8 ngày, và dòng của máy rờ
 - **Văn phòng là văn phòng của hôm đó.** Ngày đã qua giữ văn phòng lúc nó được chốt; người chuyển chỗ thì được tính cho văn phòng mới từ ngày chuyển.
 - **Đây là việc giữ dữ liệu nhân viên lâu hơn trước.** Trước khi có bảng này, chi phí của một người mất đi 30 ngày sau lần gửi cuối của máy họ. Giờ con số tổng mỗi ngày ở lại tối đa 13 tháng, kèm tên và email tài khoản. Hãy nói rõ điều đó trong thông báo gửi nhân viên: [employee-notice.vi.md](employee-notice.vi.md).
 - **Người đã nghỉ việc** vẫn nằm trong các tổng cho tới khi các dòng hết hạn. Muốn xoá sớm: `webhook.py --forget-usage <email hoặc tên>`, xem [OPERATIONS.vi.md](OPERATIONS.vi.md), mục 6.
-- **Ai đọc được:** quản trị và người xem, trên `/board`. Vai treo tường không nhận gì, nên màn hình TV, biểu tượng thanh menu, tiện ích trình duyệt, plugin của quản lý và cổng MCP đều không có phần này ([PERMISSIONS.vi.md](PERMISSIONS.vi.md)).
+- **Ai đọc được:** quản trị và người xem, trên `/board`. Vai treo tường chỉ nhận một thứ: chi phí của cả team trong từng ngày của 7 ngày gần nhất, mỗi ngày một con số, không có người, không có văn phòng, cho biểu đồ nhỏ trong khung thanh menu (`teamDays` trong `/data`). Không phần nào theo từng người hay từng văn phòng tới được màn hình TV, biểu tượng thanh menu, tiện ích trình duyệt, plugin của quản lý hay cổng MCP ([PERMISSIONS.vi.md](PERMISSIONS.vi.md)).
 
 ## 4. Cách dùng cơ sở dữ liệu
 

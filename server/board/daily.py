@@ -243,6 +243,16 @@ class DailyStore:
             office["weeks"] = series["officeWeeks"].get(office["id"], [0.0] * len(series["weeks"]))
         return d
 
+    def team_days(self, now: float, days: int) -> list:
+        """The whole team's cost on each of the last `days` days, oldest first and today last: [{"day", "usd"}], 0 for a day with no use.
+        One sum per day for everyone together: no name, no account, no office.
+        Chi phí của cả team trong từng ngày của `days` ngày gần nhất, cũ trước, hôm nay sau cùng: [{"day", "usd"}], ngày không ai dùng thì 0.
+        Một tổng mỗi ngày cho mọi người cộng lại: không tên, không tài khoản, không văn phòng."""
+        today = local_day(now)
+        first = today - timedelta(days=days - 1)
+        sums = dict(self.db.rows("SELECT day, SUM(usd) FROM daily WHERE day >= ? AND day <= ? GROUP BY day", (first.isoformat(), today.isoformat())))
+        return [{"day": d, "usd": round(float(sums.get(d) or 0), 2)} for d in ((first + timedelta(days=i)).isoformat() for i in range(days))]
+
     def since(self, today: date) -> str:
         """The oldest day the totals cover: the first day ever counted, or the oldest day still kept once rows have started to expire. Empty before the first run.
         Ngày cũ nhất mà các tổng phủ tới: ngày đầu tiên từng được đếm, hoặc ngày cũ nhất còn giữ khi đã có dòng hết hạn. Để trống trước lần chạy đầu."""

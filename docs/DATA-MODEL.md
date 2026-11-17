@@ -75,7 +75,7 @@ A computer holds its hours for 8 days, and its row leaves the server 30 days aft
 - **The office is the one of that day.** A finished day keeps the office it closed with; a person who moves counts for the new office from the day of the move.
 - **This is a longer hold of staff data.** Before this table, a person's cost was gone 30 days after their computer last sent. Now a total per day stays for up to 13 months, with their name and account email. Say so in your notice to staff: [employee-notice.md](employee-notice.md).
 - **A person who leaves** stays in the totals until the rows expire. To delete them sooner: `webhook.py --forget-usage <email or name>`, see [OPERATIONS.md](OPERATIONS.md), section 6.
-- **Who reads it:** admins and viewers, on `/board`. The wall role gets none of it, so a TV screen, a menu bar icon, the browser extension, a manager's plugin and the MCP endpoint do not have it ([PERMISSIONS.md](PERMISSIONS.md)).
+- **Who reads it:** admins and viewers, on `/board`. The wall role gets one thing only: the whole team's cost on each of the last 7 days, one number per day with no person and no office, for the small chart in the menu bar window (`teamDays` in `/data`). Nothing per person or per office of it reaches a TV screen, a menu bar icon, the browser extension, a manager's plugin or the MCP endpoint ([PERMISSIONS.md](PERMISSIONS.md)).
 
 ## 4. How the database is used
 

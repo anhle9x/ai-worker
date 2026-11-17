@@ -170,6 +170,8 @@ VI = {
     "Waiting": "Đang chờ",
     "waiting for an answer": "đang chờ trả lời",
     "{n} working": "{n} đang làm",
+    "spent today": "chi phí hôm nay",
+    "Last 7 days": "7 ngày qua",
     "Working": "Đang làm",
     "minutes": "phút",
     "Nobody is waiting": "Không ai đang chờ",

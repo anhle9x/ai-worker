@@ -35,7 +35,7 @@
   }
 
   function money(usd) {
-    if (lang !== 'vi') return '$' + usd.toFixed(2)
+    if (lang !== 'vi') return '$' + usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     return Math.round(usd * rate).toLocaleString('vi-VN') + ' \u0111'
   }
   function minutesSince(ms) { return ms ? Math.max(0, Math.floor((Date.now() - ms) / 60000)) : 0 }
@@ -58,19 +58,67 @@
     else if (pct >= 80) i.className = 'hi'
     b.appendChild(i); return b
   }
-  // the big number at the top: how many people wait for an answer, with how many work and today's cost underneath
-  // con số to ở đầu khung: bao nhiêu người đang chờ trả lời, bên dưới là số người đang làm và chi phí hôm nay
+  // the big number at the top: how many people wait for an answer; when nobody does, today's cost takes its place,
+  // so the window always opens on a number worth reading
+  // con số to ở đầu khung: bao nhiêu người đang chờ trả lời; khi không ai chờ thì chi phí hôm nay thế chỗ,
+  // để khung lúc nào mở ra cũng có một con số đáng đọc
   function hero(people, waiting) {
     var box = $('hero')
     if (!box) return
-    $('bigLabel').textContent = t('waiting for an answer')
-    if (!data) { $('big').textContent = '\u2013'; $('sub').textContent = ''; box.classList.remove('alert'); return }
+    var big = $('big')
+    if (!data) { big.textContent = '\u2013'; $('bigLabel').textContent = t('waiting for an answer'); $('sub').textContent = ''; $('chart').hidden = true; return }
     var working = people.filter(function (p) { return p.working && !p.waiting }).length
     var total = (data.people || []).reduce(function (sum, p) { return sum + (p.usdToday || 0) }, 0)
-    $('big').textContent = String(waiting.length)
-    $('sub').textContent = t('{n} working', working) + ' \u00b7 ' + t('Cost today') + ' ' + money(total)
+    if (waiting.length) {
+      big.textContent = String(waiting.length)
+      $('bigLabel').textContent = t('waiting for an answer')
+      $('sub').textContent = t('{n} working', working) + ' \u00b7 ' + t('Cost today') + ' ' + money(total)
+    } else {
+      big.textContent = money(total)
+      $('bigLabel').textContent = t('spent today')
+      $('sub').textContent = t('Nobody is waiting') + ' \u00b7 ' + t('{n} working', working)
+    }
+    big.className = big.textContent.length > 9 ? 'long' : ''
     box.classList.toggle('alert', waiting.length > 0)
+    chart(total)
   }
+  // the team's cost on each of the last 7 days, today last and in full colour, with a dashed line at the average;
+  // today's column takes the live total, which the server's daily count only catches up with every few minutes
+  // chi phí của cả team trong 7 ngày gần nhất, hôm nay ở cuối và tô đậm, kèm đường gạch ở mức trung bình;
+  // cột hôm nay lấy tổng đang chạy, vì phần đếm theo ngày của máy chủ chỉ cập nhật vài phút một lần
+  function chart(today) {
+    var box = $('chart')
+    var days = (data.teamDays || []).map(function (d) { return { day: d.day, usd: Number(d.usd) || 0 } })
+    if (days.length < 2) { box.hidden = true; return }
+    days[days.length - 1].usd = Math.max(days[days.length - 1].usd, today)
+    var sum = 0, top = 0
+    days.forEach(function (d) { sum += d.usd; top = Math.max(top, d.usd) })
+    box.textContent = ''
+    box.hidden = false
+    var head = document.createElement('div'); head.className = 'c-head'
+    var a = document.createElement('span'); a.textContent = t('Last 7 days')
+    var b = document.createElement('span'); b.className = 'c-sum'; b.textContent = money(sum)
+    head.appendChild(a); head.appendChild(b); box.appendChild(head)
+    var plot = document.createElement('div'); plot.className = 'c-plot'
+    var avg = sum / days.length
+    if (top > 0) { var line = document.createElement('i'); line.className = 'c-avg'; line.style.bottom = (100 * avg / top) + '%'; plot.appendChild(line) }
+    var names = document.createElement('div'); names.className = 'c-days'
+    var locale = lang === 'vi' ? 'vi-VN' : 'en-US'
+    days.forEach(function (d, i) {
+      var col = document.createElement('span'); col.className = 'c-col' + (i === days.length - 1 ? ' today' : '')
+      col.style.height = (top > 0 ? Math.max(3, 100 * d.usd / top) : 3) + '%'
+      var when = new Date(d.day + 'T12:00:00')
+      col.title = when.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'numeric' }) + ': ' + money(d.usd)
+      plot.appendChild(col)
+      // Vietnamese days the short way people write them (T2 to T7, CN); English the usual three letters
+      // ngày tiếng Việt viết gọn như mọi người vẫn viết (T2 tới T7, CN); tiếng Anh dùng ba chữ cái quen thuộc
+      var n = document.createElement('span')
+      n.textContent = lang === 'vi' ? (when.getDay() ? 'T' + (when.getDay() + 1) : 'CN') : when.toLocaleDateString(locale, { weekday: 'short' })
+      names.appendChild(n)
+    })
+    box.appendChild(plot); box.appendChild(names)
+  }
+
 
   // the highlight under the selected tab: placed on that tab, slides to the new one on a switch
   // ô nền dưới thẻ đang chọn: đặt đúng chỗ thẻ đó, đổi thẻ thì trượt sang

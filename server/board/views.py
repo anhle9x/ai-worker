@@ -221,7 +221,15 @@ def wall_name(name: str) -> str:
 # (test_webhook.py turns red if you forget); a field not ranked reaches no role. An unknown role counts as wall, the role that sees the least.
 # Mỗi vai thấy gì: danh sách cho phép, nên trường mới không tự lộ. Thêm trường vào _raw_data thì phải xếp nó ở đây
 # (test_webhook.py đỏ nếu quên); trường chưa xếp thì không vai nào nhận được. Vai lạ coi như treo tường, là vai thấy ít nhất.
-COMMON_FIELDS_ALL = frozenset({"updatedAt", "usdRate", "tasks24", "tzOffsetHours", "people", "branches"})
+# teamDays: the whole team's cost on each of the last TEAM_DAYS days, for the small chart of the menu bar window. One number per day,
+# no person and no office, so the wall role may have it; everything else of the daily totals stays with admins and viewers (usage_view).
+# teamDays: chi phí của cả team trong từng ngày của TEAM_DAYS ngày gần nhất, cho biểu đồ nhỏ của khung thanh menu. Một con số mỗi ngày,
+# không có người, không có văn phòng, nên vai treo tường được nhận; mọi phần khác của tổng theo ngày vẫn chỉ cho quản trị và người xem (usage_view).
+TEAM_DAYS = 7
+# one day of teamDays: the day and the team's cost that day, nothing else
+# một ngày của teamDays: ngày đó và chi phí của cả team ngày đó, không gì khác
+TEAM_DAY_FIELDS = frozenset({"day", "usd"})
+COMMON_FIELDS_ALL = frozenset({"updatedAt", "usdRate", "tasks24", "tzOffsetHours", "people", "branches", "teamDays"})
 COMMON_FIELDS_BY_ROLE = {
     ADMIN: COMMON_FIELDS_ALL | {"unnamedGroups", "team"},
     VIEWER: COMMON_FIELDS_ALL | {"team"},
@@ -268,14 +276,25 @@ def role_view(role: str, now: float, every_branch: bool = False) -> dict:
     if v == WALL:
         for p in d["people"]:
             p.update(name=wall_name(p["name"]), account=alias(p["account"]))
+    d["teamDays"] = [_pick(x, TEAM_DAY_FIELDS) for x in d.get("teamDays", [])]
     d.update(role=v, uiVersion=UI_VERSION)
     return d
 
 
+def _team_days(now: float) -> list:
+    """The team's last TEAM_DAYS days for role_view; an empty list when the side table cannot be read, so the board still answers.
+    TEAM_DAYS ngày gần nhất của cả team cho role_view; danh sách rỗng khi không đọc được bảng phụ, để bảng vẫn trả lời."""
+    try:
+        return DAILY.team_days(now, TEAM_DAYS)
+    except Exception as e:
+        sys.stderr.write("daily: %s\n" % e)
+        return []
+
+
 # Use over weeks and months, built from the daily totals: the same kind of allow list, apart from the live board. Only an admin and a viewer
-# get it; the wall role gets nothing, so a TV screen, the menu bar, the extension, the plugin and the MCP endpoint have none of it.
+# get it; the wall role gets nothing of it (only teamDays in role_view, one team total per day), so a TV screen, the menu bar, the extension, the plugin and the MCP endpoint have none of it.
 # Mức dùng theo tuần và theo tháng, dựng từ tổng theo ngày: cùng kiểu danh sách cho phép, tách khỏi bảng trực tiếp. Chỉ quản trị và người xem
-# nhận được; vai treo tường không nhận gì, nên màn hình TV, thanh menu, tiện ích, plugin và cổng MCP đều không có phần này.
+# nhận được; vai treo tường không nhận gì của phần này (chỉ teamDays trong role_view, một tổng của cả team mỗi ngày), nên màn hình TV, thanh menu, tiện ích, plugin và cổng MCP đều không có phần này.
 USAGE_FIELDS_ALL = frozenset({"today", "since", "periods", "team", "offices", "people", "weeks", "months"})
 USAGE_FIELDS_BY_ROLE = {ADMIN: USAGE_FIELDS_ALL, VIEWER: USAGE_FIELDS_ALL, WALL: frozenset()}
 USAGE_OFFICE_FIELDS_ALL = frozenset({"id", "name", "weeks"}) | frozenset(PERIODS)
@@ -487,7 +506,7 @@ def _raw_data(now: float) -> dict:
     # tasks delegated to each AI per hour, whole team, last 24 hours
     # việc giao cho từng AI theo giờ, cả team, 24 giờ gần nhất
     jobs24 = [[sum(r["tasksByHour"].get(this_hour - 23 + i, [0, 0, 0])[k] for r in rows) for i in range(24)] for k in range(3)]
-    return {"updatedAt": int(now * 1000), "usdRate": USD_RATE, "tasks24": jobs24, "tzOffsetHours": LOCAL_TZ.utcoffset(None).total_seconds() / 3600, "people": out,
+    return {"updatedAt": int(now * 1000), "usdRate": USD_RATE, "tasks24": jobs24, "tzOffsetHours": LOCAL_TZ.utcoffset(None).total_seconds() / 3600, "teamDays": _team_days(now), "people": out,
             "branches": [{"id": b["id"], "name": b["name"], "lat": b["lat"], "lon": b["lon"], "isHq": b["isHq"], "customNetworks": b["customNetworks"]} for b in branches],
             "unnamedGroups": unnamed_groups(rows, branches, now), "team": team_summary(rows)}
 

@@ -124,6 +124,7 @@ class RoleViews(unittest.TestCase):
         self.assertEqual(set(original), views.COMMON_FIELDS_DECLARED)
         self.assertEqual(set(original["people"][0]), views.PERSON_FIELDS_DECLARED)
         self.assertEqual(set(original["branches"][0]), views.BRANCH_FIELDS_DECLARED)
+        self.assertEqual({k for x in original["teamDays"] for k in x}, views.TEAM_DAY_FIELDS)
 
     def test_unknown_field_does_not_leak(self):
         original = views._raw_data
@@ -132,6 +133,7 @@ class RoleViews(unittest.TestCase):
             d["extra"] = "secret-value"
             d["people"][0]["extra"] = "secret-value"
             d["branches"][0]["extra"] = "secret-value"
+            d["teamDays"][0]["extra"] = "secret-value"
             return d
         views._raw_data = with_unknown_field
         try:
@@ -3391,6 +3393,17 @@ class DailyTotals(unittest.TestCase):
         self.assertEqual(list(daily.totals_by_day([m], self.NOW)), [self.day(6).isoformat()])
         self.assertEqual(settings.DAILY_RECOUNT_DAYS, 7)
 
+    def test_team_days_give_one_total_per_day_and_nothing_about_who(self):
+        store = self.store()
+        self.put(store, self.TODAY, self.AN, 1.25)
+        self.put(store, self.TODAY, self.BINH, 2.5)
+        self.put(store, self.day(3), self.AN, 4)
+        self.put(store, self.day(9), self.BINH, 99)
+        days = store.team_days(self.NOW, 7)
+        self.assertEqual([d["day"] for d in days], [self.day(back).isoformat() for back in range(6, -1, -1)])
+        self.assertEqual([d["usd"] for d in days], [0, 0, 0, 4, 0, 0, 3.75])
+        self.assertEqual({k for d in days for k in d}, {"day", "usd"})
+
     def test_recording_again_writes_over_and_never_adds_twice(self):
         store = self.store()
         m = spending("device-a1", "An", "an@example.com", {local_hour(self.TODAY): 1.25, local_hour(self.day(2)): 4})
@@ -3699,6 +3712,17 @@ class UsageByRole(unittest.TestCase):
                 self.assertNotIn(word, body, token)
         for role in (security.ADMIN, security.VIEWER, security.WALL):
             self.assertEqual(set(views.role_view(role, NOW)) & {"since", "periods", "team" if role == security.WALL else "periods", "offices"}, set())
+
+    def test_every_role_gets_the_team_total_of_the_last_seven_days_only(self):
+        """The one part of the daily totals the wall role may have: one team total per day, for the chart of the menu bar window.
+        Phần duy nhất của tổng theo ngày mà vai treo tường được có: một tổng của cả team mỗi ngày, cho biểu đồ của khung thanh menu."""
+        for role in (security.ADMIN, security.VIEWER, security.WALL):
+            days = views.role_view(role, NOW)["teamDays"]
+            self.assertEqual(len(days), views.TEAM_DAYS)
+            self.assertEqual({k for d in days for k in d}, {"day", "usd"})
+        status, body = self.get("/data", "use-wall")
+        self.assertEqual(status, 200)
+        self.assertIn('"teamDays"', body)
 
     def span(self, start: str, usd: float, kept: str = "all", whole: bool = True) -> dict:
         end = (date.fromisoformat(start) + timedelta(days=6)).isoformat()

@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.35.0 - 2026-11-17
+
+### Changed
+- The window under the menu bar icon, round two: the tabs carry their names under the icons; when nobody is waiting, today's cost takes the place of the big number, so the window always opens on a number worth reading; the big number is always in the accent colour; and Open board is a small button on the right instead of a wide filled bar. The menu bar apps get it from the server; as with 0.34.0, the browser extension shows it after it is installed again from the Admin page.
+
+### Added
+- A chart of the whole team's cost on each of the last 7 days in the window under the menu bar icon, today in full colour, with a dashed line at the average. For it, `/data` gives every role, the wall role included, `teamDays`: one team total per day for the last 7 days, with no person and no office. It is the one part of the daily totals a wall reader gets; everything per person or per office stays with admins and viewers ([PERMISSIONS.md](docs/PERMISSIONS.md)).
+
 ## 0.34.0 - 2026-11-17
 
 ### Changed

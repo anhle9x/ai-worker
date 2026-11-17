@@ -32,6 +32,7 @@ Máy chủ chỉ tin IP ghi trong yêu cầu khi yêu cầu đi qua proxy trên 
 | IP nội bộ, tài khoản nhân viên tự gõ | Có | Có | Không |
 | Chi phí gói Team | Có | Có | Không |
 | Mức dùng theo tuần và theo tháng, theo từng văn phòng và từng người (tổng theo ngày, giữ 13 tháng) | Có | Có | Không |
+| Chi phí của cả team trong từng ngày của 7 ngày gần nhất, mỗi ngày một con số (biểu đồ của khung thanh menu) | Có | Có | Có |
 | Nhóm máy chưa đặt tên | Có | Không | Không |
 | Bảng chữ `/board` | Có | Có | Không |
 | Trang `/admin` và gói cài | Có | Không | Không |
