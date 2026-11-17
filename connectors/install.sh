@@ -23,7 +23,11 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 for f in "$HERE/../../lang.sh" "$HERE/../packaging/lang.sh" "$HERE/lang.sh"; do
   [ -f "$f" ] && . "$f" && break
 done
-command -v say > /dev/null 2>&1 || say() { printf '%s\n' "$1"; }
+# Without the language file the messages are in English. macOS has a program named say that reads text aloud,
+# so finding any "say" is not enough: it has to be the function from the language file.
+# Không có file ngôn ngữ thì thông báo bằng tiếng Anh. macOS có sẵn một chương trình tên say để đọc chữ thành tiếng,
+# nên thấy có "say" là chưa đủ: nó phải là hàm lấy từ file ngôn ngữ.
+[ "$(type -t say)" = function ] || say() { printf '%s\n' "$1"; }
 
 DIR="${AI_WORKER_CONNECTOR_DIR:-$HOME/.local/share/ai-worker/connector}"
 HOOK="$DIR/ai-worker-hook.sh"
@@ -132,6 +136,24 @@ settings_file() {
 
 tool_name() {
   case "$1" in codex) echo "Codex" ;; gemini) echo "Gemini CLI" ;; cursor) echo "Cursor" ;; esac
+}
+
+# A mark of everything in a skill folder, taken when the installer copies it, so a later run can tell a folder
+# the person has changed from one that is still as installed. Finder's .DS_Store does not count as a change.
+# Dấu của mọi thứ trong một thư mục skill, lấy lúc bộ cài chép vào, để lần chạy sau phân biệt được thư mục
+# người dùng đã sửa với thư mục còn nguyên như lúc cài. File .DS_Store của Finder không tính là thay đổi.
+skill_mark() {
+  (cd "$1" 2> /dev/null && find . -type f ! -name .DS_Store -exec cksum {} + | LC_ALL=C sort -k 3 | cksum | awk '{ print $1 "-" $2 }')
+}
+
+# the mark recorded for a skill: empty when the installer never put it there, "unknown" when an older installer did
+# dấu đã ghi cho một skill: rỗng khi bộ cài chưa từng đặt nó vào, "unknown" khi do bộ cài bản cũ đặt
+recorded_mark() {
+  awk -v skill="$1" '$1 == skill { print ($2 == "" ? "unknown" : $2); exit }' "$DIR/skills-installed" 2> /dev/null
+}
+
+record_skill() {
+  { awk -v skill="$1" '$1 != skill' "$DIR/skills-installed" 2> /dev/null; printf '%s %s\n' "$1" "$2"; } > "$DIR/skills-installed.new" && mv "$DIR/skills-installed.new" "$DIR/skills-installed"
 }
 
 tool_found() {
@@ -297,8 +319,15 @@ if [ "$ACTION" = uninstall ]; then
     send_now > /dev/null 2>&1
   fi
   if [ -f "$DIR/skills-installed" ]; then
-    while IFS= read -r skill; do
+    while read -r skill mark; do
       case "$skill" in "" | */* | .*) continue ;; esac
+      [ -d "$SKILLS_DIR/$skill" ] || continue
+      # a skill the person changed after the install is theirs now: it stays
+      # skill mà người dùng đã sửa sau khi cài thì giờ là của họ: để lại
+      if [ -n "$mark" ] && [ "$(skill_mark "$SKILLS_DIR/$skill")" != "$mark" ]; then
+        say "  Skill $skill: changed on this computer since it was installed, left where it is." "  Skill $skill: đã được sửa trên máy này từ sau khi cài, để nguyên tại chỗ."
+        continue
+      fi
       rm -rf "${SKILLS_DIR:?}/$skill"
     done < "$DIR/skills-installed"
     rmdir "$SKILLS_DIR" "$HOME/.agents" 2> /dev/null
@@ -437,8 +466,8 @@ for tool in codex cursor gemini; do
   esac
 done
 
-# the skills: only when asked for, and never over a folder this installer did not put there
-# các skill: chỉ khi được yêu cầu, và không bao giờ đè lên thư mục không do bộ cài này đặt vào
+# the skills: only when asked for, never over a folder this installer did not put there, and never over one the person changed
+# các skill: chỉ khi được yêu cầu, không bao giờ đè lên thư mục không do bộ cài này đặt vào, và không đè lên thư mục người dùng đã sửa
 if [ -z "$SKILLS" ] && [ -d "$HERE/../skills" ] && [ -t 0 ]; then
   Q=$(
   say "Also copy the AI Worker skills to $SKILLS_DIR, where Codex, Cursor and Gemini CLI read skills? (type y = yes, Enter = no): " "Chép thêm các skill của AI Worker vào $SKILLS_DIR, nơi Codex, Cursor và Gemini CLI đọc skill? (gõ y = có, Enter = không): "
@@ -451,13 +480,28 @@ if [ "$SKILLS" = yes ] && [ -d "$HERE/../skills" ]; then
   copied=0
   for skill in $PORTABLE_SKILLS; do
     [ -f "$HERE/../skills/$skill/SKILL.md" ] || continue
-    if [ -e "$SKILLS_DIR/$skill" ] && ! grep -Fqx "$skill" "$DIR/skills-installed" 2> /dev/null; then
-      say "  Skill $skill: a folder with this name is already there, left as it is." "  Skill $skill: đã có thư mục cùng tên, để nguyên."
-      continue
+    recorded=$(recorded_mark "$skill")
+    if [ -e "$SKILLS_DIR/$skill" ]; then
+      if [ -z "$recorded" ]; then
+        say "  Skill $skill: a folder with this name is already there, left as it is." "  Skill $skill: đã có thư mục cùng tên, để nguyên."
+        continue
+      fi
+      now_mark=$(skill_mark "$SKILLS_DIR/$skill")
+      # the same as the one in this package: nothing to copy, only the mark to note
+      # giống hệt bản trong gói này: không cần chép, chỉ ghi lại dấu
+      if [ "$now_mark" = "$(skill_mark "$HERE/../skills/$skill")" ]; then
+        record_skill "$skill" "$now_mark"
+        copied=$((copied + 1))
+        continue
+      fi
+      if [ "$now_mark" != "$recorded" ]; then
+        say "  Skill $skill: changed on this computer since it was installed, left as it is. To get the new one, delete that folder and run this again." "  Skill $skill: đã được sửa trên máy này từ sau khi cài, để nguyên. Muốn lấy bản mới thì xoá thư mục đó rồi chạy lại."
+        continue
+      fi
     fi
     rm -rf "${SKILLS_DIR:?}/$skill"
     cp -R "$HERE/../skills/$skill" "$SKILLS_DIR/$skill" && copied=$((copied + 1))
-    grep -Fqx "$skill" "$DIR/skills-installed" 2> /dev/null || printf '%s\n' "$skill" >> "$DIR/skills-installed"
+    record_skill "$skill" "$(skill_mark "$SKILLS_DIR/$skill")"
   done
   say "  $copied skills copied to $SKILLS_DIR" "  Đã chép $copied skill vào $SKILLS_DIR"
 fi

@@ -20,12 +20,17 @@ Standard library only, Python 3.8+. Settings come from environment variables:
   GET  /                                        operations dashboard of the whole team (text board: /board), login with a 6-digit OTP
   GET  /data, /static/<file>                   numbers and files of the 3D page (login required)
   POST /locations, /team-csv, /team-sale         name locations, load the Team plan CSV, mark the sales team (login required)
+  POST /mcp      Authorization: Bearer <key approved by an admin>   one MCP message; read-only, the wall view as text (MCP=0 removes it)
 
 Each computer (device-...) is tied to the account + name of its first send (table identities): even someone with
 INGEST_KEY cannot overwrite another person's row. To give a computer to someone else: stop the webhook, run
 webhook.py --forget-device <device-id> as the webhook's user, start it again.
 
   webhook.py --export-json <folder>    write the databases back as the JSON files of the version before SQLite
+  webhook.py --forget-usage <email or name>    delete one person's totals per day (kept 13 months); run it as the webhook's user
+
+Use over weeks and months comes from one total per person per day, added up from the hours the computers already send. Before the
+first start on an older database the server copies it to board.db.schema-<old version>.bak next to it; see docs/OPERATIONS.md.
 
 Only numbers are stored (sessions, tokens, money, tasks delegated); a computer never sends chat content or file names.
 
@@ -49,12 +54,17 @@ Only numbers are stored (sessions, tokens, money, tasks delegated); a computer n
   GET  /                                        bảng điều khiển vận hành cả team (bảng chữ: /board), đăng nhập bằng mã OTP 6 số
   GET  /data, /static/<file>                   số liệu và file của trang 3D (cần đăng nhập)
   POST /locations, /team-csv, /team-sale         đặt tên địa điểm, nạp CSV gói Team, đánh dấu đội sale (cần đăng nhập)
+  POST /mcp      Authorization: Bearer <khoá do quản trị duyệt>   một thông điệp MCP; chỉ đọc, phần treo tường dạng chữ (MCP=0 thì gỡ)
 
   Mỗi máy (device-...) gắn với tài khoản + tên gửi lần đầu (bảng identities): ai có INGEST_KEY cũng không
   ghi đè được dòng của người khác. Chuyển máy cho người khác: dừng webhook, chạy webhook.py --forget-device <mã-máy>
   bằng tài khoản của webhook, rồi bật lại.
 
   webhook.py --export-json <thư-mục>   ghi cơ sở dữ liệu ngược ra file JSON của bản trước SQLite
+  webhook.py --forget-usage <email hoặc tên>   xoá tổng theo ngày của một người (giữ 13 tháng); chạy bằng tài khoản của webhook
+
+  Mức dùng theo tuần và theo tháng lấy từ một con số tổng cho mỗi người mỗi ngày, cộng từ số liệu theo giờ mà các máy vốn đã gửi. Trước
+  lần chạy đầu trên cơ sở dữ liệu cũ, máy chủ chép nó thành board.db.schema-<phiên bản cũ>.bak nằm ngay cạnh; xem docs/OPERATIONS.vi.md.
 
   Chỉ lưu số liệu (số phiên, token, tiền, số việc giao); máy gửi không bao giờ gửi nội dung chat hay tên file.
 """
@@ -71,7 +81,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable, NamedTuple, Optional
 from urllib.parse import parse_qs, quote, urlparse
 
-from board import assets, db, packages, settings
+from board import assets, chat, db, mcp, packages, settings
 from board.assets import RELEASE_NAME_RE, STATIC_DIR, STATIC_FILES, has_3d_page
 from board.devices import clean_payload, key_matches, refuse_constant, save_ingest
 from board.lang import REQUEST, lang_from, tx
@@ -101,6 +111,8 @@ from board.pages import (
     page_login,
     page_telegram,
     page_telegram_back,
+    js_mcp_connect,
+    page_mcp_connect,
     page_mini,
     page_mini_pair,
     page_tv,
@@ -112,6 +124,7 @@ from board.security import (
     BOT_BLOCK_SECONDS,
     VIEWER,
     WALL,
+    CallLimit,
     session_lifetime,
 )
 from board.settings import (
@@ -119,8 +132,11 @@ from board.settings import (
     CONNECTION_DEADLINE_SECONDS,
     DATA_DIR,
     KIND_EXTENSION,
+    KIND_MCP,
     KIND_PLUGIN,
     MAX_BODY_BYTES,
+    MCP_CALLS_PER_KEY,
+    MCP_CALLS_WINDOW_SECONDS,
     MAX_CONNECTIONS,
     MAX_CONNECTIONS_PER_IP,
     MINI_HANDOFF_SECONDS,
@@ -147,8 +163,10 @@ from board.stores import (
     is_tv,
 )
 from board.views import (
+    DAILY,
     INGEST_GATE,
     admin_data,
+    daily_loop,
     edit_location,
     history_loop,
     history_view,
@@ -179,8 +197,16 @@ class Handler(BaseHTTPRequestHandler):
         # the browser extension holds its key in a header, not a cookie: a paired or waiting extension is not probing either
         # tiện ích trình duyệt giữ khoá trong header, không trong cookie: tiện ích đã ghép hoặc đang chờ cũng không phải đang dò
         bearer = self.bearer()
-        if bearer and ((self.path == "/ext/poll" and TV_PAIRING.has_key(bearer)) or
+        if bearer and ((self.path in ("/ext/poll", "/mcp/poll") and TV_PAIRING.has_key(bearer)) or
                        (self.path.split("?", 1)[0] in EXT_KEY_PATHS and bearer.startswith("tv_") and TV.find(bearer, now))):
+            return False
+        # an AI tool with a live MCP key is not probing either; how often it may ask is counted per key, in mcp_post
+        # công cụ AI có khoá MCP còn hạn cũng không phải đang dò; nó được hỏi bao nhiêu lần thì đếm theo khoá, trong mcp_post
+        if bearer.startswith("mcp_") and self.path == "/mcp" and settings.MCP_ENABLED and TV.find(bearer, now, side=KIND_MCP):
+            return False
+        # nor is the Telegram bot process of this machine, which shows its own key on its own path
+        # tiến trình bot Telegram của chính máy này cũng vậy, nó trình khoá riêng trên đường riêng
+        if self.path == "/bot/telegram" and settings.TELEGRAM_ASK_ENABLED and self.from_this_machine() and key_matches(self.headers.get("Authorization", ""), settings.TELEGRAM_ASK_KEY):
             return False
         if SESSIONS.user_of(cookie, now) or not BOT.is_blocked(self.client_ip(), now):
             return False
@@ -191,11 +217,15 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         return True
 
-    def reply(self, status: int, body) -> None:
+    def reply(self, status: int, body, quiet: bool = False, headers: tuple = ()) -> None:
+        """quiet: a 401 or 404 that is an ordinary answer, not a sign of probing, so it is not counted against the IP.
+        quiet: một 401 hay 404 là câu trả lời bình thường, không phải dấu hiệu dò, nên không tính vào IP."""
         b = json.dumps(body, ensure_ascii=False, allow_nan=False).encode()
-        if status in (401, 404) and self.path != "/ingest":
+        if status in (401, 404) and self.path != "/ingest" and not quiet:
             BOT.record_error(self.client_ip(), time.time())
         self.send_response(status)
+        for name, value in headers:
+            self.send_header(name, value)
         self.send_header("X-Robots-Tag", "noindex, nofollow")
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(b)))
@@ -277,7 +307,23 @@ class Handler(BaseHTTPRequestHandler):
         # POST so khớp cả chuỗi: đường có query không được lọt vào việc của đường khác
         self.dispatch(POST_ROUTES.get(self.path))
 
+    def do_DELETE(self):
+        # only the MCP endpoint is ever asked with DELETE, by an AI tool closing a session this server never opened: it gets the 405 a GET gets
+        # chỉ cổng MCP mới bị hỏi bằng DELETE, do công cụ AI đóng một phiên mà máy chủ này chưa từng mở: trả 405 như với GET
+        self.set_request_lang()
+        if self.bot_guard():
+            return
+        self.dispatch(GET_ROUTES.get(self.path) if self.path == "/mcp" else None)
+
     def dispatch(self, d: Optional["Route"]) -> None:
+        # with MCP=0 the MCP paths are gone: 404, the same as a path that was never there
+        # với MCP=0 các đường MCP biến mất: 404, như một đường chưa từng có
+        if d and d.mcp and not settings.MCP_ENABLED:
+            d = None
+        # the same for the Telegram bot's path, which is there only when the server's owner turned asking from Telegram on
+        # đường của bot Telegram cũng thế, nó chỉ có mặt khi chủ máy chủ đã bật việc hỏi qua Telegram
+        if d and d.telegram_ask and not settings.TELEGRAM_ASK_ENABLED:
+            d = None
         if not d:
             return self.reply(404, {"error": tx("Not found")})
         y = self.gate(d)
@@ -308,6 +354,35 @@ class Handler(BaseHTTPRequestHandler):
                 return RequestCtx("tv:" + tv["name"], WALL, "", now)
             self.note_revoked_key(token, now)
             self.reply(401, {"error": tx("Not paired")})
+            return None
+        if d.permission == PERM_BOT_KEY:
+            # the Telegram bot process on this same machine, calling the webhook's port directly with the key the installer gave both.
+            # Anything that came through the proxy, from any network, is told the path does not exist; cookies and logins count for nothing
+            # tiến trình bot Telegram trên chính máy này, gọi thẳng cổng của webhook bằng khoá mà bộ cài giao cho cả hai.
+            # Mọi thứ đi qua proxy, từ mạng nào cũng vậy, được báo là đường này không tồn tại; cookie và phiên đăng nhập không có giá trị gì
+            if not self.from_this_machine():
+                self.reply(404, {"error": tx("Not found")})
+                return None
+            if key_matches(self.headers.get("Authorization", ""), settings.TELEGRAM_ASK_KEY):
+                return RequestCtx("bot:telegram", WALL, "", now)
+            self.reply(401, {"error": "wrong bot key"})
+            return None
+        if d.permission == PERM_MCP_KEY:
+            # an AI tool on the MCP endpoint: its key is in the Authorization header and cookies are ignored. A tool sends no Origin;
+            # a web page on another site does, and is refused whatever key it holds (the MCP transport asks for this check)
+            # công cụ AI ở cổng MCP: khoá của nó nằm trong header Authorization và cookie bị bỏ qua. Công cụ thì không gửi Origin;
+            # trang web ở nơi khác thì có gửi, và bị từ chối dù cầm khoá nào (kiểu truyền của MCP đòi bước kiểm này)
+            origin = self.headers.get("Origin")
+            if origin and urlparse(origin).netloc != self.headers.get("Host"):
+                self.reply(403, {"error": tx("Wrong origin")})
+                return None
+            token = self.bearer()
+            key = TV.find(token, now, side=KIND_MCP) if token.startswith("mcp_") else None
+            if key:
+                return RequestCtx("mcp:" + key["name"], WALL, "", now)
+            self.note_revoked_key(token, now)
+            self.reply(401, {"error": tx("This endpoint needs a key from the board, sent as Authorization: Bearer. Open /mcp/connect on the board to ask for one; an admin approves each key.")},
+                       headers=(("WWW-Authenticate", 'Bearer realm="AI Worker board"'),))
             return None
         user, role = SESSIONS.user_and_role(cookie, now)
         if not user and SESSIONS.token_of(cookie).startswith("tv_"):
@@ -357,10 +432,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply_page(200, page_login())
         if y.role == WALL and not has_3d_page():
             return self.reply(503, {"error": tx("The wall display page is missing")})
-        self.reply_page(200, page_3d(y.user, y.role) if has_3d_page() else page_board(y.user, y.now))
+        self.reply_page(200, page_3d(y.user, y.role) if has_3d_page() else page_board(y.user, y.now, y.role))
 
     def get_board(self, y: "RequestCtx") -> None:
-        self.reply_page(200, page_board(y.user, y.now))
+        self.reply_page(200, page_board(y.user, y.now, y.role))
 
     def get_tv(self, y: "RequestCtx") -> None:
         if y.user:
@@ -679,12 +754,15 @@ class Handler(BaseHTTPRequestHandler):
         # a cookie would land in the manager's own browser and replace their login to the board
         # tiện ích trình duyệt (/ext/...) dùng cùng quy trình, nhưng khoá đi trong header Authorization và trong JSON trả về:
         # cookie sẽ nằm trong chính trình duyệt của quản lý và đè lên phiên đăng nhập bảng của họ
-        extension = self.path.startswith("/ext/")
-        # a manager's Claude plugin pairs on the extension's paths and names itself, so /admin can tell the two apart
-        # plugin Claude của quản lý ghép trên các đường dẫn của tiện ích và tự xưng tên, để /admin phân biệt được hai loại
-        kind = (KIND_PLUGIN if is_plugin_client(user_agent) else KIND_EXTENSION) if extension else ""
+        mcp_key = self.path.startswith("/mcp/")
+        extension = self.path.startswith("/ext/") or mcp_key
+        # a manager's Claude plugin pairs on the extension's paths and names itself, so /admin can tell the two apart.
+        # A key for the MCP endpoint is asked for on its own paths, by the board's own page: the kind is set by the path, not by a name the client gives
+        # plugin Claude của quản lý ghép trên các đường dẫn của tiện ích và tự xưng tên, để /admin phân biệt được hai loại.
+        # Khoá cho cổng MCP được xin trên các đường riêng của nó, từ trang của chính bảng: loại do đường dẫn quyết, không do tên client tự khai
+        kind = KIND_MCP if mcp_key else (KIND_PLUGIN if is_plugin_client(user_agent) else KIND_EXTENSION) if extension else ""
         key = self.bearer() if extension else self.pending_key()
-        if self.path in ("/tv/request-code", "/ext/request-code"):
+        if self.path in ("/tv/request-code", "/ext/request-code", "/mcp/request-code"):
             # only a menu bar client's code may later be approved by its owner on /mini/pair; a TV's or an extension's needs an admin
             # chỉ mã của ứng dụng thanh menu mới được chủ máy tự duyệt ở /mini/pair; mã của TV hay tiện ích cần quản trị duyệt
             result = TV_PAIRING.request_code(key, ip, user_agent, now, kind, menubar=not extension and is_menubar_client(user_agent))
@@ -708,10 +786,89 @@ class Handler(BaseHTTPRequestHandler):
         AUDIT_LOG.write(action="tv-joined", tv=r["name"], id=tv_id, **({"kind": r["kind"]} if r.get("kind") else {}), clientIp=ip, approvedBy=r["approvedBy"])
         sys.stderr.write("screen %s joined from %s, approved by %s\n" % (r["name"], ip, r["approvedBy"]))
         if extension:
-            return self.reply(200, {"status": "done", "name": r["name"], "token": token})
+            return self.reply(200, {"status": "done", "name": r["name"], "token": token, **({"scope": TV.d[tv_id]["scope"]} if r.get("kind") == KIND_MCP else {})})
         b = json.dumps({"status": "done", "name": r["name"]}, ensure_ascii=False).encode()
         return self.reply_page(200, b, cookie="session=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Strict" % (token, TV_SESSION_SECONDS),
                               content_type="application/json; charset=utf-8")
+
+    def mcp_post(self, y: "RequestCtx") -> None:
+        """One MCP message from an AI tool that holds a key an admin approved. Read-only: the tool gets the wall view as text, cut down to what
+        its key may read. board/mcp.py speaks the protocol; this method counts, logs and sends. The gate has already checked the key and the origin.
+        Một thông điệp MCP từ công cụ AI cầm khoá đã được quản trị duyệt. Chỉ đọc: công cụ nhận phần treo tường dạng chữ, rút gọn theo thứ
+        khoá của nó được đọc. board/mcp.py lo phần giao thức; hàm này đếm, ghi nhật ký và gửi. Cổng đã kiểm khoá và nguồn gửi."""
+        token, ip = self.bearer(), self.client_ip()
+        key, key_id = TV.find(token, y.now, side=KIND_MCP), TV.id_of(token)
+        if not key:
+            # revoked between the gate and here
+            # bị thu hồi giữa lúc qua cổng và lúc tới đây
+            return self.reply(401, {"error": tx("Not paired")}, quiet=True)
+        if not MCP_LIMIT.allow(key_id, y.now):
+            if MCP_LIMIT.first_refusal(key_id, y.now):
+                AUDIT_LOG.write(action="mcp-rate-limited", tv=key["name"], id=key_id, clientIp=ip)
+            return self.reply(429, {"error": tx("This key has asked too often. Try again in a few minutes.")}, headers=(("Retry-After", str(MCP_LIMIT.retry_after(key_id, y.now))),))
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = 0
+        if n <= 0 or n > mcp.MAX_REQUEST_BYTES:
+            return self.reply(413, {"error": tx("Too large")})
+        raw = self.rfile.read(n)
+        TV.touch(token, ip, y.now, side=KIND_MCP)
+        TV_STATUS.mark_seen(key_id, "", y.now)
+        r = mcp.handle(raw, {k.lower(): v for k, v in self.headers.items()}, key.get("scope", ""), lambda: role_view(WALL, y.now), y.now * 1000)
+        # an older tool names itself once, in initialize: remember the name for its later calls. For the log only, it can be faked
+        # công cụ đời cũ chỉ xưng tên một lần, trong initialize: nhớ tên cho các lần gọi sau. Chỉ để ghi nhật ký, giả được
+        if r.client:
+            MCP_CLIENTS[key_id] = r.client
+        if r.method == "tools/call":
+            client = MCP_CLIENTS.get(key_id) or re.sub(r"[^A-Za-z0-9 ._+/-]", "", self.headers.get("User-Agent", ""))[:60]
+            AUDIT_LOG.write(action=AUDIT_LOG.MCP_CALL, tv=key["name"], id=key_id, tool=r.tool, ok=bool(r.tool), clientIp=ip, client=client, protocol=r.era)
+        if r.body is None:
+            self.send_response(r.status)
+            self.send_header("X-Robots-Tag", "noindex, nofollow")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", "0")
+            return self.end_headers()
+        # a 404 here answers a method this server does not offer: the tool is paired, it is not probing
+        # 404 ở đây là trả lời cho một phương thức máy chủ không có: công cụ đã ghép, không phải đang dò
+        self.reply(r.status, r.body, quiet=True)
+
+    def bot_telegram(self, y: "RequestCtx") -> None:
+        """One message the Telegram bot process on this machine got from Telegram. The answer says what to send back, or nothing.
+        board/chat.py decides: whether the chat is approved, what it may read, how often it may ask. The gate has already checked the key.
+        Một tin nhắn tiến trình bot Telegram trên máy này nhận từ Telegram. Câu trả lời cho biết gửi lại gì, hoặc không gửi gì.
+        board/chat.py quyết định: chat đã được duyệt chưa, được đọc gì, được hỏi bao nhiêu lần. Cổng đã kiểm khoá."""
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = 0
+        if n <= 0 or n > chat.MAX_MESSAGE_BYTES:
+            return self.reply(413, {"error": tx("Too large")})
+        try:
+            msg = json.loads(self.rfile.read(n), parse_constant=refuse_constant)
+            if not isinstance(msg, dict):
+                raise ValueError
+        except ValueError:
+            return self.reply(400, {"error": tx("Not JSON")})
+        self.reply(200, chat.on_call(msg, y.now), quiet=True)
+
+    def get_mcp_connect(self, y: "RequestCtx") -> None:
+        self.reply_page(200, page_mcp_connect())
+
+    def get_mcp_connect_js(self, y: "RequestCtx") -> None:
+        self.reply_page(200, js_mcp_connect(), content_type="text/javascript; charset=utf-8", cache_control="no-cache")
+
+    def mcp_not_allowed(self, y: "RequestCtx") -> None:
+        """GET or DELETE on the MCP endpoint: this server opens no stream and keeps no session, which the protocol answers with 405.
+        GET hoặc DELETE ở cổng MCP: máy chủ này không mở luồng và không giữ phiên, giao thức quy định trả 405."""
+        self.reply(405, {"error": "Use POST"}, headers=(("Allow", "POST"),))
+
+    def get_no_oauth(self, y: "RequestCtx") -> None:
+        """Some AI tools look for OAuth settings after a 401 from the MCP endpoint. There are none: a plain 404, not counted as probing,
+        so a tool holding a wrong key cannot get its whole office blocked.
+        Vài công cụ AI đi tìm cấu hình OAuth sau khi nhận 401 từ cổng MCP. Không có cấu hình nào: trả 404 thường, không tính là dò,
+        để một công cụ cầm khoá sai không làm cả văn phòng bị chặn."""
+        self.reply(404, {"error": "This server has no OAuth: the MCP endpoint takes a key from the board in the Authorization header."}, quiet=True)
 
     def admin_action(self, y: "RequestCtx") -> None:
         """Manager actions on the board: name locations, load the Team plan CSV, mark the sales team. The gate has already checked login, origin and role.
@@ -918,6 +1075,13 @@ class Handler(BaseHTTPRequestHandler):
             self.audit_request(y, action="telegram-unlink", accountName=y.user)
             self.redirect_home(dest="/telegram?done=unlinked")
 
+    def from_this_machine(self) -> bool:
+        """A program on the server itself calling the webhook's port directly, not a request a proxy passed on. Caddy and nginx connect
+        from this machine too, but they add forwarding headers that the caller cannot take off; a browser adds Origin.
+        Một chương trình trên chính máy chủ gọi thẳng cổng của webhook, không phải yêu cầu do proxy chuyển tới. Caddy và nginx cũng kết nối
+        từ máy này, nhưng chúng gắn các header chuyển tiếp mà bên gọi không gỡ được; trình duyệt thì gắn Origin."""
+        return self.client_address[0] in ("127.0.0.1", "::1") and not any(self.headers.get(h) is not None for h in FORWARDED_HEADERS)
+
     def via_proxy(self) -> bool:
         """A request forwarded by Caddy/nginx on the server itself: only then are the X-Forwarded-* headers trusted.
         Someone calling the webhook port directly from another machine cannot fake the IP (the wrong-login lock counts by IP).
@@ -990,6 +1154,23 @@ PERM_PUBLIC, PERM_INGEST_KEY, PERM_LOGIN, PERM_NOT_WALL, PERM_ADMIN = "public", 
 # a paired device key in the Authorization header (the browser extension); always the wall role
 # khoá thiết bị đã ghép trong header Authorization (tiện ích trình duyệt); luôn là vai treo tường
 PERM_DEVICE_KEY = "device-key"
+# a key for the MCP endpoint in the Authorization header: only that kind of key, and it opens nothing else
+# khoá cho cổng MCP trong header Authorization: chỉ loại khoá đó, và nó không mở được gì khác
+PERM_MCP_KEY = "mcp-key"
+# the key of the Telegram bot process, from this machine only: see Handler.from_this_machine
+# khoá của tiến trình bot Telegram, chỉ từ chính máy này: xem Handler.from_this_machine
+PERM_BOT_KEY = "bot-key"
+# a request that carries one of these did not come straight from a program on this machine
+# yêu cầu mang một trong các header này thì không tới thẳng từ một chương trình trên máy này
+FORWARDED_HEADERS = ("X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Real-IP", "Forwarded", "Via", "Origin")
+# how often each MCP key may ask, and the name each AI tool last gave for itself
+# mỗi khoá MCP được hỏi bao nhiêu lần, và cái tên mỗi công cụ AI tự xưng gần nhất
+MCP_LIMIT = CallLimit(MCP_CALLS_PER_KEY, MCP_CALLS_WINDOW_SECONDS)
+MCP_CLIENTS = {}
+# where an AI tool looks for OAuth settings after a 401: this server has none
+# nơi công cụ AI tìm cấu hình OAuth sau khi nhận 401: máy chủ này không có
+NO_OAUTH_PATHS = ("/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-authorization-server",
+                  "/.well-known/oauth-authorization-server/mcp", "/.well-known/openid-configuration", "/.well-known/openid-configuration/mcp")
 # the paths a paired extension asks with its key; the probing guard lets them through
 # các đường tiện ích đã ghép hỏi bằng khoá của nó; lớp chặn dò cho đi qua
 EXT_KEY_PATHS = ("/ext/state", "/ext/data", "/ext/mini")
@@ -1017,6 +1198,12 @@ class Route(NamedTuple):
     allow_query: bool = False
     origin_policy: Optional[str] = None
     require_otp: bool = False
+    # part of the MCP endpoint: gone (404) when MCP=0
+    # thuộc cổng MCP: biến mất (404) khi MCP=0
+    mcp: bool = False
+    # part of asking the board from Telegram: gone (404) unless TELEGRAM_ASK=1
+    # thuộc việc hỏi bảng qua Telegram: biến mất (404) trừ khi TELEGRAM_ASK=1
+    telegram_ask: bool = False
 
 
 # Every path of the server is listed here; one that is not here is 404. Add a new path to the permission table in test_webhook.py too.
@@ -1058,6 +1245,14 @@ GET_ROUTES = {
     "/telegram": Route(Handler.get_telegram, PERM_NOT_WALL, is_page=True, allow_query=True),
     "/telegram/link": Route(Handler.telegram_link, PERM_NOT_WALL, is_page=True, allow_query=True),
     "/admin/data": Route(Handler.get_admin_data, PERM_ADMIN, allow_query=True),
+    # the MCP endpoint takes POST only; do_DELETE comes here too
+    # cổng MCP chỉ nhận POST; do_DELETE cũng về đây
+    "/mcp": Route(Handler.mcp_not_allowed, PERM_MCP_KEY, mcp=True),
+    # where a person asks for a key for their own AI tool; nothing is given out until an admin approves the code the page shows
+    # nơi một người xin khoá cho công cụ AI của chính mình; không cấp gì cho tới khi quản trị duyệt mã trang hiện ra
+    "/mcp/connect": Route(Handler.get_mcp_connect, PERM_PUBLIC, mcp=True),
+    "/mcp-connect.js": Route(Handler.get_mcp_connect_js, PERM_PUBLIC, mcp=True),
+    **{path: Route(Handler.get_no_oauth, PERM_PUBLIC, mcp=True) for path in NO_OAUTH_PATHS},
 }
 STATIC_ROUTE = Route(Handler.get_static, PERM_LOGIN)
 RELEASES_ROUTE = Route(Handler.get_release, PERM_INGEST_KEY)
@@ -1076,6 +1271,16 @@ POST_ROUTES = {
     # khoá của chính tiện ích trong header Authorization chỉ thu hồi khoá đó
     "/ext/unpair": Route(Handler.ext_unpair, PERM_DEVICE_KEY, origin_policy=ORIGIN_EXTENSION),
     "/ingest": Route(Handler.ingest, PERM_INGEST_KEY),
+    # an AI tool with a key an admin approved asks the board's numbers; read-only
+    # công cụ AI có khoá đã được quản trị duyệt hỏi số liệu của bảng; chỉ đọc
+    "/mcp": Route(Handler.mcp_post, PERM_MCP_KEY, mcp=True),
+    # the board's own page asks for a code and then for the key; a page on another site, or a request with no Origin, is refused
+    # trang của chính bảng xin mã rồi xin khoá; trang ở nơi khác, hoặc yêu cầu không có Origin, bị từ chối
+    "/mcp/request-code": Route(Handler.tv_pair, PERM_PUBLIC, origin_policy=ORIGIN_REQUIRED, mcp=True),
+    "/mcp/poll": Route(Handler.tv_pair, PERM_PUBLIC, origin_policy=ORIGIN_REQUIRED, mcp=True),
+    # the Telegram bot process on this machine hands over each message it gets, and is told what to answer
+    # tiến trình bot Telegram trên máy này đưa từng tin nó nhận được, và được cho biết phải trả lời gì
+    "/bot/telegram": Route(Handler.bot_telegram, PERM_BOT_KEY, telegram_ask=True),
     "/mini/handoff": Route(Handler.mini_action, PERM_LOGIN, origin_policy=ORIGIN_IF_PRESENT),
     "/mini/pair": Route(Handler.mini_self_pair, PERM_PUBLIC, origin_policy=ORIGIN_REQUIRED),
     "/mini/settings": Route(Handler.mini_action, PERM_LOGIN, origin_policy=ORIGIN_REQUIRED),
@@ -1116,6 +1321,10 @@ if __name__ == "__main__":
             forgotten = c.execute("DELETE FROM identities WHERE device = ?", (sys.argv[2],)).rowcount
         print("forgot %s" % sys.argv[2] if forgotten else "no such device: %s" % sys.argv[2])
         sys.exit(0 if forgotten else 1)
+    if len(sys.argv) == 3 and sys.argv[1] == "--forget-usage":
+        forgotten = DAILY.forget(sys.argv[2])
+        print("deleted %d daily rows of %s" % (forgotten, sys.argv[2]) if forgotten else "no daily rows for: %s" % sys.argv[2])
+        sys.exit(0 if forgotten else 1)
     if not settings.INGEST_KEY:
         sys.exit("INGEST_KEY is required. See README.md.")
     # data files readable only by the account running the webhook
@@ -1130,4 +1339,5 @@ if __name__ == "__main__":
     if ADMIN not in count:
         print("No admin yet, nobody can open /admin: sudo bash manage-otp.sh --rescue <name>", flush=True)
     threading.Thread(target=history_loop, daemon=True).start()
+    threading.Thread(target=daily_loop, daemon=True).start()
     LimitedServer((BIND_ADDR, PORT), Handler).serve_forever()

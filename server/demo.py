@@ -31,6 +31,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ACCOUNT = "demo"
 DEFAULT_PORT = 8799
 REFRESH_SECONDS = 20
+# hours of cost each sample computer holds, as a real one does, and how many weeks before that the demo fills in as daily totals,
+# so the part of the board with use by week and month has a last week and a last month to compare with, and its charts have half a year to draw
+# số giờ chi phí mỗi máy giả lập giữ, như máy thật, và số tuần trước đó mà bản thử điền sẵn thành tổng theo ngày,
+# để phần mức dùng theo tuần và theo tháng của bảng có tuần trước và tháng trước mà so, và biểu đồ của nó có nửa năm để vẽ
+LEDGER_HOURS = 8 * 24
+HISTORY_WEEKS = 26
 # settings of a real board that must not leak into the demo when it is started from a shell that has them
 # cấu hình của bảng thật không được lọt vào bản thử khi chạy từ một cửa sổ lệnh đang có sẵn chúng
 REAL_SETTINGS = ("OTP_WALL", "TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_NAME", "TRUST_PROXY", "MENUBAR_ICON_DIR", "MENUBAR_MAC_APP", "MAX_CONNECTIONS", "OTP_LABEL")
@@ -70,25 +76,37 @@ def sample_branches() -> dict:
                           "people": [email_of(i) for i, p in enumerate(PEOPLE) if p[1] == key]} for key, name, lat, lon in OFFICES]}
 
 
+def busy_of(i: int) -> float:
+    return 0.4 + (i * 37 % 10) / 8.0
+
+
+def sample_hours(rnd: random.Random, hour: int, hours: int, busy: float) -> tuple:
+    """Cost and delegated tasks for the hours before the given one, in the shape of a computer's ledger: busy in office hours, quiet at night and at weekends.
+    Chi phí và việc đã giao cho các giờ trước giờ đã cho, đúng dạng sổ theo giờ của một máy: bận trong giờ làm, vắng vào ban đêm và cuối tuần."""
+    ledger, tasks = {}, {}
+    for back in range(hours):
+        at = time.localtime((hour - back) * 3600)
+        office_hours = 1.0 if 8 <= at.tm_hour <= 18 else (0.25 if 19 <= at.tm_hour <= 22 else 0.03)
+        if at.tm_wday >= 5:
+            office_hours *= 0.15
+        if rnd.random() < 0.15 + 0.8 * office_hours:
+            usd = round(busy * office_hours * rnd.uniform(0.4, 3.2), 2)
+            ledger[str(hour - back)] = {"usd": usd, "input": int(usd * 9000), "output": int(usd * 1700), "cacheRead": int(usd * 240000), "cacheWrite": int(usd * 21000)}
+            if rnd.random() < 0.55:
+                tasks[str(hour - back)] = {"gemini": rnd.randint(0, 3), "chatgpt": rnd.randint(0, 2), "gemma": rnd.randint(0, 4)}
+    return ledger, tasks
+
+
 def sample_reports(now: float, plugin_version: str = "1.0.0", seed: int = 7) -> list:
-    """One report per sample person, in the shape a real computer sends: the last 30 hours of cost, tasks handed to the
+    """One report per sample person, in the shape a real computer sends: the last 8 days of cost per hour, tasks handed to the
     helper assistants, quota, and what the person is doing now. The same seed gives the same numbers.
-    Mỗi nhân viên giả lập một bản báo cáo, đúng dạng một máy thật gửi: chi phí 30 giờ qua, việc đã giao cho trợ lý phụ,
+    Mỗi nhân viên giả lập một bản báo cáo, đúng dạng một máy thật gửi: chi phí theo giờ của 8 ngày qua, việc đã giao cho trợ lý phụ,
     hạn mức, và người đó đang làm gì. Cùng seed thì ra cùng số liệu."""
     rnd = random.Random(seed)
     hour = int(now // 3600)
     reports = []
     for i, (name, office, state, model, _minutes, five_hour, seven_day) in enumerate(PEOPLE):
-        busy = 0.4 + (i * 37 % 10) / 8.0
-        ledger, tasks = {}, {}
-        for back in range(30):
-            hour_of_day = time.localtime((hour - back) * 3600).tm_hour
-            office_hours = 1.0 if 8 <= hour_of_day <= 18 else (0.25 if 19 <= hour_of_day <= 22 else 0.03)
-            if rnd.random() < 0.15 + 0.8 * office_hours:
-                usd = round(busy * office_hours * rnd.uniform(0.4, 3.2), 2)
-                ledger[str(hour - back)] = {"usd": usd, "input": int(usd * 9000), "output": int(usd * 1700), "cacheRead": int(usd * 240000), "cacheWrite": int(usd * 21000)}
-                if rnd.random() < 0.55:
-                    tasks[str(hour - back)] = {"gemini": rnd.randint(0, 3), "chatgpt": rnd.randint(0, 2), "gemma": rnd.randint(0, 4)}
+        ledger, tasks = sample_hours(rnd, hour, LEDGER_HOURS, busy_of(i))
         last_seen = now - 26 * 3600 if state == "offline" else now
         reports.append({
             "v": 1, "device": "device-demo%02d" % i, "name": name, "account": email_of(i), "updatedAt": int(last_seen * 1000),
@@ -105,6 +123,23 @@ def sample_reports(now: float, plugin_version: str = "1.0.0", seed: int = 7) -> 
                                                               {"kind": "seven_day", "pct": seven_day, "resetsAt": int((now + 86400 * 3) * 1000)}]},
         })
     return reports
+
+
+def sample_history(now: float, weeks: int = HISTORY_WEEKS, seed: int = 23) -> list:
+    """The weeks before the ones the sample computers still hold: for each week, oldest first, the time it ended and what every computer
+    would have reported then. Use grows a little from week to week, so the comparison on the board has something to show.
+    Các tuần trước những tuần mà máy giả lập còn giữ: với mỗi tuần, cũ trước, là thời điểm tuần đó kết thúc và thứ mọi máy
+    lẽ ra đã báo lúc ấy. Mức dùng tăng dần một chút qua từng tuần, để phần so sánh trên bảng có cái mà hiện."""
+    rnd = random.Random(seed)
+    out = []
+    for back in range(weeks, 0, -1):
+        then = now - back * 7 * 86400
+        reports = []
+        for i, person in enumerate(PEOPLE):
+            ledger, tasks = sample_hours(rnd, int(then // 3600), 7 * 24, busy_of(i) * max(0.35, 1.0 - 0.025 * back))
+            reports.append({"v": 1, "device": "device-demo%02d" % i, "name": person[0], "account": email_of(i), "updatedAt": int(then * 1000), "ledger": ledger, "tasks": tasks})
+        out.append((then, reports))
+    return out
 
 
 def sample_connector_reports(now: float) -> list:
@@ -206,7 +241,7 @@ def main(argv=None) -> int:
             os.makedirs(os.environ[name])
         sys.path.insert(0, HERE)
         import webhook as w
-        from board import devices, security, stores
+        from board import daily, devices, security, stores, views
 
         w.ACCOUNTS.import_from_env()
         now = time.time()
@@ -222,6 +257,12 @@ def main(argv=None) -> int:
                 devices.save_ingest(devices.clean_payload(r, at), at)
 
         send_all(now)
+        # the weeks before go straight into the daily totals, through the same code that counts a real board's days
+        # các tuần trước đó đi thẳng vào tổng theo ngày, qua đúng đoạn mã đếm ngày của bảng thật
+        office_names = {key: name for key, name, _lat, _lon in OFFICES}
+        offices = {devices.person_key(r): (p[1], office_names[p[1]]) for r, p in zip(reports, PEOPLE)}
+        for then, old_reports in sample_history(now):
+            views.DAILY.record(daily.totals_by_day(old_reports, then), offices, then)
         # the people who start out waiting have already waited a while, so the board has waiting times to show
         # những người lúc đầu đang chờ đã chờ sẵn một lúc, để bảng có thời gian chờ mà hiện
         stores.WAIT_TRACKER.since.update(waiting_since)
@@ -243,7 +284,7 @@ def main(argv=None) -> int:
         # để thử một bộ nối (connectors/) với bản thử này: khoá được tạo mới mỗi lần chạy và không mở được gì khác
         print("Send key  %s" % os.environ["INGEST_KEY"])
         print("Stop      Ctrl+C (the sample data is deleted)", flush=True)
-        for target in (w.history_loop, keep_alive, lambda: show_codes(secret, security.totp_code, stop)):
+        for target in (w.history_loop, w.daily_loop, keep_alive, lambda: show_codes(secret, security.totp_code, stop)):
             threading.Thread(target=target, daemon=True).start()
         try:
             server.serve_forever()

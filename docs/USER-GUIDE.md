@@ -189,7 +189,7 @@ It updates by itself every 10 seconds:
 - **View mode:** switch between the diagram and the map of branches, in 2D or 3D.
 - **Replay last 24 hours:** play back the day; **Back to now** returns to live.
 - **Explain** shows what each colour and line means.
-- **Detail board** (`/board`): the same numbers as a table, with the Plugin column showing which computers are not on the latest version.
+- **Detail board** (`/board`): the same numbers as a table, with the Plugin column showing which computers are not on the latest version. Below the table, **Use by week and month** starts with charts: the team's cost per week for the last 12 weeks and per month for up to 13 months, then a small row of columns for each office, all on one scale. A striped column is a week or month that is not whole: the current one, or the one the numbers start in. Point at a column, or tap it on a phone, to see its dates and exact amount. Under the charts, a table shows the cost of this week and this month for the whole team, each office and each person, next to last week and last month. ▲ and ▼ compare with the same number of days before, so a Wednesday is measured against Monday to Wednesday of last week. A dash means the server had no numbers yet for that time. Wall screens do not have this part.
 
 Colours: green is working, yellow is waiting for an answer, light blue is idle, grey is offline.
 
@@ -245,6 +245,8 @@ A manager can ask Claude about the team in their own words, typed or dictated, i
 - **To speak instead of typing:** type `/ai-worker:voice` once to set up your system's dictation (see 1.2), then use it in the Claude message box: the microphone key on a Mac, Windows key + H on Windows. Claude Code's own `/voice` does not list every language.
 - **To stop:** type `/ai-worker:board unpair`, or an admin clicks **Revoke** on the Admin page. Away from the office network the board does not answer, and the pairing is kept.
 - A computer that is not paired has no such tool, so nothing changes for staff.
+- **From another AI tool:** Codex CLI, Cursor, Gemini CLI, or Claude Code without this plugin, can ask the same questions through the board's MCP endpoint. Open the page `/mcp/connect` of your board, read the code it shows to an admin, and paste the key it then gives into your tool. What that tool reads is sent to the company that makes it. Steps and limits: [INSTALL.md](INSTALL.md), section "Ask the board from an AI tool (MCP)".
+- **From Telegram** (when your admin has turned it on): open the board's bot in Telegram, press **Start** and read the 8-digit code it shows to an admin. Once approved, tap **Who is waiting**, **Cost**, **Offices**, **Team** or **Quota**, or type a short question such as "who is waiting longest?". No AI reads the question: the bot gives one of a few fixed answers from the board's numbers. What the chat reads goes through Telegram and stays in the chat on your phone. Send `/stop` to disconnect. The bot never asks for your login code. Steps and limits: [INSTALL.md](INSTALL.md), section "Ask the board from Telegram".
 
 ---
 

@@ -189,7 +189,7 @@ Trang tự cập nhật 10 giây một lần:
 - **Chế độ xem:** chuyển giữa sơ đồ và bản đồ các chi nhánh, dạng 2D hoặc 3D.
 - **Tua lại 24 giờ:** xem lại diễn biến trong ngày; **Về hiện tại** để quay về số liệu đang chạy.
 - **Giải thích** cho biết mỗi màu, mỗi đường nghĩa là gì.
-- **Bảng chi tiết** (`/board`): cùng số liệu dạng bảng, có cột Plugin cho biết máy nào chưa lên bản mới nhất.
+- **Bảng chi tiết** (`/board`): cùng số liệu dạng bảng, có cột Plugin cho biết máy nào chưa lên bản mới nhất. Bên dưới bảng, phần **Mức dùng theo tuần và theo tháng** mở đầu bằng biểu đồ: chi phí của cả đội theo tuần trong 12 tuần gần nhất và theo tháng trong tối đa 13 tháng, rồi mỗi văn phòng một hàng cột nhỏ, tất cả cùng một thang đo. Cột sọc là tuần hoặc tháng chưa trọn: tuần, tháng hiện tại, hoặc tuần, tháng bắt đầu có số liệu. Rê chuột vào một cột, hoặc chạm vào nó trên điện thoại, để xem ngày tháng và số tiền chính xác. Dưới biểu đồ là bảng cho thấy chi phí tuần này và tháng này của cả đội, từng văn phòng và từng người, đặt cạnh tuần trước và tháng trước. ▲ và ▼ là so với cùng số ngày trước đó, nên ngày thứ Tư được đem so với thứ Hai tới thứ Tư của tuần trước. Dấu gạch nghĩa là lúc đó máy chủ chưa có số liệu. Màn hình treo tường không có phần này.
 
 Màu: xanh lá là đang làm, vàng là đang chờ trả lời, xanh nhạt là đang rảnh, xám là không kết nối.
 
@@ -245,6 +245,8 @@ Quản lý có thể hỏi Claude về cả đội bằng lời của mình, gõ
 - **Muốn nói thay vì gõ:** gõ `/ai-worker:voice` một lần để cài đọc chính tả của máy (xem 1.2), rồi dùng nó trong ô nhập của Claude: phím micro trên Mac, phím Windows + H trên Windows. Lệnh `/voice` của Claude Code không có đủ mọi ngôn ngữ, trong đó chưa có tiếng Việt.
 - **Muốn dừng:** gõ `/ai-worker:board unpair`, hoặc người quản trị bấm **Thu hồi** ở trang Quản trị. Ngoài mạng văn phòng thì bảng không trả lời, và lần ghép vẫn được giữ.
 - Máy chưa ghép thì không có công cụ này, nên với nhân viên không có gì thay đổi.
+- **Từ một công cụ AI khác:** Codex CLI, Cursor, Gemini CLI, hoặc Claude Code không có plugin này, hỏi được các câu tương tự qua cổng MCP của bảng. Mở trang `/mcp/connect` của bảng, đọc mã trang hiện ra cho quản trị, rồi dán khoá trang đưa vào công cụ của bạn. Những gì công cụ đó đọc sẽ được gửi tới hãng làm ra nó. Các bước và giới hạn: [INSTALL.vi.md](INSTALL.vi.md), mục "Hỏi bảng từ một công cụ AI (MCP)".
+- **Từ Telegram** (khi quản trị đã bật): mở bot của bảng trong Telegram, bấm **Start** và đọc mã 8 số bot đưa cho quản trị. Được duyệt rồi thì bấm **Ai đang chờ**, **Chi phí**, **Văn phòng**, **Tổng quan** hoặc **Hạn mức**, hoặc gõ một câu ngắn như "ai đang chờ lâu nhất?". Không AI nào đọc câu hỏi: bot đưa một trong vài câu trả lời cố định lấy từ số liệu của bảng. Những gì chat đọc sẽ đi qua Telegram và nằm lại trong chat trên điện thoại của bạn. Gửi `/stop` để gỡ. Bot không bao giờ hỏi mã đăng nhập của bạn. Các bước và giới hạn: [INSTALL.vi.md](INSTALL.vi.md), mục "Hỏi bảng qua Telegram".
 
 ---
 

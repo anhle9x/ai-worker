@@ -104,6 +104,48 @@ class BotBlocker:
 BOT = BotBlocker()
 
 
+class CallLimit:
+    """How often one MCP key may ask, in memory. Counted per key, not per IP: a whole office may share an IP, and a leaked key is stopped wherever it is used.
+    Một khoá MCP được hỏi bao nhiêu lần, giữ trong bộ nhớ. Đếm theo khoá, không theo IP: cả văn phòng có thể chung một IP, và khoá lộ bị chặn dù dùng ở đâu."""
+
+    def __init__(self, per_window: int, window_seconds: int):
+        self.per_window, self.window_seconds = per_window, window_seconds
+        self.lock = threading.Lock()
+        # key id -> [times of requests]
+        # id của khoá -> [thời điểm yêu cầu]
+        self.seen = {}
+        # key id -> when it was last refused: the caller logs a refusal only when this returns True
+        # id của khoá -> lần bị từ chối gần nhất: bên gọi chỉ ghi nhật ký lần từ chối khi hàm trả True
+        self.refused_at = {}
+
+    def allow(self, key_id: str, now: float) -> bool:
+        with self.lock:
+            attempts = [t for t in self.seen.get(key_id, []) if t > now - self.window_seconds]
+            if len(attempts) >= self.per_window:
+                self.seen[key_id] = attempts
+                return False
+            attempts.append(now)
+            self.seen[key_id] = attempts
+            if len(self.seen) > 1000:
+                self.seen = {k: v for k, v in self.seen.items() if v[-1] > now - self.window_seconds}
+            return True
+
+    def first_refusal(self, key_id: str, now: float) -> bool:
+        """True once per window for a key that is being refused, so the log gets one row, not one per request.
+        True mỗi khoảng thời gian một lần cho khoá đang bị từ chối, để nhật ký có một dòng chứ không phải mỗi yêu cầu một dòng."""
+        with self.lock:
+            if now - self.refused_at.get(key_id, 0) < self.window_seconds:
+                return False
+            self.refused_at = {k: t for k, t in self.refused_at.items() if now - t < self.window_seconds}
+            self.refused_at[key_id] = now
+            return True
+
+    def retry_after(self, key_id: str, now: float) -> int:
+        with self.lock:
+            attempts = self.seen.get(key_id) or [now]
+            return max(1, int(attempts[0] + self.window_seconds - now) + 1)
+
+
 BLOCKED = "\0blocked"
 
 

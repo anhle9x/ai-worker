@@ -1,6 +1,7 @@
 """Log in with Telegram, through Telegram's login widget: check what Telegram signed, and keep the one-time links that wait for a code.
-The server never calls Telegram: the visitor's browser talks to Telegram, and the server only checks the signature with the bot token.
-Đăng nhập bằng Telegram, qua nút đăng nhập của Telegram: kiểm phần Telegram đã ký, và giữ các lần liên kết dùng một lần đang chờ mã. Máy chủ không bao giờ gọi Telegram: trình duyệt của người xem nói chuyện với Telegram, máy chủ chỉ kiểm chữ ký bằng khoá của bot."""
+Nothing here calls Telegram: the visitor's browser talks to Telegram, and the server only checks the signature with the bot token.
+Asking the board from a Telegram chat is another part, with a process of its own that does talk to Telegram: telegram_bot.py.
+Đăng nhập bằng Telegram, qua nút đăng nhập của Telegram: kiểm phần Telegram đã ký, và giữ các lần liên kết dùng một lần đang chờ mã. Ở đây không có gì gọi Telegram: trình duyệt của người xem nói chuyện với Telegram, máy chủ chỉ kiểm chữ ký bằng khoá của bot. Hỏi bảng từ một chat Telegram là phần khác, có một tiến trình riêng nói chuyện với Telegram: telegram_bot.py."""
 
 import hashlib
 import hmac

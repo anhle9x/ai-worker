@@ -6,7 +6,7 @@ What is tested automatically on every push, what still needs a person, and the c
 
 ## 1. Automatic tests
 
-GitHub Actions runs `.github/workflows/test-install.yml` on every push. A release is made only when every job is green.
+GitHub Actions runs `.github/workflows/test-install.yml` on every push. In a private repository, where the minutes are limited, the two Windows jobs run only when the push changes something they test (`packaging/`, `connectors/`, `server/menubar/`, `tests/connectors/`, `tests/menubar/`, `tests/windows/`, the workflow itself, `.claude-plugin/`) or when the workflow is started by hand; a push that changes none of these shows them as skipped. In a public repository, where the minutes are free, they run on every push. A release is made only when every job is green, the Windows ones included: raising the version in `.claude-plugin/plugin.json` runs them.
 
 | Job | Machine | Checks | Files |
 |---|---|---|---|
@@ -23,6 +23,10 @@ GitHub Actions runs `.github/workflows/test-install.yml` on every push. A releas
 | Permission of every server path | `test_webhook.py` holds the full route table and fails if a path is added without a permission |
 | Login, OTP, lockout after wrong codes, re-entering OTP for account actions | `test_webhook.py` |
 | Telegram login: signature, expiry, reuse, linking only with the code and the one-time step, one Telegram per account, the way to Telegram and back | `test_webhook.py`, class `TelegramLogin` |
+| Asking from Telegram: which command a message means, the answers in two languages and for both scopes, no private field in any answer | `test_ask.py` |
+| Asking from Telegram: who may call the bot's path, pairing a chat, limits, the log, the chat's number opening nothing else, the bot process against a fake Telegram and the real webhook | `test_webhook.py`, class `TelegramAsk` |
+| The Telegram bot process: reading, sending, trouble with Telegram or the webhook, nothing secret in its log | `test_telegram_bot.py` |
+| The bot's service after install: off by default, its own user and settings file, the network limit, removal | `tests/linux/test-server.sh`, part S5 |
 | What each role receives (no email or IP for wall) | `test_webhook.py` |
 | Pairing TV, menu bar and extension; revoke; expiry | `test_webhook.py`, `check-extension.js`, menu bar tests |
 | A computer cannot send for another person; send limits | `test_webhook.py` |
@@ -36,7 +40,8 @@ GitHub Actions runs `.github/workflows/test-install.yml` on every push. A releas
 | Cost by hour, no double count after reopening a session | `tests/cost.test.ts` |
 | No prompt, chat or secret file content leaves the machine | `tests/activity.test.ts`, `tests/edits.test.ts`, `tests/team.test.ts`, `tests/office.test.tsx` |
 | Helper assistants: Gemma model choice, safe arguments for Codex | `tests/workers.test.ts` |
-| SQLite storage: moving the old JSON files in, schema version, file modes, many threads at once, backup, export back to JSON | `test_webhook.py` (`DatabaseStorage`), `tests/linux/test-server.sh` |
+| SQLite storage: moving the old JSON files in, schema version, file modes, many threads at once, backup, export back to JSON; an older database is copied before it is upgraded, the copy opens and the older program runs on it, and no copy means no upgrade | `test_webhook.py` (`DatabaseStorage`), `tests/linux/test-server.sh` |
+| Totals per person per day: hours added into days, counting again without adding twice, 13 months then deleted, weeks and months read back; the charts of cost per week and per month; only admin and viewer get them | `test_webhook.py` (`DailyTotals`, `UsageByRole`) |
 | Language choice and fallback | `tests/lang.test.ts` |
 | No private word, address or key in the package | `tests/test-check-clean.sh` with `packaging/check-clean.sh` |
 
@@ -79,6 +84,7 @@ Automatic tests use fake servers and fake browsers. Before a release that touche
 | Update | A computer on the previous version | Wait for or force the update check, click **Update**, restart the app | The new version number shows in `/office` |
 | Login with OTP | A real phone with Google or Microsoft Authenticator | Scan the QR on `/admin`, log in | Logged in; a wrong code 5 times locks for 15 minutes |
 | Login with Telegram | A real Telegram account and the bot of the server | On `/telegram` enter the code and press the button, log out, press **Log in with Telegram** on the login page | Back on the dashboard without typing the name or code |
+| Ask from Telegram | A real Telegram account and a bot made for this with @BotFather | Press **Start** in the bot, approve the code on `/admin` for each person, tap the buttons, type a question, try to forward an answer, send `/stop` | Answers with names in the language of the message; Telegram refuses to forward; after `/stop` the bot says the chat is not connected |
 | TV screen | A real TV or a browser in full screen | Open `/tv`, approve the code on `/admin` | The board shows with no email or IP |
 | macOS menu bar | A real Mac | Install the `.dmg` or `.zip`, pair | Icon shows the waiting count, notification arrives |
 | Ubuntu menu bar | Ubuntu with X11 **and** Ubuntu with Wayland | Install the `.deb`, pair | Icon shows in the top bar on both |
@@ -87,7 +93,7 @@ Automatic tests use fake servers and fake browsers. Before a release that touche
 
 ## 4. Before a release
 
-1. Every GitHub Actions job is green.
+1. Every GitHub Actions job is green, and the two Windows jobs ran instead of being skipped. If the last run skipped them, start the workflow by hand: `gh workflow run test-install.yml`.
 2. The checks in section 3 are done for every part this release changed.
 3. `version` in `.claude-plugin/plugin.json` is raised, and `CHANGELOG.md` lists the changes.
    If the dashboard looks different, retake `assets/dashboard.png` and `assets/dashboard.vi.png` from a test server with sample people, never a real one.

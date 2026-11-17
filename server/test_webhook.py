@@ -4,11 +4,13 @@ All the data here is fake, kept in a temporary folder, deleted when the run ends
   Test máy chủ, chỉ dùng thư viện chuẩn: python3 -m unittest test_webhook (chạy trong thư mục server).
 Mọi dữ liệu ở đây là giả, nằm trong thư mục tạm, xoá khi chạy xong."""
 import base64
+import contextlib
 import glob
 import hashlib
 import hmac
 import http.client
 import inspect
+import io
 import json
 import os
 import re
@@ -22,14 +24,19 @@ import unittest
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import date, datetime, timedelta
 
 TMP = tempfile.mkdtemp(prefix="test-webhook-")
 os.environ.update(INGEST_KEY="test", DATA_DIR=os.path.join(TMP, "data"), KEYS_DIR=os.path.join(TMP, "keys"),
                   BRANCHES_FILE=os.path.join(TMP, "missing.json"), OTP="")
 os.makedirs(os.environ["DATA_DIR"])
 
+import telegram_bot  # noqa: E402
+import test_ask  # noqa: E402
+import test_mcp  # noqa: E402
+import test_telegram_bot  # noqa: E402
 import webhook as w  # noqa: E402
-from board import assets, db, devices, lang, login, packages, pages, security, settings, stores, views  # noqa: E402
+from board import ask, assets, chat, daily, db, devices, lang, login, mcp, packages, pages, security, settings, stores, views  # noqa: E402
 
 NOW = time.time()
 EMAIL = "an@example.com"
@@ -497,6 +504,19 @@ class RoutePermissions(unittest.TestCase):
         "/tv/install-mac.zip": (200, 200, 200, 200, 200),
         "/releases/latest.json": (401, 401, 401, 401, 401),
         "/releases/ai-worker-1.0.0.zip": (401, 401, 401, 401, 401),
+        # the MCP endpoint takes its own kind of key in the Authorization header: no login and no TV key opens it
+        # cổng MCP nhận loại khoá riêng của nó trong header Authorization: không phiên đăng nhập hay khoá TV nào mở được
+        "/mcp": (401, 401, 401, 401, 401),
+        # the page that asks for a key is open like the TV pairing page: it gives nothing out until an admin approves its code
+        # trang xin khoá mở như trang ghép TV: không cấp gì cho tới khi quản trị duyệt mã của nó
+        "/mcp/connect": (200, 200, 200, 200, 200),
+        "/mcp-connect.js": (200, 200, 200, 200, 200),
+        "/.well-known/oauth-protected-resource": (404, 404, 404, 404, 404),
+        "/.well-known/oauth-protected-resource/mcp": (404, 404, 404, 404, 404),
+        "/.well-known/oauth-authorization-server": (404, 404, 404, 404, 404),
+        "/.well-known/oauth-authorization-server/mcp": (404, 404, 404, 404, 404),
+        "/.well-known/openid-configuration": (404, 404, 404, 404, 404),
+        "/.well-known/openid-configuration/mcp": (404, 404, 404, 404, 404),
         "/missing": (404, 404, 404, 404, 404),
     }
     POST_ADMIN = ("/locations", "/team-csv", "/team-sale", "/admin/confirm", "/admin/accounts", "/admin/sessions",
@@ -1056,7 +1076,15 @@ class RoutePermissions(unittest.TestCase):
         self.assertEqual(set(w.GET_ROUTES), {d.split("?")[0] for d in self.GET if not d.startswith(("/static/", "/releases/")) and d != "/missing"})
         self.assertEqual(set(w.POST_ROUTES), set(self.POST_ADMIN) | {"/ingest", "/login", "/logout", "/tv/request-code", "/tv/poll",
                                                                        "/mini/handoff", "/mini/settings", "/mini/unpair", "/mini/pair",
-                                                                       "/ext/request-code", "/ext/poll", "/ext/unpair", "/telegram/start", "/telegram/unlink"})
+                                                                       "/ext/request-code", "/ext/poll", "/ext/unpair", "/telegram/start", "/telegram/unlink",
+                                                                       "/mcp", "/mcp/request-code", "/mcp/poll", "/bot/telegram"})
+
+    def test_the_telegram_bots_path_is_not_there_until_it_is_turned_on(self):
+        self.assertFalse(settings.TELEGRAM_ASK_ENABLED)
+        for token in self.token:
+            for headers in ({}, {"Authorization": "Bearer " + "k" * 40}, {"Authorization": "Bearer test"}):
+                self.assertEqual(self.call("POST", "/bot/telegram", token, "{}", **headers)[0], 404)
+        self.assertEqual(self.call("GET", "/bot/telegram")[0], 404)
 
     def test_permission_check_only_in_gate(self):
         code = ""
@@ -1306,6 +1334,1115 @@ class ExtensionPairing(unittest.TestCase):
         stores.TV.revoke(tv_id)
         self.assertEqual(self.call("GET", "/data", Cookie="session=" + token)[0], 401)
         self.assertTrue([x for x in self.audit_rows() if x["action"] == "tv-revoked-key-used" and x["tv"] == "Revoked hall TV"])
+
+
+class McpEndpoint(unittest.TestCase):
+    """The MCP endpoint: an AI tool gets a key through a code an admin approves, reads the wall view as text within what its key may read,
+    and the key opens nothing else. Other keys do not open the endpoint.
+    Cổng MCP: công cụ AI nhận khoá qua một mã do quản trị duyệt, đọc phần treo tường dạng chữ trong phạm vi khoá của nó được đọc,
+    và khoá đó không mở được gì khác. Khoá khác không mở được cổng này."""
+
+    PRIVATE = ("@example.com", IP_LAN, IP_PUBLIC, NET_CUSTOM, "device-an", "device-binh")
+
+    @classmethod
+    def setUpClass(cls):
+        seed()
+        stores.ACCOUNTS.d = {"accounts": {"adm": {"role": security.ADMIN, "secret": ""}, "viewer": {"role": security.VIEWER, "secret": ""}}}
+        login.SESSIONS.sessions["tok-mcp-adm"] = ("adm", NOW + 3600)
+        login.SESSIONS.sessions["tok-mcp-viewer"] = ("viewer", NOW + 3600)
+        cls.server = w.ThreadingHTTPServer(("127.0.0.1", 0), w.Handler)
+        cls.port = cls.server.server_address[1]
+        cls.origin = "http://127.0.0.1:%d" % cls.port
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+
+    def setUp(self):
+        security.BOT.__init__()
+        stores.TV_PAIRING.__init__()
+        w.MCP_LIMIT.__init__(settings.MCP_CALLS_PER_KEY, settings.MCP_CALLS_WINDOW_SECONDS)
+        login.SESSIONS.confirmed_at["tok-mcp-adm"] = time.time()
+        self.rows_before = set(stores.TV.d)
+
+    def tearDown(self):
+        # the store swaps its table on every change, so the rows a test made are taken out of the table as it is now
+        # kho đổi bảng của nó sau mỗi lần sửa, nên các dòng một bài test tạo ra được gỡ khỏi bảng đúng như nó đang là
+        for tv_id in set(stores.TV.d) - self.rows_before:
+            stores.TV.d.pop(tv_id, None)
+
+    def call(self, method, path, body=None, **headers):
+        headers = {k.replace("_", "-"): v for k, v in headers.items()}
+        conn = http.client.HTTPConnection("127.0.0.1", self.port)
+        try:
+            conn.request(method, path, body, headers)
+            r = conn.getresponse()
+            return r.status, r.read(), r
+        finally:
+            conn.close()
+
+    def admin(self, path, body):
+        return self.call("POST", path, json.dumps(body), Cookie="session=tok-mcp-adm", Origin=self.origin)
+
+    def pair(self, name="Cursor of Hoa", scope=None):
+        """The board's own page asks for a code, an admin approves it with a scope, the page gets the key once.
+        Trang của chính bảng xin mã, quản trị duyệt kèm phạm vi, trang nhận khoá một lần."""
+        status, b, _ = self.call("POST", "/mcp/request-code", "", Origin=self.origin)
+        self.assertEqual(status, 200)
+        d = json.loads(b)
+        self.assertRegex(d["code"], r"^\d{8}$")
+        pending = {"Authorization": "Bearer " + d["key"]}
+        self.assertEqual(json.loads(self.call("POST", "/mcp/poll", "", Origin=self.origin, **pending)[1])["status"], "pending")
+        # the key that waits for approval reads nothing
+        # khoá đang chờ duyệt không đọc được gì
+        self.assertEqual(self.ask(d["key"], test_mcp.modern("tools/list"))[0], 401)
+        view = json.loads(self.admin("/admin/tv-view", {"code": d["code"]})[1])
+        self.assertEqual(view["kind"], "mcp")
+        self.assertEqual(self.admin("/admin/tv-approve", dict({"code": d["code"], "name": name}, **({"scope": scope} if scope else {})))[0], 200)
+        status, b, r = self.call("POST", "/mcp/poll", "", Origin=self.origin, **pending)
+        done = json.loads(b)
+        self.assertEqual((status, done["status"], done["name"], done["scope"]), (200, "done", name, scope if scope == "people" else "totals"))
+        self.assertIsNone(r.getheader("Set-Cookie"))
+        self.assertRegex(done["token"], r"^mcp_[A-Za-z0-9_-]{40,}$")
+        return done["token"]
+
+    def ask(self, token, request, **more):
+        """One MCP message to the endpoint. Returns (status, parsed body or None, the response).
+        Một thông điệp MCP gửi tới cổng. Trả (mã trạng thái, thân đã phân tích hoặc None, câu trả lời)."""
+        raw, headers = request
+        headers = dict(headers, **{"Content-Type": "application/json", "Accept": "application/json, text/event-stream"})
+        if token:
+            headers["Authorization"] = "Bearer " + token
+        headers.update({k.replace("_", "-"): v for k, v in more.items()})
+        status, b, r = self.call("POST", "/mcp", raw, **headers)
+        return status, (json.loads(b) if b else None), r
+
+    def summary(self, token, request=None):
+        status, body, _ = self.ask(token, request or test_mcp.modern("tools/call", {"name": "board_summary", "arguments": {}}))
+        self.assertEqual(status, 200)
+        return body["result"]["content"][0]["text"]
+
+    def month(self):
+        return datetime.now(settings.LOCAL_TZ).strftime("%Y-%m")
+
+    def test_a_people_key_reads_names_and_numbers_but_nothing_private(self):
+        token = self.pair(scope="people")
+        status, body, r = self.ask(token, test_mcp.modern("server/discover"))
+        self.assertEqual((status, body["result"]["capabilities"], body["result"]["supportedVersions"][0]), (200, {"tools": {}}, "2026-07-28"))
+        self.assertIn("application/json", r.getheader("Content-Type"))
+        self.assertEqual(r.getheader("Cache-Control"), "no-store")
+        status, body, _ = self.ask(token, test_mcp.modern("tools/list"))
+        self.assertEqual([t["name"] for t in body["result"]["tools"]], ["board_summary"])
+        text = self.summary(token)
+        self.assertIn("Team: 2 people, 2 working", text)
+        self.assertRegex(text, r"\n- An \| [^\n]* \| working \| ")
+        # the device with no name declared shows as a code, never as its email
+        # máy chưa khai tên hiện thành một mã, không bao giờ hiện email
+        self.assertRegex(text, r"\n- Device [0-9a-f]{6} \| Hanoi \| ")
+        for private in self.PRIVATE:
+            self.assertNotIn(private, text)
+
+    def test_a_key_approved_with_no_scope_reads_totals_only(self):
+        for scope in (None, "totals", "everything"):
+            with self.subTest(scope=scope):
+                stores.TV_PAIRING.__init__()
+                status, b, _ = self.call("POST", "/mcp/request-code", "", Origin=self.origin)
+                d = json.loads(b)
+                self.assertEqual(self.admin("/admin/tv-approve", dict({"code": d["code"], "name": "Totals %s" % scope}, **({"scope": scope} if scope else {})))[0], 200)
+                done = json.loads(self.call("POST", "/mcp/poll", "", Origin=self.origin, Authorization="Bearer " + d["key"])[1])
+                self.assertEqual(done["scope"], "totals")
+                # what the request asks for changes nothing: the key decides
+                # yêu cầu xin gì cũng không đổi được: khoá quyết định
+                text = self.summary(done["token"], test_mcp.modern("tools/call", {"name": "board_summary", "arguments": {"scope": "people"}}))
+                self.assertIn("Team: 2 people", text)
+                self.assertIn(mcp.TOTALS_ONLY, text)
+                self.assertNotIn("- An |", text)
+                for private in self.PRIVATE:
+                    self.assertNotIn(private, text)
+
+    def test_an_older_tool_opens_with_initialize(self):
+        token = self.pair("Codex of Hoa", "people")
+        params = {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "codex-mcp-client", "version": "0.164.0"}}
+        status, body, r = self.ask(token, test_mcp.legacy("initialize", params))
+        self.assertEqual((status, body["result"]["protocolVersion"], body["result"]["capabilities"]), (200, "2025-06-18", {"tools": {}}))
+        self.assertIsNone(r.getheader("Mcp-Session-Id"))
+        version = {"mcp-protocol-version": "2025-06-18"}
+        status, b, r = self.call("POST", "/mcp", json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}), Authorization="Bearer " + token, **version)
+        self.assertEqual((status, b, r.getheader("Content-Length")), (202, b"", "0"))
+        self.assertEqual(self.ask(token, test_mcp.legacy("ping", headers=version))[1], {"jsonrpc": "2.0", "id": 1, "result": {}})
+        text = self.summary(token, test_mcp.legacy("tools/call", {"name": "board_summary", "arguments": {}}, version))
+        self.assertIn("- An |", text)
+        # the name the tool gave in initialize is on the row of its later call
+        # cái tên công cụ xưng trong initialize nằm trên dòng của lần gọi sau đó
+        row = stores.AUDIT_LOG.read_calls(self.month())[0]
+        self.assertEqual((row["tv"], row["tool"], row["ok"], row["client"], row["protocol"]), ("Codex of Hoa", "board_summary", True, "codex-mcp-client/0.164.0", "legacy"))
+
+    def test_each_tool_call_is_logged_apart_from_the_admin_log(self):
+        token = self.pair("Log of Hoa", "people")
+        before = len(stores.AUDIT_LOG.read_calls(self.month(), 10000))
+        self.ask(token, test_mcp.modern("tools/list"))
+        self.summary(token)
+        self.assertEqual(self.ask(token, test_mcp.modern("tools/call", {"name": "delete_everything"}))[0], 200)
+        calls = stores.AUDIT_LOG.read_calls(self.month(), 10000)
+        self.assertEqual(len(calls) - before, 2)
+        failed, done = calls[0], calls[1]
+        self.assertEqual((done["action"], done["tv"], done["tool"], done["ok"], done["client"], done["protocol"], done["clientIp"]),
+                         ("mcp-call", "Log of Hoa", "board_summary", True, "ExampleClient/1.0.0", "modern", "127.0.0.1"))
+        self.assertEqual((failed["tool"], failed["ok"]), ("", False))
+        # the admin's own log does not fill up with calls, and no key is ever written anywhere
+        # nhật ký của quản trị không bị đầy vì các lần gọi, và không khoá nào bị ghi ra ở đâu
+        self.assertNotIn("mcp-call", [x.get("action") for x in stores.AUDIT_LOG.read(self.month(), 10000)])
+        self.assertIn("tv-joined", [x.get("action") for x in stores.AUDIT_LOG.read(self.month(), 10000) if x.get("kind") == "mcp"])
+        self.assertNotIn(token, json.dumps(all_audit_rows()))
+        self.assertNotIn(token, json.dumps(stores.TV.d))
+
+    def test_the_key_opens_nothing_else_and_no_other_key_opens_the_endpoint(self):
+        token = self.pair(scope="people")
+        auth = {"Authorization": "Bearer " + token}
+        for path in ("/ext/data", "/ext/state", "/ext/mini"):
+            with self.subTest(path=path):
+                self.assertEqual(self.call("GET", path, **auth)[0], 401)
+        for path, status in (("/data", 401), ("/history", 401), ("/mini/state", 401), ("/admin/data", 401), ("/static/ops.js", 401), ("/board", 200)):
+            with self.subTest(path=path):
+                self.assertEqual(self.call("GET", path, Cookie="session=" + token)[0], status)
+        self.assertEqual(self.call("POST", "/ext/unpair", "", **auth)[0], 401)
+        self.assertEqual(self.call("POST", "/ingest", "{}", **auth)[0], 401)
+        self.assertIsNone(stores.TV.find(token, time.time()))
+        self.assertIsNotNone(stores.TV.find(token, time.time(), side=settings.KIND_MCP))
+        # a wall screen's key, an extension's or a plugin's key, the send key, an admin's session: none opens the endpoint
+        # khoá của màn hình treo tường, của tiện ích hay plugin, mã gửi, phiên của quản trị: không cái nào mở được cổng
+        tv_id, tv_token = stores.TV.create({"name": "Wall TV", "approvedBy": "adm", "ip": IP_PUBLIC, "device": "test"}, time.time())
+        ext_id, ext_token = stores.TV.create({"name": "Ext", "approvedBy": "adm", "ip": IP_PUBLIC, "device": "test", "kind": "extension"}, time.time())
+        self.assertIsNone(stores.TV.find(tv_token, time.time(), side=settings.KIND_MCP))
+        for other in (tv_token, ext_token, "mcp_" + tv_token[3:], "test", "tok-mcp-adm", ""):
+            with self.subTest(other=other[:6]):
+                status, body, r = self.ask(other, test_mcp.modern("tools/call", {"name": "board_summary"}))
+                self.assertEqual(status, 401)
+                self.assertEqual(r.getheader("WWW-Authenticate"), 'Bearer realm="AI Worker board"')
+                self.assertNotIn("result", body)
+        status, _, _ = self.ask("", test_mcp.modern("tools/call", {"name": "board_summary"}), Cookie="session=tok-mcp-adm")
+        self.assertEqual(status, 401)
+        status, _, _ = self.ask("", test_mcp.modern("tools/call", {"name": "board_summary"}), Cookie="session=" + token)
+        self.assertEqual(status, 401)
+
+    def test_only_post_is_served(self):
+        token = self.pair()
+        for method in ("GET", "DELETE"):
+            with self.subTest(method=method):
+                status, _, r = self.call(method, "/mcp", Authorization="Bearer " + token)
+                self.assertEqual((status, r.getheader("Allow")), (405, "POST"))
+                self.assertEqual(self.call(method, "/mcp")[0], 401)
+        self.assertEqual(self.call("DELETE", "/data", Cookie="session=tok-mcp-adm")[0], 404)
+        self.assertEqual(self.call("DELETE", "/admin/accounts", Cookie="session=tok-mcp-adm", Origin=self.origin)[0], 404)
+
+    def test_a_web_page_on_another_site_is_refused_even_with_a_key(self):
+        token = self.pair()
+        request = test_mcp.modern("tools/list")
+        for origin in ("https://evil.example.com", "null", "http://127.0.0.1:1"):
+            with self.subTest(origin=origin):
+                self.assertEqual(self.ask(token, request, Origin=origin)[0], 403)
+        self.assertEqual(self.ask(token, request, Origin=self.origin)[0], 200)
+        # a key is asked for by the board's own page only
+        # chỉ trang của chính bảng mới xin được khoá
+        for path in ("/mcp/request-code", "/mcp/poll"):
+            self.assertEqual(self.call("POST", path, "")[0], 403)
+            self.assertEqual(self.call("POST", path, "", Origin="https://evil.example.com")[0], 403)
+
+    def test_revoking_stops_the_key_at_once_and_its_later_use_is_logged(self):
+        token = self.pair("Gone of Hoa", "people")
+        row = next(x for x in json.loads(self.call("GET", "/admin/data", Cookie="session=tok-mcp-adm")[1])["screens"] if x["name"] == "Gone of Hoa")
+        self.assertEqual((row["kind"], row["scope"], row["upToDate"]), ("mcp", "people", None))
+        # the admin sees the first characters of the key, enough to tell rows apart, and never the key
+        # quản trị thấy vài ký tự đầu của khoá, đủ để phân biệt các dòng, và không bao giờ thấy cả khoá
+        self.assertEqual(row["keyStart"], token[:12])
+        self.assertNotIn(token, self.call("GET", "/admin/data", Cookie="session=tok-mcp-adm")[1].decode())
+        self.assertNotIn("hash", row)
+        self.summary(token)
+        self.assertTrue(next(x for x in views.admin_data(time.time(), "", "")["screens"] if x["id"] == row["id"])["running"])
+        # a viewer cannot approve or revoke a key
+        # người chỉ xem không duyệt hay thu hồi được khoá
+        self.assertEqual(self.call("POST", "/admin/tv-revoke", json.dumps({"id": row["id"]}), Cookie="session=tok-mcp-viewer", Origin=self.origin)[0], 403)
+        self.assertEqual(self.admin("/admin/tv-revoke", {"id": row["id"]})[0], 200)
+        self.assertEqual(self.ask(token, test_mcp.modern("tools/call", {"name": "board_summary"}))[0], 401)
+        self.assertEqual(self.ask(token, test_mcp.modern("tools/list"))[0], 401)
+        used = [x for x in all_audit_rows() if x["action"] == "tv-revoked-key-used" and x["tv"] == "Gone of Hoa"]
+        self.assertEqual((len(used), used[0]["kind"]), (1, "mcp"))
+
+    def test_a_key_that_asks_too_often_is_slowed_down(self):
+        token = self.pair("Busy of Hoa")
+        w.MCP_LIMIT.__init__(3, 600)
+        request = test_mcp.modern("tools/list")
+        self.assertEqual([self.ask(token, request)[0] for _ in range(3)], [200, 200, 200])
+        for _ in range(3):
+            status, body, r = self.ask(token, request)
+            self.assertEqual(status, 429)
+            self.assertGreater(int(r.getheader("Retry-After")), 0)
+        self.assertEqual(len([x for x in all_audit_rows() if x["action"] == "mcp-rate-limited" and x["tv"] == "Busy of Hoa"]), 1)
+        # another key is not held back by this one, and being slowed down does not get the IP blocked
+        # khoá khác không bị khoá này giữ lại, và bị làm chậm không khiến IP bị chặn
+        other = self.pair("Calm of Hoa")
+        self.assertEqual(self.ask(other, request)[0], 200)
+        self.assertEqual(self.call("GET", "/")[0], 200)
+
+    def test_wrong_keys_count_as_probing_but_a_paired_tool_does_not(self):
+        token = self.pair()
+        request = test_mcp.modern("subscriptions/listen")
+        # a paired tool asking for what the server does not offer gets 404 many times and is never blocked
+        # công cụ đã ghép hỏi thứ máy chủ không có thì nhận 404 nhiều lần và không bao giờ bị chặn
+        self.assertEqual({self.ask(token, request)[0] for _ in range(security.BOT_ERRORS_PER_10_MIN + 5)}, {404})
+        # nor does looking for OAuth settings, which some tools do after a 401
+        # việc đi tìm cấu hình OAuth, điều vài công cụ làm sau khi nhận 401, cũng vậy
+        for _ in range(4):
+            for path in w.NO_OAUTH_PATHS:
+                self.assertEqual(self.call("GET", path)[0], 404)
+        self.assertEqual(self.call("GET", "/")[0], 200)
+        security.BOT.__init__()
+        for _ in range(security.BOT_ERRORS_PER_10_MIN):
+            self.assertEqual(self.ask("mcp_" + "x" * 43, test_mcp.modern("tools/list"))[0], 401)
+        self.assertEqual(self.ask("mcp_" + "x" * 43, test_mcp.modern("tools/list"))[0], 429)
+        self.assertEqual(self.call("GET", "/")[0], 429)
+        # the paired tool on the same IP still gets its answer
+        # công cụ đã ghép trên cùng IP vẫn nhận được câu trả lời
+        self.assertEqual(self.ask(token, test_mcp.modern("tools/list"))[0], 200)
+
+    def test_a_message_must_have_a_sane_size(self):
+        token = self.pair()
+        raw, headers = test_mcp.modern("tools/list")
+        big = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping", "params": {"pad": "x" * mcp.MAX_REQUEST_BYTES}}).encode()
+        self.assertEqual(self.ask(token, (big, headers))[0], 413)
+        self.assertEqual(self.ask(token, (b"", headers))[0], 413)
+        status, body, _ = self.ask(token, (b"{", headers))
+        self.assertEqual((status, body["error"]["code"]), (400, mcp.PARSE_ERROR))
+
+    def test_mcp_keys_and_screens_have_their_own_limits(self):
+        now = time.time()
+        for i in range(settings.TV_MAX - stores.TV.count(now)):
+            stores.TV.create({"name": "TV %d" % i, "approvedBy": "adm", "ip": IP_PUBLIC, "device": "t"}, now)
+        with self.assertRaises(ValueError):
+            stores.TV.create({"name": "one too many", "approvedBy": "adm", "ip": IP_PUBLIC, "device": "t"}, now)
+        # a full wall of screens does not stop an MCP key, and the other way round
+        # đủ số màn hình không chặn được khoá MCP, và ngược lại
+        token = self.pair("Still fits")
+        self.assertEqual(self.ask(token, test_mcp.modern("tools/list"))[0], 200)
+        for i in range(settings.MCP_KEYS_MAX - stores.TV.count(now, settings.KIND_MCP)):
+            stores.TV.create({"name": "Key %d" % i, "approvedBy": "adm", "ip": IP_PUBLIC, "device": "t", "kind": "mcp"}, now)
+        with self.assertRaises(ValueError):
+            stores.TV.create({"name": "one key too many", "approvedBy": "adm", "ip": IP_PUBLIC, "device": "t", "kind": "mcp"}, now)
+        status, b, _ = self.call("POST", "/mcp/request-code", "", Origin=self.origin)
+        status, b, _ = self.admin("/admin/tv-approve", {"code": json.loads(b)["code"], "name": "Refused"})
+        self.assertEqual(status, 400)
+        self.assertIn("MCP", json.loads(b)["error"])
+        self.assertEqual((stores.TV.count(now), stores.TV.count(now, settings.KIND_MCP)), (settings.TV_MAX, settings.MCP_KEYS_MAX))
+
+    def test_a_key_replaces_only_another_key(self):
+        token = self.pair("Old key", "people")
+        old_id = stores.TV.id_of(token)
+        tv_id, _ = stores.TV.create({"name": "A screen", "approvedBy": "adm", "ip": "127.0.0.1", "device": "t"}, time.time())
+        d = json.loads(self.call("POST", "/mcp/request-code", "", Origin=self.origin)[1])
+        # only keys are offered to be replaced, and a screen cannot be turned into a key
+        # chỉ khoá mới được gợi ý để thay, và một màn hình không biến thành khoá được
+        self.assertEqual(self.admin("/admin/tv-approve", {"code": d["code"], "name": "New key", "replaceId": tv_id})[0], 400)
+        self.assertEqual(self.admin("/admin/tv-approve", {"code": d["code"], "name": "New key", "replaceId": old_id, "scope": "people"})[0], 200)
+        done = json.loads(self.call("POST", "/mcp/poll", "", Origin=self.origin, Authorization="Bearer " + d["key"])[1])
+        self.assertEqual(done["status"], "done")
+        self.assertEqual(self.ask(token, test_mcp.modern("tools/list"))[0], 401)
+        self.assertEqual(self.ask(done["token"], test_mcp.modern("tools/list"))[0], 200)
+        self.assertIn(tv_id, stores.TV.d)
+
+    def test_mcp_off_takes_every_mcp_path_away(self):
+        token = self.pair()
+        settings.MCP_ENABLED = False
+        try:
+            self.assertEqual(self.ask(token, test_mcp.modern("tools/list"))[0], 404)
+            self.assertEqual(self.call("GET", "/mcp", Authorization="Bearer " + token)[0], 404)
+            self.assertEqual(self.call("DELETE", "/mcp", Authorization="Bearer " + token)[0], 404)
+            for path in ("/mcp/request-code", "/mcp/poll"):
+                self.assertEqual(self.call("POST", path, "", Origin=self.origin)[0], 404)
+            self.assertEqual(self.call("GET", w.NO_OAUTH_PATHS[0])[0], 404)
+            # the rest of the board is as before
+            # phần còn lại của bảng vẫn như trước
+            self.assertEqual(self.call("GET", "/data", Cookie="session=tok-mcp-adm")[0], 200)
+        finally:
+            settings.MCP_ENABLED = True
+        self.assertEqual(self.ask(token, test_mcp.modern("tools/list"))[0], 200)
+
+    def test_the_connect_page_asks_for_a_code_and_keeps_the_key_out_of_storage(self):
+        status, b, r = self.call("GET", "/mcp/connect")
+        page = b.decode()
+        self.assertEqual(status, 200)
+        self.assertIn('<script src="/mcp-connect.js"></script>', page)
+        self.assertIn("Connect an AI tool", page)
+        self.assertIn("script-src 'self'", r.getheader("Content-Security-Policy"))
+        self.assertEqual(r.getheader("Cache-Control"), "no-store")
+        self.assertIsNone(r.getheader("Set-Cookie"))
+        # nothing is asked of the server just by opening the page
+        # chỉ mở trang thì chưa xin gì ở máy chủ
+        self.assertEqual(stores.TV_PAIRING.pending, {})
+        status, b, r = self.call("GET", "/mcp-connect.js")
+        script = b.decode()
+        self.assertEqual((status, r.getheader("Content-Type")), (200, "text/javascript; charset=utf-8"))
+        for needed in ("/mcp/request-code", "/mcp/poll", "credentials: 'omit'", "claude mcp add --transport http", "codex mcp add", "--bearer-token-env-var", "gemini mcp add", "mcpServers"):
+            self.assertIn(needed, script)
+        # the key is put on the page as text and lives in a variable: no HTML built from it, no cookie, no browser storage, no address
+        # khoá được đặt lên trang dưới dạng chữ và nằm trong một biến: không dựng HTML từ nó, không cookie, không kho lưu của trình duyệt, không địa chỉ
+        for forbidden in ("innerHTML", "localStorage", "sessionStorage", "document.cookie = 'session", "location.hash", "console."):
+            self.assertNotIn(forbidden, script)
+        # the words follow the visitor's language
+        # chữ theo ngôn ngữ của người xem
+        page_vi = self.call("GET", "/mcp/connect", Accept_Language="vi")[1].decode()
+        self.assertIn('lang="vi"', page_vi)
+        self.assertNotIn("Connect an AI tool", page_vi)
+        self.assertNotIn("Waiting for an admin to approve", self.call("GET", "/mcp-connect.js", Accept_Language="vi")[1].decode())
+        settings.MCP_ENABLED = False
+        try:
+            self.assertEqual(self.call("GET", "/mcp/connect")[0], 404)
+            self.assertEqual(self.call("GET", "/mcp-connect.js")[0], 404)
+        finally:
+            settings.MCP_ENABLED = True
+
+    def test_the_admin_page_gets_the_calls_and_knows_the_kind(self):
+        token = self.pair("Seen of Hoa", "people")
+        self.summary(token)
+        data = json.loads(self.call("GET", "/admin/data", Cookie="session=tok-mcp-adm")[1])
+        self.assertEqual((data["mcpCalls"][0]["tv"], data["mcpCalls"][0]["ok"]), ("Seen of Hoa", True))
+        self.assertNotIn("mcp-call", [x.get("action") for x in data["auditLog"]])
+        self.assertNotIn(token, json.dumps(data))
+        with open(os.path.join(os.path.dirname(w.__file__), "static", "admin.js"), encoding="utf-8") as f:
+            admin_js = f.read()
+        # the admin page names this kind, sends the scope the admin chose, and offers no reload for a key
+        # trang quản trị gọi tên loại này, gửi phạm vi quản trị đã chọn, và không có nút tải lại cho khoá
+        for needed in ("y.kind === 'mcp'", "scope: scope.value", "t.kind !== 'mcp'", "snapshot.mcpCalls"):
+            self.assertIn(needed, admin_js)
+
+    def test_old_call_rows_are_dropped_sooner_than_the_rest(self):
+        folder = tempfile.mkdtemp(dir=TMP)
+        log = stores.AuditLog(db.Database(os.path.join(folder, "board.db"), db.DATA_STEPS, "NORMAL"))
+        now = datetime.now(settings.LOCAL_TZ)
+        months = ["%04d-%02d" % ((now.year, now.month - back) if now.month - back > 0 else (now.year - 1, now.month - back + 12)) for back in (0, 2, 3, 4, 11)]
+        with log.db.tx() as c:
+            for month in months:
+                for action in ("mcp-call", "login"):
+                    c.execute("INSERT INTO audit (at, month, action, body) VALUES (?, ?, ?, ?)", (month + "-01T00:00:00+07:00", month, action, json.dumps({"action": action})))
+        log.write(action="login")
+        left = {(month, action) for month, action in log.db.rows("SELECT month, action FROM audit")}
+        self.assertEqual({m for m, a in left if a == "mcp-call"}, set(months[:3]))
+        self.assertEqual({m for m, a in left if a == "login"}, set(months))
+
+
+class TelegramAsk(unittest.TestCase):
+    """Asking the board from a Telegram chat. The bot process is played by these tests: it hands a message to /bot/telegram with its key
+    and gets back what to send. A chat reads nothing until an admin approves its code, then reads the wall view within its scope.
+    Hỏi bảng từ một chat Telegram. Các bài test này đóng vai tiến trình bot: nó đưa một tin tới /bot/telegram kèm khoá của nó
+    và nhận lại thứ cần gửi. Chat không đọc được gì cho tới khi quản trị duyệt mã của nó, rồi đọc phần treo tường trong phạm vi của nó."""
+
+    KEY = "bot-key-" + "k" * 40
+    PRIVATE = ("@example.com", IP_LAN, IP_PUBLIC, NET_CUSTOM, "device-an", "device-binh")
+    HOA, LAN = "700100200", "700100201"
+
+    @classmethod
+    def setUpClass(cls):
+        seed()
+        stores.ACCOUNTS.d = {"accounts": {"adm": {"role": security.ADMIN, "secret": ""}, "viewer": {"role": security.VIEWER, "secret": "", "telegramId": cls.LAN, "telegramUser": "lan_kt"}}}
+        login.SESSIONS.sessions["tok-tg-adm"] = ("adm", NOW + 3600)
+        cls.server = w.ThreadingHTTPServer(("127.0.0.1", 0), w.Handler)
+        cls.port = cls.server.server_address[1]
+        cls.origin = "http://127.0.0.1:%d" % cls.port
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+
+    def setUp(self):
+        security.BOT.__init__()
+        stores.TV_PAIRING.__init__()
+        chat.LIMIT.__init__(settings.TELEGRAM_CALLS_PER_CHAT, settings.TELEGRAM_CALLS_WINDOW_SECONDS)
+        chat.STRANGERS.__init__()
+        stores.TELEGRAM_BOT.__init__()
+        login.SESSIONS.confirmed_at["tok-tg-adm"] = time.time()
+        self.rows_before = set(stores.TV.d)
+        self.was = (settings.TELEGRAM_ASK_ENABLED, settings.TELEGRAM_ASK_KEY, chat.role_view)
+        settings.TELEGRAM_ASK_ENABLED, settings.TELEGRAM_ASK_KEY = True, self.KEY
+        # most tests read a board they know line by line; the real one is read in test_the_real_board_goes_out_without_private_fields
+        # phần lớn bài test đọc một bảng mà chúng biết từng dòng; bảng thật được đọc ở test_the_real_board_goes_out_without_private_fields
+        self.roles_asked = []
+        chat.role_view = lambda role, now: self.roles_asked.append(role) or test_ask.WALL
+
+    def tearDown(self):
+        settings.TELEGRAM_ASK_ENABLED, settings.TELEGRAM_ASK_KEY, chat.role_view = self.was
+        for tv_id in set(stores.TV.d) - self.rows_before:
+            stores.TV.d.pop(tv_id, None)
+
+    def call(self, method, path, body=None, **headers):
+        headers = {k.replace("_", "-"): v for k, v in headers.items()}
+        conn = http.client.HTTPConnection("127.0.0.1", self.port)
+        try:
+            conn.request(method, path, body, headers)
+            r = conn.getresponse()
+            return r.status, r.read()
+        finally:
+            conn.close()
+
+    def bot(self, msg, key=None, **headers):
+        """What the bot process does with one message. Returns (status, the parsed answer).
+        Việc tiến trình bot làm với một tin nhắn. Trả (mã trạng thái, câu trả lời đã phân tích)."""
+        raw = msg if isinstance(msg, (str, bytes)) else json.dumps(msg)
+        status, b = self.call("POST", "/bot/telegram", raw, Authorization="Bearer " + (self.KEY if key is None else key), **headers)
+        try:
+            return status, json.loads(b)
+        except ValueError:
+            return status, None
+
+    def say(self, text, who=None, **more):
+        status, d = self.bot(dict({"from": who or self.HOA, "chat": "private", "username": "hoa_ql", "lang": "en", "text": text}, **more))
+        self.assertEqual(status, 200)
+        return d
+
+    def admin(self, path, body):
+        status, b = self.call("POST", path, json.dumps(body), Cookie="session=tok-tg-adm", Origin=self.origin)
+        return status, json.loads(b)
+
+    def code_for(self, who=None, **more) -> str:
+        d = self.say("/start", who, **more)
+        m = re.search(r"\b(\d{4})-(\d{4})\b", d["text"])
+        self.assertIsNotNone(m, d)
+        return m.group(1) + m.group(2)
+
+    def pair(self, who=None, name="Hoa on Telegram", scope=None):
+        code = self.code_for(who)
+        self.assertEqual(self.admin("/admin/tv-approve", dict({"code": code, "name": name}, **({"scope": scope} if scope else {})))[0], 200)
+        d = self.say("hello", who)
+        self.assertIn("Connected to the board as: " + name, d["text"])
+        return d
+
+    def month(self):
+        return datetime.now(settings.LOCAL_TZ).strftime("%Y-%m")
+
+    def rows(self):
+        return [v for k, v in stores.TV.d.items() if k not in self.rows_before]
+
+    # who may call the path
+    # ai được gọi đường này
+
+    def test_off_means_the_path_is_gone(self):
+        settings.TELEGRAM_ASK_ENABLED = False
+        self.assertEqual(self.bot({"from": self.HOA, "chat": "private", "text": "/start"})[0], 404)
+
+    def test_a_short_key_never_turns_it_on(self):
+        for env, on in (({"TELEGRAM_ASK": "1", "TELEGRAM_ASK_KEY": "k" * 31}, False), ({"TELEGRAM_ASK": "1", "TELEGRAM_ASK_KEY": ""}, False),
+                        ({"TELEGRAM_ASK": "", "TELEGRAM_ASK_KEY": "k" * 40}, False), ({"TELEGRAM_ASK": "0", "TELEGRAM_ASK_KEY": "k" * 40}, False),
+                        ({"TELEGRAM_ASK": "true", "TELEGRAM_ASK_KEY": "k" * 40}, False), ({"TELEGRAM_ASK": "1", "TELEGRAM_ASK_KEY": "k" * 32}, True)):
+            enabled = env["TELEGRAM_ASK"].strip() == "1" and len(env["TELEGRAM_ASK_KEY"].strip()) >= 32
+            self.assertEqual(enabled, on, env)
+        # the line above restates the rule; this one pins the rule in settings.py to it
+        # dòng trên nhắc lại quy tắc; dòng này buộc quy tắc trong settings.py phải đúng như thế
+        src = inspect.getsource(settings)
+        self.assertIn('TELEGRAM_ASK_ENABLED = os.environ.get("TELEGRAM_ASK", "0").strip() == "1" and len(TELEGRAM_ASK_KEY) >= 32', src)
+
+    def test_no_key_or_a_wrong_key_is_refused(self):
+        tv_id, tv_token = stores.TV.create({"name": "Lobby TV tg", "approvedBy": "adm", "ip": IP_PUBLIC, "device": "test"}, time.time())
+        mcp_id, mcp_token = stores.TV.create({"name": "Key tg", "approvedBy": "adm", "ip": IP_PUBLIC, "device": "test", "kind": settings.KIND_MCP}, time.time())
+        msg = {"from": self.HOA, "chat": "private", "text": "/start"}
+        for key in ("", "wrong", self.KEY[:-1], self.KEY + "x", "test", tv_token, mcp_token, stores.chat_key(self.HOA)):
+            status, d = self.bot(msg, key=key)
+            self.assertEqual(status, 401, key)
+            self.assertNotIn("text", d)
+        self.assertEqual(self.call("POST", "/bot/telegram", json.dumps(msg))[0], 401)
+        self.assertEqual(self.call("POST", "/bot/telegram", json.dumps(msg), Cookie="session=tok-tg-adm")[0], 401)
+        self.assertEqual(stores.TV_PAIRING.pending, {})
+
+    def test_a_request_that_came_through_a_proxy_is_told_the_path_does_not_exist(self):
+        msg = {"from": self.HOA, "chat": "private", "text": "/start"}
+        for header in w.FORWARDED_HEADERS:
+            status, d = self.bot(msg, **{header: "203.0.113.9"})
+            self.assertEqual(status, 404, header)
+        self.assertEqual(self.bot(msg, Origin=self.origin)[0], 404)
+        self.assertEqual(stores.TV_PAIRING.pending, {})
+        self.assertEqual(self.bot(msg)[0], 200)
+
+    def test_only_this_machine_counts_as_direct(self):
+        class Fake:
+            headers = {}
+            from_this_machine = w.Handler.from_this_machine
+        for address, direct in (("127.0.0.1", True), ("::1", True), ("192.168.77.5", False), ("203.0.113.9", False), ("::ffff:203.0.113.9", False)):
+            fake = Fake()
+            fake.client_address = (address, 5)
+            self.assertEqual(fake.from_this_machine(), direct, address)
+
+    def test_the_bot_with_its_key_is_not_stopped_as_a_prober(self):
+        msg = {"from": self.HOA, "chat": "private", "text": "/start"}
+        statuses = [self.bot(msg, key="wrong")[0] for _ in range(40)]
+        self.assertIn(429, statuses)
+        self.assertEqual(self.bot(msg)[0], 200)
+
+    def test_only_post(self):
+        self.assertEqual(self.call("GET", "/bot/telegram", Authorization="Bearer " + self.KEY)[0], 404)
+
+    def test_what_is_not_a_message_is_refused(self):
+        self.assertEqual(self.bot("not json")[0], 400)
+        self.assertEqual(self.bot("[1, 2]")[0], 400)
+        self.assertEqual(self.bot('{"from": NaN}')[0], 400)
+        self.assertEqual(self.bot("")[0], 413)
+        self.assertEqual(self.bot(json.dumps({"from": self.HOA, "chat": "private", "text": "x" * chat.MAX_MESSAGE_BYTES}))[0], 413)
+
+    def test_a_message_with_no_usable_sender_gets_no_answer(self):
+        for sender in (None, "", "12a", "-5", -5, True, 1.5, "1" * 21, ["1"], {"id": 1}):
+            status, d = self.bot({"from": sender, "chat": "private", "text": "/start"})
+            self.assertEqual((status, d), (200, {"text": ""}), repr(sender))
+        self.assertEqual(self.bot({"chat": "private", "text": "/start"}), (200, {"text": ""}))
+        self.assertEqual(stores.TV_PAIRING.pending, {})
+
+    def test_the_sender_may_come_as_a_number(self):
+        self.assertIn("Pairing code", self.say("/start", int(self.HOA))["text"])
+        self.assertEqual([r["telegramId"] for r in stores.TV_PAIRING.pending.values()], [self.HOA])
+
+    # a chat no admin approved
+    # chat chưa được quản trị duyệt
+
+    def test_a_stranger_reads_nothing_and_is_told_once(self):
+        first = self.say("cost")
+        self.assertEqual(first, {"text": "🔌 This chat is not connected to the board. Send /start to get a pairing code."})
+        for text in ("cost", "/waiting", "/help", "/stop", "who is waiting", None):
+            self.assertEqual(self.say(text), {"text": ""})
+        self.assertEqual(self.roles_asked, [])
+        self.assertEqual(self.say("cost", self.LAN)["text"], first["text"])
+        self.assertEqual(self.rows(), [])
+
+    def test_a_stranger_is_told_again_after_an_hour(self):
+        self.assertTrue(chat.STRANGERS.may_tell("1", 1000.0))
+        self.assertFalse(chat.STRANGERS.may_tell("1", 1000.0 + settings.TELEGRAM_STRANGER_SECONDS - 1))
+        self.assertTrue(chat.STRANGERS.may_tell("2", 1000.0))
+        self.assertTrue(chat.STRANGERS.may_tell("1", 1000.0 + settings.TELEGRAM_STRANGER_SECONDS))
+
+    def test_start_gives_a_code_and_the_same_code_again(self):
+        d = self.say("/start")
+        self.assertEqual(d["text"].split("\n")[:2], ["📊 AI Worker", ""])
+        self.assertRegex(d["text"].split("\n")[2], r"^🔑 Pairing code: \d{4}-\d{4} \(good for 10 min\)\.$")
+        self.assertIn("never asks for a login code or a password", d["text"])
+        self.assertNotIn("keyboard", d)
+        self.assertEqual(self.say("/start"), d)
+        self.assertEqual(self.say("/start@example_bot 12345"), d)
+        self.assertEqual(len(stores.TV_PAIRING.pending), 1)
+        self.assertEqual(self.rows(), [])
+        # near the end of its time the code still says a whole minute, never zero
+        # gần hết giờ mã vẫn ghi tròn một phút, không bao giờ ghi không
+        code, = stores.TV_PAIRING.pending
+        stores.TV_PAIRING.pending[code]["expiresAt"] = time.time() + 90
+        self.assertIn("(good for 2 min)", self.say("/start")["text"])
+        stores.TV_PAIRING.pending[code]["expiresAt"] = time.time() + 5
+        self.assertIn("(good for 1 min)", self.say("/start")["text"])
+
+    def test_a_new_code_is_logged_once(self):
+        before = len([x for x in all_audit_rows() if x["action"] == "tv-request-code" and x.get("kind") == "telegram"])
+        for _ in range(3):
+            self.say("/start", "700999001", username="someone")
+        rows = [x for x in all_audit_rows() if x["action"] == "tv-request-code" and x.get("kind") == "telegram"]
+        self.assertEqual(len(rows) - before, 1)
+        self.assertEqual((rows[-1]["telegramUser"], rows[-1]["telegramId"]), ("someone", "700999001"))
+
+    def test_the_code_comes_in_the_language_of_the_person(self):
+        d = self.say("/start", lang="vi")
+        self.assertIn(lang.VI["Pairing code: {code} (good for {minutes} min)."].split("{code}")[0], d["text"])
+        self.assertIn(lang.VI["Then send any message here. This bot never asks for a login code or a password."], d["text"])
+
+    def test_waiting_chats_are_limited_and_do_not_take_a_tvs_place(self):
+        for i in range(settings.TELEGRAM_PENDING_MAX):
+            self.assertIn("Pairing code", self.say("/start", "7100%05d" % i)["text"])
+        self.assertEqual(self.say("/start", "710099999"), {"text": "🚦 Too many chats are waiting for approval. Try again in a few minutes."})
+        self.assertEqual(self.say("/start", "710099999"), {"text": ""})
+        # the chats that wait still get their own code back
+        # các chat đang chờ vẫn nhận lại đúng mã của mình
+        self.assertIn("Pairing code", self.say("/start", "710000000")["text"])
+        # screens are counted apart: a room full of waiting chats leaves every place for TVs
+        # màn hình được đếm riêng: chat chờ đầy chỗ vẫn để nguyên chỗ cho TV
+        for _ in range(settings.TV_PENDING_PER_IP):
+            status, b = self.call("POST", "/tv/request-code", "")
+            self.assertEqual(status, 200)
+            self.assertIn("code", json.loads(b))
+
+    # pairing
+    # ghép
+
+    def test_the_admin_sees_whose_telegram_it_is(self):
+        status, view = self.admin("/admin/tv-view", {"code": self.code_for()})
+        self.assertEqual(status, 200)
+        self.assertEqual((view["kind"], view["telegramUser"], view["telegramId"], view["account"], view["device"], view["similar"]),
+                         ("telegram", "hoa_ql", self.HOA, "", "Telegram", []))
+        # a Telegram that is linked to a board account for logging in is named with that account
+        # Telegram đã liên kết với một tài khoản bảng để đăng nhập thì được nêu kèm tài khoản đó
+        view = self.admin("/admin/tv-view", {"code": self.code_for(self.LAN, username="lan_kt")})[1]
+        self.assertEqual((view["telegramUser"], view["telegramId"], view["account"]), ("lan_kt", self.LAN, "viewer"))
+
+    def test_a_username_with_other_characters_is_dropped(self):
+        view = self.admin("/admin/tv-view", {"code": self.code_for(username="<b>x</b>")})[1]
+        self.assertEqual(view["telegramUser"], "")
+        view = self.admin("/admin/tv-view", {"code": self.code_for(self.LAN, username=5)})[1]
+        self.assertEqual(view["telegramUser"], "")
+
+    def test_an_approved_chat_is_welcomed_and_reads_totals_unless_the_admin_chose_people(self):
+        d = self.pair()
+        lines = d["text"].split("\n")
+        self.assertEqual(lines[:6], ["📊 AI Worker", "", "✅ Connected to the board as: Hoa on Telegram", "🔒 This chat reads team and office totals only.",
+                                     "🔐 This bot never asks for a login code or a password.", ""])
+        self.assertIn("⏳ /waiting - Who is waiting for an answer, longest first", lines)
+        self.assertEqual(d["keyboard"], ask.keyboard("en"))
+        row, = self.rows()
+        self.assertEqual((row["kind"], row["scope"], row["telegramId"], row["telegramUser"], row["name"], row["approvedBy"]),
+                         ("telegram", "totals", self.HOA, "hoa_ql", "Hoa on Telegram", "adm"))
+        self.assertNotIn("keyStart", row)
+        self.assertEqual(stores.TV_PAIRING.pending, {})
+        d = self.pair(self.LAN, "Lan on Telegram", "people")
+        self.assertIn("This chat reads each person's numbers.", d["text"])
+        self.assertEqual(sorted(r["scope"] for r in self.rows()), ["people", "totals"])
+
+    def test_a_scope_that_is_not_people_is_totals(self):
+        for i, scope in enumerate(("PEOPLE", "all", "", 5, ["people"])):
+            code = self.code_for("72000000%d" % i)
+            self.assertEqual(self.admin("/admin/tv-approve", {"code": code, "name": "Chat %d" % i, "scope": scope})[0], 200)
+            self.say("hi", "72000000%d" % i)
+        self.assertEqual({r["scope"] for r in self.rows()}, {"totals"})
+
+    def test_until_approved_the_chat_still_reads_nothing(self):
+        code = self.code_for()
+        self.assertEqual(self.say("cost")["text"], "🔌 This chat is not connected to the board. Send /start to get a pairing code.")
+        self.admin("/admin/tv-view", {"code": code})
+        self.assertEqual(self.say("cost"), {"text": ""})
+        self.assertEqual(self.roles_asked, [])
+        self.assertEqual(self.admin("/admin/tv-approve", {"code": code, "name": "Hoa"})[0], 200)
+        # the message that finishes the pairing gets the welcome, not numbers
+        # tin nhắn hoàn tất việc ghép nhận lời chào, không nhận số liệu
+        d = self.say("cost")
+        self.assertIn("Connected to the board as: Hoa", d["text"])
+        self.assertNotIn("$", d["text"])
+        self.assertIn("Cost today: $16.25", self.say("cost")["text"])
+
+    def test_a_code_that_was_not_approved_in_time_is_gone(self):
+        code = self.code_for()
+        stores.TV_PAIRING.pending[code]["expiresAt"] = time.time() - 1
+        self.assertEqual(self.admin("/admin/tv-approve", {"code": code, "name": "Late"})[0], 400)
+        self.assertNotEqual(self.code_for(), code)
+
+    def test_the_approval_is_logged_with_the_kind(self):
+        self.pair(name="Logged chat", scope="people")
+        rows = all_audit_rows()
+        approve = [x for x in rows if x["action"] == "tv-approve" and x.get("tv") == "Logged chat"][-1]
+        self.assertEqual((approve["kind"], approve["scope"], approve["telegramUser"], approve["actor"]), ("telegram", "people", "hoa_ql", "adm"))
+        joined = [x for x in rows if x["action"] == "tv-joined" and x.get("tv") == "Logged chat"][-1]
+        self.assertEqual((joined["kind"], joined["approvedBy"], joined["telegramUser"]), ("telegram", "adm", "hoa_ql"))
+
+    def test_a_chat_cannot_take_the_row_of_a_screen_or_of_a_key(self):
+        tv_id, _ = stores.TV.create({"name": "Lobby TV chat", "approvedBy": "adm", "ip": IP_PUBLIC, "device": "test"}, time.time())
+        mcp_id, _ = stores.TV.create({"name": "Key chat", "approvedBy": "adm", "ip": IP_PUBLIC, "device": "test", "kind": settings.KIND_MCP}, time.time())
+        self.pair(self.LAN, "Lan chat")
+        chat_id = stores.TV.id_of(stores.chat_key(self.LAN))
+        code = self.code_for()
+        for replace_id in (tv_id, mcp_id, chat_id):
+            status, d = self.admin("/admin/tv-approve", {"code": code, "name": "Taker", "replaceId": replace_id})
+            self.assertEqual(status, 400, replace_id)
+        self.assertEqual({stores.TV.d[i]["name"] for i in (tv_id, mcp_id, chat_id)}, {"Lobby TV chat", "Key chat", "Lan chat"})
+        # and a screen cannot take a chat's row
+        # và màn hình không lấy được dòng của chat
+        status, b = self.call("POST", "/tv/request-code", "")
+        self.assertEqual(self.admin("/admin/tv-approve", {"code": json.loads(b)["code"], "name": "TV taker", "replaceId": chat_id})[0], 400)
+
+    def test_the_number_of_chats_is_limited_apart_from_screens_and_keys(self):
+        before = (stores.TELEGRAM_CHATS_MAX, views.TELEGRAM_CHATS_MAX)
+        stores.TELEGRAM_CHATS_MAX = views.TELEGRAM_CHATS_MAX = 1
+        try:
+            self.pair()
+            now = time.time()
+            self.assertEqual(stores.TV.count(now, settings.KIND_TELEGRAM), 1)
+            code = self.code_for(self.LAN)
+            status, d = self.admin("/admin/tv-approve", {"code": code, "name": "One too many"})
+            self.assertEqual(status, 400)
+            self.assertIn("Telegram chats", d["error"])
+            # a screen and an MCP key still fit
+            # màn hình và khoá MCP vẫn còn chỗ
+            stores.TV.create({"name": "TV beside chats", "approvedBy": "adm", "ip": IP_PUBLIC, "device": "test"}, now)
+            stores.TV.create({"name": "Key beside chats", "approvedBy": "adm", "ip": IP_PUBLIC, "device": "test", "kind": settings.KIND_MCP}, now)
+            # the limit holds in the store too, when two approvals race past the admin's check
+            # giới hạn cũng được giữ trong kho, khi hai lần duyệt chạy đua qua bước kiểm của quản trị
+            with self.assertRaises(ValueError):
+                stores.TV.create({"name": "Raced", "approvedBy": "adm", "ip": "", "device": "Telegram", "kind": settings.KIND_TELEGRAM, "telegramId": "799"}, now)
+        finally:
+            stores.TELEGRAM_CHATS_MAX, views.TELEGRAM_CHATS_MAX = before
+
+    # answers
+    # câu trả lời
+
+    def test_an_approved_chat_gets_the_answer_of_its_scope(self):
+        self.pair(scope="people")
+        self.pair(self.LAN, "Lan", None)
+        now_ms = time.time() * 1000
+        for command in ask.DATA_COMMANDS:
+            if command == ask.WAITING:
+                continue
+            for who, scope in ((self.HOA, "people"), (self.LAN, "totals")):
+                d = self.say("/" + command, who)
+                self.assertEqual(d["text"], ask.answer(command, test_ask.WALL, scope, now_ms, "en"), (command, scope))
+                self.assertEqual(d["keyboard"], ask.keyboard("en"))
+        people, totals = self.say("/waiting")["text"], self.say("/waiting", self.LAN)["text"]
+        self.assertIn("1. Dazed (Da Nang)", people)
+        for name in test_ask.NAMES:
+            self.assertNotIn(name, totals)
+        self.assertIn("This chat reads totals only.", totals)
+
+    def test_the_board_is_read_as_a_wall_screen_reads_it(self):
+        self.pair(scope="people")
+        for text in ("/cost", "/waiting", "team", "Offices"):
+            self.say(text)
+        self.assertEqual(self.roles_asked, [security.WALL] * 4)
+
+    def test_the_real_board_goes_out_without_private_fields(self):
+        chat.role_view = self.was[2]
+        self.pair(scope="people")
+        for command in ask.COMMANDS:
+            if command == ask.STOP:
+                continue
+            text = self.say("/" + command)["text"]
+            self.assertTrue(text.startswith("📊 AI Worker"), text)
+            for private in self.PRIVATE:
+                self.assertNotIn(private, text, command)
+        team = self.say("/team")["text"]
+        self.assertRegex(team, r"People in the team: [1-9]")
+        # the person with a name is there; the one whose name is an email shows as a device, as on the wall
+        # người có tên thì có mặt; người mà tên là email thì hiện thành một máy, như trên màn treo tường
+        self.assertIn("Hanoi", self.say("/offices")["text"])
+
+    def test_buttons_and_typed_questions_work_like_commands(self):
+        self.pair(scope="people")
+        cost = self.say("/cost")["text"]
+        for text in ("Cost", "cost", "how much today?", "what did we spend"):
+            self.assertEqual(self.say(text)["text"], cost, text)
+
+    def test_the_answer_follows_the_language_of_the_message_then_of_the_app(self):
+        self.pair(scope="people")
+        en, vi = self.say("/cost"), self.say("/cost", lang="vi")
+        self.assertIn("Cost today", en["text"])
+        self.assertIn(lang.VI["US dollars at API prices, not an invoice."], vi["text"])
+        self.assertEqual(vi["keyboard"], ask.keyboard("vi"))
+        self.assertEqual(self.say("/chiphi"), vi)
+        self.assertEqual(self.say(vi["keyboard"][0][1]), vi)
+        self.assertEqual(self.say("/cost", lang="vi-VN"), vi)
+        self.assertEqual(self.say("/cost", lang="de"), en)
+        self.assertEqual(self.say("/cost", lang=None), en)
+
+    def test_anything_else_gets_the_list_of_commands(self):
+        self.pair()
+        help_text = ask.answer(ask.HELP, None, "", 0, "en")
+        for text in ("hello", "/help", "/nothing", None, "", 5):
+            d = self.say(text)
+            self.assertEqual((d["text"], d["keyboard"]), (help_text, ask.keyboard("en")), repr(text))
+        again = self.say("/start")
+        self.assertIn("This chat is already connected to the board.", again["text"])
+        self.assertIn("This chat reads team and office totals only.", again["text"])
+        self.assertEqual(len(self.rows()), 1)
+
+    # log
+    # nhật ký
+
+    def test_each_answer_with_numbers_is_logged_without_the_words_typed(self):
+        self.pair(name="Hoa log", scope="people")
+        before = len(stores.AUDIT_LOG.read_calls(self.month(), 10000))
+        self.say("/cost")
+        self.say("how much did SECRETWORD spend")
+        self.say("/help")
+        self.say("hello SECRETWORD")
+        calls = stores.AUDIT_LOG.read_calls(self.month(), 10000)
+        self.assertEqual(len(calls) - before, 2)
+        row = calls[0]
+        self.assertEqual({k: v for k, v in row.items() if k != "at"},
+                         {"action": "telegram-ask", "tv": "Hoa log", "id": stores.TV.id_of(stores.chat_key(self.HOA)), "tool": "cost", "ok": True, "client": "Telegram"})
+        everything = json.dumps(all_audit_rows())
+        self.assertNotIn("SECRETWORD", everything)
+        self.assertNotIn("how much", everything)
+
+    def test_answers_are_read_with_the_mcp_calls_and_not_in_the_admins_own_log(self):
+        self.pair(name="Hoa reads", scope="people")
+        self.say("/team")
+        self.assertEqual(stores.AUDIT_LOG.read_calls(self.month(), 10000)[0]["tool"], "team")
+        self.assertNotIn("telegram-ask", [x["action"] for x in stores.AUDIT_LOG.read(self.month(), 10000)])
+        status, b = self.call("GET", "/admin/data", Cookie="session=tok-tg-adm")
+        d = json.loads(b)
+        self.assertEqual(d["mcpCalls"][0]["action"], "telegram-ask")
+        self.assertNotIn("telegram-ask", [x["action"] for x in d["auditLog"]])
+
+    def test_old_answers_leave_the_log_with_the_mcp_calls(self):
+        self.assertEqual(stores.AUDIT_LOG.READ_ACTIONS, ("mcp-call", "telegram-ask"))
+        with db.data_db().tx() as c:
+            for action in ("telegram-ask", "mcp-call", "login"):
+                c.execute("INSERT INTO audit (at, month, action, body) VALUES (?, ?, ?, ?)", ("2020-01-01T00:00:00", "2020-01", action, json.dumps({"action": action, "old": "tg-test"})))
+            recent = (datetime.now(settings.LOCAL_TZ).replace(day=1) - timedelta(days=settings.MCP_CALL_KEEP_MONTHS * 31 + 5)).strftime("%Y-%m")
+            for action in ("telegram-ask", "login"):
+                c.execute("INSERT INTO audit (at, month, action, body) VALUES (?, ?, ?, ?)", (recent + "-01T00:00:00", recent, action, json.dumps({"action": action, "recent": "tg-test"})))
+        stores.AUDIT_LOG.month = ""
+        stores.AUDIT_LOG.write(action="noop-tg-test")
+        left = [(x["action"], "old" in x) for x in all_audit_rows() if x.get("old") == "tg-test" or x.get("recent") == "tg-test"]
+        self.assertEqual(left, [("login", False)])
+
+    # limits, stopping, revoking
+    # giới hạn, tự gỡ, thu hồi
+
+    def test_a_chat_that_asks_too_often_is_told_once_then_gets_nothing(self):
+        self.pair(name="Busy chat", scope="people")
+        self.pair(self.LAN, "Calm chat")
+        chat.LIMIT.__init__(settings.TELEGRAM_CALLS_PER_CHAT, settings.TELEGRAM_CALLS_WINDOW_SECONDS)
+        for _ in range(settings.TELEGRAM_CALLS_PER_CHAT):
+            self.assertIn("Cost today", self.say("/cost")["text"])
+        self.assertEqual(self.say("/cost"), {"text": "🚦 This chat has asked too often. Try again in a few minutes."})
+        for text in ("/cost", "/help", "hello"):
+            self.assertEqual(self.say(text), {"text": ""})
+        self.assertIn("Cost today", self.say("/cost", self.LAN)["text"])
+        self.assertEqual(len([x for x in all_audit_rows() if x["action"] == "telegram-rate-limited" and x.get("tv") == "Busy chat"]), 1)
+        # stopping still works when the chat is over its limit
+        # tự gỡ vẫn chạy khi chat đã quá giới hạn
+        self.assertIn("Disconnected", self.say("/stop")["text"])
+
+    def test_stop_disconnects_the_chat(self):
+        self.pair(name="Leaving chat", scope="people")
+        chat_id = stores.TV.id_of(stores.chat_key(self.HOA))
+        d = self.say("/stop")
+        self.assertEqual(d, {"text": "👋 Disconnected: this chat no longer reads the board. Send /start to ask for a new code.", "removeKeyboard": True})
+        self.assertEqual(self.rows(), [])
+        stop = [x for x in all_audit_rows() if x["action"] == "telegram-stop"][-1]
+        self.assertEqual((stop["tv"], stop["id"], stop["kind"]), ("Leaving chat", chat_id, "telegram"))
+        self.assertEqual(self.say("/cost")["text"], "🔌 This chat is not connected to the board. Send /start to get a pairing code.")
+        self.assertEqual(self.say("/cost"), {"text": ""})
+        # it may pair again, and then has one row
+        # nó ghép lại được, và khi đó có một dòng
+        self.pair(name="Back again")
+        self.assertEqual([r["name"] for r in self.rows()], ["Back again"])
+
+    def test_an_admin_revokes_a_chat_at_once(self):
+        self.pair(name="Revoked chat", scope="people")
+        chat_id = stores.TV.id_of(stores.chat_key(self.HOA))
+        self.assertIn("Cost today", self.say("/cost")["text"])
+        status, b = self.call("GET", "/admin/data", Cookie="session=tok-tg-adm")
+        screen = [x for x in json.loads(b)["screens"] if x["id"] == chat_id][0]
+        self.assertEqual((screen["kind"], screen["scope"], screen["telegramUser"], screen["telegramId"], screen["name"]), ("telegram", "people", "hoa_ql", self.HOA, "Revoked chat"))
+        self.assertNotIn("hash", screen)
+        self.assertIsNone(screen["upToDate"])
+        self.assertEqual(self.admin("/admin/tv-revoke", {"id": chat_id})[0], 200)
+        revoke = [x for x in all_audit_rows() if x["action"] == "tv-revoke"][-1]
+        self.assertEqual((revoke["tv"], revoke["kind"]), ("Revoked chat", "telegram"))
+        self.roles_asked.clear()
+        self.assertEqual(self.say("/cost")["text"], "🔌 This chat is not connected to the board. Send /start to get a pairing code.")
+        self.assertEqual(self.roles_asked, [])
+
+    def test_a_chat_not_used_for_a_long_time_is_a_stranger_again(self):
+        self.pair(scope="people")
+        chat_id = stores.TV.id_of(stores.chat_key(self.HOA))
+        row = stores.TV.d[chat_id]
+        self.assertAlmostEqual(row["expiresAt"] - row["createdAt"], settings.TV_SESSION_SECONDS, delta=5)
+        self.assertAlmostEqual(row["ceilingAt"] - row["createdAt"], settings.TV_CEILING_SECONDS, delta=5)
+        stores.TV.mutate(lambda d: d[chat_id].update(expiresAt=int(time.time()) - 1))
+        self.assertEqual(self.say("/cost")["text"], "🔌 This chat is not connected to the board. Send /start to get a pairing code.")
+
+    def test_using_the_chat_renews_it_and_shows_on_the_admin_page(self):
+        self.pair(scope="people")
+        chat_id = stores.TV.id_of(stores.chat_key(self.HOA))
+        soon = int(time.time()) + settings.TV_RENEW_WHEN_LEFT - 60
+        stores.TV.mutate(lambda d: d[chat_id].update(expiresAt=soon, lastUsedAt=1))
+        self.say("/team")
+        row = stores.TV.d[chat_id]
+        self.assertGreater(row["expiresAt"], soon + 3600)
+        self.assertAlmostEqual(row["lastUsedAt"], time.time(), delta=5)
+        self.assertEqual(row["lastIp"], "")
+        self.assertAlmostEqual(stores.TV_STATUS.read(chat_id)["seenAt"], time.time(), delta=5)
+
+    # groups
+    # nhóm
+
+    def test_a_group_or_a_channel_gets_no_answer_and_the_bot_is_told_to_leave(self):
+        self.pair(scope="people")
+        self.roles_asked.clear()
+        before = len(all_audit_rows())
+        for kind in ("group", "supergroup", "channel", "", None, "PRIVATE", 5):
+            for text in ("/cost", "/start", "/stop", "hello"):
+                self.assertEqual(self.say(text, chat=kind), {"text": "", "leave": True}, (kind, text))
+        status, d = self.bot({"from": self.HOA, "text": "/cost"})
+        self.assertEqual(d, {"text": "", "leave": True})
+        self.assertEqual(self.roles_asked, [])
+        self.assertEqual(len(all_audit_rows()), before)
+        self.assertEqual(len(self.rows()), 1)
+
+    # the chat's number opens nothing else
+    # số của chat không mở được gì khác
+
+    def test_the_chats_number_is_no_key_anywhere_else(self):
+        self.pair(scope="people")
+        key = stores.chat_key(self.HOA)
+        self.assertEqual(key, "tg_" + self.HOA)
+        now = time.time()
+        self.assertIsNotNone(stores.TV.find(key, now, settings.KIND_TELEGRAM))
+        self.assertIsNone(stores.TV.find(key, now))
+        self.assertIsNone(stores.TV.find(key, now, settings.KIND_MCP))
+        self.assertEqual(login.SESSIONS.user_and_role("session=" + key, now), (None, None))
+        self.assertEqual(self.call("GET", "/data", Cookie="session=" + key)[0], 401)
+        self.assertEqual(self.call("GET", "/ext/data", Authorization="Bearer " + key)[0], 401)
+        self.assertEqual(self.call("POST", "/mcp", "{}", Authorization="Bearer " + key)[0], 401)
+        self.assertEqual(self.call("POST", "/ext/unpair", "", Authorization="Bearer " + key)[0], 401)
+        self.assertEqual(stores.TV.exit_screen(key, now), "")
+        self.assertEqual(len(self.rows()), 1)
+        # and no other key stands for a chat
+        # và không khoá nào khác đứng thay được cho một chat
+        tv_id, tv_token = stores.TV.create({"name": "TV not a chat", "approvedBy": "adm", "ip": IP_PUBLIC, "device": "test"}, now)
+        self.assertIsNone(stores.TV.find(tv_token, now, settings.KIND_TELEGRAM))
+
+    def test_the_public_pairing_paths_cannot_take_or_cancel_a_chats_code(self):
+        code = self.code_for()
+        key = stores.chat_key(self.HOA)
+        self.assertFalse(stores.TV_PAIRING.has_key(key))
+        self.assertEqual(self.admin("/admin/tv-approve", {"code": code, "name": "Mine"})[0], 200)
+        # someone who knows the number asks the public paths for the approved pairing: there is none for them
+        # người biết con số này hỏi các đường công khai để lấy lần ghép đã duyệt: không có gì cho họ
+        for path, headers in (("/ext/poll", {"Authorization": "Bearer " + key}), ("/mcp/poll", {"Authorization": "Bearer " + key, "Origin": self.origin}),
+                              ("/tv/poll", {"Cookie": "tv-pending=" + key})):
+            status, b = self.call("POST", path, "", **headers)
+            self.assertEqual((status, json.loads(b)), (200, {"status": "expired"}), path)
+        self.assertEqual(self.rows(), [])
+        # nor can they cancel it by asking for a code of their own under the same key
+        # họ cũng không huỷ được nó bằng cách xin một mã của riêng mình dưới cùng khoá đó
+        self.assertEqual(self.call("POST", "/ext/request-code", "", Authorization="Bearer " + key)[0], 200)
+        self.assertEqual(self.call("POST", "/tv/request-code", "", Cookie="tv-pending=" + key)[0], 200)
+        self.assertIn("Connected to the board as: Mine", self.say("hi")["text"])
+
+    def test_a_chats_request_is_seen_only_as_a_chats(self):
+        pairing = stores.TvPairing()
+        code, left, fresh = pairing.request_chat("555", "someone", 1000.0)
+        self.assertEqual((left, fresh), (settings.TV_CODE_SECONDS, True))
+        self.assertEqual(pairing.request_chat("555", "other_name", 1090.0), (code, settings.TV_CODE_SECONDS - 90, False))
+        key = stores.chat_key("555")
+        self.assertEqual(pairing.poll(key, 1001.0), "expired")
+        self.assertEqual(pairing.poll(key, 1001.0, chat=True), "pending")
+        self.assertEqual(pairing.kind_of(code, 1001.0), "telegram")
+        with self.assertRaises(ValueError):
+            pairing.self_approve(code, "viewer", "", 1001.0)
+        pairing.approve(code, "Chat 555", "adm", 1002.0, scope="people")
+        self.assertEqual(pairing.poll(key, 1003.0), "expired")
+        r = pairing.poll(key, 1003.0, chat=True)
+        self.assertEqual((r["name"], r["scope"], r["kind"], r["telegramId"], r["telegramUser"], r["ip"]), ("Chat 555", "people", "telegram", "555", "someone", ""))
+        self.assertEqual(pairing.poll(key, 1004.0, chat=True), "expired")
+        # a screen's request is not seen as a chat's
+        # yêu cầu của màn hình không được thấy như của chat
+        tv_code, tv_key = pairing.request_code("", IP_PUBLIC, "test", 1005.0)
+        self.assertEqual(pairing.poll(tv_key, 1006.0, chat=True), "expired")
+        self.assertEqual(pairing.poll(tv_key, 1006.0), "pending")
+        # after its time, the code is gone and the chat gets a new one
+        # hết giờ thì mã mất và chat nhận mã mới
+        again = pairing.request_chat("555", "someone", 1010.0)
+        self.assertTrue(again[2])
+        later = pairing.request_chat("555", "someone", 1010.0 + settings.TV_CODE_SECONDS + 1)
+        self.assertTrue(later[2])
+        self.assertEqual(sum(1 for r in pairing.pending.values() if r.get("kind") == "telegram"), 1)
+
+    # the bot process
+    # tiến trình bot
+
+    def test_the_bot_says_how_it_is_doing_and_gets_the_command_list(self):
+        self.assertEqual(stores.TELEGRAM_BOT.read(), {"state": "", "bot": "", "seenAt": 0})
+        status, d = self.bot({"report": "conflict", "bot": "example_ask_bot"})
+        self.assertEqual(status, 200)
+        self.assertEqual(d, {"ok": True, "commands": {"en": [list(row) for row in ask.menu("en")], "vi": [list(row) for row in ask.menu("vi")]}})
+        seen = stores.TELEGRAM_BOT.read()
+        self.assertEqual((seen["state"], seen["bot"]), ("conflict", "example_ask_bot"))
+        self.assertAlmostEqual(seen["seenAt"] / 1000, time.time(), delta=5)
+        for state in stores.TelegramBotStatus.STATES:
+            self.bot({"report": state, "bot": "example_ask_bot"})
+            self.assertEqual(stores.TELEGRAM_BOT.read()["state"], state)
+        # what is reported is shown to an admin, so only the known words and a name that can be a bot's name are kept
+        # điều được báo sẽ hiện cho quản trị, nên chỉ giữ các từ đã biết và một cái tên có thể là tên bot
+        for state, name in (("<b>pwned</b>", "<script>"), (5, 5), (None, None), ("OK", "a b"), ("", "x" * 33)):
+            self.bot({"report": state, "bot": name})
+            seen = stores.TELEGRAM_BOT.read()
+            self.assertEqual((seen["state"], seen["bot"]), ("", ""), (state, name))
+        # a report is not a message: no chat is touched and nothing is logged
+        # lời báo không phải tin nhắn: không chat nào bị đụng tới và không ghi nhật ký gì
+        self.assertEqual(stores.TV_PAIRING.pending, {})
+        self.assertEqual(self.roles_asked, [])
+
+    def test_a_message_handed_over_means_the_bot_is_reading(self):
+        self.bot({"report": "unreachable", "bot": "example_ask_bot"})
+        self.say("hello")
+        seen = stores.TELEGRAM_BOT.read()
+        self.assertEqual((seen["state"], seen["bot"]), ("ok", "example_ask_bot"))
+
+    def test_the_admin_page_is_told_whether_it_is_on_and_how_the_bot_is_doing(self):
+        self.bot({"report": "ok", "bot": "example_ask_bot"})
+        d = json.loads(self.call("GET", "/admin/data", Cookie="session=tok-tg-adm")[1])
+        self.assertEqual({k: d["telegramAsk"][k] for k in ("on", "state", "bot")}, {"on": True, "state": "ok", "bot": "example_ask_bot"})
+        settings.TELEGRAM_ASK_ENABLED = False
+        stores.TELEGRAM_BOT.__init__()
+        d = json.loads(self.call("GET", "/admin/data", Cookie="session=tok-tg-adm")[1])
+        self.assertEqual(d["telegramAsk"], {"on": False, "state": "", "bot": "", "seenAt": 0})
+
+    def test_the_bot_process_between_a_fake_telegram_and_this_server(self):
+        """The whole way: a person writes in Telegram (played by FakeTelegram), the real bot process reads it and asks this server,
+        an admin approves the chat, and the answers go back out with what Telegram needs to protect and show them.
+        Trọn đường: một người viết trong Telegram (FakeTelegram đóng vai), tiến trình bot thật đọc tin và hỏi máy chủ này,
+        quản trị duyệt chat, và các câu trả lời đi ra kèm những gì Telegram cần để bảo vệ và hiển thị chúng."""
+        chat.role_view = self.was[2]
+        telegram = test_telegram_bot.FakeTelegram()
+        self.addCleanup(telegram.close)
+        lines = []
+        bot = telegram_bot.Bot(test_telegram_bot.TOKEN, self.origin, self.KEY, telegram.url, sleep=lambda seconds: None, log=lines.append, poll_seconds=0)
+        who = int(self.HOA)
+        telegram.say("who is waiting?", who)
+        telegram.say("/start", who)
+        self.assertEqual(bot.step(), 0)
+        self.assertEqual(stores.TELEGRAM_BOT.read()["bot"], "example_ask_bot")
+        self.assertEqual(stores.TELEGRAM_BOT.read()["state"], "ok")
+        commands = [body for method, body in telegram.calls if method == "setMyCommands"]
+        self.assertEqual([c.get("language_code") for c in commands], [None, "vi"])
+        self.assertEqual([c["command"] for c in commands[0]["commands"]], [name for name, _ in ask.menu("en")])
+        self.assertEqual([c["command"] for c in commands[1]["commands"]], [name for name, _ in ask.menu("vi")])
+        told, code_message = telegram.sent()
+        self.assertEqual(told["text"], "🔌 This chat is not connected to the board. Send /start to get a pairing code.")
+        code = "".join(re.search(r"\b(\d{4})-(\d{4})\b", code_message["text"]).groups())
+        view = self.admin("/admin/tv-view", {"code": code})[1]
+        self.assertEqual((view["kind"], view["telegramUser"], view["telegramId"]), ("telegram", "hoa_ql", self.HOA))
+        self.assertEqual(self.admin("/admin/tv-approve", {"code": code, "name": "Hoa via the bot", "scope": "people"})[0], 200)
+        telegram.say("hello", who)
+        telegram.say("/team", who)
+        telegram.say("/tongquan", who)
+        telegram.say("/cost", who, chat="group", chat_id=-100200)
+        self.assertEqual(bot.step(), 0)
+        welcome, team, team_vi = telegram.sent()[2:]
+        self.assertIn("Connected to the board as: Hoa via the bot", welcome["text"])
+        self.assertEqual(welcome["reply_markup"]["keyboard"], [[{"text": label} for label in row] for row in ask.keyboard("en")])
+        self.assertRegex(team["text"], r"^📊 AI Worker · \d\d:\d\d\n\n👥 People in the team: [1-9]")
+        self.assertIn(lang.VI["People in the team: {n}"].split("{n}")[0], team_vi["text"])
+        self.assertEqual(team_vi["reply_markup"]["keyboard"][0][0], {"text": ask.keyboard("vi")[0][0]})
+        self.assertEqual([body for method, body in telegram.calls if method == "leaveChat"], [{"chat_id": -100200}])
+        for message in telegram.sent():
+            self.assertEqual(message["chat_id"], who)
+            self.assertIs(message["protect_content"], True)
+            self.assertEqual(message["link_preview_options"], {"is_disabled": True})
+            self.assertNotIn("parse_mode", message)
+            for private in self.PRIVATE:
+                self.assertNotIn(private, message["text"])
+        self.assertEqual(stores.AUDIT_LOG.read_calls(self.month(), 2)[0]["tool"], "team")
+        telegram.say("/stop", who)
+        bot.step()
+        self.assertEqual(telegram.sent()[-1]["reply_markup"], {"remove_keyboard": True})
+        self.assertEqual(self.rows(), [])
+        # nothing of all this reached the bot process's log
+        # không gì trong tất cả những điều này lọt vào nhật ký của tiến trình bot
+        log = "\n".join(lines)
+        for private in ("hoa_ql", self.HOA, "Hoa via the bot", code, test_telegram_bot.TOKEN, self.KEY) + self.PRIVATE:
+            self.assertNotIn(private, log)
+        # with the feature turned off on the server, the bot process stops instead of taking messages it cannot answer
+        # khi tính năng bị tắt ở máy chủ, tiến trình bot dừng lại chứ không nhận những tin nó không trả lời được
+        settings.TELEGRAM_ASK_ENABLED = False
+        telegram.say("/team", who)
+        with self.assertRaises(telegram_bot.Refused):
+            bot.step()
+
+    def test_the_three_sides_of_the_wall(self):
+        self.assertEqual([stores.side_of(k) for k in ("mcp", "telegram", "", None, "extension", "plugin", "tv", "TELEGRAM")], ["mcp", "telegram", "", "", "", "", "", ""])
 
 
 class Languages(unittest.TestCase):
@@ -2043,6 +3180,103 @@ class DatabaseStorage(unittest.TestCase):
         db.migrate_keys_json(k, os.path.join(out, "keys"))
         self.assertEqual(sorted(k.rows("SELECT name, secret FROM accounts")), sorted(db.keys_db().rows("SELECT name, secret FROM accounts")))
 
+    def old_database(self) -> str:
+        """A board.db as the version before daily totals left it: schema version 1, with one computer in it.
+        Một board.db như bản trước khi có tổng theo ngày để lại: lược đồ phiên bản 1, có sẵn một máy."""
+        path = os.path.join(self.folder(), "board.db")
+        d = db.Database(path, db.DATA_STEPS[:1], "NORMAL")
+        with d.tx() as c:
+            c.execute("INSERT INTO devices VALUES (?, ?, ?, ?, ?)", ("device-old", "a@example.com", "An", 5, "{}"))
+        d.conn.close()
+        return path
+
+    def test_an_older_database_is_backed_up_then_upgraded(self):
+        path = self.old_database()
+        log = io.StringIO()
+        with contextlib.redirect_stderr(log):
+            d = db.Database(path, db.DATA_STEPS, "NORMAL")
+        self.addCleanup(d.conn.close)
+        backup = path + ".schema-1.bak"
+        self.assertIn("backed up %s (schema version 1) to %s before upgrading to schema version %d" % (path, backup, len(db.DATA_STEPS)), log.getvalue())
+        self.assertEqual(os.stat(backup).st_mode & 0o777, 0o600)
+        self.assertEqual([n for n in os.listdir(os.path.dirname(path)) if "partial" in n], [])
+        # the upgraded database has the new table and still has its rows
+        # cơ sở dữ liệu đã nâng có bảng mới và vẫn còn các dòng cũ
+        self.assertEqual(d.rows("PRAGMA user_version"), [(len(db.DATA_STEPS),)])
+        self.assertEqual(d.rows("SELECT COUNT(*) FROM daily"), [(0,)])
+        self.assertEqual(d.rows("SELECT device FROM devices"), [("device-old",)])
+        # the copy opens, is still the old schema and holds the same rows: it is the way back
+        # bản sao mở được, vẫn là lược đồ cũ và giữ đúng các dòng đó: đây là đường lui
+        copy = sqlite3.connect(backup)
+        self.addCleanup(copy.close)
+        self.assertEqual(copy.execute("PRAGMA user_version").fetchone(), (1,))
+        self.assertEqual(copy.execute("SELECT device, name FROM devices").fetchall(), [("device-old", "An")])
+        self.assertEqual(copy.execute("SELECT name FROM sqlite_master WHERE name = 'daily'").fetchall(), [])
+
+    def test_going_back_the_older_program_refuses_the_new_file_and_runs_on_the_backup(self):
+        path = self.old_database()
+        with contextlib.redirect_stderr(io.StringIO()):
+            db.Database(path, db.DATA_STEPS, "NORMAL").conn.close()
+        with self.assertRaises(SystemExit):
+            db.Database(path, db.DATA_STEPS[:1], "NORMAL")
+        # the steps in OPERATIONS.md: drop the -wal and -shm files, put the backup in place of board.db, start the older program
+        # các bước trong OPERATIONS.md: bỏ file -wal và -shm, đặt bản sao lưu vào chỗ board.db, bật chương trình cũ
+        for leftover in (path + "-wal", path + "-shm"):
+            if os.path.exists(leftover):
+                os.remove(leftover)
+        shutil.copyfile(path + ".schema-1.bak", path)
+        d = db.Database(path, db.DATA_STEPS[:1], "NORMAL")
+        self.addCleanup(d.conn.close)
+        self.assertEqual(d.rows("SELECT device FROM devices"), [("device-old",)])
+
+    def test_a_new_or_current_database_makes_no_backup(self):
+        path = os.path.join(self.folder(), "board.db")
+        db.Database(path, db.DATA_STEPS, "NORMAL").conn.close()
+        db.Database(path, db.DATA_STEPS, "NORMAL").conn.close()
+        self.assertEqual(glob.glob(path + ".schema-*"), [])
+
+    def test_no_backup_means_no_upgrade(self):
+        path = self.old_database()
+        # something in the way of the copy: the server must stop and leave the database as it was
+        # có thứ chắn chỗ của bản sao: máy chủ phải dừng và để nguyên cơ sở dữ liệu
+        os.mkdir(path + ".schema-1.bak.partial")
+        with self.assertRaises(SystemExit) as stopped:
+            db.Database(path, db.DATA_STEPS, "NORMAL")
+        self.assertIn("Cannot back up", str(stopped.exception))
+        self.assertIn("Nothing was changed", str(stopped.exception))
+        conn = sqlite3.connect(path)
+        self.addCleanup(conn.close)
+        self.assertEqual(conn.execute("PRAGMA user_version").fetchone(), (1,))
+        self.assertEqual(conn.execute("SELECT name FROM sqlite_master WHERE name = 'daily'").fetchall(), [])
+        self.assertFalse(os.path.exists(path + ".schema-1.bak"))
+
+    def test_a_failed_copy_keeps_the_good_backup_of_an_earlier_try(self):
+        path = self.old_database()
+        self.write(path + ".schema-1.bak", "the copy of an earlier try")
+        original = db.Database.backup
+        db.Database.backup = lambda self, target: (_ for _ in ()).throw(sqlite3.OperationalError("disk is full"))
+        try:
+            with self.assertRaises(SystemExit):
+                db.Database(path, db.DATA_STEPS, "NORMAL")
+        finally:
+            db.Database.backup = original
+        with open(path + ".schema-1.bak", encoding="utf-8") as f:
+            self.assertEqual(f.read(), "the copy of an earlier try")
+        self.assertEqual([n for n in os.listdir(os.path.dirname(path)) if "partial" in n], [])
+
+    def test_upgrade_backups_are_deleted_after_thirty_days(self):
+        path = os.path.join(self.folder(), "board.db")
+        d = db.Database(path, db.DATA_STEPS, "NORMAL")
+        self.addCleanup(d.conn.close)
+        now = time.time()
+        self.write(path + ".schema-1.bak", "old", now - 31 * 86400)
+        self.write(path + ".schema-2.bak", "recent", now - 29 * 86400)
+        log = io.StringIO()
+        with contextlib.redirect_stderr(log):
+            self.assertEqual(d.drop_old_upgrade_backups(now), [path + ".schema-1.bak"])
+        self.assertIn("deleted the upgrade backup", log.getvalue())
+        self.assertEqual(sorted(n for n in os.listdir(os.path.dirname(path)) if n.endswith(".bak")), ["board.db.schema-2.bak"])
+
     def test_audit_keeps_twelve_months(self):
         with db.data_db().tx() as c:
             c.execute("INSERT INTO audit (at, month, action, body) VALUES ('x', '2000-01', 'old', '{}')")
@@ -2050,6 +3284,451 @@ class DatabaseStorage(unittest.TestCase):
         stores.AUDIT_LOG.write(action="check")
         self.assertEqual(db.data_db().rows("SELECT COUNT(*) FROM audit WHERE month = '2000-01'"), [(0,)])
         self.assertEqual(stores.AUDIT_LOG.read(time.strftime("%Y-%m"), 1)[0]["action"], "check")
+
+
+def local_hour(day: date, hour: int = 10) -> str:
+    """The hour number a computer's ledger uses, for an hour of a day on the server's clock.
+    Số giờ mà sổ theo giờ của máy dùng, cho một giờ của một ngày theo đồng hồ máy chủ."""
+    return str(int(datetime(day.year, day.month, day.day, hour, tzinfo=settings.LOCAL_TZ).timestamp() // 3600))
+
+
+def spending(device: str, name: str, account: str, usd_by_hour: dict, tasks_by_hour: dict = None) -> dict:
+    """A computer's report with a ledger of {hour: dollars}; tokens follow the dollars so the sums are easy to read.
+    Báo cáo của một máy với sổ {giờ: đô la}; token đi theo số đô la để tổng dễ đọc."""
+    return {"v": 1, "device": device, "name": name, "account": account, "updatedAt": 1,
+            "ledger": {h: {"usd": usd, "input": int(usd * 100), "cacheRead": int(usd * 10), "cacheWrite": int(usd), "output": int(usd * 1000)} for h, usd in usd_by_hour.items()},
+            "tasks": tasks_by_hour or {}}
+
+
+class DailyTotals(unittest.TestCase):
+    """Use per person per day: counting the hours into days, writing them again without adding twice, how long they stay, and the weeks and months read back.
+    Mức dùng từng người từng ngày: cộng giờ thành ngày, ghi lại mà không cộng trùng, giữ bao lâu, và các tuần, các tháng đọc ra."""
+
+    # a Wednesday, at 15:00 on the server's clock
+    # một ngày thứ Tư, lúc 15:00 theo đồng hồ máy chủ
+    TODAY = date(2026, 11, 18)
+    NOW = datetime(2026, 11, 18, 15, tzinfo=settings.LOCAL_TZ).timestamp()
+    AN, BINH = "an@example.com|an", "binh@example.com|binh"
+
+    def store(self):
+        d = db.Database(os.path.join(tempfile.mkdtemp(dir=TMP), "board.db"), db.DATA_STEPS, "NORMAL")
+        self.addCleanup(d.conn.close)
+        return daily.DailyStore(d)
+
+    def day(self, back: int) -> date:
+        return self.TODAY - timedelta(days=back)
+
+    def rows(self, store) -> dict:
+        return {(r[0], r[1]): r[2:] for r in store.db.rows("SELECT " + daily.COLUMNS + " FROM daily ORDER BY day, person")}
+
+    def put(self, store, day: date, person: str, usd: float, branch: str = "", branch_name: str = "") -> None:
+        with store.db.tx() as c:
+            c.execute("INSERT INTO daily (" + daily.COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                      (day.isoformat(), person, person.split("|")[1].capitalize(), person.split("|")[0], branch, branch_name, usd, int(usd * 100), int(usd * 1000), 1, 2, 3))
+
+    def test_hours_of_every_computer_of_a_person_add_up_per_day(self):
+        laptop = spending("device-a1", "An", "an@example.com", {local_hour(self.TODAY, 9): 1.5, local_hour(self.TODAY, 14): 0.5, local_hour(self.day(1), 23): 2},
+                          {local_hour(self.TODAY, 9): {"gemini": 2, "chatgpt": 1}})
+        desktop = spending("device-a2", "An", "an@example.com", {local_hour(self.TODAY, 0): 1}, {local_hour(self.TODAY, 11): {"gemma": 4, "gemini": 1}})
+        other = spending("device-b1", "Binh", "binh@example.com", {local_hour(self.day(6), 8): 3})
+        totals = daily.totals_by_day([laptop, desktop, other], self.NOW)
+        self.assertEqual(sorted(totals), [self.day(6).isoformat(), self.day(1).isoformat(), self.TODAY.isoformat()])
+        an = totals[self.TODAY.isoformat()][self.AN]
+        self.assertEqual((an["name"], an["account"]), ("An", "an@example.com"))
+        self.assertEqual((an["usd"], an["tokensIn"], an["tokensOut"]), (3.0, 150 + 15 + 1 + 50 + 5 + 0 + 100 + 10 + 1, 3000))
+        self.assertEqual((an["gemini"], an["chatgpt"], an["gemma"]), (3, 1, 4))
+        self.assertEqual(totals[self.day(1).isoformat()][self.AN]["usd"], 2)
+        self.assertEqual(totals[self.day(6).isoformat()][self.BINH]["usd"], 3)
+
+    def test_the_day_follows_the_servers_clock_not_utc(self):
+        # 23:00 and 00:00 on the server's clock are one hour apart and belong to two days
+        # 23:00 và 00:00 theo đồng hồ máy chủ cách nhau một giờ và thuộc hai ngày khác nhau
+        m = spending("device-a1", "An", "an@example.com", {local_hour(self.day(1), 23): 1, local_hour(self.TODAY, 0): 2})
+        totals = daily.totals_by_day([m], self.NOW)
+        self.assertEqual(totals[self.day(1).isoformat()][self.AN]["usd"], 1)
+        self.assertEqual(totals[self.TODAY.isoformat()][self.AN]["usd"], 2)
+
+    def test_only_days_every_computer_still_holds_in_full_are_counted(self):
+        m = spending("device-a1", "An", "an@example.com", {local_hour(self.day(7)): 9, local_hour(self.day(6)): 1, local_hour(self.TODAY + timedelta(days=1)): 9, "not-an-hour": 9})
+        self.assertEqual(list(daily.totals_by_day([m], self.NOW)), [self.day(6).isoformat()])
+        self.assertEqual(settings.DAILY_RECOUNT_DAYS, 7)
+
+    def test_recording_again_writes_over_and_never_adds_twice(self):
+        store = self.store()
+        m = spending("device-a1", "An", "an@example.com", {local_hour(self.TODAY): 1.25, local_hour(self.day(2)): 4})
+        offices = {self.AN: ("hn", "Hanoi")}
+        self.assertEqual(store.record(daily.totals_by_day([m], self.NOW), offices, self.NOW), 2)
+        first = self.rows(store)
+        for _ in range(3):
+            self.assertEqual(store.record(daily.totals_by_day([m], self.NOW), offices, self.NOW), 0)
+        self.assertEqual(self.rows(store), first)
+        self.assertEqual(first[(self.TODAY.isoformat(), self.AN)], ("An", "an@example.com", "hn", "Hanoi", 1.25, 138, 1250, 0, 0, 0))
+        # the hour grows on the computer: the row takes the new total, it does not add it to the old one
+        # giờ đó tăng thêm trên máy: dòng nhận tổng mới, không cộng nó vào tổng cũ
+        m["ledger"][local_hour(self.TODAY)]["usd"] = 2
+        self.assertEqual(store.record(daily.totals_by_day([m], self.NOW + 60), offices, self.NOW + 60), 1)
+        self.assertEqual(self.rows(store)[(self.TODAY.isoformat(), self.AN)][4], 2)
+        self.assertEqual(len(self.rows(store)), 2)
+
+    def test_a_day_the_computers_no_longer_hold_is_left_as_written(self):
+        store = self.store()
+        m = spending("device-a1", "An", "an@example.com", {local_hour(self.TODAY): 5})
+        store.record(daily.totals_by_day([m], self.NOW), {}, self.NOW)
+        # ten days on the computer has dropped those hours, and one computer is gone altogether
+        # mười ngày sau máy đã bỏ các giờ đó, và có máy đã biến mất hẳn
+        later = self.NOW + 10 * 86400
+        self.assertEqual(store.record(daily.totals_by_day([dict(m, ledger={})], later), {}, later), 0)
+        self.assertEqual(store.record(daily.totals_by_day([], later), {}, later), 0)
+        self.assertEqual(self.rows(store)[(self.TODAY.isoformat(), self.AN)][4], 5)
+
+    def test_a_person_whose_key_changed_is_not_counted_twice(self):
+        store = self.store()
+        # a computer that has not given a name yet is told apart by its address; once the name comes, the same hours belong to the named person
+        # máy chưa khai tên được phân biệt bằng địa chỉ; khi có tên rồi thì chính các giờ đó thuộc về người đã có tên
+        nameless = dict(spending("device-a1", "", "an@example.com", {local_hour(self.TODAY): 2}), lanIp="192.168.5.9")
+        store.record(daily.totals_by_day([nameless], self.NOW), {}, self.NOW)
+        self.assertEqual(list(self.rows(store)), [(self.TODAY.isoformat(), "an@example.com|192.168.5.9")])
+        store.record(daily.totals_by_day([dict(nameless, name="An")], self.NOW), {}, self.NOW)
+        self.assertEqual(list(self.rows(store)), [(self.TODAY.isoformat(), self.AN)])
+
+    def test_a_finished_day_keeps_the_office_it_closed_with(self):
+        store = self.store()
+        m = spending("device-a1", "An", "an@example.com", {local_hour(self.day(1)): 1, local_hour(self.TODAY): 1})
+        yesterday = self.NOW - 86400
+        store.record(daily.totals_by_day([m], yesterday), {self.AN: ("hn", "Hanoi")}, yesterday)
+        store.record(daily.totals_by_day([m], self.NOW), {self.AN: ("dn", "Da Nang")}, self.NOW)
+        rows = self.rows(store)
+        self.assertEqual(rows[(self.day(1).isoformat(), self.AN)][2:4], ("hn", "Hanoi"))
+        self.assertEqual(rows[(self.TODAY.isoformat(), self.AN)][2:4], ("dn", "Da Nang"))
+        # a finished day that had no office yet takes the one found later
+        # ngày đã qua mà lúc đó chưa có văn phòng thì nhận văn phòng tìm ra sau đó
+        other = self.store()
+        other.record(daily.totals_by_day([m], yesterday), {}, yesterday)
+        other.record(daily.totals_by_day([m], self.NOW), {self.AN: ("dn", "Da Nang")}, self.NOW)
+        self.assertEqual(self.rows(other)[(self.day(1).isoformat(), self.AN)][2:4], ("dn", "Da Nang"))
+
+    def test_rows_are_kept_thirteen_months_then_deleted(self):
+        self.assertEqual(settings.DAILY_KEEP_MONTHS, 13)
+        self.assertEqual(daily.keep_from(date(2026, 11, 18)), date(2025, 11, 1))
+        self.assertEqual(daily.keep_from(date(2026, 1, 31)), date(2025, 1, 1))
+        self.assertEqual(daily.keep_from(date(2026, 12, 1)), date(2025, 12, 1))
+        store = self.store()
+        self.put(store, date(2025, 10, 31), self.AN, 1)
+        self.put(store, date(2025, 11, 1), self.AN, 2)
+        self.put(store, date(2026, 6, 1), self.AN, 3)
+        store.record({}, {}, self.NOW)
+        self.assertEqual([k[0] for k in self.rows(store)], ["2025-11-01", "2026-06-01"])
+
+    def test_weeks_start_on_monday_and_spans_before_are_cut_to_the_same_days(self):
+        spans = {p: (a.isoformat(), b.isoformat()) for p, (a, b) in daily.periods(self.TODAY).items()}
+        self.assertEqual(set(spans), set(daily.PERIODS))
+        self.assertEqual(spans["week"], ("2026-11-16", "2026-11-18"))
+        self.assertEqual(spans["weekBefore"], ("2026-11-09", "2026-11-15"))
+        self.assertEqual(spans["weekBeforeSameDays"], ("2026-11-09", "2026-11-11"))
+        self.assertEqual(spans["month"], ("2026-11-01", "2026-11-18"))
+        self.assertEqual(spans["monthBefore"], ("2026-10-01", "2026-10-31"))
+        self.assertEqual(spans["monthBeforeSameDays"], ("2026-10-01", "2026-10-18"))
+        self.assertEqual(spans["monthYearAgo"], ("2025-11-01", "2025-11-30"))
+        # the 31st has no same day in February; January looks back to December of the year before
+        # ngày 31 không có ngày tương ứng trong tháng Hai; tháng Một nhìn về tháng Mười Hai của năm trước
+        march = daily.periods(date(2027, 3, 31))
+        self.assertEqual(march["monthBeforeSameDays"], (date(2027, 2, 1), date(2027, 2, 28)))
+        january = daily.periods(date(2027, 1, 5))
+        self.assertEqual(january["monthBefore"], (date(2026, 12, 1), date(2026, 12, 31)))
+        self.assertEqual(january["monthYearAgo"], (date(2026, 1, 1), date(2026, 1, 31)))
+        self.assertEqual(daily.periods(date(2026, 12, 9))["monthYearAgo"], (date(2025, 12, 1), date(2025, 12, 31)))
+
+    def started(self, day: date):
+        """A store whose totals start on the given day: the first run counts from six days before the day it runs on.
+        Một kho có các tổng bắt đầu từ ngày đã cho: lần chạy đầu đếm từ sáu ngày trước ngày nó chạy."""
+        store = self.store()
+        first_run = day + timedelta(days=settings.DAILY_RECOUNT_DAYS - 1)
+        store.record({}, {}, datetime(first_run.year, first_run.month, first_run.day, 12, tzinfo=settings.LOCAL_TZ).timestamp())
+        return store
+
+    def filled(self):
+        store = self.started(date(2025, 9, 1))
+        self.put(store, date(2026, 11, 18), self.AN, 4, "hn", "Hanoi")
+        self.put(store, date(2026, 11, 17), self.BINH, 2, "dn", "Da Nang")
+        self.put(store, date(2026, 11, 10), self.AN, 1, "hn", "Hanoi")
+        self.put(store, date(2026, 11, 14), self.AN, 8, "dn", "Da Nang")
+        self.put(store, date(2026, 10, 5), self.BINH, 16, "dn", "Da Nang")
+        self.put(store, date(2026, 10, 25), self.BINH, 32, "", "")
+        self.put(store, date(2025, 11, 20), self.AN, 64, "hn", "Old name")
+        self.put(store, date(2026, 9, 30), self.AN, 128, "hn", "Hanoi")
+        return store
+
+    def test_summary_adds_up_team_offices_and_people(self):
+        d = self.filled().summary(self.NOW, {"hn": "Ha Noi office"})
+        usd = lambda group: {p: group[p]["usd"] for p in daily.PERIODS}
+        self.assertEqual(usd(d["team"]), {"week": 6, "weekBefore": 9, "weekBeforeSameDays": 1, "month": 15, "monthBefore": 48, "monthBeforeSameDays": 16, "monthYearAgo": 64})
+        self.assertEqual(d["team"]["week"], {"usd": 6, "tokensIn": 600, "tokensOut": 6000, "gemini": 2, "chatgpt": 4, "gemma": 6})
+        offices = {o["id"]: o for o in d["offices"]}
+        # an office goes by the name it has now; one that is gone keeps the name written on its rows
+        # văn phòng mang tên hiện nay của nó; văn phòng đã bị bỏ thì giữ tên ghi trên các dòng của nó
+        self.assertEqual({k: o["name"] for k, o in offices.items()}, {"hn": "Ha Noi office", "dn": "Da Nang", "": ""})
+        self.assertEqual(usd(offices["hn"])["month"], 5)
+        self.assertEqual(usd(offices["dn"])["month"], 10)
+        self.assertEqual((usd(offices["dn"])["monthBefore"], usd(offices[""])["monthBefore"]), (16, 32))
+        self.assertEqual([o["id"] for o in d["offices"]], ["dn", "hn", ""])
+        people = {r["name"]: r for r in d["people"]}
+        self.assertEqual([r["name"] for r in d["people"]], ["An", "Binh"])
+        self.assertEqual((usd(people["An"])["month"], usd(people["An"])["weekBefore"], usd(people["Binh"])["monthBefore"]), (13, 9, 48))
+        self.assertEqual((people["An"]["account"], people["An"]["office"], people["Binh"]["office"]), ("an@example.com", "hn", "dn"))
+        self.assertEqual({p: v["kept"] for p, v in d["periods"].items()}, dict.fromkeys(daily.PERIODS, "all"))
+        # the totals started before the oldest day still kept, so they cover from that day
+        # các tổng bắt đầu trước ngày cũ nhất còn giữ, nên chúng phủ từ ngày đó
+        self.assertEqual((d["today"], d["since"]), ("2026-11-18", "2025-11-01"))
+
+    def test_summary_says_how_much_of_each_span_the_stored_days_cover(self):
+        store = self.store()
+        self.assertEqual(store.summary(self.NOW, {})["since"], "")
+        self.assertEqual({v["kept"] for v in store.summary(self.NOW, {})["periods"].values()}, {"none"})
+        # the first run is today: it counts from six days back, and that day stays the start even when nobody used anything on it
+        # lần chạy đầu là hôm nay: nó đếm từ sáu ngày trước, và ngày đó vẫn là điểm bắt đầu dù hôm đó không ai dùng gì
+        store.record({}, {}, self.NOW)
+        store.record({}, {}, self.NOW + 30 * 86400)
+        self.assertEqual(store.summary(self.NOW, {})["since"], "2026-11-12")
+        kept = {p: v["kept"] for p, v in store.summary(self.NOW, {})["periods"].items()}
+        self.assertEqual(kept, {"week": "all", "weekBefore": "part", "weekBeforeSameDays": "none", "month": "part", "monthBefore": "none", "monthBeforeSameDays": "none", "monthYearAgo": "none"})
+
+    def test_charts_get_the_last_twelve_weeks_and_every_month_still_kept(self):
+        spans = daily.chart_spans(self.TODAY)
+        weeks = [(a.isoformat(), b.isoformat()) for a, b, _ in spans["weeks"]]
+        self.assertEqual(len(weeks), settings.DAILY_CHART_WEEKS)
+        self.assertEqual((weeks[0], weeks[-2], weeks[-1]), (("2026-08-31", "2026-09-06"), ("2026-11-09", "2026-11-15"), ("2026-11-16", "2026-11-18")))
+        months = [(a.isoformat(), b.isoformat()) for a, b, _ in spans["months"]]
+        self.assertEqual(len(months), settings.DAILY_KEEP_MONTHS)
+        self.assertEqual((months[0], months[1], months[-2], months[-1]), (("2025-11-01", "2025-11-30"), ("2025-12-01", "2025-12-31"), ("2026-10-01", "2026-10-31"), ("2026-11-01", "2026-11-18")))
+        # a year with a February in it, and the last day of a month, when the current month is whole
+        # một năm có tháng Hai trong đó, và ngày cuối tháng, khi tháng hiện tại đã trọn
+        months = daily.chart_spans(date(2027, 3, 31))["months"]
+        self.assertEqual(len(months), 13)
+        self.assertEqual(months[-2][:2], (date(2027, 2, 1), date(2027, 2, 28)))
+        self.assertEqual(months[-1], (date(2027, 3, 1), date(2027, 3, 31), date(2027, 3, 31)))
+
+    def test_chart_series_add_up_weeks_months_and_offices(self):
+        d = self.filled().summary(self.NOW, {})
+        weeks = {s["from"]: s for s in d["weeks"]}
+        self.assertEqual([s["from"] for s in d["weeks"]], sorted(weeks))
+        self.assertEqual((weeks["2026-11-16"]["usd"], weeks["2026-11-09"]["usd"], weeks["2026-10-05"]["usd"], weeks["2026-09-28"]["usd"]), (6, 9, 16, 128))
+        self.assertEqual(round(sum(s["usd"] for s in d["weeks"]), 4), 6 + 9 + 16 + 32 + 128)
+        months = {s["from"]: s for s in d["months"]}
+        self.assertEqual((months["2026-11-01"]["usd"], months["2026-10-01"]["usd"], months["2026-09-01"]["usd"], months["2025-11-01"]["usd"]), (15, 48, 128, 64))
+        # only a week or month that is over and fully covered counts as whole; the current ones stop at today
+        # chỉ tuần hay tháng đã qua và được phủ đủ mới tính là trọn; tuần và tháng hiện tại dừng ở hôm nay
+        self.assertEqual([s["whole"] for s in d["weeks"]], [True] * 11 + [False])
+        self.assertEqual([s["whole"] for s in d["months"]], [True] * 12 + [False])
+        self.assertEqual((d["weeks"][-1]["to"], d["months"][-1]["to"]), ("2026-11-18", "2026-11-18"))
+        offices = {o["id"]: o["weeks"] for o in d["offices"]}
+        self.assertEqual({len(w) for w in offices.values()}, {settings.DAILY_CHART_WEEKS})
+        self.assertEqual((offices["hn"][-1], offices["dn"][-1], offices["dn"][-2], offices["hn"][-2], offices[""][-5]), (4, 2, 8, 1, 32))
+        for i, span in enumerate(d["weeks"]):
+            self.assertEqual(round(sum(w[i] for w in offices.values()), 4), span["usd"])
+
+    def test_chart_series_say_what_the_stored_days_cover(self):
+        store = self.store()
+        store.record({}, {}, self.NOW)
+        d = store.summary(self.NOW, {})
+        self.assertEqual([(s["from"], s["kept"], s["whole"]) for s in d["weeks"][-3:]],
+                         [("2026-11-02", "none", False), ("2026-11-09", "part", False), ("2026-11-16", "all", False)])
+        self.assertEqual([s["kept"] for s in d["months"]], ["none"] * 12 + ["part"])
+
+    def test_one_persons_rows_can_be_deleted(self):
+        store = self.filled()
+        self.assertEqual(store.forget(""), 0)
+        self.assertEqual(store.forget("nobody@example.com"), 0)
+        self.assertEqual(store.forget(" AN@example.com "), 5)
+        self.assertEqual({k[1] for k in self.rows(store)}, {self.BINH})
+        self.assertEqual(store.forget("binh"), 3)
+
+
+class UsageByRole(unittest.TestCase):
+    """Who gets the use by week and month: an admin and a viewer, on /board only; the wall role and everything that reads as it get none of it.
+    Ai nhận được mức dùng theo tuần và theo tháng: quản trị và người xem, chỉ trên /board; vai treo tường và mọi thứ đọc với vai đó không nhận gì."""
+
+    @classmethod
+    def setUpClass(cls):
+        seed()
+        cls.original = views.DAILY
+        d = db.Database(os.path.join(tempfile.mkdtemp(dir=TMP), "board.db"), db.DATA_STEPS, "NORMAL")
+        views.DAILY = daily.DailyStore(d)
+        views.DAILY.record({}, {}, NOW - 100 * 86400)
+        today = daily.local_day(NOW)
+        with d.tx() as c:
+            for back, usd in ((0, 3.5), (7, 2.0), (40, 9.0)):
+                c.execute("INSERT INTO daily (" + daily.COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                          ((today - timedelta(days=back)).isoformat(), EMAIL + "|usage person", "Usage Person", EMAIL, "", "", usd, 1000, 200, 1, 0, 2))
+        stores.ACCOUNTS.d = {"accounts": {"adm": {"role": security.ADMIN, "secret": ""}, "viewer": {"role": security.VIEWER, "secret": ""}, "wall": {"role": security.WALL, "secret": ""}}}
+        for name in ("adm", "viewer", "wall"):
+            login.SESSIONS.sessions["use-" + name] = (name, NOW + 3600)
+        cls.server = w.ThreadingHTTPServer(("127.0.0.1", 0), w.Handler)
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+        views.DAILY.db.conn.close()
+        views.DAILY = cls.original
+
+    def get(self, path: str, token: str) -> tuple:
+        security.BOT.__init__()
+        conn = http.client.HTTPConnection("127.0.0.1", self.server.server_address[1])
+        try:
+            conn.request("GET", path, headers={"Cookie": "session=" + token})
+            r = conn.getresponse()
+            return r.status, r.read().decode()
+        finally:
+            conn.close()
+
+    def test_admin_and_viewer_get_people_and_offices(self):
+        for role in (security.ADMIN, security.VIEWER):
+            d = views.usage_view(role, NOW)
+            self.assertEqual(set(d), views.USAGE_FIELDS_ALL, role)
+            self.assertEqual([(r["name"], r["account"]) for r in d["people"]], [("Usage Person", EMAIL)], role)
+            self.assertEqual(d["team"]["week"]["usd"] >= 3.5, True, role)
+
+    def test_wall_and_unknown_roles_get_nothing(self):
+        for role in (security.WALL, "role-unknown", "", None):
+            self.assertEqual(views.usage_view(role, NOW), {}, role)
+            self.assertEqual(pages.usage_section(role, NOW), "", role)
+
+    def test_new_field_must_be_classified(self):
+        """Add a field to the usage numbers without declaring it for each role and this test goes red.
+        Thêm trường vào số liệu mức dùng mà chưa khai cho từng vai thì test này đỏ."""
+        raw = views._raw_usage(NOW)
+        self.assertEqual(set(raw), views.USAGE_FIELDS_DECLARED)
+        self.assertEqual(set(raw["offices"][0]), views.USAGE_OFFICE_FIELDS_DECLARED)
+        self.assertEqual(set(raw["people"][0]), views.USAGE_PERSON_FIELDS_DECLARED)
+        self.assertEqual(set(raw["team"]), set(daily.PERIODS))
+        self.assertEqual(set(raw["team"]["week"]), views.USAGE_NUMBER_FIELDS)
+        self.assertEqual(set(raw["weeks"][0]), views.USAGE_SPAN_FIELDS)
+        self.assertEqual(set(raw["months"][0]), views.USAGE_SPAN_FIELDS)
+
+    def test_unknown_field_does_not_leak(self):
+        original = views._raw_usage
+
+        def with_unknown_field(now):
+            d = original(now)
+            d["extra"] = "secret-value"
+            for group in [d["team"]] + d["offices"] + d["people"]:
+                group["extra"] = "secret-value"
+                group["week"]["extra"] = "secret-value"
+            for span in d["weeks"] + d["months"]:
+                span["extra"] = "secret-value"
+            for office in d["offices"]:
+                office["weeks"].append("secret-value")
+            return d
+        views._raw_usage = with_unknown_field
+        try:
+            for role in (security.ADMIN, security.VIEWER, security.WALL):
+                self.assertNotIn("secret-value", json.dumps(views.usage_view(role, NOW)), role)
+        finally:
+            views._raw_usage = original
+
+    def test_the_board_page_shows_it_to_admin_and_viewer_only(self):
+        for token in ("use-adm", "use-viewer"):
+            status, page = self.get("/board", token)
+            self.assertEqual(status, 200)
+            self.assertIn("<h2>Use by week and month</h2>", page)
+            self.assertIn("Usage Person", page)
+            for label in ("This week", "Last week", "This month", "Last month", "Tokens (month)", "Delegated (month)"):
+                self.assertIn("data-label='%s'" % label, page)
+        self.assertEqual(self.get("/board", "use-wall")[0], 303)
+        # with no role given the page leaves the part out, as for the role that sees least
+        # không truyền vai thì trang bỏ phần đó, như với vai thấy ít nhất
+        self.assertNotIn("Use by week and month", pages.page_board("adm", NOW).decode())
+        self.assertNotIn("Use by week and month", pages.page_board("wall", NOW, security.WALL).decode())
+
+    def test_the_page_is_in_vietnamese_too(self):
+        lang.REQUEST.lang = "vi"
+        try:
+            page = pages.page_board("adm", NOW, security.ADMIN).decode()
+        finally:
+            del lang.REQUEST.lang
+        self.assertIn("<h2>%s</h2>" % lang.VI["Use by week and month"], page)
+        self.assertIn("data-label='%s'" % lang.VI["Last month"], page)
+        self.assertNotIn("This week", page)
+
+    def test_no_other_path_gives_the_daily_totals(self):
+        """The numbers every wall reader gets (/data: TV, menu bar, extension, plugin, and the MCP endpoint built on it) hold no daily total.
+        Số liệu mà mọi nơi đọc với vai treo tường nhận (/data: TV, thanh menu, tiện ích, plugin, và cổng MCP dựng trên đó) không có tổng theo ngày nào."""
+        for token in ("use-wall", "use-viewer", "use-adm"):
+            status, body = self.get("/data", token)
+            self.assertEqual(status, 200)
+            for word in ("Usage Person", "weekBefore", "monthBefore", "monthYearAgo"):
+                self.assertNotIn(word, body, token)
+        for role in (security.ADMIN, security.VIEWER, security.WALL):
+            self.assertEqual(set(views.role_view(role, NOW)) & {"since", "periods", "team" if role == security.WALL else "periods", "offices"}, set())
+
+    def span(self, start: str, usd: float, kept: str = "all", whole: bool = True) -> dict:
+        end = (date.fromisoformat(start) + timedelta(days=6)).isoformat()
+        return {"from": start, "to": end, "kept": kept, "whole": whole, "usd": usd}
+
+    def test_charts_are_on_the_page_as_plain_html(self):
+        page = pages.page_board("adm", NOW, security.ADMIN).decode()
+        for title in ("Cost per week", "Cost per month"):
+            self.assertIn('<figure class="chart" role="group" aria-label="%s">' % title, page)
+        # the week of today is drawn striped and carries its amount; the page still runs no script
+        # tuần của hôm nay được vẽ sọc và có ghi số tiền; trang vẫn không chạy script nào
+        self.assertIn('class="col part', page)
+        self.assertIn('<span class="v">$3.50</span>', page)
+        self.assertIn("(so far)", page)
+        self.assertNotIn("<script", page)
+        self.assertNotIn("class=\"chart", pages.page_board("adm", NOW).decode())
+
+    def test_a_chart_labels_only_the_newest_and_the_highest_column(self):
+        weeks = [self.span("2026-09-07", 40), self.span("2026-09-14", 90), self.span("2026-09-21", 20), self.span("2026-09-28", 30),
+                 self.span("2026-10-05", 10), self.span("2026-10-12", 60), self.span("2026-10-19", 5, whole=False)]
+        chart = pages.usage_chart(weeks, "weeks", "2026-01-01")
+        self.assertEqual(re.findall(r'<span class="v">([^<]*)</span>', chart), ["$90", "$5"])
+        self.assertEqual(len(re.findall(r'<div class="col[ "]', chart)), 7)
+        self.assertEqual(chart.count('class="col part'), 1)
+        # the axis stops at a round number above the highest column, and that column's height is its share of it
+        # trục dừng ở một số tròn phía trên cột cao nhất, và chiều cao của cột đó là phần của nó trên số ấy
+        self.assertEqual(re.findall(r'class="gl" style="bottom:([0-9.]+)%"><span>([^<]*)</span>', chart), [("0.00", "0"), ("50.00", "$50"), ("100.00", "$100")])
+        self.assertIn('aria-label="Sep 14 – Sep 20, 2026: $90.00"', chart)
+        self.assertIn('<i style="height:90.00%"></i>', chart)
+        self.assertIn('aria-label="Oct 19 – Oct 25, 2026: $5.00 (so far)"', chart)
+
+    def test_a_chart_leaves_weeks_without_numbers_empty_and_keeps_six_columns(self):
+        weeks = [self.span("2026-08-%02d" % d, 0, "none", False) for d in (3, 10, 17, 24, 31)] + [self.span("2026-09-%02d" % d, 0, "none", False) for d in (7, 14, 21, 28)]
+        weeks += [self.span("2026-10-05", 0, "none", False), self.span("2026-10-12", 8, "part", False), self.span("2026-10-19", 12, whole=False)]
+        chart = pages.usage_chart(weeks, "weeks", "2026-10-14")
+        self.assertEqual(len(re.findall(r'<div class="col[ "]', chart)), 6)
+        self.assertEqual(chart.count('class="col none"'), 4)
+        self.assertIn('aria-label="Oct 12 – Oct 18, 2026: $8.00 (from Oct 14, 2026)"', chart)
+        self.assertEqual(pages.usage_chart([self.span("2026-10-05", 0, "none", False)], "weeks", ""), "")
+        # nobody spent anything yet: the chart still stands, flat, and divides by nothing
+        # chưa ai tiêu gì: biểu đồ vẫn hiện, phẳng, và không chia cho số không
+        self.assertIn('<i style="height:0.00%"></i>', pages.usage_chart([self.span("2026-10-19", 0, whole=False)], "weeks", "2026-01-01"))
+
+    def test_offices_share_one_scale_and_need_a_named_office(self):
+        weeks = [self.span("2026-10-12", 0), self.span("2026-10-19", 0, whole=False)]
+        offices = [{"id": "hn", "name": "Hanoi", "weeks": [40.0, 10.0]}, {"id": "dn", "name": "Da Nang", "weeks": [20.0, 0.0]}, {"id": "ct", "name": "Can Tho", "weeks": [0.0, 0.0]}]
+        chart = pages.office_charts(offices, weeks, "2026-01-01")
+        self.assertEqual(re.findall(r'<i(?: class="part")? style="height:([0-9.]+)%"', chart), ["100.00", "25.00", "50.00", "0.00"])
+        self.assertIn("this week $10.00", chart)
+        self.assertNotIn("Can Tho", chart)
+        self.assertEqual(pages.office_charts([{"id": "", "name": "", "weeks": [40.0, 10.0]}], weeks, "2026-01-01"), "")
+
+    def test_short_amounts_and_round_axis_steps(self):
+        self.assertEqual([pages.compact_money(n) for n in (0, 0.5, 5, 9.5, 366, 1136.88, 12400, 1500000)], ["$0", "$0.50", "$5", "$9.50", "$366", "$1.1K", "$12.4K", "$1.5M"])
+        lang.REQUEST.lang = "vi"
+        try:
+            rate = settings.USD_RATE
+            self.assertEqual([pages.compact_money(n / rate) for n in (850000, 9511320, 150000000, 2500000000)], ["850k", "9,5 tr", "150 tr", "2,5 tỷ"])  # i18n-allow
+        finally:
+            del lang.REQUEST.lang
+        self.assertEqual([pages.axis_step(n) for n in (0, 0.9, 90, 1089, 4205, 30000000)], [1.0, 0.5, 50, 500, 2000, 10000000])
+
+    def test_change_is_measured_against_the_same_days_before(self):
+        self.assertEqual(pages.usage_change(115, 100), "▲ 15%")
+        self.assertEqual(pages.usage_change(46, 50), "▼ 8%")
+        self.assertEqual(pages.usage_change(100.2, 100), "=")
+        self.assertEqual(pages.usage_change(5, 0), "")
+        self.assertEqual(pages.usage_change(5000, 1), "▲ >999%")
 
 
 class PageMatchesServer(unittest.TestCase):
@@ -2110,9 +3789,16 @@ class PageMatchesServer(unittest.TestCase):
         for x in screens:
             self.addCleanup(stores.TV.d.pop, x["id"], None)
         self.assertTrue(screens)
+        # the card of a Telegram chat has fields of its own, which a screen's card does not have
+        # thẻ của chat Telegram có các trường riêng, thẻ của màn hình thì không có
+        chat_code = stores.TV_PAIRING.request_chat("700300400", "doi_chieu", now)[0]
+        self.addCleanup(stores.TV_PAIRING.pending.pop, chat_code, None)
+        chat_view = views.tv_action("/admin/tv-view", {"code": chat_code}, "thu")[1]
         block = js_block(self.admin_js, "function tvSection")
-        self.assert_subset(props(block, "y"), set(view) | {"code"}, "TV request card")
+        self.assert_subset(props(block, "y"), set(view) | set(chat_view) | {"code"}, "TV request card")
         self.assert_subset(props(block, "t"), screens[0], "TV list")
+        self.assert_subset(props(js_block(self.admin_js, "function telegramBotLine"), "b"), views.admin_data(time.time(), "", "")["telegramAsk"], "Telegram bot line")
+        self.assert_subset(props(js_block(self.admin_js, "function mcpCallsSection"), "x"), {"at", "tv", "client", "clientIp", "ok", "action", "tool"}, "reads list")
 
     def test_account_fields(self):
         result = views.manage_account({"action": "create", "name": "thu-doi-chieu", "role": security.ADMIN}, "thu", "khong-co")[1]

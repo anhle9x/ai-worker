@@ -28,5 +28,11 @@ board.example.com {
 	# 	not path /ingest
 	# }
 	# respond @outside "Forbidden" 403
+	# The Telegram bot's path is for a program on this server alone, which calls the webhook directly: nothing that comes through here reaches it.
+	# The webhook refuses such a request by itself; this line stops it one step earlier.
+	# Đường của bot Telegram chỉ dành cho một chương trình trên chính máy chủ này, nó gọi thẳng webhook: không gì đi qua đây tới được đường đó.
+	# Webhook tự từ chối yêu cầu như vậy; dòng này chặn sớm hơn một bước.
+	@bot path /bot /bot/*
+	respond @bot "Not found" 404
 	reverse_proxy 127.0.0.1:8788
 }

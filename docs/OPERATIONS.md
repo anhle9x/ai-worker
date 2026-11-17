@@ -55,9 +55,16 @@ On the dashboard, a computer silent for 12 minutes shows as offline and one sile
 | A TV shows "not seen for a while" | The TV is off or lost its network | Turn it on; if it asks for a code, pair it again on `/admin` |
 | Staff do not get the update | Plugin older than 0.23.0, signature check failed, or the plugin folder has `.git` | See section 5 |
 | Lost every admin | | `sudo bash manage-otp.sh --rescue <name>` in the `server/` folder |
+| Service will not start after an upgrade, log says `Cannot back up ... before upgrading its schema` | The disk is full, or the service may not write in the data folder | Nothing was changed. Free some space (`df -h /opt/ai-worker/data`), check the folder belongs to `ai-worker`, start the service again |
+| Service will not start, log says `has schema version 2, newer than this program` | An older program was installed over a database the newer one had upgraded | Install the newer version again, or go back with the copy from before the upgrade: section 5 |
 | Telegram's page says the bot domain is invalid | The bot is not tied to the board's address | Send `/setdomain` to @BotFather with the board's domain |
 | "This Telegram account is not linked yet" | The person has not linked Telegram | They log in with name and code, then link it on `/telegram` |
 | The Telegram token leaked | Anyone with it can sign a login | Revoke it with `/revoke` in @BotFather, put the new token in `/etc/ai-worker.env`, restart the service |
+| The Admin page says Telegram refuses the bot's token | The token for asking from Telegram is wrong or was revoked | Put the right token in `/etc/ai-worker-telegram.env` (`TELEGRAM_ASK_TOKEN=`), run `sudo bash install.sh` |
+| The Admin page says another program reads the same bot | The token is also used somewhere else, or a webhook is set on the bot | One bot has one reader: make a bot with @BotFather for this alone and use its token |
+| The Admin page says the server cannot reach Telegram | The firewall, the limit on the bot's service, or a network that blocks Telegram | On the server: `curl -sS -m 10 -o /dev/null -w "%{http_code}\n" https://api.telegram.org`. A number means Telegram is reachable: set `TELEGRAM_NETS` in `/etc/ai-worker-telegram.env` and run `install.sh` (see INSTALL) |
+| The Admin page says the bot process has not been heard from, or the bot does not answer | The service is not running | `systemctl status ai-worker-telegram`, then `journalctl -u ai-worker-telegram -n 30`. The log names the reason, never the token |
+| The token of the bot for asking leaked | Someone can read what people send the bot and write to them in its name; they cannot read the board | `/revoke` in @BotFather, put the new token in `/etc/ai-worker-telegram.env`, run `sudo bash install.sh` |
 
 ## 4. Backup and restore
 
@@ -97,7 +104,40 @@ Then check `/health` and log in once.
 2. Copy the new `server/` folder to the server and run `sudo bash install.sh` in it. Data, keys and the settings file are kept.
 3. Check: `systemctl status ai-worker-webhook`, `/health`, log in, open `/admin`.
 
-Rolling back the server: stop the service, run `install.sh` from the old `server/` folder, start the service. If the new version changed the schema, also restore `data/` and `keys/` from `/opt/ai-worker.prev/`; a newer database refuses to start with an older program and says so in the log.
+Rolling back the server: stop the service, run `install.sh` from the old `server/` folder, start the service. If the new version changed the schema, the older program refuses the database and says so in the log: put the copy from before the upgrade back first, as below.
+
+#### Going back after the schema changed
+
+The schema is the layout of the tables in the database file. The first version with totals per day raises `board.db` from schema version 1 to 2; `accounts.db` does not change. At its first start on a database that already exists, that version:
+
+1. copies `board.db` to `board.db.schema-1.bak` in the same folder (mode `600`) and checks that the copy opens,
+2. writes `backed up ... (schema version 1) to ... before upgrading to schema version 2` to the service log,
+3. only then upgrades. If the copy cannot be made, nothing is changed and the service stops with `Cannot back up ...`.
+
+To go back to the older version:
+
+```bash
+sudo systemctl stop ai-worker-webhook
+```
+
+```bash
+sudo ls -l /opt/ai-worker/data/board.db.schema-1.bak
+```
+
+Correct result: one line with the file, its size above zero. If the file is not there, stop here and use `/opt/ai-worker.prev/data/` or your daily backup instead (section 4).
+
+```bash
+sudo rm -f /opt/ai-worker/data/board.db-wal /opt/ai-worker/data/board.db-shm
+sudo cp /opt/ai-worker/data/board.db.schema-1.bak /opt/ai-worker/data/board.db
+sudo chown ai-worker: /opt/ai-worker/data/board.db
+sudo chmod 600 /opt/ai-worker/data/board.db
+```
+
+Then run `sudo bash install.sh` in the old `server/` folder (it starts the service), check `/health` and log in once. The two `rm` targets are SQLite's own side files of the newer database; left in place they would be applied to the older file.
+
+What going back loses: everything written to `board.db` after the upgrade, such as the totals per day, audit lines, screens or keys paired and locations named since. The live board fills again within minutes, because every computer sends its last 8 days of hours with each report. Accounts are untouched.
+
+The server deletes `board.db.schema-1.bak` 30 days after the upgrade (log: `deleted the upgrade backup ...`). It is a full copy of people's numbers: keep it as private as `board.db`, and copy it elsewhere before the 30 days are over only if you need it longer.
 
 Going back to a version before SQLite (0.24 or older) without losing what changed since:
 
@@ -129,8 +169,17 @@ Rolling back the plugin: release the old code again under a new version number, 
 | Service log (journald) | Start, login lines, refusals, errors. Not every send | By the system's journald settings | Root on the server |
 | Caddy access log | Every request: IP, path, status | 10 files of 20 MB | Root on the server |
 | Rewind history, table `history` in `board.db` | State changes per person | 24 hours | Everyone logged in, through the rewind button |
+| Totals per day, table `daily` in `board.db` | One row per person per day: cost, tokens, tasks delegated, office, with name and account email | The current month and the 12 before it, older rows deleted by the server | Admin and viewer, on `/board` |
 
 Never logged: chat content, questions, file names, OTP codes, keys.
+
+To delete one person's totals per day before they expire, for example when they ask or after they have left:
+
+```bash
+sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --forget-usage <email or name>
+```
+
+Correct result: `deleted <number> daily rows of <email or name>`. The service can keep running. Days of the last week that a computer of that person still reports are written again at the next count, so for someone who has left, run it a week after their last day.
 
 ## 7. Site record
 

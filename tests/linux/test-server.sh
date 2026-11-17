@@ -68,10 +68,74 @@ check 'the old JSON file is kept apart' '[ -f /opt/ai-worker/data/legacy-json/de
 check 'the key is not printed again' '! grep -qF "$KEY" /tmp/server-second.txt'
 check 'the service is active' '[ "$(systemctl is-active $SERVICE)" = active ]'
 
-rm -f /tmp/server-first.txt /tmp/server-second.txt
+echo '== S5 asking from Telegram: off, on without a token, on, off again'
+BOT=ai-worker-telegram
+BOT_ENV=/etc/ai-worker-telegram.env
+BOT_UNIT=/etc/systemd/system/$BOT.service
+# a made-up token: nothing here talks to Telegram
+# một khoá bot bịa: ở đây không có gì nói chuyện với Telegram
+FAKE_TOKEN='123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+bot_path() { curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $1" -H 'Content-Type: application/json' "${@:2}" -d '{"report":"ok","bot":"ci_bot"}' http://127.0.0.1:$PORT/bot/telegram; }
+check 'off by default: no service, no settings file' '[ ! -f $BOT_UNIT ] && [ ! -f $BOT_ENV ]'
+check 'off by default: the path is not there' '[ "$(bot_path anything)" = 404 ]'
+check 'the bot file is installed and cannot be changed by a service' '[ "$(stat -c %U /opt/ai-worker/telegram_bot.py)" = root ]'
+
+echo 'TELEGRAM_ASK=1' >> "$ENV_FILE"
+AI_WORKER_LANG=en bash server/install.sh > /tmp/server-ask.txt 2>&1
+RESULT=$?
+check 'exit 0' '[ "$RESULT" = 0 ]'
+ASK_KEY=$(sed -n 's/^TELEGRAM_ASK_KEY=//p' "$ENV_FILE")
+check 'a key of 32 characters or more is made' '[ "${#ASK_KEY}" -ge 32 ]'
+check 'the bot settings file is private' '[ "$(stat -c %a $BOT_ENV)" = 600 ] && [ "$(stat -c %U $BOT_ENV)" = root ]'
+check 'it holds the same key and the port' 'grep -qx "TELEGRAM_ASK_KEY=$ASK_KEY" $BOT_ENV && grep -qx "PORT=$PORT" $BOT_ENV'
+check 'without a token it says so and starts nothing' 'grep -q "no bot token yet" /tmp/server-ask.txt && [ ! -f $BOT_UNIT ]'
+check 'the key is not printed' '! grep -qF "$ASK_KEY" /tmp/server-ask.txt'
+check 'the path takes the key from this machine' '[ "$(bot_path "$ASK_KEY")" = 200 ]'
+check 'it refuses another key' '[ "$(bot_path wrong)" = 401 ]'
+check 'it refuses the send key' '[ "$(bot_path "$KEY")" = 401 ]'
+check 'it is not there for a request a proxy passed on' '[ "$(bot_path "$ASK_KEY" -H "X-Forwarded-For: 203.0.113.9")" = 404 ]'
+
+# with a token the process runs. Its Telegram is a closed port of this machine, so it keeps trying and reaches nothing outside
+# có khoá bot thì tiến trình chạy. Telegram của nó là một cổng đóng trên chính máy này, nên nó cứ thử lại và không tới đâu bên ngoài
+sed -i "s/^TELEGRAM_ASK_TOKEN=.*/TELEGRAM_ASK_TOKEN=$FAKE_TOKEN/" $BOT_ENV
+echo 'TELEGRAM_API_URL=http://127.0.0.1:9' >> $BOT_ENV
+AI_WORKER_LANG=en bash server/install.sh > /tmp/server-ask.txt 2>&1
+RESULT=$?
+sleep 3
+check 'exit 0' '[ "$RESULT" = 0 ]'
+check 'the bot service is active' '[ "$(systemctl is-active $BOT)" = active ]'
+check 'says it is running' 'grep -q "The Telegram bot process is running" /tmp/server-ask.txt'
+check 'it runs as its own user' '[ "$(systemctl show $BOT -p User --value)" = ai-worker-telegram ]'
+check 'it may reach this machine and Telegram only' 'grep -q "^IPAddressDeny=any" $BOT_UNIT && grep -q "^IPAddressAllow=localhost .*149.154.160.0/20" $BOT_UNIT'
+check 'memory and threads are limited' '[ "$(systemctl show $BOT -p MemoryMax --value)" = 134217728 ] && [ "$(systemctl show $BOT -p TasksMax --value)" = 16 ]'
+check 'the webhook took it' 'journalctl -u $BOT --no-pager | grep -q "the board takes this process"'
+check 'the token is neither printed nor logged nor in the unit' '! grep -qF "$FAKE_TOKEN" /tmp/server-ask.txt && ! journalctl -u $BOT --no-pager | grep -qF "$FAKE_TOKEN" && ! grep -qF "$FAKE_TOKEN" $BOT_UNIT'
+check 'the key is the same after the second run, once on each side' '[ "$(sed -n "s/^TELEGRAM_ASK_KEY=//p" "$ENV_FILE")" = "$ASK_KEY" ] && [ "$(grep -c "^TELEGRAM_ASK_KEY=" $BOT_ENV)" = 1 ]'
+check 'the webhook is still active' '[ "$(systemctl is-active $SERVICE)" = active ]'
+
+# a list of the owner's own, then no limit
+# danh sách riêng của chủ máy, rồi không giới hạn
+sed -i 's#^TELEGRAM_NETS=.*#TELEGRAM_NETS=203.0.113.0/24, 2001:db8::/32#' $BOT_ENV
+AI_WORKER_LANG=en bash server/install.sh > /dev/null 2>&1
+check 'own networks replace the list' 'grep -q "^IPAddressAllow=localhost 203.0.113.0/24 2001:db8::/32" $BOT_UNIT && ! grep -q "149.154.160.0/20" $BOT_UNIT'
+sed -i 's#^TELEGRAM_NETS=.*#TELEGRAM_NETS=any#' $BOT_ENV
+AI_WORKER_LANG=en bash server/install.sh > /dev/null 2>&1
+check '"any" takes the limit away' '! grep -q "^IPAddress" $BOT_UNIT && [ "$(systemctl is-active $BOT)" = active ]'
+
+sed -i 's/^TELEGRAM_ASK=1/TELEGRAM_ASK=0/' "$ENV_FILE"
+AI_WORKER_LANG=en bash server/install.sh > /tmp/server-ask.txt 2>&1
+RESULT=$?
+check 'exit 0' '[ "$RESULT" = 0 ]'
+check 'turned off: the service is gone' '[ ! -f $BOT_UNIT ] && [ "$(systemctl is-active $BOT)" != active ]'
+check 'turned off: the path is gone' '[ "$(bot_path "$ASK_KEY")" = 404 ]'
+check 'it says where the token still is' 'grep -q "$BOT_ENV" /tmp/server-ask.txt && [ -f $BOT_ENV ]'
+check 'the webhook is still active' '[ "$(systemctl is-active $SERVICE)" = active ]'
+
+rm -f /tmp/server-first.txt /tmp/server-second.txt /tmp/server-ask.txt
 if [ "$errors" != 0 ]; then
   echo "$errors checks FAILED"
   journalctl -u "$SERVICE" -n 20 --no-pager | sed -E 's/(Bearer )[^ ]+/\1***/'
+  journalctl -u "$BOT" -n 20 --no-pager | sed -E 's/[0-9]+:[A-Za-z0-9_-]{20,}/***/g'
   exit 1
 fi
 echo 'All server checks passed'

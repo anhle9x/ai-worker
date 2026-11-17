@@ -16,9 +16,10 @@ import threading
 import time
 from datetime import datetime
 
-from board import packages
+from board import packages, settings
 from board.assets import UI_VERSION
-from board.db import data_db, dumps
+from board.daily import NUMBERS, PERIODS, DailyStore, totals_by_day
+from board.db import data_db, dumps, keys_db
 from board.devices import (
     IngestGate,
     group_by_person,
@@ -31,10 +32,15 @@ from board.login import SESSIONS
 from board.packages import menubar_extension, menubar_mac_dmg
 from board.security import ACCOUNT_NAME_RE, ADMIN, VIEWER, WALL
 from board.settings import (
+    DAILY_RECOUNT_SECONDS,
     KIND_EXTENSION,
+    KIND_MCP,
     KIND_PLUGIN,
+    KIND_TELEGRAM,
+    MCP_KEYS_MAX,
     LOCAL_TZ,
     OTP_LABEL,
+    TELEGRAM_CHATS_MAX,
     TV_ABSENT_SECONDS,
     TV_MAX,
     USD_RATE,
@@ -45,12 +51,16 @@ from board.stores import (
     KEEP_LOCATION_DAYS,
     LOCATIONS,
     TEAM,
+    TELEGRAM_BOT,
     TV,
+    MCP_SCOPE_PEOPLE,
+    MCP_SCOPE_TOTALS,
     TV_PAIRING,
     TV_STATUS,
     WAIT_TRACKER,
     clean_tv_name,
     device_label,
+    side_of,
 )
 
 
@@ -262,6 +272,50 @@ def role_view(role: str, now: float, every_branch: bool = False) -> dict:
     return d
 
 
+# Use over weeks and months, built from the daily totals: the same kind of allow list, apart from the live board. Only an admin and a viewer
+# get it; the wall role gets nothing, so a TV screen, the menu bar, the extension, the plugin and the MCP endpoint have none of it.
+# Mức dùng theo tuần và theo tháng, dựng từ tổng theo ngày: cùng kiểu danh sách cho phép, tách khỏi bảng trực tiếp. Chỉ quản trị và người xem
+# nhận được; vai treo tường không nhận gì, nên màn hình TV, thanh menu, tiện ích, plugin và cổng MCP đều không có phần này.
+USAGE_FIELDS_ALL = frozenset({"today", "since", "periods", "team", "offices", "people", "weeks", "months"})
+USAGE_FIELDS_BY_ROLE = {ADMIN: USAGE_FIELDS_ALL, VIEWER: USAGE_FIELDS_ALL, WALL: frozenset()}
+USAGE_OFFICE_FIELDS_ALL = frozenset({"id", "name", "weeks"}) | frozenset(PERIODS)
+USAGE_OFFICE_FIELDS_BY_ROLE = {ADMIN: USAGE_OFFICE_FIELDS_ALL, VIEWER: USAGE_OFFICE_FIELDS_ALL, WALL: frozenset()}
+USAGE_PERSON_FIELDS_ALL = frozenset({"name", "account", "office"}) | frozenset(PERIODS)
+USAGE_PERSON_FIELDS_BY_ROLE = {ADMIN: USAGE_PERSON_FIELDS_ALL, VIEWER: USAGE_PERSON_FIELDS_ALL, WALL: frozenset()}
+USAGE_NUMBER_FIELDS = frozenset(NUMBERS)
+# one week or month of the charts
+# một tuần hoặc một tháng của biểu đồ
+USAGE_SPAN_FIELDS = frozenset({"from", "to", "kept", "whole", "usd"})
+USAGE_FIELDS_DECLARED = frozenset().union(*USAGE_FIELDS_BY_ROLE.values())
+USAGE_OFFICE_FIELDS_DECLARED = frozenset().union(*USAGE_OFFICE_FIELDS_BY_ROLE.values())
+USAGE_PERSON_FIELDS_DECLARED = frozenset().union(*USAGE_PERSON_FIELDS_BY_ROLE.values())
+
+
+def _pick_usage(d: dict, allowed: frozenset) -> dict:
+    """One team, office or person of the usage numbers: the allowed fields only, and inside each span the known numbers only.
+    Một đội, một văn phòng hay một người trong số liệu mức dùng: chỉ các trường được phép, và trong mỗi khoảng chỉ các con số đã biết."""
+    out = {k: _pick(v, USAGE_NUMBER_FIELDS) if k in PERIODS else v for k, v in d.items() if k in allowed}
+    if "weeks" in out:
+        out["weeks"] = [n for n in out["weeks"] if isinstance(n, (int, float))]
+    return out
+
+
+def usage_view(role: str, now: float) -> dict:
+    """Use by week and by month, by role: the only way the daily totals go out. A role that may not see them gets an empty dict.
+    Mức dùng theo tuần và theo tháng, đúng theo vai: đường duy nhất đưa tổng theo ngày ra ngoài. Vai không được xem thì nhận một dict rỗng."""
+    v = role if role in USAGE_FIELDS_BY_ROLE else WALL
+    if not USAGE_FIELDS_BY_ROLE[v]:
+        return {}
+    raw = _raw_usage(now)
+    d = _pick(raw, USAGE_FIELDS_BY_ROLE[v])
+    d["team"] = _pick_usage(raw["team"], frozenset(PERIODS))
+    for kind in ("weeks", "months"):
+        d[kind] = [_pick(span, USAGE_SPAN_FIELDS) for span in raw[kind]]
+    d["offices"] = [_pick_usage(o, USAGE_OFFICE_FIELDS_BY_ROLE[v]) for o in raw["offices"]]
+    d["people"] = [_pick_usage(p, USAGE_PERSON_FIELDS_BY_ROLE[v]) for p in raw["people"]]
+    return d
+
+
 def history_view(role: str, now: float) -> dict:
     """The 24-hour history by role, same rule as role_view.
     Diễn biến 24 giờ theo vai, cùng nguyên tắc với role_view."""
@@ -301,16 +355,40 @@ def tv_action(path: str, body: dict, actor: str) -> tuple:
     if path == "/admin/tv-view":
         r = TV_PAIRING.peek(code, actor, now)
         result = {"ip": r["ip"], "branch": branch_name_for_ip(r["ip"]), "device": device_label(r["device"]), "createdAt": int(r["createdAt"] * 1000), "secondsLeft": int(r["expiresAt"] - now),
-               "similar": TV.similar(r["ip"], r["device"], now), "kind": r.get("kind", "")}
-        return {"action": "tv-view", "tvIp": r["ip"], "tvDevice": result["device"], **({"kind": r["kind"]} if r.get("kind") else {})}, result
+               "similar": TV.similar(r["ip"], r["device"], now, side_of(r.get("kind"))), "kind": r.get("kind", "")}
+        if r.get("kind") == KIND_TELEGRAM:
+            # a chat has no IP and no browser: the admin sees whose Telegram it is, and the board account linked to that Telegram, if any.
+            # A chat replaces its own earlier row by itself, so no row is offered to replace
+            # chat không có IP hay trình duyệt: quản trị thấy đó là Telegram của ai, và tài khoản bảng đã liên kết với Telegram đó, nếu có.
+            # Chat tự thay dòng cũ của chính nó, nên không gợi ý dòng nào để thay
+            result.update(similar=[], device="Telegram", telegramUser=r.get("telegramUser", ""), telegramId=r.get("telegramId", ""),
+                          account=ACCOUNTS.find_by_telegram(r.get("telegramId", "")) or "")
+        return {"action": "tv-view", "tvIp": r["ip"], "tvDevice": result["device"], **({"kind": r["kind"]} if r.get("kind") else {}),
+                **({"telegramUser": r.get("telegramUser", "")} if r.get("kind") == KIND_TELEGRAM else {})}, result
     name, replace_id = clean_tv_name(body.get("name")), str(body.get("replaceId") or "")
     if replace_id and replace_id not in TV.d:
         raise ValueError(tx("The screen to replace no longer exists"))
     TV.check_name(name, replace_id, now)
-    if not replace_id and len(TV.list_screens(now)) >= TV_MAX:
+    side = side_of(TV_PAIRING.kind_of(code, now))
+    # a row is replaced only by one of its own side: a screen's row must not turn into a key for the MCP endpoint or into a Telegram
+    # chat, nor the other way round. A chat replaces only its own earlier row, which it does by itself
+    # một dòng chỉ được thay bằng dòng cùng phía: dòng của màn hình không được biến thành khoá cho cổng MCP hay thành chat Telegram,
+    # và ngược lại. Chat chỉ thay dòng cũ của chính nó, và nó tự làm việc đó
+    if replace_id and (side_of(TV.d[replace_id].get("kind")) != side or side == KIND_TELEGRAM):
+        raise ValueError(tx("The screen to replace no longer exists"))
+    if not replace_id and side == KIND_MCP and TV.count(now, KIND_MCP) >= MCP_KEYS_MAX:
+        raise ValueError(tx("Limit of {n} MCP keys reached, revoke some first", n=MCP_KEYS_MAX))
+    if side == KIND_TELEGRAM and TV.count(now, KIND_TELEGRAM) >= TELEGRAM_CHATS_MAX:
+        raise ValueError(tx("Limit of {n} Telegram chats reached, revoke some first", n=TELEGRAM_CHATS_MAX))
+    if not replace_id and not side and TV.count(now) >= TV_MAX:
         raise ValueError(tx("Limit of {n} screens reached, remove some first", n=TV_MAX))
-    r = TV_PAIRING.approve(code, name, actor, now, replace_id)
-    return {"action": "tv-approve", "tv": name, **({"replacedId": replace_id} if replace_id else {}), **({"kind": r["kind"]} if r.get("kind") else {}), "tvIp": r["ip"], "tvDevice": device_label(r["device"]), "branch": branch_name_for_ip(r["ip"])}, {}
+    # what an MCP key or a Telegram chat may read is the admin's choice at this step; with no choice sent, it reads totals only
+    # khoá MCP hay chat Telegram được đọc gì là lựa chọn của quản trị ở bước này; không gửi lựa chọn thì chỉ đọc số gộp
+    scope = (MCP_SCOPE_PEOPLE if body.get("scope") == MCP_SCOPE_PEOPLE else MCP_SCOPE_TOTALS) if side else ""
+    r = TV_PAIRING.approve(code, name, actor, now, replace_id, scope)
+    return {"action": "tv-approve", "tv": name, **({"replacedId": replace_id} if replace_id else {}), **({"kind": r["kind"]} if r.get("kind") else {}), **({"scope": scope} if scope else {}),
+            **({"telegramUser": r.get("telegramUser", "")} if r.get("kind") == KIND_TELEGRAM else {}),
+            "tvIp": r["ip"], "tvDevice": device_label(r["device"]), "branch": branch_name_for_ip(r["ip"])}, {}
 
 
 def admin_data(now: float, cookie: str, month: str) -> dict:
@@ -320,11 +398,14 @@ def admin_data(now: float, cookie: str, month: str) -> dict:
     tv = []
     for x in TV.list_screens(now):
         seen_state = None if x["exitedAt"] else TV_STATUS.read(x["id"])
-        tv.append(dict(x, branch=branch_name_for_ip(x["lastIp"]), device=device_label(x["device"]), upToDate=None if x.get("owner") or x["kind"] in (KIND_EXTENSION, KIND_PLUGIN) or re.search(r"menu ?bar", x["device"], re.I) else (seen_state["ui"] == UI_VERSION) if seen_state else None,
+        tv.append(dict(x, branch=branch_name_for_ip(x["lastIp"]), device=device_label(x["device"]), upToDate=None if x.get("owner") or x["kind"] in (KIND_EXTENSION, KIND_PLUGIN, KIND_MCP, KIND_TELEGRAM) or re.search(r"menu ?bar", x["device"], re.I) else (seen_state["ui"] == UI_VERSION) if seen_state else None,
                        lastSeenAt=int(seen_state["seenAt"] * 1000) if seen_state else None, running=bool(seen_state) and now - seen_state["seenAt"] < TV_ABSENT_SECONDS))
     return {"accounts": ACCOUNTS.list_accounts(), "screens": tv, "sessions": SESSIONS.list_sessions(cookie, now), "unnamedGroups": d["unnamedGroups"], "branches": d["branches"], "team": d["team"],
-            "usdRate": USD_RATE, "month": month, "auditLog": AUDIT_LOG.read(month), "menubarDmg": bool(menubar_mac_dmg()),
-            "menubarMsi": os.path.isfile(os.path.join(packages.MENUBAR_DIR, "AI-Worker.msi")), "menubarExtension": bool(menubar_extension())}
+            "usdRate": USD_RATE, "month": month, "auditLog": AUDIT_LOG.read(month), "mcpCalls": AUDIT_LOG.read_calls(month, 100), "menubarDmg": bool(menubar_mac_dmg()),
+            "menubarMsi": os.path.isfile(os.path.join(packages.MENUBAR_DIR, "AI-Worker.msi")), "menubarExtension": bool(menubar_extension()),
+            # asking the board from Telegram: whether it is turned on, and what the bot process last said about itself
+            # hỏi bảng qua Telegram: có đang bật không, và tiến trình bot nói gì gần nhất về chính nó
+            "telegramAsk": dict(TELEGRAM_BOT.read(), on=settings.TELEGRAM_ASK_ENABLED)}
 
 
 def manage_account(body: dict, actor: str, token: str) -> tuple:
@@ -475,6 +556,42 @@ class History:
 
 HISTORY = History(data_db())
 INGEST_GATE = IngestGate(data_db())
+DAILY = DailyStore(data_db())
+
+
+def _raw_usage(now: float) -> dict:
+    """The usage numbers, unfiltered: only usage_view may call it, do not return this function directly.
+    Số liệu mức dùng, chưa lọc: chỉ usage_view được gọi, đừng trả thẳng hàm này ra ngoài."""
+    return DAILY.summary(now, {b["id"]: b["name"] for b in all_branches()})
+
+
+def record_daily() -> None:
+    """Count the last days again from what the computers hold and write them over the daily totals; also drops rows and upgrade backups past their time.
+    Đếm lại những ngày gần nhất từ thứ các máy đang giữ rồi ghi đè lên tổng theo ngày; đồng thời bỏ các dòng và bản sao lưu nâng cấp đã quá hạn."""
+    try:
+        now = time.time()
+        devices = read_all_devices()
+        branches = all_branches()
+        names = {b["id"]: b["name"] for b in branches}
+        offices = {}
+        for r in group_by_person(devices, now):
+            branch = branch_of(r, branches)
+            offices[r["key"]] = (branch, names.get(branch, ""))
+        DAILY.record(totals_by_day(devices, now), offices, now)
+        for database in (data_db(), keys_db()):
+            database.drop_old_upgrade_backups(now)
+    # a side table: if it breaks, say so and carry on, do not crash the webhook
+    # bảng phụ: hỏng thì báo rồi chạy tiếp, không làm sập webhook
+    except Exception as e:
+        sys.stderr.write("daily: %s\n" % e)
+
+
+def daily_loop() -> None:
+    """Keep the daily totals up to date: at start, then every DAILY_RECOUNT_SECONDS.
+    Giữ tổng theo ngày luôn mới: lúc khởi động, rồi mỗi DAILY_RECOUNT_SECONDS."""
+    while True:
+        record_daily()
+        time.sleep(DAILY_RECOUNT_SECONDS)
 
 
 def record_history() -> None:

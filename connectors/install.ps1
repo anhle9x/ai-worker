@@ -182,6 +182,45 @@ function Merge-Hooks($tree, $ours) {
 
 function Write-Json([string]$path, $tree) { Write-Text $path (($tree | ConvertTo-Json -Depth 30) + "`n") }
 
+# A mark of everything in a skill folder, taken when the installer copies it, so a later run can tell a folder
+# the person has changed from one that is still as installed. Files the system adds by itself do not count as a change.
+# Dấu của mọi thứ trong một thư mục skill, lấy lúc bộ cài chép vào, để lần chạy sau phân biệt được thư mục
+# người dùng đã sửa với thư mục còn nguyên như lúc cài. File do hệ thống tự thêm không tính là thay đổi.
+function Skill-Mark([string]$folder) {
+  if (-not (Test-Path -LiteralPath $folder)) { return '' }
+  $sha = [Security.Cryptography.SHA256]::Create()
+  $lines = New-Object 'Collections.Generic.List[string]'
+  # Each file is named by the folder names walked to reach it, never by cutting its full path: the same folder can
+  # have two spellings on Windows (a short name such as RUNNER~1, or ".." in the middle), and then the cut lands wrong.
+  # Mỗi file được gọi tên theo các tên thư mục đã đi qua để tới nó, không cắt từ đường dẫn đầy đủ: cùng một thư mục
+  # có thể có hai cách viết trên Windows (tên ngắn như RUNNER~1, hoặc ".." ở giữa), khi đó chỗ cắt sẽ lệch.
+  $todo = New-Object Collections.Stack
+  $todo.Push(@((Get-Item -LiteralPath $folder -Force).FullName, ''))
+  while ($todo.Count) {
+    $dir, $prefix = $todo.Pop()
+    foreach ($entry in @(Get-ChildItem -LiteralPath $dir -Force)) {
+      if ($entry.PSIsContainer) { $todo.Push(@($entry.FullName, ($prefix + $entry.Name + '/'))) }
+      elseif (@('.DS_Store', 'Thumbs.db', 'desktop.ini') -notcontains $entry.Name) {
+        $lines.Add($prefix + $entry.Name + ' ' + [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($entry.FullName))).Replace('-', ''))
+      }
+    }
+  }
+  $sorted = $lines.ToArray()
+  [Array]::Sort($sorted, [StringComparer]::Ordinal)
+  return [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes(($sorted -join "`n")))).Replace('-', '').Substring(0, 32).ToLower()
+}
+
+# the skills this installer put on the computer, each with its mark; an older installer wrote the name alone
+# các skill bộ cài này đã đặt lên máy, mỗi skill kèm dấu của nó; bộ cài bản cũ chỉ ghi tên
+function Read-Skill-List([string]$path) {
+  $list = [ordered]@{}
+  foreach ($line in ((Read-Text $path) -split "`r?`n")) {
+    $parts = @($line.Trim() -split '\s+' | Where-Object { $_ })
+    if ($parts.Count -and $parts[0] -match '^[a-z0-9][a-z0-9-]*$') { $list[$parts[0]] = $(if ($parts.Count -gt 1) { $parts[1] } else { 'unknown' }) }
+  }
+  return $list
+}
+
 function Keep-Backup([string]$path) {
   if ((Test-Path -LiteralPath $path) -and -not (Test-Path -LiteralPath "$path.ai-worker-backup")) { Copy-Item -LiteralPath $path -Destination "$path.ai-worker-backup" }
 }
@@ -341,10 +380,17 @@ if ($Uninstall) {
   }
   $listFile = Join-Path $Dir 'skills-installed'
   if (Test-Path -LiteralPath $listFile) {
-    foreach ($skill in ((Read-Text $listFile) -split "`r?`n")) {
-      if ($skill -notmatch '^[a-z0-9][a-z0-9-]*$') { continue }
+    $installed = Read-Skill-List $listFile
+    foreach ($skill in @($installed.Keys)) {
       $target = Join-Path $SkillsDir $skill
-      if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
+      if (-not (Test-Path -LiteralPath $target)) { continue }
+      # a skill the person changed after the install is theirs now: it stays
+      # skill mà người dùng đã sửa sau khi cài thì giờ là của họ: để lại
+      if ($installed[$skill] -ne 'unknown' -and (Skill-Mark $target) -ne $installed[$skill]) {
+        Say-Text "  Skill ${skill}: changed on this computer since it was installed, left where it is." "  Skill ${skill}: đã được sửa trên máy này từ sau khi cài, để nguyên tại chỗ."
+        continue
+      }
+      Remove-Item -LiteralPath $target -Recurse -Force
     }
     foreach ($folder in @($SkillsDir, (Split-Path -Parent $SkillsDir))) {
       if ((Test-Path -LiteralPath $folder) -and -not @(Get-ChildItem -LiteralPath $folder -Force).Count) { Remove-Item -LiteralPath $folder -Force }
@@ -470,8 +516,8 @@ foreach ($tool in @('codex', 'cursor', 'gemini')) {
   } else { Remove-Tool $tool }
 }
 
-# the skills: only when asked for, and never over a folder this installer did not put there
-# các skill: chỉ khi được yêu cầu, và không bao giờ đè lên thư mục không do bộ cài này đặt vào
+# the skills: only when asked for, never over a folder this installer did not put there, and never over one the person changed
+# các skill: chỉ khi được yêu cầu, không bao giờ đè lên thư mục không do bộ cài này đặt vào, và không đè lên thư mục người dùng đã sửa
 $SkillsSource = Join-Path $Here '..\skills'
 $WantSkills = [bool]$Skills
 if (-not $Skills -and -not $NoSkills -and (Test-Path -LiteralPath $SkillsSource) -and -not [Console]::IsInputRedirected) {
@@ -482,22 +528,36 @@ if (-not $Skills -and -not $NoSkills -and (Test-Path -LiteralPath $SkillsSource)
 if ($WantSkills -and (Test-Path -LiteralPath $SkillsSource)) {
   New-Item -ItemType Directory -Force -Path $SkillsDir | Out-Null
   $listFile = Join-Path $Dir 'skills-installed'
-  $mine = @((Read-Text $listFile) -split "`r?`n" | Where-Object { $_ })
+  $mine = Read-Skill-List $listFile
   $copied = 0
   foreach ($skill in ($PortableSkills -split ' ')) {
     $source = Join-Path $SkillsSource $skill
     if (-not (Test-Path -LiteralPath (Join-Path $source 'SKILL.md'))) { continue }
     $target = Join-Path $SkillsDir $skill
-    if ((Test-Path -LiteralPath $target) -and ($mine -notcontains $skill)) {
-      Say-Text "  Skill ${skill}: a folder with this name is already there, left as it is." "  Skill ${skill}: đã có thư mục cùng tên, để nguyên."
-      continue
+    if (Test-Path -LiteralPath $target) {
+      if (-not $mine.Contains($skill)) {
+        Say-Text "  Skill ${skill}: a folder with this name is already there, left as it is." "  Skill ${skill}: đã có thư mục cùng tên, để nguyên."
+        continue
+      }
+      $nowMark = Skill-Mark $target
+      # the same as the one in this package: nothing to copy, only the mark to note
+      # giống hệt bản trong gói này: không cần chép, chỉ ghi lại dấu
+      if ($nowMark -eq (Skill-Mark $source)) {
+        $mine[$skill] = $nowMark
+        $copied++
+        continue
+      }
+      if ($nowMark -ne $mine[$skill]) {
+        Say-Text "  Skill ${skill}: changed on this computer since it was installed, left as it is. To get the new one, delete that folder and run this again." "  Skill ${skill}: đã được sửa trên máy này từ sau khi cài, để nguyên. Muốn lấy bản mới thì xoá thư mục đó rồi chạy lại."
+        continue
+      }
+      Remove-Item -LiteralPath $target -Recurse -Force
     }
-    if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
     Copy-Item -LiteralPath $source -Destination $target -Recurse -Force
     $copied++
-    if ($mine -notcontains $skill) { $mine += $skill }
+    $mine[$skill] = Skill-Mark $target
   }
-  Write-Text $listFile (($mine -join "`n") + "`n")
+  Write-Text $listFile ((@($mine.Keys | ForEach-Object { "$_ $($mine[$_])" }) -join "`n") + "`n")
   Say-Text "  $copied skills copied to $SkillsDir" "  Đã chép $copied skill vào $SkillsDir"
 }
 

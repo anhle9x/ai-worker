@@ -43,6 +43,18 @@ KEEP_DAYS = 30
 # plugin gửi 8 ngày theo giờ; để dư một chút
 MAX_HOURS_PER_DEVICE = 8 * 24 + 48
 DEVICE_NAME_RE = re.compile(r"device-[a-z0-9]{1,40}\Z")
+# totals per person per day are kept for this many calendar months, the current one included: 13 leaves the same month of last year whole
+# tổng theo từng người từng ngày được giữ ngần này tháng dương lịch, tính cả tháng hiện tại: 13 thì tháng cùng kỳ năm trước còn trọn vẹn
+DAILY_KEEP_MONTHS = 13
+# every run counts today and the days before it again, this many days in all. A computer holds 8 days of hours, so 7 days are always whole;
+# a day older than that is left as it was last written
+# mỗi lần chạy đếm lại hôm nay và các ngày trước đó, tổng cộng ngần này ngày. Mỗi máy giữ 8 ngày theo giờ, nên 7 ngày luôn trọn vẹn;
+# ngày cũ hơn thì giữ nguyên như lần ghi cuối
+DAILY_RECOUNT_DAYS = 7
+DAILY_RECOUNT_SECONDS = 5 * 60
+# how many weeks the chart of cost per week on /board goes back, the current week included
+# biểu đồ chi phí theo tuần trên /board lùi lại bao nhiêu tuần, tính cả tuần hiện tại
+DAILY_CHART_WEEKS = 12
 
 USD_RATE = float(os.environ.get("USD_RATE", "26000"))
 LOCAL_TZ = timezone(timedelta(hours=float(os.environ.get("TZ_OFFSET", "7"))))
@@ -112,6 +124,46 @@ KIND_EXTENSION = "extension"
 # loại của lần ghép do plugin Claude của quản lý tạo, plugin đọc bảng để Claude trả lời câu hỏi về bảng:
 # cùng cách ghép, cùng phần treo tường và cùng cách thu hồi như tiện ích, được gọi tên riêng trong /admin
 KIND_PLUGIN = "plugin"
+# the kind of a key for the MCP endpoint, which lets any AI tool that speaks MCP read the board's numbers. Paired with a code an admin
+# approves, like the others, but kept apart from them: this key works on /mcp only, and no other key works there
+# loại của khoá cho cổng MCP, cổng cho mọi công cụ AI nói được MCP đọc số liệu của bảng. Ghép bằng mã do quản trị duyệt
+# như các loại kia, nhưng tách riêng: khoá này chỉ dùng được ở /mcp, và không khoá nào khác dùng được ở đó
+KIND_MCP = "mcp"
+# MCP=0 takes the MCP endpoint and its pairing paths away: they answer 404. On by default; nothing can be read until an admin approves a key
+# MCP=0 gỡ cổng MCP và các đường ghép của nó: chúng trả 404. Mặc định bật; không đọc được gì cho tới khi quản trị duyệt một khoá
+MCP_ENABLED = os.environ.get("MCP", "1").strip() != "0"
+MCP_KEYS_MAX = 50
+# requests one key may make in the window; a person asking questions through an AI tool stays far below it
+# số yêu cầu một khoá được gửi trong khoảng thời gian; một người hỏi qua công cụ AI còn cách rất xa mức này
+MCP_CALLS_PER_KEY = 120
+MCP_CALLS_WINDOW_SECONDS = 600
+# calls to the board's MCP tool stay in the log for this many months
+# các lần gọi công cụ MCP của bảng được giữ trong nhật ký ngần này tháng
+MCP_CALL_KEEP_MONTHS = 3
+# the kind of a Telegram chat an admin approved to ask the board. Paired with a code an admin approves, like the others, and kept apart
+# like an MCP key: what stands for the chat is the Telegram user's number, which is taken only on /bot/telegram and opens nothing else
+# loại của một chat Telegram đã được quản trị duyệt cho hỏi bảng. Ghép bằng mã do quản trị duyệt như các loại kia, và tách riêng
+# như khoá MCP: thứ đứng thay cho chat là số của người dùng Telegram, chỉ được nhận ở /bot/telegram và không mở được gì khác
+KIND_TELEGRAM = "telegram"
+# Asking the board from Telegram is off until the server's owner sets TELEGRAM_ASK=1. Once on, a separate bot process on this machine
+# talks to Telegram, and names and costs reach a third party for each chat an admin approves. This webhook itself still never calls out.
+# TELEGRAM_ASK_KEY is what that process shows on /bot/telegram; the installer makes it. With no key of 32 characters or more, it stays off
+# Hỏi bảng qua Telegram tắt cho tới khi chủ máy chủ đặt TELEGRAM_ASK=1. Khi bật, một tiến trình bot riêng trên máy này nói chuyện với
+# Telegram, và tên cùng chi phí tới một bên thứ ba cho mỗi chat được quản trị duyệt. Chính webhook này vẫn không bao giờ gọi ra ngoài.
+# TELEGRAM_ASK_KEY là thứ tiến trình đó trình ra ở /bot/telegram; bộ cài tạo nó. Không có khoá từ 32 ký tự trở lên thì vẫn tắt
+TELEGRAM_ASK_KEY = os.environ.get("TELEGRAM_ASK_KEY", "").strip()
+TELEGRAM_ASK_ENABLED = os.environ.get("TELEGRAM_ASK", "0").strip() == "1" and len(TELEGRAM_ASK_KEY) >= 32
+TELEGRAM_CHATS_MAX = 50
+# chats waiting for an admin at one time. Counted apart from screens, so strangers who press Start cannot keep a TV from pairing
+# số chat cùng lúc chờ quản trị. Đếm riêng với màn hình, để người lạ bấm Start không làm TV hết chỗ ghép
+TELEGRAM_PENDING_MAX = 10
+# messages one approved chat may send in the window; a person tapping buttons on a phone stays far below it
+# số tin một chat đã duyệt được gửi trong khoảng thời gian; một người bấm nút trên điện thoại còn cách rất xa mức này
+TELEGRAM_CALLS_PER_CHAT = 20
+TELEGRAM_CALLS_WINDOW_SECONDS = 600
+# a chat that is not approved is told so once in this time, and gets no answer in between
+# chat chưa được duyệt được báo một lần trong khoảng này, giữa chừng thì không nhận câu trả lời nào
+TELEGRAM_STRANGER_SECONDS = 3600
 KEYS_DIR = os.environ.get("KEYS_DIR", os.path.join(SERVER_DIR, "keys"))
 OTP_LABEL = os.environ.get("OTP_LABEL", "AI-Worker")
 MAX_FAILS = 5

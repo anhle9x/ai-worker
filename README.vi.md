@@ -39,6 +39,8 @@ AI Worker dành cho người phải triển khai Claude cho cả văn phòng r�
 - **Codex, Cursor và Gemini CLI trên cùng bảng:** một bộ nối, do chính người dùng cài cho từng công cụ, cho thấy số phiên đang mở, đang làm và đang chờ của mỗi công cụ. Không cần Claude Code, Python hay Node, và chỉ gửi các con số đếm. Tính năng mới: đã thử trong Codex CLI thật trên macOS; trên Linux và Windows, và với Cursor và Gemini CLI, mới chỉ kiểm bằng sự kiện mẫu, chưa thử trong công cụ thật. Xem [hướng dẫn cài đặt](docs/INSTALL.vi.md#codex-cursor-và-gemini-cli-trên-bảng).
 - **Chi phí và hạn mức:** chi phí hôm nay và 7 ngày, hạn mức còn lại, theo từng người và từng văn phòng.
 - **Hỏi Claude về team:** quản lý ghép Claude của mình với bảng một lần, rồi cứ hỏi tự nhiên, ví dụ "ai đang chờ lâu nhất?". Hỏi bằng tiếng Việt cũng được, gõ hoặc nói đều được; Claude trả lời từ số liệu của bảng.
+- **Hỏi từ công cụ AI khác, hoặc từ Telegram:** máy chủ có một cổng MCP chỉ đọc, nên công cụ AI nào hỗ trợ MCP cũng trả lời được các câu hỏi đó bằng một khoá do quản trị viên duyệt. Quản lý không viết code thì bấm nút trong một chat Telegram: tuỳ chọn, mặc định tắt, và không mô hình AI nào đọc câu hỏi. Cách bật từng thứ có trong [hướng dẫn cài đặt](docs/INSTALL.vi.md).
+- **Mức dùng theo tuần và tháng:** bảng chi tiết so tuần này, tháng này với tuần trước, tháng trước, cho cả đội, từng văn phòng và từng người.
 - **Biến quy trình thành skill:** đưa cho `/ai-worker:make-skill` một SOP hoặc mô tả cách làm một việc. Nó viết bản nháp skill, dừng lại khi thấy mật khẩu hay khoá, bỏ dữ liệu cá nhân, và chỉ bật skill sau khi bạn đồng ý.
 - **Hỏi lại trước khi xoá hay gửi ra ngoài:** lệnh xoá cả thư mục, `git reset --hard`, `git push --force` và `git clean` phải được bạn xác nhận; gửi nội dung sang AI của hãng khác cũng vậy, trừ khi bạn đã tự cho phép.
 - **Phân quyền và nhật ký:** quản trị viên, quản lý và màn hình treo tường được xem những phần dữ liệu khác nhau; đăng nhập bằng mã OTP 6 số hoặc bằng Telegram (Telegram cần cài thêm bot, xem [hướng dẫn cài đặt](docs/INSTALL.vi.md)); nhật ký mọi thay đổi được lưu 12 tháng.
@@ -117,6 +119,20 @@ Bảng cho thấy Claude Code trên các máy đã cài plugin, và Codex, Curso
 - **Máy chưa cài plugin hoặc bộ nối,** hoặc máy không tới được máy chủ.
 
 Vì vậy người chỉ chat trên claude.ai sẽ hiện là không dùng Claude, dù phần dùng đó vẫn có thể tính vào hạn mức của cùng tài khoản. Hãy đọc bảng là "ai dùng Claude Code, và dùng bao nhiêu", không phải "ai dùng Claude nhiều nhất".
+
+## Lộ trình
+
+Hướng đi của dự án. Không ghi ngày: mục nào kiểm xong thì phát hành mục đó.
+
+- [x] Bảng theo thời gian thực cho thấy ai đang làm, ai đang chờ trong Claude Code, kèm màn hình treo tường, biểu tượng thanh menu và tiện ích trình duyệt
+- [x] Plugin chạy trong phần mở rộng Claude Code của VS Code
+- [x] Codex, Cursor và Gemini CLI lên cùng một bảng (0.32.0): mới có số phiên
+- [x] Hỏi bảng từ mọi công cụ AI hỗ trợ MCP: một cổng chỉ đọc trên máy chủ, khoá do quản trị viên duyệt. Đã thử trong Claude Code và Codex CLI.
+- [x] Hỏi bảng từ một chat Telegram, cho quản lý không viết code: nút bấm và câu hỏi ngắn, không dùng mô hình AI, mặc định tắt
+- [x] Mức dùng theo tuần và tháng: máy chủ lưu mỗi người mỗi ngày một tổng, bảng chi tiết so tuần này, tháng này với kỳ trước
+- [ ] Thử bộ nối Cursor, Gemini CLI và bản Windows trong công cụ thật. Hiện mới thử Codex trên macOS.
+- [ ] Thử cổng MCP từ Cursor và Gemini CLI. Hiện đã thử Claude Code, Codex CLI và thẻ Chat của app Claude (qua một kết nối của claude.ai).
+- [x] Biểu đồ mức dùng theo tuần và tháng trên bảng chi tiết: chi phí theo tuần trong 12 tuần và theo tháng trong tối đa 13 tháng, cho cả đội và từng văn phòng
 
 ## Tài liệu
 

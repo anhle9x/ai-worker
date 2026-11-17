@@ -55,6 +55,8 @@ All in `~/.local/share/ai-worker/connector/`:
 | `sessions` | One line per open session: tool, session id, state, time of its last event, a mark |
 | `sent`, `last-error` | When the board last accepted a report, or how it last refused one |
 | `report.json` | The last report sent |
+| `skills-installed` | The skills the installer copied to `~/.agents/skills/`, each with a mark of its content taken at that moment. A skill whose content no longer matches its mark was changed by the person, and is neither replaced nor removed |
+| `ai-worker-hook.sh`, `install.sh`, `merge-hooks.js`, `lang.sh` | The connector's own files (`.ps1` on Windows), so the hooks keep working and `--uninstall` still runs after the package is deleted |
 
 ## The report
 

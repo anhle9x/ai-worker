@@ -3,6 +3,7 @@ Trang HTML và script đi kèm: đăng nhập, bảng, TV, khung nhỏ, 3D và q
 
 import html
 import json
+import math
 import re
 from datetime import datetime
 
@@ -11,6 +12,8 @@ from board.devices import group_by_person, read_all_devices
 from board.lang import current_lang, tx
 from board.security import WALL
 from board.settings import (
+    DAILY_KEEP_MONTHS,
+    DAILY_RECOUNT_SECONDS,
     LOCAL_TZ,
     MINI_NOTIFY_MINUTES,
     STALE_DEVICE_SECONDS,
@@ -18,7 +21,7 @@ from board.settings import (
 )
 from board.stores import ACCOUNTS, TV, is_tv
 from board.telegram import bot_name
-from board.views import role_view
+from board.views import role_view, usage_view
 
 CSS = """
 :root{--bg:#050c13;--fg:#cfe9ef;--muted:#6f8d99;--border:rgba(94,214,232,.14);--cell:rgba(12,26,36,.82);--green:#3df5a7;--yellow:#ffc24b;--red:#ff5a7a;--cyan:#5ee6f0}
@@ -67,6 +70,49 @@ tr:last-child td{border-bottom:0}tfoot td{font-weight:700;color:#e8fbff;border-t
 }
 .actions a,.actions button{font:inherit;font-size:11px;letter-spacing:.08em;color:var(--fg);background:rgba(94,230,240,.06);border:1px solid var(--border);border-radius:6px;padding:6px 11px;cursor:pointer;text-decoration:none;white-space:nowrap}
 .actions a:hover,.actions button:hover{border-color:var(--cyan)}
+/* use by week and month: its own heading, office rows stand out from the people under them */
+/* mức dùng theo tuần và theo tháng: có tiêu đề riêng, dòng văn phòng nổi hơn các dòng người bên dưới */
+h2{font-size:13px;margin:34px 0 4px;letter-spacing:.2em;color:#e8fbff;text-transform:uppercase}
+tr.office{background:rgba(94,230,240,.05)}tr.office td{color:#e8fbff;font-weight:700}tr.office td .note{font-weight:400}
+/* charts of cost per week and per month: plain HTML columns, no script. The fill is a deeper step of the page's cyan, which glares as a large area */
+/* biểu đồ chi phí theo tuần và theo tháng: cột HTML thuần, không script. Màu tô là một bậc đậm hơn của màu xanh của trang, vì màu đó chói khi tô mảng lớn */
+:root{--bar:#2ba4b4}
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+.chart{position:relative;background:linear-gradient(180deg,rgba(16,34,46,.82),rgba(7,16,24,.88));border:1px solid var(--border);border-radius:10px;padding:14px 16px 12px;margin:0;min-width:0}
+.chart.wide{grid-column:1/-1}
+.chart figcaption{font-size:10.5px;color:#8fe3ee;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.chart figcaption .note{display:block;text-transform:none;letter-spacing:0;font-weight:400;margin-top:3px}
+.plot{position:relative;height:150px;margin:34px 0 0 60px}
+.gl{position:absolute;left:0;right:0;height:0;border-top:1px solid rgba(94,214,232,.1)}
+.gl span{position:absolute;right:100%;top:0;transform:translateY(-50%);padding-right:8px;white-space:nowrap;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.cols{position:absolute;top:0;right:0;bottom:0;left:0;display:flex}
+.col{position:relative;flex:1 1 0;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;outline:0}
+.col i{display:block;flex:none;width:min(24px,calc(100% - 4px));min-height:2px;border-radius:4px 4px 0 0;background:var(--bar)}
+/* a span that is not a whole week or month is striped, so it does not read as a low one */
+/* khoảng chưa trọn một tuần hay một tháng thì tô sọc, để không bị đọc thành một khoảng thấp */
+.col.part i,.bars i.part{background:repeating-linear-gradient(45deg,var(--bar) 0 3px,rgba(43,164,180,.25) 3px 6px)}
+.col .v{flex:none;font-size:11px;color:#e8fbff;white-space:nowrap;margin-bottom:3px;font-variant-numeric:tabular-nums}
+.col:hover i,.col:focus i{filter:brightness(1.3)}
+.col:focus-visible{box-shadow:inset 0 0 0 1px var(--cyan);border-radius:4px}
+.tip{display:none;position:absolute;left:50%;transform:translateX(-50%);z-index:2;background:#0d2230;border:1px solid rgba(94,214,232,.35);border-radius:6px;padding:6px 9px;font-size:11.5px;color:#a9cbd4;white-space:nowrap;pointer-events:none;text-align:left}
+.tip b{display:block;color:#e8fbff;font-size:13px}
+.col.tl .tip{left:0;transform:none}.col.tr .tip{left:auto;right:0;transform:none}
+.col:hover .tip,.col:focus .tip{display:block}
+.xl{display:flex;margin:6px 0 0 60px}
+.xl span{flex:1 1 0;min-width:0;display:flex;justify-content:center;font-size:10.5px;color:var(--muted);white-space:nowrap}
+/* a label is wider than its column: name every second week, counted from the newest */
+/* nhãn rộng hơn cột của nó: chỉ ghi tên mỗi tuần thứ hai, đếm từ tuần mới nhất */
+.xl.weeks span:nth-last-child(even){visibility:hidden}
+.minis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px 28px;margin-top:12px}
+.mini{min-width:0}.mini .name{color:#e8fbff;font-weight:700;font-size:13px}
+.bars{display:flex;align-items:flex-end;gap:2px;height:52px;margin-top:6px;border-bottom:1px solid rgba(94,214,232,.14)}
+.bars i{display:block;flex:1 1 0;max-width:24px;min-height:1px;border-radius:2px 2px 0 0;background:var(--bar)}
+.bars i.none{visibility:hidden}
+@media (max-width:900px){.charts{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:560px){
+  .xl.weeks span{visibility:hidden}.xl.weeks span:nth-last-child(3n+1){visibility:visible}
+  .xl.months span:nth-last-child(even){visibility:hidden}
+}
 """
 
 
@@ -244,6 +290,206 @@ def page_tv(ua: str = "") -> bytes:
             '<div id="tv-code">····-····</div><p id="tv-status">' + html.escape(tx("Requesting a code…")) + '</p>'
             '<p id="tv-left"></p><p>' + html.escape(tx("Only an admin can approve. Do not share the code with anyone.")) + '</p>' + install_html + '</div>'
             '<script src="/tv-qr.js"></script><script src="/tv.js"></script></body></html>').encode()
+
+
+def page_mcp_connect() -> bytes:
+    """The page a person opens to connect their own AI tool to the board: it asks for a code, an admin approves the code, and the page then
+    shows the key once with the lines to paste into each tool. The key lives in the page's memory only: never in a cookie, the address or the browser's storage.
+    Trang một người mở ra để nối công cụ AI của chính mình với bảng: trang xin một mã, quản trị duyệt mã, rồi trang hiện khoá một lần
+    kèm các dòng để dán vào từng công cụ. Khoá chỉ nằm trong bộ nhớ của trang: không bao giờ trong cookie, địa chỉ hay kho lưu của trình duyệt."""
+    return ('<!doctype html><html lang="' + current_lang() + '" data-lang="' + current_lang() + '"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1"><title>' + html.escape(tx("AI Worker · Connect an AI tool")) + '</title>'
+            '<style>' + CSS_LOGIN + CSS_MCP_CONNECT + '</style></head><body><div class="login-box connect">'
+            '<h1>' + html.escape(tx("Connect an AI tool")) + '</h1><p class="sub">' + html.escape(tx("Ask the board from Claude, Cursor, Codex or Gemini CLI")) + '</p>'
+            '<p>' + html.escape(tx("With a key from this page, an AI tool that speaks MCP can read the board when you ask about the team: names, who is working or waiting, cost and quota. It never gets an email or an IP address, and it cannot change anything.")) + '</p>'
+            '<p class="warn">' + html.escape(tx("What the tool reads is sent to the company that makes it, as part of your question. Use a tool your company allows.")) + '</p>'
+            '<p class="warn" id="insecure" hidden>' + html.escape(tx("This page is not on HTTPS, so the key travels unencrypted on the network.")) + '</p>'
+            '<div id="ask"><button id="get" type="button">' + html.escape(tx("Get a code")) + '</button><p id="note" class="hint" role="status"></p></div>'
+            '<div id="wait" hidden><label>' + html.escape(tx("Your code")) + '</label><div id="code">····-····</div><p id="status" role="status"></p><p id="left" class="hint"></p>'
+            '<p>' + html.escape(tx("Read this code to an admin of the board yourself. The admin enters it on the Admin page, under TV screens, and chooses what the key may read.")) + '</p>'
+            '<p class="hint">' + html.escape(tx("Only an admin can approve. Do not share the code with anyone.")) + '</p></div>'
+            '<div id="done" hidden></div></div><script src="/mcp-connect.js"></script></body></html>').encode()
+
+
+# on top of the login page's look: a wider box that scrolls from its top on a phone, and blocks of text to copy
+# thêm vào kiểu của trang đăng nhập: khung rộng hơn, cuộn được từ đầu trên điện thoại, và các khối chữ để chép
+CSS_MCP_CONNECT = """
+html,body{height:auto;min-height:100%}body{display:block;padding:44px 12px 24px}
+.connect{max-width:680px;margin:0 auto}.connect p{margin:10px 0;font-size:13px}.connect .sub{margin:4px 0 16px}.connect .hint{margin:8px 0}
+.connect h1{letter-spacing:.2em;text-transform:uppercase}.connect h2{margin:22px 0 6px;font-size:12px;letter-spacing:.12em;color:#8fe3ee;text-transform:uppercase}
+.warn{padding:8px 10px;border-left:3px solid #ffc24b;background:rgba(255,194,75,.08);color:#ffc24b}.warn[hidden]{display:none}
+.connect #code{font:800 34px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.08em;color:#e8fbff;text-align:center;padding:10px 0;text-shadow:0 0 12px rgba(94,230,240,.35)}
+.connect #status{text-align:center;color:#3df5a7}
+.cmd{position:relative;margin:8px 0 12px}.cmd-title{font-size:11px;letter-spacing:.1em;color:#8fe3ee;margin-bottom:4px}
+.cmd pre{margin:0;padding:10px 12px;border-radius:8px;border:1px solid rgba(94,214,232,.28);background:rgba(3,10,16,.8);color:#cfe9ef;
+  font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.cmd.key pre{color:#3df5a7;border-color:#3df5a7}
+.cmd button.copy{width:auto;margin-top:6px;font-size:11px;letter-spacing:.12em;padding:6px 12px;color:#cfe9ef;background:rgba(94,230,240,.06);border:1px solid rgba(94,214,232,.28);box-shadow:none}
+.cmd button.copy:hover{border-color:#5ee6f0}
+"""
+
+
+def js_mcp_connect() -> bytes:
+    """Script of the /mcp/connect page. Built per request, so the text follows the visitor's language.
+    Script của trang /mcp/connect. Dựng theo từng yêu cầu, nên chữ theo ngôn ngữ của người xem."""
+    text = {
+        "noCode": tx("Could not get a code, try again later."),
+        "waiting": tx("Waiting for an admin to approve"),
+        "lost": tx("Connection lost, retrying…"),
+        "left": tx("The code is good for {time}"),
+        "expired": tx("The code has expired. Get a new one."),
+        "approved": tx("Approved as: {name}"),
+        "people": tx("This key reads each person's numbers."),
+        "totals": tx("This key reads team and office totals only."),
+        "keyTitle": tx("Your key, shown this once"),
+        "keep": tx("Keep it like a password. If you lose it or it leaks, ask an admin to revoke it and get a new one. Do not close this page before the key is saved."),
+        "copy": tx("Copy"),
+        "copied": tx("Copied"),
+        "step1": tx("1. Save the key on your computer"),
+        "unix": tx("macOS or Linux, in Terminal"),
+        "unixKeep": tx("Add the same line to ~/.zshrc or ~/.bashrc so it is still there after a restart."),
+        "windows": tx("Windows, in PowerShell (then open a new window)"),
+        "step2": tx("2. Add the board to your tool"),
+        "cursor": tx("Cursor: put this in the file ~/.cursor/mcp.json"),
+        "powershell": tx("In PowerShell, write $env:AIWORKER_MCP_KEY in place of $AIWORKER_MCP_KEY."),
+        "untried": tx("The Cursor and Gemini CLI lines follow those tools' documentation and have not been tried in the real tools yet."),
+        "step3": tx("3. Ask in your own words"),
+        "example": tx("For example: who is waiting longest right now? Which office spent the most this week?"),
+    }
+    return (JS_MCP_CONNECT.replace("__TEXT__", json.dumps(text, ensure_ascii=False)).replace("__LANG_SWITCH__", LANG_SWITCH_JS)).encode()
+
+
+JS_MCP_CONNECT = """(function () {
+  'use strict'
+  var T = __TEXT__
+  var VAR = 'AIWORKER_MCP_KEY', NAME = 'ai-worker-board'
+  function fill(s, o) { return s.replace(/\\{(\\w+)\\}/g, function (all, k) { return k in o ? o[k] : all }) }
+  function $(id) { return document.getElementById(id) }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag)
+    if (cls) e.className = cls
+    if (text) e.textContent = text
+    return e
+  }
+  // the key that waits for approval, then the key itself: kept in this variable only
+  // khoá đang chờ duyệt, rồi tới chính khoá: chỉ giữ trong biến này
+  var pending = '', endsAt = 0, shown = false
+  if (location.protocol !== 'https:' && !/^(localhost|127\\.0\\.0\\.1|\\[::1\\])$/.test(location.hostname)) $('insecure').hidden = false
+  function post(url) {
+    return fetch(url, { method: 'POST', credentials: 'omit', headers: pending ? { Authorization: 'Bearer ' + pending } : {} }).then(function (r) {
+      return r.json().catch(function () { return {} })
+    })
+  }
+  function askAgain(text) {
+    pending = ''
+    endsAt = 0
+    $('wait').hidden = true
+    $('ask').hidden = false
+    $('get').disabled = false
+    $('note').textContent = text
+  }
+  function requestCode() {
+    $('get').disabled = true
+    $('note').textContent = ''
+    pending = ''
+    post('/mcp/request-code').then(function (d) {
+      if (!d.code || !d.key) return askAgain(d.error || T.noCode)
+      pending = d.key
+      $('ask').hidden = true
+      $('wait').hidden = false
+      $('code').textContent = d.code.slice(0, 4) + '-' + d.code.slice(4)
+      $('status').textContent = T.waiting
+      endsAt = Date.now() + d.secondsLeft * 1000
+      setTimeout(poll, 4000)
+    }).catch(function () { askAgain(T.noCode) })
+  }
+  function poll() {
+    if (!pending) return
+    post('/mcp/poll').then(function (d) {
+      if (d.status === 'done' && d.token) return showKey(d)
+      if (d.status === 'pending') {
+        $('status').textContent = T.waiting
+        return setTimeout(poll, 4000)
+      }
+      askAgain(T.expired)
+    }).catch(function () {
+      $('status').textContent = T.lost
+      setTimeout(poll, 8000)
+    })
+  }
+  function copy(pre, b) {
+    function done() {
+      b.textContent = T.copied
+      setTimeout(function () { b.textContent = T.copy }, 2000)
+    }
+    // without HTTPS the browser gives no clipboard: select the text, so one key press copies it
+    // không có HTTPS thì trình duyệt không cho dùng bộ nhớ tạm: bôi sẵn chữ, để bấm một phím là chép được
+    function select() {
+      var range = document.createRange()
+      range.selectNodeContents(pre)
+      var s = window.getSelection()
+      s.removeAllRanges()
+      s.addRange(range)
+      try { if (document.execCommand('copy')) done() } catch (e) { /* the text stays selected */ }
+    }
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(pre.textContent).then(done, select)
+    else select()
+  }
+  function block(title, text, cls) {
+    var box = el('div', 'cmd' + (cls ? ' ' + cls : ''))
+    if (title) box.appendChild(el('div', 'cmd-title', title))
+    var pre = el('pre', '', text)
+    var b = el('button', 'copy', T.copy)
+    b.type = 'button'
+    b.addEventListener('click', function () { copy(pre, b) })
+    box.appendChild(pre)
+    box.appendChild(b)
+    return box
+  }
+  function showKey(d) {
+    var key = d.token, url = location.origin + '/mcp', out = $('done')
+    pending = ''
+    endsAt = 0
+    shown = true
+    $('wait').hidden = true
+    // changing the language reloads the page, and the key would be gone
+    // đổi ngôn ngữ thì trang tải lại, và khoá sẽ mất
+    var lang = document.querySelector('.lang-switch')
+    if (lang) lang.parentNode.removeChild(lang)
+    out.appendChild(el('p', 'ok', fill(T.approved, { name: d.name }) + '. ' + (d.scope === 'people' ? T.people : T.totals)))
+    out.appendChild(block(T.keyTitle, key, 'key'))
+    out.appendChild(el('p', 'warn', T.keep))
+    out.appendChild(el('h2', '', T.step1))
+    out.appendChild(block(T.unix, 'export ' + VAR + "='" + key + "'"))
+    out.appendChild(el('p', 'hint', T.unixKeep))
+    out.appendChild(block(T.windows, 'setx ' + VAR + ' "' + key + '"'))
+    out.appendChild(el('h2', '', T.step2))
+    out.appendChild(block('Claude Code', 'claude mcp add --transport http --scope user ' + NAME + ' ' + url + ' --header "Authorization: Bearer $' + VAR + '"'))
+    out.appendChild(block('Codex CLI', 'codex mcp add ' + NAME + ' --url ' + url + ' --bearer-token-env-var ' + VAR))
+    out.appendChild(block('Gemini CLI', 'gemini mcp add --transport http --scope user --header "Authorization: Bearer $' + VAR + '" ' + NAME + ' ' + url))
+    var servers = {}
+    servers[NAME] = { url: url, headers: { Authorization: 'Bearer ${env:' + VAR + '}' } }
+    out.appendChild(block(T.cursor, JSON.stringify({ mcpServers: servers }, null, 2)))
+    out.appendChild(el('p', 'hint', T.powershell))
+    out.appendChild(el('p', 'hint', T.untried))
+    out.appendChild(el('h2', '', T.step3))
+    out.appendChild(el('p', '', T.example))
+    out.hidden = false
+  }
+  window.addEventListener('beforeunload', function (e) {
+    if (!shown) return
+    e.preventDefault()
+    e.returnValue = ''
+  })
+  setInterval(function () {
+    if (!endsAt) return void ($('left').textContent = '')
+    var s = Math.max(0, Math.round((endsAt - Date.now()) / 1000))
+    $('left').textContent = fill(T.left, { time: Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2) })
+  }, 1000)
+  $('get').addEventListener('click', requestCode)
+__LANG_SWITCH__
+})()
+"""
 
 
 def mini_state(token: str, now: float) -> dict:
@@ -719,7 +965,197 @@ def model_label(model_id: str) -> str:
     return m.group(1).capitalize() + " " + m.group(2) + ("." + m.group(3) if m.group(3) and len(m.group(3)) < 3 else "")
 
 
-def page_board(viewer_name: str, now: float) -> bytes:
+def usage_change(amount: float, before: float) -> str:
+    """How far an amount is above or below the one before it, in percent; empty when there is nothing to compare with.
+    Một số tiền cao hơn hay thấp hơn số trước đó bao nhiêu phần trăm; để trống khi không có gì để so."""
+    if before <= 0:
+        return ""
+    pct = (amount - before) / before * 100
+    if abs(pct) < 0.5:
+        return "="
+    return "%s %s%s%%" % ("▲" if pct > 0 else "▼", ">" if abs(pct) > 999 else "", "{:.0f}".format(min(abs(pct), 999)))
+
+
+def compact_money(amount: float) -> str:
+    """A short amount for a chart, where the full one does not fit: $1.2K in English, the dong in thousands, millions or billions in Vietnamese.
+    Số tiền viết gọn cho biểu đồ, nơi số đầy đủ không vừa: $1.2K trong tiếng Anh, tiền đồng theo nghìn, triệu hoặc tỷ trong tiếng Việt."""
+    def short(n: float) -> str:
+        return "%.0f" % n if n >= 100 else ("%.1f" % n).rstrip("0").rstrip(".")
+    if current_lang() != "vi":
+        if amount >= 1e6:
+            return "$%sM" % short(amount / 1e6)
+        if amount >= 1e3:
+            return "$%sK" % short(amount / 1e3)
+        return "$%s" % (short(amount) if amount >= 10 or amount == int(amount) else "%.2f" % amount)
+    dong = amount * USD_RATE
+    if dong >= 1e9:
+        return tx("{n}B VND", n=short(dong / 1e9).replace(".", ","))
+    if dong >= 1e6:
+        return tx("{n}M VND", n=short(dong / 1e6).replace(".", ","))
+    if dong >= 1e3:
+        return tx("{n}K VND", n=short(dong / 1e3).replace(".", ","))
+    return format_money(amount)
+
+
+def axis_step(peak: float, lines: int = 3) -> float:
+    """The gap between the lines of a chart's value axis: a round number (1, 2, 2.5 or 5 times a power of ten) so that at most `lines` of them reach the peak.
+    Khoảng cách giữa các vạch trên trục giá trị của biểu đồ: một số tròn (1, 2, 2,5 hoặc 5 nhân với luỹ thừa của mười) sao cho nhiều nhất `lines` vạch là tới đỉnh."""
+    if peak <= 0:
+        return 1.0
+    size = 10 ** math.floor(math.log10(peak / lines))
+    return next(m * size for m in (1, 2, 2.5, 5, 10) if m * size * lines >= peak)
+
+
+def usage_chart(spans: list, kind: str, since: str) -> str:
+    """One chart of cost per week or per month as HTML columns: a value axis in round numbers, the amount written on the current column and on the
+    highest one, and for every column its dates and exact amount on hover, focus or tap. A span the totals do not cover leaves an empty place.
+    Một biểu đồ chi phí theo tuần hoặc theo tháng bằng các cột HTML: trục giá trị theo số tròn, số tiền ghi trên cột hiện tại và cột cao nhất,
+    và với mỗi cột là ngày tháng cùng số tiền chính xác khi rê chuột, chọn bằng bàn phím hoặc chạm. Khoảng mà các tổng không phủ tới thì để trống."""
+    # leave out the empty places before the first span with numbers, but keep the chart at least six columns wide
+    # bỏ các chỗ trống đứng trước khoảng đầu tiên có số liệu, nhưng giữ biểu đồ rộng ít nhất sáu cột
+    first = next((i for i, s in enumerate(spans) if s["kept"] != "none"), len(spans))
+    spans = spans[min(first, max(0, len(spans) - 6)):]
+    if not any(s["kept"] != "none" for s in spans):
+        return ""
+    # the axis is in the money the page shows, so its lines are round in dong on the Vietnamese page
+    # trục tính theo loại tiền mà trang hiện, nên các vạch là số tròn theo tiền đồng trên trang tiếng Việt
+    rate = USD_RATE if current_lang() == "vi" else 1.0
+    step = axis_step(max(s["usd"] for s in spans) * rate) / rate
+    lines = max(1, math.ceil(max(s["usd"] for s in spans) / step - 1e-9))
+    top = step * lines
+
+    def day(iso: str, pattern: str) -> str:
+        return datetime.strptime(iso, "%Y-%m-%d").strftime(pattern)
+
+    def when(s: dict) -> str:
+        if kind == "months" and s["whole"]:
+            return day(s["from"], tx("%b %Y"))
+        return "%s – %s" % (day(s["from"], tx("%b %d")), day(s["to"], tx("%b %d, %Y")))
+
+    known = [i for i, s in enumerate(spans) if s["kept"] != "none"]
+    highest = max(known, key=lambda i: spans[i]["usd"])
+    # a number on every column would not be read: only the newest, and the highest when it does not sit next to it
+    # ghi số trên mọi cột thì không ai đọc: chỉ ghi cột mới nhất, và cột cao nhất khi nó không đứng sát cột đó
+    labelled = {known[-1]} | ({highest} if abs(highest - known[-1]) > 1 else set())
+    columns, names = [], []
+    for i, s in enumerate(spans):
+        names.append("<span>%s</span>" % html.escape(day(s["from"], tx("%b") if kind == "months" else tx("%b %d"))))
+        if s["kept"] == "none":
+            columns.append('<div class="col none"></div>')
+            continue
+        height = 0.0 if top <= 0 else s["usd"] / top * 100
+        why = "" if s["whole"] else tx("from {date}", date=day(since, tx("%b %d, %Y"))) if s["kept"] == "part" else tx("so far")
+        edge = " tl" if i < len(spans) / 3 else " tr" if i >= len(spans) * 2 / 3 else ""
+        columns.append('<div class="col%s%s" tabindex="0" role="img" aria-label="%s"><span class="tip" style="bottom:calc(%.2f%% + %dpx)">%s<b>%s</b>%s</span>%s<i style="height:%.2f%%"></i></div>' % (
+            "" if s["whole"] else " part", edge, html.escape("%s: %s%s" % (when(s), format_money(s["usd"]), " (%s)" % why if why else ""), quote=True),
+            height, 26 if i in labelled else 8, html.escape(when(s)), html.escape(format_money(s["usd"])), html.escape(why),
+            '<span class="v">%s</span>' % html.escape(compact_money(s["usd"])) if i in labelled and s["usd"] > 0 else "", height))
+    grid = "".join('<div class="gl" style="bottom:%.2f%%"><span>%s</span></div>' % (n / lines * 100, html.escape(compact_money(step * n)) if n else "0") for n in range(lines + 1))
+    if kind == "months":
+        title = tx("Cost per month")
+        about = tx("Striped: not a whole month. It is this month so far, or the month the numbers start in.")
+    else:
+        title = tx("Cost per week")
+        about = tx("Striped: not a whole week. It is this week so far, or the week the numbers start in.")
+    return ('<figure class="chart" role="group" aria-label="%s"><figcaption>%s<span class="note">%s</span></figcaption>'
+            '<div class="plot">%s<div class="cols">%s</div></div><div class="xl %s">%s</div></figure>' % (
+                html.escape(title, quote=True), html.escape(title), html.escape(about), grid, "".join(columns), kind, "".join(names)))
+
+
+def office_charts(offices: list, weeks: list, since: str) -> str:
+    """One small row of columns per office for the same weeks, all on one scale, so the heights compare from office to office.
+    Mỗi văn phòng một hàng cột nhỏ cho đúng các tuần đó, tất cả cùng một thang đo, để chiều cao so được giữa các văn phòng."""
+    offices = [o for o in offices if any(o["weeks"])]
+    if not any(o["id"] for o in offices):
+        return ""
+    top = max(max(o["weeks"]) for o in offices)
+    items = []
+    for o in offices:
+        bars = []
+        for s, usd in zip(weeks, o["weeks"]):
+            if s["kept"] == "none":
+                bars.append('<i class="none"></i>')
+                continue
+            label = "%s – %s: %s" % (datetime.strptime(s["from"], "%Y-%m-%d").strftime(tx("%b %d")), datetime.strptime(s["to"], "%Y-%m-%d").strftime(tx("%b %d, %Y")), format_money(usd))
+            bars.append('<i%s style="height:%.2f%%" title="%s"></i>' % ("" if s["whole"] else ' class="part"', usd / top * 100 if top > 0 else 0, html.escape(label, quote=True)))
+        items.append('<div class="mini"><div class="name">%s</div><span class="note">%s</span><div class="bars" role="img" aria-label="%s">%s</div></div>' % (
+            html.escape(o["name"] or o["id"] or tx("No office yet")), html.escape(tx("this week {amount}", amount=format_money(o["weeks"][-1]))),
+            html.escape(o["name"] or o["id"] or tx("No office yet"), quote=True), "".join(bars)))
+    title = tx("Each office, the same weeks")
+    return ('<figure class="chart wide" role="group" aria-label="%s"><figcaption>%s<span class="note">%s</span></figcaption><div class="minis">%s</div></figure>' % (
+        html.escape(title, quote=True), html.escape(title), html.escape(tx("All on one scale, so the heights compare from office to office. The exact numbers are in the table below.")), "".join(items)))
+
+
+def usage_section(role: str, now: float) -> str:
+    """The part of /board that shows use by week and by month for the team, each office and each person, against the week and month before.
+    Empty for a role that may not see it, and while no daily total has been written yet.
+    Phần của /board hiện mức dùng theo tuần và theo tháng cho cả đội, từng văn phòng và từng người, so với tuần trước và tháng trước.
+    Để trống với vai không được xem, và khi chưa có tổng theo ngày nào được ghi."""
+    d = usage_view(role, now)
+    if not d or not d["since"]:
+        return ""
+    spans = d["periods"]
+    note = '<span class=note>%s</span>'
+
+    def day_text(iso: str) -> str:
+        return datetime.strptime(iso, "%Y-%m-%d").strftime(tx("%b %d, %Y"))
+
+    def now_cell(g: dict, span: str, same_days: str, more: str = "") -> str:
+        change = usage_change(g[span]["usd"], g[same_days]["usd"]) if spans[same_days]["kept"] == "all" else ""
+        return format_money(g[span]["usd"]) + (note % change if change else "") + more
+
+    def before_cell(g: dict, span: str, same_days: str) -> str:
+        if spans[span]["kept"] == "none":
+            return '<span class="off">—</span>'
+        text = format_money(g[span]["usd"])
+        # the numbers start part way through this span: say from when, and compare nothing with it
+        # số liệu bắt đầu từ giữa khoảng này: nói rõ từ khi nào, và không đem nó ra so
+        if spans[span]["kept"] == "part":
+            return text + note % html.escape(tx("from {date}", date=day_text(d["since"])))
+        if spans[same_days]["to"] != spans[span]["to"]:
+            text += note % html.escape(tx("same days {amount}", amount=format_money(g[same_days]["usd"])))
+        return text
+
+    labels = [html.escape(x, quote=True) for x in (tx("This week"), tx("Last week"), tx("This month"), tx("Last month"), tx("Tokens (month)"), tx("Delegated (month)"))]
+
+    def cells(g: dict) -> str:
+        year_ago = note % html.escape(tx("same month last year {amount}", amount=format_money(g["monthYearAgo"]["usd"]))) if spans["monthYearAgo"]["kept"] == "all" else ""
+        values = (now_cell(g, "week", "weekBeforeSameDays"), before_cell(g, "weekBefore", "weekBeforeSameDays"),
+                  now_cell(g, "month", "monthBeforeSameDays", year_ago), before_cell(g, "monthBefore", "monthBeforeSameDays"),
+                  "%s / %s" % (compact(g["month"]["tokensIn"]), compact(g["month"]["tokensOut"])),
+                  "%d · %d · %d" % (g["month"]["gemini"], g["month"]["chatgpt"], g["month"]["gemma"]))
+        return "".join("<td class=num data-label='%s'><div>%s</div></td>" % (label, value) for label, value in zip(labels, values))
+
+    office_names = {o["id"]: o["name"] for o in d["offices"]}
+    rows = []
+    # with no office declared there is one nameless group equal to the whole team: leave it out
+    # khi chưa khai văn phòng nào thì chỉ có một nhóm không tên, bằng đúng cả đội: bỏ nó ra
+    if any(o["id"] for o in d["offices"]):
+        for o in d["offices"]:
+            rows.append('<tr class=office><td class=person>%s <span class="tag">%s</span></td>%s</tr>' % (
+                html.escape(o["name"] or o["id"] or tx("No office yet")), html.escape(tx("office")), cells(o)))
+    for r in d["people"]:
+        office = office_names.get(r["office"]) or (tx("No office yet") if any(office_names) else "")
+        rows.append('<tr><td class=person>%s<span class=account>%s</span>%s</td>%s</tr>' % (
+            html.escape(r["name"]), html.escape(r["account"]).replace("@", "<wbr>@", 1), note % html.escape(office) if office else "", cells(r)))
+    intro = tx("Week from {week}, month from {month}, both up to today. ▲ and ▼ compare with the same number of days of the week or month before. One total per person per day, kept since {since}, for {months} months at most; counted again every {minutes} minutes.",
+               week=day_text(spans["week"]["from"]), month=day_text(spans["month"]["from"]), since=day_text(d["since"]),
+               months=DAILY_KEEP_MONTHS, minutes=DAILY_RECOUNT_SECONDS // 60)
+    head = "".join("<th class=num%s>%s</th>" % (' title="%s"' % html.escape(title, quote=True) if title else "", label) for label, title in zip(labels, (
+        "", tx("The whole of last week; the small line is last week up to the same weekday as today"), "",
+        tx("The whole of last month; the small line is last month up to the same day of the month as today"), tx("Tokens in / out this month"),
+        tx("Tasks handed to Gemini · ChatGPT · Gemma this month"))))
+    charts = usage_chart(d["weeks"], "weeks", d["since"]) + usage_chart(d["months"], "months", d["since"]) + office_charts(d["offices"], d["weeks"], d["since"])
+    return ('<h2>%s</h2><p class="muted">%s</p>%s<div class="card usage"><table><thead><tr><th>%s</th>%s</tr></thead><tbody>%s</tbody>'
+            '<tfoot><tr><td class=person>%s</td>%s</tr></tfoot></table></div>' % (
+                html.escape(tx("Use by week and month")), html.escape(intro), '<div class="charts">%s</div>' % charts if charts else "",
+                html.escape(tx("Office · person")), head, "".join(rows),
+                html.escape(tx("Whole team")), cells(d["team"])))
+
+
+def page_board(viewer_name: str, now: float, role: str = WALL) -> bytes:
+    """The text board. The part with use by week and month follows the role; with no role given it is left out, as for the role that sees least.
+    Bảng chữ. Phần mức dùng theo tuần và theo tháng đi theo vai; không truyền vai thì bỏ phần đó, như với vai thấy ít nhất."""
     rows = group_by_person(read_all_devices(), now)
     latest_version = latest_plugin_version(rows)
     row_html, total = [], {"usdToday": 0.0, "usd7d": 0.0, "tokensIn": 0, "tokensOut": 0, "tasks": [0, 0, 0], "openSessions": 0}
@@ -780,6 +1216,7 @@ def page_board(viewer_name: str, now: float) -> bytes:
         '<th title="' + lit(tx("Plugin version on the computer; yellow means not on the newest version in the team")) + '">Plugin</th><th class=num>' + lit(tx("Updated")) + '</th></tr></thead><tbody>%s</tbody>'
         '<tfoot><tr><td class=person>%s</td><td data-label="' + lit(tx("Open")) + '"><div>%s</div></td><td></td><td></td><td class=num data-label="' + label_today + '"><div>%s<span class=note>%s</span></div></td><td class=num data-label="' + label_tokens + '"><div>%s / %s</div></td>'
         '<td class=num data-label="' + label_tasks + '"><div>%d · %d · %d</div></td><td></td><td></td></tr></tfoot></table></div>'
+        + usage_section(role, now).replace("%", "%%") +
         '<p class="muted">' + lit(tx("No chat content or file names: staff computers only send numbers.")) + '</p>') % (
             html.escape(tx("Today {date} · updated {time} · refreshes every minute · {cost_note}", date=now_local.strftime(tx("%b %d, %Y")), time=now_local.strftime("%H:%M"), cost_note=cost_note)),
             html.escape(tx("Log out ({name})", name=viewer_name)), "".join(row_html),

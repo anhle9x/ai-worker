@@ -98,6 +98,8 @@ Nhật ký thao tác: bảng `audit` trong `data/board.db`, ghi đăng nhập, t
 - Giờ "hôm nay" theo `TZ_OFFSET` (mặc định 7, giờ Việt Nam); tỷ giá theo `USD_RATE` (mặc định 26000), chỉ dùng cho trang tiếng Việt (trang tiếng Anh hiện đô la Mỹ, không quy đổi).
 - Ngôn ngữ của trang: ưu tiên lựa chọn của người xem (nút EN / VI, ghi trong cookie `lang`), rồi `DEFAULT_LANG` trong `/etc/ai-worker.env` (`en` hoặc `vi`; để trống thì theo trình duyệt), rồi tiếng Anh. Đổi `DEFAULT_LANG` xong chạy `sudo systemctl restart ai-worker-webhook`.
 - Đăng nhập bằng Telegram (tuỳ chọn): ghi `TELEGRAM_BOT_TOKEN` và `TELEGRAM_BOT_NAME` vào `/etc/ai-worker.env`, rồi khởi động lại dịch vụ. Các bước ở [docs/INSTALL.vi.md](../docs/INSTALL.vi.md), mục "Đăng nhập bằng Telegram".
+- Hỏi bảng từ một công cụ AI (MCP): đường `/mcp` bật sẵn, và không đưa gì ra cho tới khi quản trị duyệt một khoá xin ở trang `/mcp/connect`. Ghi `MCP=0` vào `/etc/ai-worker.env` rồi khởi động lại dịch vụ là gỡ. Các bước ở [docs/INSTALL.vi.md](../docs/INSTALL.vi.md), mục "Hỏi bảng từ một công cụ AI (MCP)".
+- Hỏi bảng qua Telegram (tuỳ chọn): thêm `TELEGRAM_ASK=1` vào `/etc/ai-worker.env` rồi chạy `install.sh`, ghi token của một bot tạo riêng cho việc này vào `/etc/ai-worker-telegram.env`, chạy `install.sh` lần nữa. Khi đó một dịch vụ thứ hai, `ai-worker-telegram`, nói chuyện với Telegram; chính webhook không bao giờ kết nối ra ngoài. Các bước và ý nghĩa với dữ liệu của mọi người có trong [docs/INSTALL.vi.md](../docs/INSTALL.vi.md), mục "Hỏi bảng qua Telegram".
 - Kết nối HTTP không mã hoá: chỉ nên mở trang này trong mạng công ty. Muốn xem từ ngoài thì cần HTTPS trước.
 
 ## Vận hành
@@ -109,7 +111,7 @@ curl http://127.0.0.1:8788/health       # {"ok": true}
 ```
 
 Dữ liệu: `/opt/ai-worker/data/board.db` (SQLite), mỗi máy một dòng vài KB, ghi đè khi máy gửi lại. Các bảng và cách sao lưu: [docs/DATA-MODEL.vi.md](../docs/DATA-MODEL.vi.md).
-Máy im lặng quá 30 ngày thì dòng tự bị xoá. Tải rất nhẹ: mỗi máy gửi tối đa một lần mỗi 30 giây khi số liệu đổi,
+Máy im lặng quá 30 ngày thì dòng tự bị xoá. Mỗi người mỗi ngày một con số tổng (chi phí, token, số việc giao, văn phòng) được giữ tối đa 13 tháng, để `/board` so được các tuần và các tháng. Tải rất nhẹ: mỗi máy gửi tối đa một lần mỗi 30 giây khi số liệu đổi,
 ít nhất một lần mỗi 5 phút khi đang mở Claude.
 
 Cập nhật chương trình: chép bản mới đè lên rồi chạy lại `sudo bash install.sh` (giữ nguyên mã và dữ liệu).
@@ -119,6 +121,6 @@ Gỡ: `sudo systemctl disable --now ai-worker-webhook`, xoá `/opt/ai-worker`, `
 ## Lưu những gì
 
 Tên, email tài khoản Claude, mã máy ngẫu nhiên, **IP máy gửi** (máy chủ tự ghi từ kết nối, máy nhân viên không tự khai được), IP nội bộ máy tự khai (máy chủ nhớ các IP đã dùng trong 30 ngày, tối đa 10), dấu máy (mã phần cứng đã băm một chiều; máy cùng dấu được tính là một máy, dấu không hiện trên trang), số phiên mở / đang làm / chờ trả lời, token và tiền theo từng giờ
-(8 ngày gần nhất), số việc giao cho Gemini/ChatGPT/Gemma theo giờ. **Không có** nội dung chat, câu hỏi, tên file,
+(8 ngày gần nhất), số việc giao cho Gemini/ChatGPT/Gemma theo giờ, và một con số tổng về chi phí, token và số việc cho mỗi người mỗi ngày (tối đa 13 tháng, kèm tên, email và văn phòng). **Không có** nội dung chat, câu hỏi, tên file,
 tên dự án. Kết nối là HTTP trong mạng nội bộ (không mã hoá); muốn HTTPS thì đặt sau nginx/Caddy sẵn có và dùng
 địa chỉ `https://...` khi đóng gói; khi đó thêm `TRUST_PROXY=1` vào `/etc/ai-worker.env` để ghi đúng IP máy nhân viên thay vì IP của proxy.

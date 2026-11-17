@@ -53,7 +53,7 @@ Someone who works in Codex, Cursor or Gemini CLI can show on the same board, wit
 
 From a copy of this repository instead of a package: `bash connectors/install.sh --server https://board.example.com` (Windows: `powershell -ExecutionPolicy Bypass -File connectors\install.ps1 -Server https://board.example.com`); it asks for the send key.
 
-The installer asks about each tool it finds on the computer. It adds its hooks to that tool's own settings (`~/.codex/hooks.json` or `config.toml`, `~/.cursor/hooks.json`, `~/.gemini/settings.json`) and leaves everything else in them alone; a copy of the file as it was is kept next to it, ending in `.ai-worker-backup`. A settings file it cannot read as plain JSON is not changed: the installer prints the hooks to add by hand. It uses the name and email the plugin already has on that computer, so one person stays one row on the board. When asked, it also copies 16 of the plugin's skills to `~/.agents/skills/`, the folder all three tools read; `make-skill` and `improve-codebase-architecture` lean on Claude Code and are not copied.
+The installer asks about each tool it finds on the computer. It adds its hooks to that tool's own settings (`~/.codex/hooks.json` or `config.toml`, `~/.cursor/hooks.json`, `~/.gemini/settings.json`) and leaves everything else in them alone; a copy of the file as it was is kept next to it, ending in `.ai-worker-backup`. A settings file it cannot read as plain JSON is not changed: the installer prints the hooks to add by hand. It uses the name and email the plugin already has on that computer, so one person stays one row on the board. When asked, it also copies 16 of the plugin's skills to `~/.agents/skills/`, the folder all three tools read; `make-skill` and `improve-codebase-architecture` lean on Claude Code and are not copied. A skill you changed after it was copied is yours: a later run does not replace it and `--uninstall` does not remove it, and the installer says so. To get the package's version again, delete that skill's folder and run the installer.
 
 **Codex asks once.** Codex runs a hook only after its owner has looked at it: open Codex, type `/hooks`, and trust the seven hooks whose command ends in `ai-worker-hook.sh`. Cursor and Gemini CLI pick the hooks up at their next start.
 
@@ -70,6 +70,59 @@ The installer asks about each tool it finds on the computer. It adds its hooks t
 - **How far it is tested.** The hook and the installer pass their tests with sample events and a temporary home folder on macOS, on Ubuntu and on Windows (the last two on GitHub's test machines); in a real Codex CLI 0.164.0 session on macOS the start, prompt, stop and end hooks ran, a question from Codex showed on a sample board as waiting, and cutting a turn short with Esc was seen to send `Interrupt` and no `Stop`, after which the session showed as idle; the approval and tool hooks have not been seen in a real session yet. Cursor and Gemini CLI are written from their documentation and have not been tried inside the real tools, and no real tool has been tried on Windows or Linux yet. On Windows each hook costs the start of PowerShell, about half a second on the test machine. If you try one, please tell us what you see.
 
 The report format, for writing a connector for another tool: [connectors/README.md](../connectors/README.md).
+
+## Ask the board from an AI tool (MCP)
+
+The server has an MCP endpoint at `/mcp`. MCP (Model Context Protocol) is the common way an AI tool calls a tool on another server. With a key, an AI tool such as Claude Code, Codex CLI, Cursor or Gemini CLI can answer "who is waiting longest right now?" from the board's numbers, the way `/ai-worker:board` does in Claude Code. The endpoint only reads, and it gives what a wall screen gets: names, states, cost and quota, never an email, an IP or a device id.
+
+**It is on, and it gives nothing out until an admin approves a key.** To take the endpoint and its pages away, add `MCP=0` to `/etc/ai-worker.env` and restart the service.
+
+**Getting a key.**
+
+1. The person opens `https://board.example.com/mcp/connect` in a browser on the company network and clicks **Get a code**. The page shows an 8-digit code.
+2. An admin opens `/admin`, goes to **TV screens**, types the code and clicks **View request**. The card says it is a key for an AI tool. The admin chooses what the key may read (team and office totals only, or each person too), names the key and clicks **Approve**.
+3. The person's page then shows the key once, with the line to paste into each tool. Approve only a code the person read to you themselves: the code says nothing about who is asking.
+
+**What to know about a key.**
+
+- It works on `/mcp` only, and no other key works there: not a TV's, an extension's or a plugin's, nor the send key.
+- The server stores a hash of it, never the key. The Admin page shows its first characters, what it reads and when it was last used, and **Revoke** stops it at once. A key that is lost cannot be shown again: revoke it and ask for a new one.
+- It lapses after 30 days without use, and after 1 year at most.
+- One key may ask 120 times in 10 minutes. At most 50 keys.
+- Each read is logged for 3 months and shown on the Admin page under **Reads by AI tools**: which key, which tool, from which IP. The question itself never reaches the server.
+- What the tool reads is sent to the company that makes the tool, as part of the person's question. A key that reads totals only keeps people's names out of that.
+
+**Tried so far.** In the real tools, on macOS: Claude Code 2.1.318 and Codex CLI 0.164.0 each read the board and answered from it. Claude Code spoke protocol revision 2026-07-28 and, when told to, the older handshake that opens with `initialize`; Codex spoke revision 2025-06-18. A key that reads totals only was tried with Claude Code: it said that each person's numbers exist but its key may not read them. The `claude mcp add` and `codex mcp add` lines the page gives were run as written. Cursor and Gemini CLI have not been tried in the real tools yet, and no tool has been tried on Windows or Linux; those lines follow each tool's documentation. The Chat tab of the Claude desktop app was tried as well, through a claude.ai connector: see the next section.
+
+### claude.ai and the Chat tab of Claude Desktop: off by default
+
+The Caddy template (`server/aiworker.caddy`) lets only your networks in, and that covers `/mcp`: an AI tool reaches it only from a computer on those networks. claude.ai, the Chat tab of Claude Desktop and the Claude mobile app are different. They connect from Anthropic's servers, not from the person's computer, and they need the address to answer on the public Internet on port 443 ([Anthropic's help page on custom connectors](https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp)). So they are refused unless you open that door yourself.
+
+To open it for `/mcp` and nothing else, replace the two lines `@outside not remote_ip ...` and `respond @outside ...` in the Caddy block with:
+
+```
+	# your networks reach everything; Anthropic's outbound addresses reach /mcp and nothing else
+	@outside {
+		not remote_ip 203.0.113.0/24 198.51.100.0/24
+		not {
+			remote_ip 160.79.104.0/21 153.61.208.0/20
+			path /mcp
+		}
+	}
+	respond @outside "Forbidden" 403
+```
+
+Then run `caddy validate` on the file and `sudo systemctl reload caddy`. If you opened `/ingest` the way the template shows, keep its `not path /ingest` line inside `@outside` as well. If your file names the matcher something other than `@outside`, keep your name. To close the door again, put the two lines back and reload.
+
+The two ranges in the block are Anthropic's outbound IPv4 addresses as published on [platform.claude.com/docs/en/api/ip-addresses](https://platform.claude.com/docs/en/api/ip-addresses), read on 2026-11-16. Read that page yourself before you use them, and again from time to time: the ranges can change.
+
+Before you open it:
+
+- **`/mcp` then takes connections from outside the office.** Anyone on claude.ai who types your address arrives from those same Anthropic addresses, so the key is the only thing between them and the numbers. Every other path stays closed, `/mcp/connect` included: a key is still asked for from inside your networks.
+- **In claude.ai:** Customize > Connectors > Add custom connector, and the address `https://board.example.com/mcp`. Claude first marks "Sign in now" as detected, because the board answers that it wants a key: choose **No sign-in** instead. Under **Request headers** add the header `authorization` with the value `Bearer`, a space, and the key. Leave the transport on **Streamable HTTP**.
+- **Claude may call the tool without asking.** The connector's page lists the board's tool as read-only with "Needs approval", and says that this setting applies in Manual mode. In the test Claude called the tool with no question. What the tool reads is decided by the key alone, so approve a key that reads totals only unless people's names are meant to go out.
+- **The log shows Anthropic's address, not the person's,** and the key's row gets a line saying it was used from a new IP.
+- **Tried once, on 2026-11-17, from the Chat tab of the Claude desktop app,** against a board behind Caddy 2.6.2 with the block above and a key that reads totals only: the connector was added, and Claude answered from the board's numbers. Three things were seen. The first attempt to add the connector said the address could not be reached and the second went through; the reason was not found. Claude also asked three `/.well-known/oauth-...` paths, which this block keeps closed (403), and that did not stop it. Request headers were offered on the account used. claude.ai in a browser and the mobile app use the same connector and were not tried.
 
 ## Menu bar icon for managers
 
@@ -122,7 +175,52 @@ People who use Telegram every day can log in to the board with Telegram's button
    ```
 4. **Each person links once:** log in with name and code, open `/telegram` (or **Telegram** on the detail board), enter the 6-digit code, press **Log in with Telegram** and confirm in Telegram. Next time they press the button on the login page.
 
-The server never calls Telegram: the button takes the browser to Telegram's login page and back, and the server only checks the signature with the token. The login page loads nothing from Telegram. A signed login is accepted for 5 minutes and once. If Telegram cannot be reached from the office, people log in with name and code. Admins see who linked Telegram on `/admin` and can unlink it there; reissuing a key or making an account a wall account also unlinks it.
+For this the server never calls Telegram: the button takes the browser to Telegram's login page and back, and the server only checks the signature with the token. The login page loads nothing from Telegram. A signed login is accepted for 5 minutes and once. If Telegram cannot be reached from the office, people log in with name and code. Admins see who linked Telegram on `/admin` and can unlink it there; reissuing a key or making an account a wall account also unlinks it.
+
+## Ask the board from Telegram (optional)
+
+A manager who does not write code can ask the board from a Telegram chat on their phone: tap **Who is waiting** or **Cost**, or type "who is waiting longest?", and a bot answers from the board's numbers. No AI model reads the question. A button, a command or a keyword picks one of five fixed answers, so it costs nothing, needs no API key and cannot make a number up. Off until you turn it on.
+
+**What you agree to by turning it on.** For each chat an admin approves, what the chat reads goes through Telegram's servers and stays in that chat on the person's phone: team and office totals, or each person's name, state, cost and quota when the admin chose that. Never an email, an IP or a device id. Telegram is a third party, and a chat with a bot is not end-to-end encrypted.
+
+**How it is built.** A second small service on the server, `ai-worker-telegram`, asks Telegram for new messages. It only connects out, so nothing is opened in Caddy or in the firewall, and a board with no public address can use it. The webhook itself still never connects out: the bot process hands each message to the webhook on the same machine and sends back what the webhook answers. The bot process runs under its own user, holds the bot's token and nothing of the board, and may reach only this machine, its DNS servers and Telegram's networks.
+
+1. **Make a bot for this** (in the Telegram app, phone or computer): search for **@BotFather**, send `/newbot`, type a name and then a username that ends in `bot`. BotFather replies with the token, which looks like `1234567890:AAH...`. Then send `/setjoingroups`, pick the bot and choose **Disable**: the bot answers in private chats only. Make a bot of its own, do not reuse the bot for logging in: the login bot's token can sign a login for anyone, and it should not sit with a process that talks to the Internet.
+2. **Turn it on.** On the server, add the line `TELEGRAM_ASK=1` to `/etc/ai-worker.env` (`sudo nano /etc/ai-worker.env`), then run `sudo bash install.sh` in the `server/` folder. Correct result: it says there is no bot token yet and names the file `/etc/ai-worker-telegram.env`.
+3. **Give it the token.** In the `server/` folder, run this; it asks for the token without showing it on screen:
+   ```bash
+   printf "Bot token: "; read -rs T; echo; sudo sed -i "s|^TELEGRAM_ASK_TOKEN=.*|TELEGRAM_ASK_TOKEN=$T|" /etc/ai-worker-telegram.env; unset T; sudo bash install.sh
+   ```
+   At `Bot token:` paste the token from step 1 and press Enter (nothing shows, that is expected). Or edit the file by hand with `sudo nano /etc/ai-worker-telegram.env` and run `sudo bash install.sh` again. Correct result: `✔ The Telegram bot process is running.`, and on `/admin`, under **TV screens**, a line says the bot is reading messages and names it.
+4. **Each person connects once.** They open the bot in Telegram, press **Start** and read the 8-digit code it shows to an admin. The admin opens `/admin`, goes to **TV screens**, types the code and clicks **View request**. The card shows the person's Telegram name and number, and the board account that Telegram is linked to, if any. The admin chooses what the chat may read, names it and clicks **Approve**. The person then sends any message: the bot greets them and shows the buttons.
+
+**What to know.**
+
+- **Commands:** `/waiting`, `/cost`, `/offices`, `/team`, `/quota`, `/help` and `/stop`. Vietnamese speakers also have `/cho`, `/chiphi`, `/vanphong`, `/tongquan` and `/hanmuc`. A typed question works when it holds a keyword such as "waiting", "cost" or "office"; anything else gets the list of commands. The answer follows the language of the message, then the language of the person's Telegram app.
+- **What a chat reads** is the admin's choice at approval: team and office totals only, or each person too. With totals, offices of fewer than 3 people share one row.
+- **A chat that no admin approved reads nothing.** `/stop` in the chat, or **Revoke** on the Admin page, ends a chat at once. A chat lapses after 30 days without use, and after 1 year at most. At most 50 chats, and 20 messages per chat in 10 minutes.
+- **Each answer with numbers is logged for 3 months** and shown on the Admin page under **Reads by AI tools and Telegram chats**: which chat and which command. The words a person typed are never stored or logged.
+- **On the phone:** answers are sent so that Telegram's apps refuse to forward or save them, and the first line never names a person, since a phone shows it on the lock screen. On the phone this was tried on, Telegram's app refused a screenshot too. That is not a promise: on a computer the screen can still be captured, and any screen can be photographed.
+- **The bot never asks for a login code or a password.** Tell people so: someone who got hold of the token could write to them in the bot's name.
+- **If the Admin page says the server cannot reach Telegram:** check from the server with `curl -sS -m 10 -o /dev/null -w "%{http_code}\n" https://api.telegram.org`. A number means Telegram is reachable, and the limit on the bot's service is what stops it: Telegram may have moved. Put your own list in `TELEGRAM_NETS=` in `/etc/ai-worker-telegram.env`, with commas between the addresses, or `any` for no limit, and run `install.sh` again. The default list is Telegram's own, from [core.telegram.org/resources/cidr.txt](https://core.telegram.org/resources/cidr.txt), read on 2026-11-16.
+- **If the token leaks:** send `/revoke` to @BotFather, put the new token in as in step 3. Someone with the token can read what people send the bot from then on and write to them in its name. They cannot read the board: the server answers only chats an admin approved.
+- **To turn it off:** change the line to `TELEGRAM_ASK=0` in `/etc/ai-worker.env` and run `install.sh` again. The service is removed. Delete `/etc/ai-worker-telegram.env` too if you will not use it again, and send `/deletebot` to @BotFather.
+
+**Try it on your own computer first.** With the sample board, in one terminal window:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(32))" > /tmp/ai-worker-ask-key && TELEGRAM_ASK=1 TELEGRAM_ASK_KEY="$(cat /tmp/ai-worker-ask-key)" python3 server/demo.py
+```
+
+and in a second one, where it asks for the token without showing it:
+
+```bash
+printf "Bot token: "; read -rs TELEGRAM_ASK_TOKEN; echo; export TELEGRAM_ASK_TOKEN; TELEGRAM_ASK_KEY="$(cat /tmp/ai-worker-ask-key)" PORT=8799 python3 server/telegram_bot.py
+```
+
+The sample people's names then go through Telegram. Log in to `http://127.0.0.1:8799` as `demo` with the code the first window shows, and approve your chat on `/admin`.
+
+**Tried so far.** With the real Telegram, by hand on macOS as above: pairing a chat, the buttons, the command menu, and answers in both languages. The service the installer sets up, with its own user and its network limit, is covered by the install test on Ubuntu (`tests/linux/test-server.sh`) and has been installed on one production server, where the bot reached Telegram through the limit and a chat that reads totals only was paired. On a phone, Telegram's app refused to forward an answer. A chat that reads each person has not been tried through the real Telegram yet.
 
 ## Releasing an update
 
@@ -146,7 +244,7 @@ Employee computers ask the server at most once every 4 hours, and 30 minutes lat
 
 Only the company package sends; the normal package sends nothing. The numbers go to the company's own server, not to outsiders.
 
-**Sent:** full name, the email of the Claude account and the email typed at install, a random computer ID, a hardware mark (the computer's own id after a one-way hash, so a reinstalled plugin is still the same computer; never shown on the board), internal IP, number of open sessions, working, waiting for an answer, the model in use, the Claude account quota, tokens and cost per hour, number of tasks given to each assistant, the kinds of helper assistants running, the assistants present on the computer, the plugin version. The server also records the public IP of the sending computer by itself, and keeps the internal IPs each computer used in the last 30 days.
+**Sent:** full name, the email of the Claude account and the email typed at install, a random computer ID, a hardware mark (the computer's own id after a one-way hash, so a reinstalled plugin is still the same computer; never shown on the board), internal IP, number of open sessions, working, waiting for an answer, the model in use, the Claude account quota, tokens and cost per hour, number of tasks given to each assistant, the kinds of helper assistants running, the assistants present on the computer, the plugin version. The server also records the public IP of the sending computer by itself, and keeps the internal IPs each computer used in the last 30 days. It adds cost, tokens and tasks up into one total per person per day and keeps those totals for up to 13 months.
 
 **The connector for Codex, Cursor and Gemini CLI sends:** the full name and email typed at install, a random computer ID, the time, and for each tool the number of sessions open, working and waiting. The server records the public IP of the sending computer by itself. Nothing else is sent. On the computer, `~/.local/share/ai-worker/connector/` holds the send key (a file only that account can read), one line per open session with the tool's own session id, and the last report. Each tool hands the hook its event, which holds the prompt or the answer; the hook reads the session id and whether the last message ends with a question mark, and keeps neither the prompt nor the answer.
 

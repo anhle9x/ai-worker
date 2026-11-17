@@ -55,6 +55,8 @@ Tất cả nằm trong `~/.local/share/ai-worker/connector/`:
 | `sessions` | Mỗi phiên đang mở một dòng: công cụ, mã phiên, trạng thái, thời điểm sự kiện cuối, một dấu |
 | `sent`, `last-error` | Lần gần nhất bảng nhận một báo cáo, hoặc lần gần nhất bảng từ chối ra sao |
 | `report.json` | Báo cáo đã gửi gần nhất |
+| `skills-installed` | Các skill bộ cài đã chép vào `~/.agents/skills/`, mỗi skill kèm một dấu của nội dung lấy lúc chép. Skill nào nội dung không còn khớp dấu thì đã được người dùng sửa, và sẽ không bị thay hay bị gỡ |
+| `ai-worker-hook.sh`, `install.sh`, `merge-hooks.js`, `lang.sh` | Các file của chính bộ nối (`.ps1` trên Windows), để hook vẫn chạy và `--uninstall` vẫn dùng được sau khi gói cài đã bị xoá |
 
 ## Báo cáo
 

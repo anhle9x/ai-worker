@@ -31,6 +31,9 @@ umask 022
 mkdir -p "$APP_DIR/data"
 install -m 0644 webhook.py "$APP_DIR/webhook.py"
 install -m 0644 webhook_vi.py "$APP_DIR/webhook_vi.py"
+# the Telegram bot process: only a file here; it runs only when asking from Telegram is turned on, see further down
+# tiến trình bot Telegram: ở đây chỉ là một file; nó chỉ chạy khi việc hỏi qua Telegram được bật, xem phía dưới
+[ -f telegram_bot.py ] && install -m 0644 telegram_bot.py "$APP_DIR/telegram_bot.py"
 # the parts of the server that webhook.py loads; files left from an older version are removed
 # các phần máy chủ mà webhook.py nạp; file còn lại từ bản cũ được xoá
 rm -rf "$APP_DIR/board"
@@ -103,6 +106,53 @@ IPAddressAllow=localhost
 EOF
 fi
 
+# Asking the board from Telegram (optional): on only with TELEGRAM_ASK=1 in $ENV. The webhook and the bot process share one key,
+# made here; the bot's token is kept in a file of its own, so the webhook never holds it and the bot never holds the send key.
+# Hỏi bảng qua Telegram (tuỳ chọn): chỉ bật khi có TELEGRAM_ASK=1 trong $ENV. Webhook và tiến trình bot dùng chung một khoá,
+# tạo ở đây; khoá của bot nằm trong một file riêng, để webhook không bao giờ cầm nó và bot không bao giờ cầm mã gửi.
+BOT_ENV=/etc/ai-worker-telegram.env
+BOT_SERVICE=ai-worker-telegram
+BOT_UNIT=/etc/systemd/system/$BOT_SERVICE.service
+ASK=0
+grep -q '^TELEGRAM_ASK=1[[:space:]]*$' "$ENV" && ASK=1
+if [ "$ASK" = 1 ]; then
+  ASK_KEY=$(sed -n 's/^TELEGRAM_ASK_KEY=//p' "$ENV" | tail -n 1)
+  if [ "${#ASK_KEY}" -lt 32 ]; then
+    ASK_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
+    sed -i '/^TELEGRAM_ASK_KEY=/d' "$ENV"
+    echo "TELEGRAM_ASK_KEY=$ASK_KEY" >> "$ENV"
+  fi
+  if [ ! -f "$BOT_ENV" ]; then
+    ( umask 077
+    cat > "$BOT_ENV" <<EOF
+# Settings of the Telegram bot process (ai-worker-telegram). Only root reads this file.
+# Cấu hình của tiến trình bot Telegram (ai-worker-telegram). Chỉ root đọc được file này.
+
+# The token of a bot made with @BotFather for asking the board. Not the bot used for logging in to the board.
+# After putting it here, run install.sh again.
+# Khoá của một bot tạo bằng @BotFather để hỏi bảng. Không phải bot dùng để đăng nhập bảng.
+# Điền vào đây xong thì chạy lại install.sh.
+TELEGRAM_ASK_TOKEN=
+
+# Networks the bot process may reach, besides this machine and its DNS servers. Empty: Telegram's own networks, as listed on
+# https://core.telegram.org/resources/cidr.txt. Your own list: addresses with commas between them. "any": no limit.
+# Các mạng tiến trình bot được phép tới, ngoài chính máy này và các máy chủ DNS của nó. Để trống: các mạng của chính Telegram, theo
+# https://core.telegram.org/resources/cidr.txt. Danh sách riêng: các địa chỉ cách nhau bằng dấu phẩy. "any": không giới hạn.
+TELEGRAM_NETS=
+
+# Written by install.sh at every run, from $ENV: do not change them here.
+# install.sh ghi lại ở mỗi lần chạy, lấy từ $ENV: đừng sửa ở đây.
+EOF
+    )
+  fi
+  chmod 600 "$BOT_ENV"
+  # the key and the port are the webhook's: the same on both sides after every run
+  # khoá và cổng là của webhook: sau mỗi lần chạy thì hai bên giống nhau
+  sed -i '/^TELEGRAM_ASK_KEY=/d; /^PORT=/d' "$BOT_ENV"
+  BOT_PORT=$(sed -n 's/^PORT=//p' "$ENV" | tail -n 1)
+  printf 'TELEGRAM_ASK_KEY=%s\nPORT=%s\n' "$ASK_KEY" "${BOT_PORT:-$PORT}" >> "$BOT_ENV"
+fi
+
 cat > /etc/systemd/system/ai-worker-webhook.service <<EOF
 [Unit]
 Description=AI Worker Office dashboard webhook
@@ -148,6 +198,79 @@ else
 fi
 if [ "$VIA_CADDY" = 1 ]; then
   say "  Listening only on 127.0.0.1:$PORT (reached through Caddy's HTTPS)." "  Chỉ nghe 127.0.0.1:$PORT (vào qua HTTPS của Caddy)."
+fi
+
+# The Telegram bot process: a service of its own, under its own user, that reaches this machine, its DNS servers and Telegram, nothing else.
+# It starts only when a token is there, and it is taken away when asking from Telegram is turned off.
+# Tiến trình bot Telegram: một dịch vụ riêng, chạy dưới người dùng riêng, chỉ tới được chính máy này, các máy chủ DNS của nó và Telegram.
+# Nó chỉ chạy khi đã có khoá của bot, và bị gỡ khi việc hỏi qua Telegram bị tắt.
+if [ "$ASK" = 1 ] && ! grep -q '^TELEGRAM_ASK_TOKEN=[^[:space:]]' "$BOT_ENV"; then
+  if [ -f "$BOT_UNIT" ]; then systemctl disable --now "$BOT_SERVICE" >/dev/null 2>&1 || true; fi
+  say "  Asking from Telegram is on, but there is no bot token yet: put the token of a bot made for this with @BotFather into $BOT_ENV (TELEGRAM_ASK_TOKEN=), then run this installer again." "  Hỏi bảng qua Telegram đang bật, nhưng chưa có khoá của bot: ghi khoá của một bot tạo riêng cho việc này bằng @BotFather vào $BOT_ENV (TELEGRAM_ASK_TOKEN=), rồi chạy lại bộ cài này."
+elif [ "$ASK" = 1 ]; then
+  id "$BOT_SERVICE" >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin "$BOT_SERVICE"
+  # Telegram's networks, read on 2026-11-16 from https://core.telegram.org/resources/cidr.txt; TELEGRAM_NETS in $BOT_ENV replaces the list
+  # các mạng của Telegram, đọc ngày 2026-11-16 từ https://core.telegram.org/resources/cidr.txt; TELEGRAM_NETS trong $BOT_ENV thay cho danh sách này
+  BOT_NETS="91.108.56.0/22 91.108.4.0/22 91.108.8.0/22 91.108.16.0/22 91.108.12.0/22 149.154.160.0/20 91.105.192.0/23 91.108.20.0/22 185.76.151.0/24 2001:b28:f23d::/48 2001:b28:f23f::/48 2001:67c:4e8::/48 2001:b28:f23c::/48 2a0a:f280::/32"
+  OWN_NETS=$(sed -n 's/^TELEGRAM_NETS=//p' "$BOT_ENV" | tail -n 1 | tr ',' ' ' | xargs)
+  BOT_FENCE=""
+  if [ "$OWN_NETS" != any ]; then
+    if [ -n "$OWN_NETS" ]; then
+      if printf '%s' "$OWN_NETS" | grep -Eq '^[0-9a-fA-F:./ ]+$'; then
+        BOT_NETS=$OWN_NETS
+      else
+        say "  TELEGRAM_NETS in $BOT_ENV is not a list of network addresses; Telegram's own networks are used." "  TELEGRAM_NETS trong $BOT_ENV không phải danh sách địa chỉ mạng; dùng các mạng của chính Telegram."
+      fi
+    fi
+    # the name api.telegram.org must still be looked up: DNS servers that are not on this machine are let through too
+    # vẫn phải tra tên api.telegram.org: các máy chủ DNS không nằm trên máy này cũng được cho qua
+    BOT_DNS=$(awk '$1 == "nameserver" { print $2 }' /etc/resolv.conf 2>/dev/null | sed 's/%.*//' | grep -E '^[0-9a-fA-F:.]+$' | grep -Ev '^(127\.|::1$)' | tr '\n' ' ')
+    BOT_FENCE="IPAddressDeny=any
+IPAddressAllow=localhost $BOT_NETS $BOT_DNS"
+  fi
+  cat > "$BOT_UNIT" <<EOF
+[Unit]
+Description=AI Worker Telegram bot (asking the board from Telegram)
+After=network-online.target ai-worker-webhook.service
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=$BOT_ENV
+ExecStart=/usr/bin/env python3 $APP_DIR/telegram_bot.py
+User=$BOT_SERVICE
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=true
+UMask=0077
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+MemoryMax=128M
+TasksMax=16
+LimitNOFILE=256
+ProtectSystem=strict
+ProtectHome=true
+$BOT_FENCE
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  systemctl daemon-reload
+  systemctl enable "$BOT_SERVICE" >/dev/null 2>&1
+  systemctl restart "$BOT_SERVICE"
+  sleep 2
+  if [ "$(systemctl is-active "$BOT_SERVICE")" = active ]; then
+    say "✔ The Telegram bot process is running. The /admin page, under TV screens, says whether Telegram takes its token." "✔ Tiến trình bot Telegram đang chạy. Trang /admin, mục Màn hình TV, cho biết Telegram có nhận khoá của nó không."
+  else
+    say "✘ The Telegram bot process is not running: see 'journalctl -u $BOT_SERVICE'" "✘ Tiến trình bot Telegram chưa chạy: xem 'journalctl -u $BOT_SERVICE'"
+  fi
+elif [ -f "$BOT_UNIT" ]; then
+  systemctl disable --now "$BOT_SERVICE" >/dev/null 2>&1 || true
+  rm -f "$BOT_UNIT"
+  systemctl daemon-reload
+  say "  Asking from Telegram is off: the bot's service is removed. Its token stays in $BOT_ENV; delete that file if you will not use it again." "  Hỏi bảng qua Telegram đang tắt: dịch vụ của bot đã bị gỡ. Khoá của nó vẫn nằm trong $BOT_ENV; hãy xoá file đó nếu bạn không dùng lại."
 fi
 echo
 # the key is printed only on the first install; a re-run to update does not print it (so it does not leak through the screen history)

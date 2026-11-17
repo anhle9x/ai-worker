@@ -55,9 +55,16 @@ Trên bảng tổng, máy im 12 phút hiện ngoại tuyến, im một ngày th�
 | TV báo lâu chưa thấy | TV tắt hoặc mất mạng | Bật TV; nếu TV đòi mã thì ghép lại trên `/admin` |
 | Nhân viên không nhận bản cập nhật | Plugin cũ hơn 0.23.0, kiểm chữ ký hỏng, hoặc thư mục plugin có `.git` | Xem mục 5 |
 | Mất hết quản trị | | `sudo bash manage-otp.sh --rescue <tên>` trong thư mục `server/` |
+| Dịch vụ không lên sau khi nâng cấp, nhật ký báo `Cannot back up ... before upgrading its schema` | Đĩa đầy, hoặc dịch vụ không được ghi vào thư mục dữ liệu | Chưa có gì bị đổi. Dọn bớt đĩa (`df -h /opt/ai-worker/data`), kiểm thư mục thuộc về `ai-worker`, rồi bật lại dịch vụ |
+| Dịch vụ không lên, nhật ký báo `has schema version 2, newer than this program` | Cài bản cũ đè lên cơ sở dữ liệu mà bản mới đã nâng | Cài lại bản mới, hoặc quay lui bằng bản sao làm trước khi nâng: mục 5 |
 | Trang Telegram báo tên miền của bot không hợp lệ | Bot chưa gắn với địa chỉ bảng tổng | Gửi `/setdomain` cho @BotFather kèm tên miền bảng tổng |
 | "Tài khoản Telegram này chưa liên kết" | Người đó chưa liên kết Telegram | Đăng nhập bằng tên và mã, rồi liên kết ở `/telegram` |
 | Lộ khoá bot Telegram | Ai có khoá cũng ký được lần đăng nhập | Thu hồi bằng `/revoke` trong @BotFather, ghi khoá mới vào `/etc/ai-worker.env`, khởi động lại dịch vụ |
+| Trang Quản trị báo Telegram từ chối token của bot | Token dùng cho việc hỏi qua Telegram sai hoặc đã bị thu hồi | Ghi đúng token vào `/etc/ai-worker-telegram.env` (`TELEGRAM_ASK_TOKEN=`), chạy `sudo bash install.sh` |
+| Trang Quản trị báo một chương trình khác đang đọc cùng bot | Token còn được dùng ở nơi khác, hoặc bot đang bị đặt webhook | Một bot chỉ có một nơi đọc: tạo một bot riêng cho việc này bằng @BotFather và dùng token của nó |
+| Trang Quản trị báo máy chủ không tới được Telegram | Tường lửa, giới hạn mạng của dịch vụ bot, hoặc mạng chặn Telegram | Trên máy chủ: `curl -sS -m 10 -o /dev/null -w "%{http_code}\n" https://api.telegram.org`. Ra một con số nghĩa là tới được Telegram: đặt `TELEGRAM_NETS` trong `/etc/ai-worker-telegram.env` rồi chạy `install.sh` (xem INSTALL) |
+| Trang Quản trị báo chưa thấy tiến trình bot, hoặc bot không trả lời | Dịch vụ không chạy | `systemctl status ai-worker-telegram`, rồi `journalctl -u ai-worker-telegram -n 30`. Nhật ký nêu lý do, không bao giờ có token |
+| Lộ token của bot dùng để hỏi bảng | Người có token đọc được những gì mọi người gửi cho bot và nhắn cho họ dưới tên bot; họ không đọc được bảng | `/revoke` ở @BotFather, ghi token mới vào `/etc/ai-worker-telegram.env`, chạy `sudo bash install.sh` |
 
 ## 4. Sao lưu và khôi phục
 
@@ -97,7 +104,40 @@ Sau đó kiểm `/health` và đăng nhập thử một lần.
 2. Chép thư mục `server/` mới lên máy chủ và chạy `sudo bash install.sh` trong đó. Dữ liệu, khoá và file thiết lập được giữ nguyên.
 3. Kiểm: `systemctl status ai-worker-webhook`, `/health`, đăng nhập, mở `/admin`.
 
-Quay về bản cũ: dừng dịch vụ, chạy `install.sh` từ thư mục `server/` cũ, bật lại dịch vụ. Nếu bản mới đã đổi lược đồ thì chép lại `data/` và `keys/` từ `/opt/ai-worker.prev/`; cơ sở dữ liệu mới hơn chương trình sẽ không chạy và báo rõ trong nhật ký.
+Quay về bản cũ: dừng dịch vụ, chạy `install.sh` từ thư mục `server/` cũ, bật lại dịch vụ. Nếu bản mới đã đổi lược đồ thì chương trình cũ từ chối cơ sở dữ liệu và báo rõ trong nhật ký: phải đặt lại bản sao làm trước khi nâng, theo các bước dưới đây.
+
+#### Quay lui sau khi lược đồ đã đổi
+
+Lược đồ là cách bố trí các bảng trong file cơ sở dữ liệu. Bản đầu tiên có tổng theo ngày nâng `board.db` từ lược đồ phiên bản 1 lên 2; `accounts.db` không đổi. Ở lần chạy đầu trên một cơ sở dữ liệu đã có sẵn, bản đó:
+
+1. chép `board.db` thành `board.db.schema-1.bak` trong cùng thư mục (quyền `600`) và kiểm rằng bản sao mở được,
+2. ghi dòng `backed up ... (schema version 1) to ... before upgrading to schema version 2` vào nhật ký dịch vụ,
+3. xong mới nâng. Không chép được thì không đổi gì cả và dịch vụ dừng với dòng `Cannot back up ...`.
+
+Muốn quay về bản cũ:
+
+```bash
+sudo systemctl stop ai-worker-webhook
+```
+
+```bash
+sudo ls -l /opt/ai-worker/data/board.db.schema-1.bak
+```
+
+Kết quả đúng: một dòng có tên file, kích thước lớn hơn 0. Nếu không có file thì dừng ở đây và dùng `/opt/ai-worker.prev/data/` hoặc bản sao lưu hằng ngày (mục 4).
+
+```bash
+sudo rm -f /opt/ai-worker/data/board.db-wal /opt/ai-worker/data/board.db-shm
+sudo cp /opt/ai-worker/data/board.db.schema-1.bak /opt/ai-worker/data/board.db
+sudo chown ai-worker: /opt/ai-worker/data/board.db
+sudo chmod 600 /opt/ai-worker/data/board.db
+```
+
+Sau đó chạy `sudo bash install.sh` trong thư mục `server/` cũ (lệnh này tự bật dịch vụ), kiểm `/health` và đăng nhập một lần. Hai file bị `rm` là file phụ của chính SQLite cho cơ sở dữ liệu mới; để lại thì chúng sẽ bị áp vào file cũ.
+
+Quay lui thì mất gì: mọi thứ đã ghi vào `board.db` sau khi nâng, như tổng theo ngày, các dòng nhật ký quản trị, màn hình hay khoá đã ghép và địa điểm đã đặt tên từ lúc đó. Bảng trực tiếp đầy lại sau vài phút, vì mỗi lần gửi máy nào cũng gửi kèm 8 ngày theo giờ gần nhất. Tài khoản không bị đụng tới.
+
+Máy chủ xoá `board.db.schema-1.bak` 30 ngày sau khi nâng (nhật ký: `deleted the upgrade backup ...`). Đây là một bản sao đầy đủ số liệu của mọi người: giữ kín như `board.db`, và chỉ chép đi nơi khác trước khi hết 30 ngày nếu cần giữ lâu hơn.
 
 Quay về bản trước SQLite (0.24 trở về trước) mà không mất phần đã thay đổi từ đó:
 
@@ -129,8 +169,17 @@ Quay về bản cũ: phát hành lại code cũ với số phiên bản mới, c
 | Nhật ký dịch vụ (journald) | Khởi động, dòng đăng nhập, từ chối, lỗi. Không ghi từng lần máy gửi | Theo thiết lập journald của máy | Root trên máy chủ |
 | Nhật ký truy cập Caddy | Mọi yêu cầu: IP, đường dẫn, mã trả về | 10 file mỗi file 20 MB | Root trên máy chủ |
 | Diễn biến tua lại, bảng `history` trong `board.db` | Trạng thái từng người khi đổi | 24 giờ | Mọi người đã đăng nhập, qua nút tua lại |
+| Tổng theo ngày, bảng `daily` trong `board.db` | Mỗi người mỗi ngày một dòng: chi phí, token, số việc giao, văn phòng, kèm tên và email tài khoản | Tháng hiện tại và 12 tháng trước đó, dòng cũ hơn máy chủ tự xoá | Quản trị và người xem, trên `/board` |
 
 Không bao giờ ghi: nội dung chat, câu hỏi, tên file, mã OTP, khoá.
+
+Muốn xoá tổng theo ngày của một người trước khi chúng hết hạn, ví dụ khi người đó yêu cầu hoặc đã nghỉ việc:
+
+```bash
+sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --forget-usage <email hoặc tên>
+```
+
+Kết quả đúng: `deleted <số> daily rows of <email hoặc tên>`. Không cần dừng dịch vụ. Những ngày trong tuần vừa qua mà máy của người đó còn báo lên sẽ được ghi lại ở lần đếm kế tiếp, nên với người đã nghỉ thì chạy lệnh này sau ngày làm cuối của họ một tuần.
 
 ## 7. Hồ sơ triển khai
 

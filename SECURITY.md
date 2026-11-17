@@ -34,7 +34,7 @@ AI Worker is designed to defend against these eight common web risks, from the O
 | **Insecure direct object references** | Viewers and wall screens get one view filtered by role, with no way to ask for a record by ID. Actions on a chosen account or screen are for admins only | Viewers see everyone's numbers by design. Anyone with the shared send key can send under a name not yet tied to a device |
 | **Missing function-level access control** | Every path is listed with its permission, and one gate checks them all. A path not listed is 404. A test pins what each role gets on each path. The server checks, it does not just hide buttons | A new path must be added to that table by whoever writes it |
 | **Security misconfiguration** | There are no default accounts or keys, and the server will not start without `INGEST_KEY`. Behind Caddy it listens only inside the server. The service runs as its own user with limited rights; key and data files are private to it | You must set your own IP list, turn on HTTPS and keep the number of sudo users small |
-| **Sensitive data exposure** | Chat content, file names and project names are never sent. Wall screens get no emails or internal IPs. TV sessions are stored as hashes, the log holds no keys, and files that look like secrets are recorded by name only | Without HTTPS the numbers travel unencrypted. OTP keys sit unencrypted on the server, readable by the service and by sudo users. The install package holds the send key |
+| **Sensitive data exposure** | Chat content, file names and project names are never sent. Wall screens get no emails or internal IPs. TV sessions are stored as hashes, the log holds no keys, and files that look like secrets are recorded by name only. Totals per person per day (cost, tokens, tasks delegated) are shown to admins and viewers only | Without HTTPS the numbers travel unencrypted. The totals per day stay for up to 13 months with the person's name and account email, far longer than the 30 days of a computer's own row: tell staff, and delete a person's rows with `webhook.py --forget-usage` when that is needed. A copy of the database made before a schema upgrade sits next to it for 30 days. OTP keys sit unencrypted on the server, readable by the service and by sudo users. The install package holds the send key |
 
 ### The connector for Codex, Cursor and Gemini CLI
 
@@ -45,5 +45,48 @@ The connector (`connectors/`) is optional and separate from the plugin. What to 
 - **It changes other tools' settings.** The installer adds hooks to `~/.codex`, `~/.cursor` and `~/.gemini`, keeps a copy of each file it changes, and `--uninstall` takes the hooks out again. Codex runs them only after the person has reviewed and trusted them with `/hooks`; the installer never skips that step.
 - **It has no signed update.** The connector does not update itself; a new version arrives only when someone runs its installer again from a package they trust.
 - **What remains:** a person can send false counts under their own name, as with the plugin. Cursor, Gemini CLI and the Windows files have not been tried in the real tools yet.
+
+### The MCP endpoint
+
+The server has one read-only path, `/mcp`, where an AI tool that holds a key reads the board's numbers. What to know before approving a key:
+
+- **It gives what a wall screen gets and nothing more:** names, states, cost and quota. Emails, IPs and device ids never go out, whatever the request asks.
+- **Each key is approved by an admin,** with the 8-digit code flow of the TV screens and the OTP code entered again. The admin chooses whether the key reads each person or team and office totals only. The server stores a hash of the key; the Admin page shows its first characters.
+- **A key opens `/mcp` only, and no other key opens `/mcp`:** not a wall screen's, an extension's or a plugin's key, the send key or a login session. Cookies are ignored there, and a request from a web page on another site is refused.
+- **Limits:** 120 requests per key in 10 minutes, at most 50 keys, a message of at most 16 KB. Wrong keys count as probing, so an IP that keeps trying is blocked for 15 minutes. A key lapses after 30 days without use and after 1 year at most; revoking stops it at once, and a later use of it is written to the log.
+- **Each read is logged for 3 months:** which key, which tool, which IP. The question a person asked never reaches the server.
+- **The IP allow-list covers it.** With the Caddy template, `/mcp` answers only inside your networks. `MCP=0` takes the path away.
+
+What remains:
+
+- **What a tool reads goes to the company that makes the tool,** as part of the person's question: names and costs of colleagues, unless the key reads totals only. With totals, offices of fewer than 3 people share one row, but a team or a leftover group of one or two people still shows through the totals.
+- **The key sits unencrypted on the person's computer,** in an environment variable or in the tool's settings file. Whoever copies it can read the same numbers from inside your networks until it is revoked.
+- **The code says nothing about who is asking.** Someone on your network can ask for a code and try to get an admin to approve it. The approval card names the kind of key and the asking IP; approve only a code the person read to you themselves.
+- **A name is text a staff member typed.** It could be written to steer the AI tool of whoever asks, and some of those tools can run commands. The server keeps only letters, digits and a few marks in a name, cuts it to 40 characters and tells the tool that names are data. That lowers the risk; it does not remove it.
+- **Without HTTPS the key travels unencrypted,** like the rest of the board.
+- **claude.ai and the Chat tab of Claude Desktop are off by default.** They connect from Anthropic's servers, so the allow-list refuses them. [docs/INSTALL.md](docs/INSTALL.md) shows how to let Anthropic's addresses reach `/mcp` and nothing else. Once you do, `/mcp` answers anyone who comes through claude.ai, and the key is the only thing in the way. Tried once, from the Chat tab of the Claude desktop app: it worked, and Claude called the tool without asking the person first, so the key's scope is what decides what goes out.
+- **Tried in three places, all on macOS:** Claude Code 2.1.318, Codex CLI 0.164.0, and the Chat tab of the Claude desktop app through a claude.ai connector. Cursor, Gemini CLI, and every tool on Windows and Linux have not been tried yet.
+
+### Asking the board from Telegram
+
+Off unless the server's owner sets `TELEGRAM_ASK=1`. Then a second service, the bot process, asks Telegram for messages, and a person in a chat an admin approved gets answers from the board. What to know before turning it on:
+
+- **This is the one part of the server that connects out, and only to Telegram.** The webhook still never does. The bot process runs under its own user, may reach only this machine, its DNS servers and Telegram's networks, and holds two secrets: the bot's token and the key of the one path it calls. It holds no database, no OTP key and no send key, and keeps nothing on disk.
+- **The bot process decides nothing.** It hands each message to the webhook on the same machine; the webhook decides whether the chat is approved, what it may read and how often it may ask. That path, `/bot/telegram`, answers only a direct call from the same machine that shows the key: a request that came through the proxy gets 404, and a login or any other key gets 401.
+- **Each chat is approved by an admin,** with the 8-digit code flow of the TV screens and the OTP code entered again. The card shows the person's Telegram name and number, and the board account that Telegram is linked to, if any. The admin chooses whether the chat reads each person or totals only. Only private chats are answered: in a group the bot says nothing and leaves.
+- **It gives what a wall screen gets and nothing more,** as a few lines of text. No AI model reads the question. Emails, IPs and device ids never go out.
+- **What stands for a chat is the person's Telegram number, which is no secret.** So it is taken on that one path only. It opens no page, no extension path and not `/mcp`, and the public pairing paths can neither take nor cancel a chat's code.
+- **Limits:** 50 chats, 10 waiting for approval, 20 messages per chat in 10 minutes. A chat that is not approved is told so once an hour and otherwise gets no answer. A chat lapses after 30 days without use and after 1 year at most; `/stop` in the chat or Revoke on the Admin page ends it at once.
+- **Each answer with numbers is logged for 3 months:** which chat and which command. The words a person typed are neither stored nor logged, by the webhook or by the bot process.
+
+What remains:
+
+- **Names and costs go through Telegram and stay in the chat.** Telegram is a third party. A chat with a bot is not end-to-end encrypted, and it shows on every device where the person is logged in to Telegram. A chat that reads totals only keeps people's names out of it; a team or a leftover group of one or two people still shows through the totals.
+- **The phone.** Answers are sent so that Telegram's apps refuse to forward or save them, and the first line never names a person. On the phone this was tried on, Telegram's app refused a screenshot as well; that is how Telegram behaved on that device, not a promise. On a computer the screen can be captured, any screen can be photographed, and an unlocked phone in someone else's hands shows the chat.
+- **The bot's token.** Whoever holds it can read what people send the bot from then on, and write to them in the bot's name, for example to ask for a login code; the bot itself never asks for one. They cannot read the board, because the server answers only approved chats and Telegram does not let a bot read back what it sent. The Admin page says when another program reads the same bot. Use a bot made for this, not the bot for logging in, whose token can sign a login.
+- **Anyone can write to the bot:** its name is public. A stranger gets a pairing code and nothing else. Approve only a code the person read to you themselves.
+- **A name is text a staff member typed.** In a chat it is only shown, never read by a model. The marks Telegram turns into links or commands are taken out of names. That makes a planted link harder to write, not impossible.
+- **Telegram's networks may change.** The allow-list is Telegram's published list as read on 2026-11-16. If Telegram moves, the bot stops reaching it until you update `TELEGRAM_NETS`. `any` removes the limit, and that protection with it.
+- **Used on one production server so far,** since 2026-11-17, with a chat that reads totals only. A chat that reads each person has not been tried through the real Telegram yet.
 
 More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

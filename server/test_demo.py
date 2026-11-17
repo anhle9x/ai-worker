@@ -33,6 +33,19 @@ class SampleData(unittest.TestCase):
     def test_same_seed_gives_the_same_numbers(self):
         self.assertEqual(demo.sample_reports(1_800_000_000.0), demo.sample_reports(1_800_000_000.0))
 
+    def test_history_covers_the_weeks_before_what_the_computers_hold(self):
+        now = 1_800_000_000.0
+        weeks = demo.sample_history(now)
+        self.assertEqual(weeks, demo.sample_history(now))
+        self.assertEqual([then for then, _ in weeks], [now - back * 7 * 86400 for back in range(demo.HISTORY_WEEKS, 0, -1)])
+        people = {(r["name"], r["account"]) for r in demo.sample_reports(now)}
+        for then, reports in weeks:
+            self.assertEqual({(r["name"], r["account"]) for r in reports}, people)
+            # every hour lies in the week that ended then, so no day is counted by two weeks
+            # mọi giờ nằm trong tuần kết thúc lúc đó, nên không ngày nào bị hai tuần cùng đếm
+            hours = [int(h) for r in reports for h in r["ledger"]]
+            self.assertTrue(all(then // 3600 - 7 * 24 < h <= then // 3600 for h in hours))
+
     def test_nobody_looks_real(self):
         for r in demo.sample_reports(time.time()):
             with self.subTest(person=r["device"]):

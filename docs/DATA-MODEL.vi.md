@@ -4,13 +4,14 @@ Tiếng Việt | [English](DATA-MODEL.md)
 
 Máy chủ bảng tổng lưu gì, ở đâu, bao lâu và ai đọc được. Máy chủ lưu mọi thứ trong hai cơ sở dữ liệu SQLite. SQLite có sẵn trong Python nên không phải cài thêm gì.
 
-Các thiết lập nêu ở đây (`DATA_DIR`, `KEYS_DIR`, các giới hạn) nằm trong `server/board/settings.py`. Lược đồ, các bước nâng cấp và việc chuyển từ file JSON cũ nằm trong `server/board/db.py`. Code đọc và ghi từng bảng nằm trong `server/board/stores.py`, `server/board/devices.py` và `server/board/views.py`.
+Các thiết lập nêu ở đây (`DATA_DIR`, `KEYS_DIR`, các giới hạn) nằm trong `server/board/settings.py`. Lược đồ, các bước nâng cấp và việc chuyển từ file JSON cũ nằm trong `server/board/db.py`. Code đọc và ghi từng bảng nằm trong `server/board/stores.py`, `server/board/devices.py`, `server/board/daily.py` và `server/board/views.py`.
 
 ## 1. Các file
 
 | File | Mặc định sau khi cài | Chủ sở hữu và quyền | Chứa |
 |---|---|---|---|
-| `data/board.db` (kèm `-wal`, `-shm`) | `/opt/ai-worker/data/` | `ai-worker`, `600`, thư mục `750` | Số liệu các máy, các lần ghép, địa điểm, gói Team, nhật ký quản trị, diễn biến tua lại |
+| `data/board.db` (kèm `-wal`, `-shm`) | `/opt/ai-worker/data/` | `ai-worker`, `600`, thư mục `750` | Số liệu các máy, tổng theo từng người từng ngày, các lần ghép, địa điểm, gói Team, nhật ký quản trị, diễn biến tua lại |
+| `data/board.db.schema-N.bak` | Nằm cạnh `board.db`, chỉ có sau một lần nâng cấp làm đổi lược đồ | `ai-worker`, `600` | Một bản sao đầy đủ của `board.db` lúc còn ở lược đồ phiên bản `N`, do máy chủ tự làm trước khi nâng. Máy chủ xoá nó sau 30 ngày |
 | `keys/accounts.db` (kèm `-wal`, `-shm`) | `/opt/ai-worker/keys/` | `ai-worker`, `600`, thư mục `700` | Tài khoản và mã bí mật OTP |
 | `/etc/ai-worker.env` | | `root`, `600` | Thiết lập và `INGEST_KEY` |
 
@@ -25,11 +26,12 @@ Tài khoản nằm ở file riêng, thư mục riêng, để bản sao lưu số
 | `devices` | Mỗi máy một dòng cho plugin, và thêm một dòng cho bộ nối Codex, Cursor và Gemini CLI ở máy có cài: số liệu mới nhất trong `body` (mục 3), `seen_at` = lúc máy chủ nhận | Mỗi lần máy gửi, nhiều nhất 30 giây một lần | Xoá sau 30 ngày kể từ `seen_at` (`KEEP_DAYS`) |
 | `identities` | `máy → tài khoản, tên` của lần gửi đầu | Máy mới gửi lần đầu | Tới khi xoá bằng `--forget-device` |
 | `history` | Mỗi lần trạng thái một người đổi thì thêm một dòng: thời điểm, người, trạng thái, số việc đang giao | Trạng thái đổi | 24 giờ (nút tua lại) |
-| `screens` | Màn hình TV, biểu tượng thanh menu và tiện ích trình duyệt đã ghép: bản băm của khoá, tên, chủ, loại, hạn; phần còn lại trong `body` | Ghép, dùng, đổi tên, thu hồi | 30 ngày, tự gia hạn khi đang dùng, tối đa 1 năm |
+| `daily` | Mỗi người mỗi ngày một dòng (ngày tính theo `TZ_OFFSET`): tên, email tài khoản, văn phòng của người đó lúc chốt ngày, chi phí tính bằng đô la, token vào và ra, số việc giao cho Gemini, ChatGPT và Gemma. Cộng từ `ledger` và `tasks` của các máy của người đó (mục 3); không máy nào phải gửi thêm gì | Cứ 5 phút, 7 ngày gần nhất được đếm lại và ghi đè; ngày cũ hơn giữ nguyên như lần ghi cuối | Tháng hiện tại và 12 tháng trước đó (`DAILY_KEEP_MONTHS` = 13), sau đó máy chủ tự xoá. `webhook.py --forget-usage` xoá sớm các dòng của một người |
+| `screens` | Màn hình TV, biểu tượng thanh menu, tiện ích trình duyệt đã ghép, khoá cho công cụ AI (loại `mcp`) và chat Telegram đã được duyệt cho hỏi bảng (loại `telegram`): bản băm của khoá, tên, chủ, loại, hạn; phần còn lại trong `body`. Khoá cho công cụ AI còn ghi nó được đọc gì (`scope`: `people` hoặc `totals`) và 12 ký tự đầu của nó (`keyStart`), để quản trị phân biệt các dòng. Chat Telegram cũng ghi `scope`, cùng số và tên @ của người dùng Telegram (`telegramId`, `telegramUser`); con số đó là thứ đứng thay cho khoá của nó | Ghép, dùng, đổi tên, thu hồi | 30 ngày, tự gia hạn khi đang dùng, tối đa 1 năm |
 | `revoked` | Bản băm của khoá đã thu hồi, để ghi nhật ký nếu còn bị dùng | Thu hồi | 30 ngày, tối đa 500 |
 | `documents` | Hai tài liệu sửa nguyên khối: `locations` (tên văn phòng, dải IP, vị trí bản đồ, nhóm bán hàng) và `team-csv` (chi phí gói Team mới nhất, đã gộp theo người) | Quản trị sửa | Tới khi sửa |
-| `audit` | Ai làm gì: đăng nhập, đổi tài khoản và ghép máy, thao tác bị từ chối; cột `month` để đọc theo tháng | Mỗi thao tác quản trị | 12 tháng (`KEEP_MONTHS`) |
-| `meta` | Lúc chuyển file JSON cũ vào và số dòng đã chuyển | Một lần | Luôn giữ |
+| `audit` | Ai làm gì: đăng nhập, đổi tài khoản và ghép máy, thao tác bị từ chối; cột `month` để đọc theo tháng. Thêm mỗi lần gọi công cụ MCP của bảng một dòng (hành động `mcp-call`): tên và id của khoá, công cụ được gọi, có chạy hay không, IP, cái tên công cụ AI tự xưng và đời giao thức; không bao giờ có khoá và không bao giờ có câu hỏi. Và mỗi câu trả lời cho một chat Telegram một dòng (hành động `telegram-ask`): tên và id của chat cùng lệnh được trả lời; không bao giờ có chữ người đó gõ | Mỗi thao tác quản trị; mỗi lần gọi công cụ MCP; mỗi câu trả lời cho chat Telegram | 12 tháng (`KEEP_MONTHS`); dòng `mcp-call` và `telegram-ask` 3 tháng (`MCP_CALL_KEEP_MONTHS`) |
+| `meta` | Lúc chuyển file JSON cũ vào và số dòng đã chuyển; ngày đầu tiên mà tổng theo ngày phủ tới (`daily_since`) | Một lần | Luôn giữ |
 
 `accounts.db`:
 
@@ -38,7 +40,9 @@ Tài khoản nằm ở file riêng, thư mục riêng, để bản sao lưu số
 | `accounts` | Tên, vai, mã bí mật OTP (base32), lúc tạo và người tạo, lần đăng nhập cuối; mã người dùng và tên @ Telegram đã liên kết khi dùng đăng nhập Telegram |
 | `imported` | Tên đã nhập từ `OTP=` trong file thiết lập, để tài khoản đã xoá trên `/admin` không sống lại |
 
-Chỉ nằm trong bộ nhớ, mất khi khởi động lại: phiên đăng nhập (8 giờ, tài khoản màn hình treo tường 7 ngày), mã ghép TV (10 phút), mã dùng một lần của thanh menu (90 giây), trạng thái TV đang bật.
+Chỉ nằm trong bộ nhớ, mất khi khởi động lại: phiên đăng nhập (8 giờ, tài khoản màn hình treo tường 7 ngày), mã ghép TV (10 phút), mã dùng một lần của thanh menu (90 giây), trạng thái TV đang bật, số lần mỗi khoá cho công cụ AI đã hỏi trong 10 phút gần nhất và cái tên công cụ của nó xưng gần nhất.
+
+Gửi sang Telegram, chỉ khi việc hỏi qua Telegram đang bật (`TELEGRAM_ASK=1`) và chỉ tới chat đã được quản trị duyệt: chữ của từng câu trả lời. Nó được làm từ phần treo tường: số đếm và chi phí của cả đội và từng văn phòng, và, với chat đọc từng người, tên như màn hình treo tường hiện, trạng thái, số phút chờ, chi phí và hạn mức. Telegram còn có những gì người đó viết cho bot. Máy chủ không lưu tin nào trong số này, và tiến trình bot không ghi gì xuống đĩa.
 
 ## 3. Bản ghi của một máy
 
@@ -62,12 +66,24 @@ Chỉ nằm trong bộ nhớ, mất khi khởi động lại: phiên đăng nh�
 
 **Không bao giờ lưu:** nội dung chat, câu hỏi, tên file, tên dự án.
 
+### Tổng theo từng người từng ngày
+
+Mỗi máy giữ số liệu theo giờ trong 8 ngày, và dòng của máy rời khỏi máy chủ 30 ngày sau lần gửi cuối. Để so được tuần này với tuần khác, tháng này với tháng khác, máy chủ nhớ lâu hơn đúng một thứ: con số tổng của mỗi người trong mỗi ngày, ở bảng `daily`.
+
+- **Không thu thêm gì mới.** Các tổng là phép cộng những con số mà máy vốn đã gửi. Người được phân biệt như trên bảng: tài khoản cộng với tên.
+- **Đếm lại không bao giờ cộng trùng.** Mỗi lần chạy lấy 7 ngày gần nhất từ thứ các máy đang giữ rồi ghi đè lên các dòng đang có. Là 7 ngày vì máy nào cũng còn giữ đủ những ngày đó; ngày cũ hơn sẽ bị thiếu, nên không bao giờ bị đụng lại.
+- **Văn phòng là văn phòng của hôm đó.** Ngày đã qua giữ văn phòng lúc nó được chốt; người chuyển chỗ thì được tính cho văn phòng mới từ ngày chuyển.
+- **Đây là việc giữ dữ liệu nhân viên lâu hơn trước.** Trước khi có bảng này, chi phí của một người mất đi 30 ngày sau lần gửi cuối của máy họ. Giờ con số tổng mỗi ngày ở lại tối đa 13 tháng, kèm tên và email tài khoản. Hãy nói rõ điều đó trong thông báo gửi nhân viên: [employee-notice.vi.md](employee-notice.vi.md).
+- **Người đã nghỉ việc** vẫn nằm trong các tổng cho tới khi các dòng hết hạn. Muốn xoá sớm: `webhook.py --forget-usage <email hoặc tên>`, xem [OPERATIONS.vi.md](OPERATIONS.vi.md), mục 6.
+- **Ai đọc được:** quản trị và người xem, trên `/board`. Vai treo tường không nhận gì, nên màn hình TV, biểu tượng thanh menu, tiện ích trình duyệt, plugin của quản lý và cổng MCP đều không có phần này ([PERMISSIONS.vi.md](PERMISSIONS.vi.md)).
+
 ## 4. Cách dùng cơ sở dữ liệu
 
 - **Mỗi file một kết nối, sau một khoá.** Máy chủ web trả lời mỗi yêu cầu trong một luồng riêng; mọi luồng dùng chung một kết nối và lần lượt dùng. Tối đa 300 máy, mỗi máy nhiều nhất 30 giây gửi một lần, tức cao nhất khoảng 10 lần ghi mỗi giây.
 - **Giao dịch.** Mỗi thay đổi là một giao dịch: ghi đủ cả, hoặc không ghi gì. Mỗi kho giữ bảng của mình dạng dict trong bộ nhớ và chỉ ghi các dòng đã đổi.
 - **Chế độ WAL.** Đọc không phải chờ ghi. `synchronous=NORMAL` cho số liệu, `FULL` cho tài khoản.
-- **Phiên bản lược đồ.** `PRAGMA user_version` giữ số phiên bản. Khi khởi động, máy chủ chạy lần lượt các bước nâng cấp còn thiếu. Cơ sở dữ liệu mới hơn chương trình thì bị từ chối, để bản cũ không lỡ chạy trên dữ liệu mới.
+- **Phiên bản lược đồ.** `PRAGMA user_version` giữ số phiên bản. Khi khởi động, máy chủ chạy lần lượt các bước nâng cấp còn thiếu. Cơ sở dữ liệu mới hơn chương trình thì bị từ chối, để bản cũ không lỡ chạy trên dữ liệu mới. `board.db` ở phiên bản 2 kể từ khi có tổng theo ngày; `accounts.db` ở phiên bản 1.
+- **Một bản sao trước mỗi lần nâng.** Trước khi nâng một cơ sở dữ liệu đã có sẵn, máy chủ chép nó thành `<file>.schema-<phiên bản cũ>.bak` nằm ngay cạnh (quyền `600`), kiểm rằng bản sao mở được và đúng phiên bản cũ, rồi ghi một dòng vào nhật ký dịch vụ. Không chép được thì không nâng gì cả và dừng lại kèm thông báo. Máy chủ xoá bản sao sau 30 ngày. Cách quay lui bằng bản sao này: [OPERATIONS.vi.md](OPERATIONS.vi.md), mục 5.
 - **Chỉ dùng cú pháp SQL cũ.** Không dùng `UPSERT`, `RETURNING` hay hàm JSON, để chạy được cả trên Linux đời cũ.
 - **Không đặt trên ổ mạng.** WAL cần ổ đĩa trong máy; không đặt `DATA_DIR` trên NFS.
 
@@ -90,7 +106,7 @@ File nào được đặt lại vào `data/` sau này sẽ được chuyển và
 
 Sao lưu khi máy chủ đang chạy bằng lệnh sao lưu của chính SQLite, không dùng `tar` hay `cp`, vì có thể chép phải WAL đang ghi dở. Lệnh nằm ở [OPERATIONS.vi.md](OPERATIONS.vi.md), mục 4.
 
-- Sao lưu `board.db` hằng ngày. File này không chứa mã bí mật.
+- Sao lưu `board.db` hằng ngày. File này không chứa mã bí mật. File `.schema-N.bak` không thay cho việc sao lưu này: nó chỉ là một bản sao ở thời điểm nâng cấp.
 - Sao lưu `accounts.db` riêng, chỉ root đọc được. Mất file này thì mọi tài khoản phải quét lại mã QR.
 
-Quay về bản trước SQLite mà không mất phần đã thay đổi từ đó: `webhook.py --export-json <thư-mục>` ghi cơ sở dữ liệu ngược ra file JSON cũ. Xem [OPERATIONS.vi.md](OPERATIONS.vi.md), mục 5.
+Quay về bản trước SQLite mà không mất phần đã thay đổi từ đó: `webhook.py --export-json <thư-mục>` ghi cơ sở dữ liệu ngược ra file JSON cũ. Tổng theo ngày không có chỗ trong các file đó nên không được xuất. Xem [OPERATIONS.vi.md](OPERATIONS.vi.md), mục 5.

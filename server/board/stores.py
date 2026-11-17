@@ -16,14 +16,24 @@ from datetime import datetime
 
 from board.db import account_row, data_db, dumps, keys_db, revoked_row, screen_row
 from board.lang import tx
+# what an MCP key may read: each person's row, or totals only. A key with neither word reads totals only
+# khoá MCP được đọc gì: dòng của từng người, hoặc chỉ số gộp. Khoá không có chữ nào trong hai chữ này thì chỉ đọc số gộp
+from board.mcp import SCOPE_PEOPLE as MCP_SCOPE_PEOPLE
+from board.mcp import SCOPE_TOTALS as MCP_SCOPE_TOTALS
 from board.security import ADMIN, VIEWER, WALL, parse_names, parse_otp
 from board.settings import (
+    KIND_MCP,
+    KIND_TELEGRAM,
     LOCAL_TZ,
     MAX_ACCOUNTS,
+    MCP_CALL_KEEP_MONTHS,
+    MCP_KEYS_MAX,
     MENUBAR_PER_ACCOUNT,
     MINI_HANDOFF_MAX,
     MINI_HANDOFF_PER_TOKEN,
     MINI_HANDOFF_SECONDS,
+    TELEGRAM_CHATS_MAX,
+    TELEGRAM_PENDING_MAX,
     TV_APPROVE_SECONDS,
     TV_CEILING_SECONDS,
     TV_CODE_SECONDS,
@@ -313,6 +323,22 @@ def device_label(ua: str) -> str:
     return tx("{browser} on {os}", browser=browser, os=os_name)
 
 
+def side_of(kind) -> str:
+    """Paired rows live on three sides of a wall: keys for the MCP endpoint, Telegram chats, and everything else (""), which is
+    screens, menu bar computers, extensions and plugins. A row is found, counted and replaced only on its own side.
+    Các dòng đã ghép nằm ở ba phía của một bức tường: khoá cho cổng MCP, chat Telegram, và mọi thứ còn lại (""), tức
+    màn hình, máy thanh menu, tiện ích và plugin. Một dòng chỉ được tìm, đếm và thay ở đúng phía của nó."""
+    return kind if kind in (KIND_MCP, KIND_TELEGRAM) else ""
+
+
+def chat_key(telegram_id: str) -> str:
+    """What stands for a Telegram chat where the others hold a random key: the Telegram user's number, which Telegram vouches for.
+    It is no secret, so it is taken only from the bot process on this machine, and only on the Telegram side of the wall.
+    Thứ đứng thay cho một chat Telegram ở chỗ các loại khác cầm một khoá ngẫu nhiên: số của người dùng Telegram, do Telegram bảo đảm.
+    Nó không bí mật, nên chỉ được nhận từ tiến trình bot trên máy này, và chỉ ở phía Telegram của bức tường."""
+    return "tg_" + telegram_id
+
+
 def is_tv(ua: str) -> bool:
     return "TV" in device_label(ua) or "Chromecast" in device_label(ua)
 
@@ -343,10 +369,13 @@ class TvPairing:
     def request_code(self, old_key: str, ip: str, user_agent: str, now: float, kind: str = "", menubar: bool = False):
         with self.lock:
             self._sweep(now)
+            # a Telegram chat's request is left alone here: its key is a number anyone may know, and these paths are public
+            # yêu cầu của chat Telegram không bị đụng tới ở đây: khoá của nó là một con số ai cũng có thể biết, mà các đường này là công khai
             if old_key:
                 b = sha256_hex(old_key)
-                self.pending = {m: r for m, r in self.pending.items() if r["keyHash"] != b}
-            if len(self.pending) >= TV_PENDING_TOTAL or sum(1 for r in self.pending.values() if r["ip"] == ip) >= TV_PENDING_PER_IP:
+                self.pending = {m: r for m, r in self.pending.items() if r["keyHash"] != b or r.get("kind") == KIND_TELEGRAM}
+            others = [r for r in self.pending.values() if r.get("kind") != KIND_TELEGRAM]
+            if len(others) >= TV_PENDING_TOTAL or sum(1 for r in others if r["ip"] == ip) >= TV_PENDING_PER_IP:
                 return None
             while True:
                 code = "%08d" % secrets.randbelow(10 ** 8)
@@ -357,19 +386,43 @@ class TvPairing:
                                   **({"kind": kind} if kind else {}), **({"menubar": True} if menubar else {})}
             return code, key
 
+    def request_chat(self, telegram_id: str, username: str, now: float):
+        """A Telegram chat asks for a code. Returns (code, seconds left, whether the code is new): asking again while a code waits gives
+        the same code. None when too many chats are waiting.
+        Một chat Telegram xin mã. Trả (mã, số giây còn lại, mã có mới không): xin lại khi đang có mã chờ thì nhận đúng mã đó.
+        None khi đang có quá nhiều chat chờ."""
+        b = sha256_hex(chat_key(telegram_id))
+        with self.lock:
+            self._sweep(now)
+            waiting = {m: r for m, r in self.pending.items() if r.get("kind") == KIND_TELEGRAM}
+            for m, r in waiting.items():
+                if r["keyHash"] == b:
+                    return m, int(r["expiresAt"] - now), False
+            if len(waiting) >= TELEGRAM_PENDING_MAX:
+                return None
+            while True:
+                code = "%08d" % secrets.randbelow(10 ** 8)
+                if code not in self.pending:
+                    break
+            self.pending[code] = {"keyHash": b, "ip": "", "device": "Telegram", "createdAt": now, "expiresAt": now + TV_CODE_SECONDS, "name": None, "approvedBy": None,
+                                  "kind": KIND_TELEGRAM, "telegramId": telegram_id, "telegramUser": username}
+            return code, TV_CODE_SECONDS, True
+
     def has_key(self, key: str) -> bool:
         b = sha256_hex(key)
         with self.lock:
-            return any(r["keyHash"] == b for r in self.pending.values())
+            return any(r["keyHash"] == b and r.get("kind") != KIND_TELEGRAM for r in self.pending.values())
 
-    def poll(self, key: str, now: float):
-        """Returns "pending", "expired", or the approved request (and removes it from the waiting list).
-        Trả "pending", "expired", hoặc yêu cầu đã duyệt (và bỏ nó khỏi danh sách chờ)."""
+    def poll(self, key: str, now: float, chat: bool = False):
+        """Returns "pending", "expired", or the approved request (and removes it from the waiting list). A Telegram chat's request
+        is seen only with chat=True, and then nothing else is: the public pairing paths cannot take it by naming the chat's number.
+        Trả "pending", "expired", hoặc yêu cầu đã duyệt (và bỏ nó khỏi danh sách chờ). Yêu cầu của chat Telegram chỉ được thấy
+        khi chat=True, và khi đó không thấy thứ gì khác: các đường ghép công khai không lấy được nó bằng cách nêu số của chat."""
         b = sha256_hex(key)
         with self.lock:
             self._sweep(now)
             for m, r in self.pending.items():
-                if r["keyHash"] == b:
+                if r["keyHash"] == b and (r.get("kind") == KIND_TELEGRAM) == chat:
                     if not r["name"]:
                         return "pending"
                     return self.pending.pop(m)
@@ -405,13 +458,22 @@ class TvPairing:
                 raise MenubarLimit(tx("This account already has {n} computers. Remove one on the Admin page first.", n=MENUBAR_PER_ACCOUNT))
             r.update(name=tx("Menu bar · {account}", account=account), approvedBy=account, owner=account, replaceId="", expiresAt=now + TV_APPROVE_SECONDS)
 
-    def approve(self, code: str, name: str, approver: str, now: float, replace_id: str = "") -> dict:
+    def kind_of(self, code: str, now: float) -> str:
+        """The kind of the request waiting under this code; empty for a TV or when there is no such code.
+        Loại của yêu cầu đang chờ dưới mã này; rỗng với TV hoặc khi không có mã đó."""
+        with self.lock:
+            self._sweep(now)
+            return (self.pending.get(code) or {}).get("kind", "")
+
+    def approve(self, code: str, name: str, approver: str, now: float, replace_id: str = "", scope: str = "") -> dict:
+        """scope: for an MCP key or a Telegram chat, what the admin lets it read; kept with the request until the row is made.
+        scope: cho khoá MCP hoặc chat Telegram, quản trị cho nó đọc gì; giữ cùng yêu cầu cho tới khi tạo dòng."""
         with self.lock:
             self._sweep(now)
             r = self.pending.get(code)
             if not r or r["name"]:
                 raise ValueError(tx("The code is wrong or has expired"))
-            r.update(name=name, approvedBy=approver, replaceId=replace_id, expiresAt=now + TV_APPROVE_SECONDS)
+            r.update(name=name, approvedBy=approver, replaceId=replace_id, expiresAt=now + TV_APPROVE_SECONDS, **({"scope": scope} if scope else {}))
             return dict(r)
 
 
@@ -427,15 +489,28 @@ class TvStore(Store):
     def save(self, c, old: dict, new: dict) -> None:
         save_keyed(c, "screens", "id", screen_row, old, new)
 
-    def find(self, token: str, now: float):
+    def find(self, token: str, now: float, side: str = ""):
+        """The row of this key, on one side of the wall (see side_of). A key for the MCP endpoint is found only with side=KIND_MCP and
+        a Telegram chat only with side=KIND_TELEGRAM, and then nothing else is: so neither opens a page, and a TV's, an extension's
+        or a plugin's key opens neither the MCP endpoint nor the bot's path.
+        Dòng của khoá này, ở một phía của bức tường (xem side_of). Khoá cho cổng MCP chỉ được tìm thấy với side=KIND_MCP và
+        chat Telegram chỉ với side=KIND_TELEGRAM, và khi đó không thứ gì khác được tìm thấy: nên cả hai không mở được trang nào,
+        và khoá của TV, tiện ích hay plugin không mở được cổng MCP lẫn đường của bot."""
         b = sha256_hex(token)
         for tv in self.d.values():
-            if hmac.compare_digest(tv["hash"], b) and tv["expiresAt"] > now:
+            if hmac.compare_digest(tv["hash"], b) and tv["expiresAt"] > now and side_of(tv.get("kind")) == side:
                 return tv
         return None
 
+    def count(self, now: float, side: str = "") -> int:
+        """Live rows on one side of the wall: MCP keys, Telegram chats, or everything else. Each side has its own limit.
+        Số dòng còn hạn ở một phía: khoá MCP, chat Telegram, hoặc mọi thứ còn lại. Mỗi phía có giới hạn riêng."""
+        return sum(1 for v in self.d.values() if v["expiresAt"] > now and side_of(v.get("kind")) == side)
+
     def create(self, r: dict, now: float) -> tuple:
-        token = "tv_" + secrets.token_urlsafe(32)
+        side = side_of(r.get("kind"))
+        mcp, chat = side == KIND_MCP, side == KIND_TELEGRAM
+        token = chat_key(r["telegramId"]) if chat else ("mcp_" if mcp else "tv_") + secrets.token_urlsafe(32)
         tv_id = secrets.token_hex(6)
 
         def change(d):
@@ -444,7 +519,17 @@ class TvStore(Store):
             # re-pairing an old screen: drop the old row and the old session, leave no extra row
             # ghép lại cho màn hình cũ: bỏ dòng cũ và phiên cũ, không để lại dòng thừa
             d.pop(r.get("replaceId") or "", None)
-            if len(d) >= TV_MAX:
+            # a chat's key is always the same, so a row it left behind goes: one chat, one row
+            # khoá của một chat luôn như cũ, nên dòng nó để lại bị bỏ: một chat, một dòng
+            if chat:
+                for k in [k for k, v in d.items() if v["hash"] == sha256_hex(token)]:
+                    del d[k]
+            same_side = sum(1 for v in d.values() if side_of(v.get("kind")) == side)
+            if mcp and same_side >= MCP_KEYS_MAX:
+                raise ValueError(tx("Limit of {n} MCP keys reached, revoke some first", n=MCP_KEYS_MAX))
+            if chat and same_side >= TELEGRAM_CHATS_MAX:
+                raise ValueError(tx("Limit of {n} Telegram chats reached, revoke some first", n=TELEGRAM_CHATS_MAX))
+            if not side and same_side >= TV_MAX:
                 raise ValueError(tx("Limit of {n} screens reached, remove some first", n=TV_MAX))
             # a computer a manager paired by itself: checked again here, under the store's lock, so approvals that raced cannot pass the limit
             # máy quản lý tự ghép: kiểm lại ở đây, trong khoá của kho, để các lần duyệt chạy cùng lúc không vượt được giới hạn
@@ -452,14 +537,21 @@ class TvStore(Store):
                 raise ValueError(tx("This account already has {n} computers. Remove one on the Admin page first.", n=MENUBAR_PER_ACCOUNT))
             d[tv_id] = {"hash": sha256_hex(token), "name": r["name"], "createdAt": int(now), "expiresAt": int(now + TV_SESSION_SECONDS), "ceilingAt": int(now + TV_CEILING_SECONDS),
                      "approvedBy": r["approvedBy"], "createdIp": r["ip"], "device": r["device"], "lastIp": r["ip"], "lastUsedAt": int(now),
-                     **({"owner": r["owner"]} if r.get("owner") else {}), **({"kind": r["kind"]} if r.get("kind") else {})}
+                     **({"owner": r["owner"]} if r.get("owner") else {}), **({"kind": r["kind"]} if r.get("kind") else {}),
+                     # an MCP key: what it may read, and its first characters so an admin can tell which key a row is. The rest is never stored
+                     # khoá MCP: nó được đọc gì, và vài ký tự đầu để quản trị biết dòng nào là khoá nào. Phần còn lại không bao giờ được lưu
+                     **({"scope": MCP_SCOPE_PEOPLE if r.get("scope") == MCP_SCOPE_PEOPLE else MCP_SCOPE_TOTALS} if side else {}),
+                     **({"keyStart": token[:12]} if mcp else {}),
+                     # a Telegram chat: whose it is, for the admin to read. The number is no secret, and it is all there is to store
+                     # chat Telegram: của ai, để quản trị đọc. Con số này không bí mật, và cũng không còn gì khác để lưu
+                     **({"telegramId": r["telegramId"], "telegramUser": r.get("telegramUser", "")} if chat else {})}
         self.mutate(change)
         return tv_id, token
 
-    def touch(self, token: str, ip: str, now: float) -> bool:
+    def touch(self, token: str, ip: str, now: float, side: str = "") -> bool:
         """Record use at most once a day, unless the IP changes; renew when close to expiry. True means the cookie must be sent again.
         Ghi lần dùng tối đa mỗi ngày một lần, trừ khi đổi IP; gần hết hạn thì gia hạn. True nghĩa là cần gửi lại cookie."""
-        tv = self.find(token, now)
+        tv = self.find(token, now, side)
         if not tv:
             return False
         tv_id = next(k for k, v in self.d.items() if v["hash"] == tv["hash"])
@@ -475,7 +567,7 @@ class TvStore(Store):
                     d[tv_id]["expiresAt"] = int(min(now + TV_SESSION_SECONDS, d[tv_id]["ceilingAt"]))
         self.mutate(change)
         if ip_changed:
-            AUDIT_LOG.write(action="tv-ip-changed", tv=tv["name"], oldIp=tv["lastIp"], latestIp=ip)
+            AUDIT_LOG.write(action="tv-ip-changed", tv=tv["name"], **({"kind": tv["kind"]} if tv.get("kind") else {}), oldIp=tv["lastIp"], latestIp=ip)
         if renew:
             AUDIT_LOG.write(action="tv-renewed", tv=tv["name"])
         return renew
@@ -483,7 +575,9 @@ class TvStore(Store):
     def list_screens(self, now: float) -> list:
         """Never includes the session hash.
         Không bao giờ có băm phiên."""
-        return sorted(({"id": k, "exitedAt": v.get("exitedAt", 0), "owner": v.get("owner", ""), "kind": v.get("kind", ""), **{f: v[f] for f in ("name", "createdAt", "expiresAt", "ceilingAt", "approvedBy", "device", "lastIp", "lastUsedAt")}}
+        return sorted(({"id": k, "exitedAt": v.get("exitedAt", 0), "owner": v.get("owner", ""), "kind": v.get("kind", ""), "scope": v.get("scope", ""), "keyStart": v.get("keyStart", ""),
+                        "telegramUser": v.get("telegramUser", ""), "telegramId": v.get("telegramId", ""),
+                        **{f: v[f] for f in ("name", "createdAt", "expiresAt", "ceilingAt", "approvedBy", "device", "lastIp", "lastUsedAt")}}
                        for k, v in self.d.items() if v["expiresAt"] > now), key=lambda x: x["name"].lower())
 
     def exit_screen(self, token: str, now: float) -> str:
@@ -505,11 +599,13 @@ class TvStore(Store):
         b = sha256_hex(token)
         return next((k for k, v in self.d.items() if v["hash"] == b), "")
 
-    def similar(self, ip: str, user_agent: str, now: float) -> list:
+    def similar(self, ip: str, user_agent: str, now: float, side: str = "") -> list:
         """Paired screens with the same IP and the same type of device: it may be the very device asking to pair again.
-        Màn hình đã ghép cùng IP và cùng loại máy: có thể chính là máy đang xin ghép lại."""
+        An MCP key is offered only another MCP key to replace, and nothing else is offered one.
+        Màn hình đã ghép cùng IP và cùng loại máy: có thể chính là máy đang xin ghép lại.
+        Khoá MCP chỉ được gợi ý thay cho một khoá MCP khác, và thứ khác không được gợi ý thay cho khoá MCP."""
         return [{"id": k, "name": v["name"]} for k, v in self.d.items()
-                if v["expiresAt"] > now and v["lastIp"] == ip and device_label(v["device"]) == device_label(user_agent)]
+                if v["expiresAt"] > now and v["lastIp"] == ip and device_label(v["device"]) == device_label(user_agent) and side_of(v.get("kind")) == side]
 
     def check_name(self, name: str, except_token: str, now: float) -> None:
         if any(x["name"].lower() == name.lower() and x["id"] != except_token for x in self.list_screens(now)):
@@ -588,6 +684,37 @@ class TvStatus:
             return dict(self.seen.get(tv_id) or {})
 
 
+class TelegramBotStatus:
+    """What the Telegram bot process last said about itself, in memory: the Admin page shows whether asking from Telegram works.
+    For reading only: it comes from the bot process, which holds the key of /bot/telegram, and it decides nothing.
+    Điều tiến trình bot Telegram nói gần nhất về chính nó, giữ trong bộ nhớ: trang Quản trị cho biết việc hỏi qua Telegram có chạy không.
+    Chỉ để đọc: nó tới từ tiến trình bot, nơi cầm khoá của /bot/telegram, và không quyết định điều gì."""
+
+    # running; Telegram refuses the bot's token; another program reads the same bot; Telegram cannot be reached
+    # đang chạy; Telegram từ chối khoá của bot; một chương trình khác đang đọc cùng bot; không tới được Telegram
+    STATES = ("ok", "unauthorized", "conflict", "unreachable")
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.state, self.bot, self.at = "", "", 0.0
+
+    def report(self, state, bot, now: float) -> None:
+        with self.lock:
+            self.state = state if state in self.STATES else ""
+            self.bot = bot if isinstance(bot, str) and re.fullmatch(r"[A-Za-z0-9_]{1,32}", bot) else ""
+            self.at = now
+
+    def seen(self, now: float) -> None:
+        """The bot handed over a message, so it is reading from Telegram.
+        Bot vừa đưa một tin nhắn, tức nó đang đọc được từ Telegram."""
+        with self.lock:
+            self.state, self.at = "ok", now
+
+    def read(self) -> dict:
+        with self.lock:
+            return {"state": self.state, "bot": self.bot, "seenAt": int(self.at * 1000)}
+
+
 class RevokedKeys(Store):
     """Hashes of revoked pairings: {hash: {name, kind, revokedAt}}. Only to tell the audit log that a revoked device still asks; it grants nothing.
     Băm của các lần ghép đã thu hồi: {hash: {name, kind, revokedAt}}. Chỉ để nhật ký biết thiết bị đã bị thu hồi vẫn còn hỏi; không cấp quyền gì."""
@@ -622,7 +749,7 @@ class RevokedKeys(Store):
     def used(self, token: str, now: float):
         """The revoked row of this key when its use should be logged now, else None.
         Dòng đã thu hồi của khoá này nếu lần dùng này cần ghi nhật ký, không thì None."""
-        if not token.startswith("tv_"):
+        if not token.startswith(("tv_", "mcp_")):
             return None
         b = sha256_hex(token)
         r = self.d.get(b)
@@ -638,6 +765,7 @@ class RevokedKeys(Store):
 
 TV_PAIRING = TvPairing()
 TV_STATUS = TvStatus()
+TELEGRAM_BOT = TelegramBotStatus()
 REVOKED_KEYS = RevokedKeys(data_db())
 TV = TvStore(data_db())
 
@@ -711,6 +839,17 @@ class AuditLog:
     Ai đổi gì trên bảng, giữ 12 tháng; không chép nội dung CSV."""
 
     KEEP_MONTHS = 12
+    # one row per call of the board's MCP tool: who asked and when, never what was asked, which the server does not see.
+    # Many more rows than anything else here, so they are kept a shorter time and read apart from the admin's own log
+    # mỗi lần gọi công cụ MCP của bảng một dòng: ai hỏi và lúc nào, không bao giờ có câu hỏi, thứ máy chủ không thấy.
+    # Nhiều dòng hơn hẳn mọi thứ khác ở đây, nên giữ ngắn hơn và đọc tách khỏi nhật ký của quản trị
+    MCP_CALL = "mcp-call"
+    # one row per answer the board gave a Telegram chat: which chat and which command, never the words the person typed.
+    # Kept and read with the MCP calls: both are reads of the board from outside its own pages
+    # mỗi câu trả lời bảng đưa cho một chat Telegram một dòng: chat nào và lệnh nào, không bao giờ có chữ người đó gõ.
+    # Giữ và đọc cùng các lần gọi MCP: cả hai đều là đọc bảng từ bên ngoài các trang của bảng
+    ASK_CALL = "telegram-ask"
+    READ_ACTIONS = (MCP_CALL, ASK_CALL)
 
     def __init__(self, database):
         self.db = database
@@ -727,6 +866,8 @@ class AuditLog:
                     self.month = month
                     year, month_index = now.year, now.month - self.KEEP_MONTHS
                     c.execute("DELETE FROM audit WHERE month < ?", ("%04d-%02d" % ((year, month_index) if month_index > 0 else (year - 1, month_index + 12)),))
+                    month_index = now.month - MCP_CALL_KEEP_MONTHS
+                    c.execute("DELETE FROM audit WHERE action IN (?, ?) AND month < ?", self.READ_ACTIONS + ("%04d-%02d" % ((year, month_index) if month_index > 0 else (year - 1, month_index + 12)),))
         # a broken log is reported, it does not block the action
         # nhật ký hỏng thì báo, không chặn thao tác
         except sqlite3.Error as e:
@@ -735,8 +876,16 @@ class AuditLog:
     def read(self, month: str, limit: int = 300) -> list:
         """Newest rows first; `month` is already checked to be YYYY-MM.
         Dòng mới nhất trước; `month` đã kiểm dạng YYYY-MM."""
+        return self._read("SELECT body FROM audit WHERE month = ? AND action NOT IN (?, ?) ORDER BY id DESC LIMIT ?", (month,) + self.READ_ACTIONS + (limit,))
+
+    def read_calls(self, month: str, limit: int = 300) -> list:
+        """The reads of the board from outside its pages in one month, newest first: calls of the MCP tool and answers to Telegram chats.
+        Các lần đọc bảng từ bên ngoài các trang của bảng trong một tháng, mới nhất trước: lần gọi công cụ MCP và câu trả lời cho chat Telegram."""
+        return self._read("SELECT body FROM audit WHERE month = ? AND action IN (?, ?) ORDER BY id DESC LIMIT ?", (month,) + self.READ_ACTIONS + (limit,))
+
+    def _read(self, sql: str, args: tuple) -> list:
         out = []
-        for (body,) in self.db.rows("SELECT body FROM audit WHERE month = ? ORDER BY id DESC LIMIT ?", (month, limit)):
+        for (body,) in self.db.rows(sql, args):
             try:
                 out.append(json.loads(body))
             except ValueError:

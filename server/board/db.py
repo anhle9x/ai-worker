@@ -18,6 +18,12 @@ KEYS_DB_NAME = "accounts.db"
 # where the old JSON files go after they are moved into the database; they are kept, never deleted
 # nơi đặt file JSON cũ sau khi đã chuyển vào cơ sở dữ liệu; giữ lại, không xoá
 LEGACY_DIR_NAME = "legacy-json"
+# the copy made before a schema upgrade sits next to the database: board.db.schema-1.bak holds the database as it was at schema version 1.
+# The server deletes it after this many days, so an old copy of people's numbers does not stay on the disk for good.
+# bản sao làm trước khi nâng lược đồ nằm cạnh cơ sở dữ liệu: board.db.schema-1.bak là cơ sở dữ liệu lúc còn ở lược đồ phiên bản 1.
+# Máy chủ xoá nó sau ngần này ngày, để một bản sao cũ của số liệu mọi người không nằm mãi trên đĩa.
+UPGRADE_BACKUP_SUFFIX = ".schema-%d.bak"
+UPGRADE_BACKUP_KEEP_DAYS = 30
 
 # Each step upgrades the schema by one version, in one transaction. Never change a step that has shipped: add a new one.
 # Mỗi bước nâng lược đồ lên một phiên bản, trong một giao dịch. Không sửa bước đã phát hành: thêm bước mới.
@@ -35,6 +41,14 @@ DATA_STEPS = [
         "CREATE TABLE revoked (hash TEXT PRIMARY KEY, name TEXT, kind TEXT, revoked_at INTEGER, body TEXT NOT NULL)",
         "CREATE TABLE documents (name TEXT PRIMARY KEY, body TEXT NOT NULL, updated_at INTEGER)",
         "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)",
+    ],
+    # version 2: one row per person per day (the day follows LOCAL_TZ), so use can be compared over weeks and months
+    # phiên bản 2: mỗi người mỗi ngày một dòng (ngày tính theo LOCAL_TZ), để so được mức dùng theo tuần và theo tháng
+    [
+        "CREATE TABLE daily (day TEXT NOT NULL, person TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', account TEXT NOT NULL DEFAULT '', "
+        "branch TEXT NOT NULL DEFAULT '', branch_name TEXT NOT NULL DEFAULT '', usd REAL NOT NULL DEFAULT 0, tokens_in INTEGER NOT NULL DEFAULT 0, "
+        "tokens_out INTEGER NOT NULL DEFAULT 0, gemini INTEGER NOT NULL DEFAULT 0, chatgpt INTEGER NOT NULL DEFAULT 0, gemma INTEGER NOT NULL DEFAULT 0, "
+        "PRIMARY KEY (day, person))",
     ],
 ]
 KEYS_STEPS = [
@@ -64,7 +78,13 @@ class Database:
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA busy_timeout=10000")
         self.conn.execute("PRAGMA synchronous=" + synchronous)
-        self._upgrade(steps)
+        try:
+            self._upgrade(steps)
+        except SystemExit:
+            # refusing to run on this file: let go of it first, so nothing holds it while the admin puts things right
+            # từ chối chạy trên file này: nhả nó ra trước, để không gì giữ nó trong lúc quản trị xử lý
+            self.conn.close()
+            raise
 
     def _upgrade(self, steps: list) -> None:
         version = self.conn.execute("PRAGMA user_version").fetchone()[0]
@@ -72,11 +92,62 @@ class Database:
             # an older program on a newer database would lose data: refuse to start
             # chương trình cũ chạy trên cơ sở dữ liệu mới sẽ làm mất dữ liệu: không cho chạy
             sys.exit("%s has schema version %d, newer than this program (%d). Install the newer version again." % (self.path, version, len(steps)))
+        # after the upgrade the older program refuses this file, so the way back is a copy made now; a new, empty file needs none
+        # nâng xong thì chương trình cũ từ chối file này, nên đường lui là một bản sao làm ngay lúc này; file mới, còn trống thì không cần
+        if 0 < version < len(steps):
+            self._backup_before_upgrade(version, len(steps))
         for n in range(version, len(steps)):
             with self.tx() as c:
                 for sql in steps[n]:
                     c.execute(sql)
                 c.execute("PRAGMA user_version=%d" % (n + 1))
+
+    def _backup_before_upgrade(self, version: int, target: int) -> None:
+        """Copy the database next to itself before its schema changes; if the copy cannot be made or does not check out, stop and change nothing.
+        Chép cơ sở dữ liệu ra cạnh nó trước khi lược đồ đổi; không chép được hoặc bản chép không đạt thì dừng và không đổi gì."""
+        path = self.path + UPGRADE_BACKUP_SUFFIX % version
+        # written under another name first, so a copy that fails half way never replaces a good one from an earlier try
+        # ghi dưới tên khác trước, để bản chép hỏng giữa chừng không bao giờ đè lên bản tốt của lần thử trước
+        partial = path + ".partial"
+        try:
+            for leftover in (partial, partial + "-wal", partial + "-shm"):
+                if os.path.exists(leftover):
+                    os.remove(leftover)
+            os.close(os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600))
+            self.backup(partial)
+            copy = sqlite3.connect(partial)
+            try:
+                sound = copy.execute("PRAGMA quick_check").fetchone()[0] == "ok" and copy.execute("PRAGMA user_version").fetchone()[0] == version
+            finally:
+                copy.close()
+            if not sound:
+                raise sqlite3.DatabaseError("the copy does not pass its check")
+            os.replace(partial, path)
+            for leftover in (partial + "-wal", partial + "-shm"):
+                with contextlib.suppress(OSError):
+                    os.remove(leftover)
+        except (OSError, sqlite3.Error) as e:
+            for leftover in (partial, partial + "-wal", partial + "-shm"):
+                with contextlib.suppress(OSError):
+                    os.remove(leftover)
+            sys.exit("Cannot back up %s before upgrading its schema from version %d to %d (%s). Nothing was changed. "
+                     "Free some disk space or fix the folder's permissions, then start again." % (self.path, version, target, e))
+        sys.stderr.write("backed up %s (schema version %d) to %s before upgrading to schema version %d\n" % (self.path, version, path, target))
+
+    def drop_old_upgrade_backups(self, now: float) -> list:
+        """Delete the copies made before a schema upgrade once they are older than UPGRADE_BACKUP_KEEP_DAYS; returns the paths deleted.
+        Xoá các bản sao làm trước khi nâng lược đồ khi chúng cũ hơn UPGRADE_BACKUP_KEEP_DAYS; trả về các đường dẫn đã xoá."""
+        dropped = []
+        for path in glob.glob(glob.escape(self.path) + ".schema-*.bak"):
+            try:
+                if now - os.path.getmtime(path) > UPGRADE_BACKUP_KEEP_DAYS * 86400:
+                    os.remove(path)
+                    dropped.append(path)
+            except OSError as e:
+                sys.stderr.write("cannot delete the old upgrade backup %s: %s\n" % (path, e))
+        for path in dropped:
+            sys.stderr.write("deleted the upgrade backup %s, older than %d days\n" % (path, UPGRADE_BACKUP_KEEP_DAYS))
+        return dropped
 
     @contextlib.contextmanager
     def tx(self):

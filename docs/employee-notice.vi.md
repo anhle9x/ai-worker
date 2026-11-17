@@ -23,9 +23,9 @@ Từ ngày [ngày], [công ty] sẽ cài plugin AI Worker cho Claude Code trên 
 
 **Không bao giờ được gửi:** nội dung trò chuyện, câu lệnh bạn gõ, tên file hay nội dung file.
 
-**Ai xem được:** [tên hoặc vai trò quản trị] xem được toàn bộ. [Vai trò được xem] xem được [những gì]. Màn hình treo tường không hiện email và địa chỉ IP.
+**Ai xem được:** [tên hoặc vai trò quản trị] xem được toàn bộ. [Vai trò được xem] xem được [những gì]. Màn hình treo tường không hiện email và địa chỉ IP. Tổng theo tuần và theo tháng chỉ hiện cho [quản trị và người xem].
 
-**Lưu trong bao lâu:** [thời gian lưu].
+**Lưu trong bao lâu:** máy chủ giữ số liệu mới nhất của từng máy, kèm token và chi phí theo giờ của 8 ngày gần nhất, cho tới 30 ngày sau lần gửi cuối của máy đó. Từ đó máy chủ cộng thành một con số tổng cho mỗi người mỗi ngày (chi phí, token, số việc giao cho từng trợ lý, và văn phòng của bạn hôm đó, kèm tên và email tài khoản của bạn) và giữ các tổng theo ngày này tối đa 13 tháng, để so được mức dùng theo tuần, theo tháng và với cùng tháng năm trước. Nhật ký đăng nhập và thao tác quản trị được giữ 12 tháng. Các bản sao lưu do công ty tự làm thì theo [thời gian giữ bản sao lưu]. [Những gì công ty bạn giữ lâu hơn hoặc ngắn hơn.]
 
 **Lưu ở đâu:** [máy chủ, địa điểm]. Dữ liệu [không] được chia sẻ cho [bên ngoài công ty].
 

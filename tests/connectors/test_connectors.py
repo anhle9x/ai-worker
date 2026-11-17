@@ -257,19 +257,19 @@ class Installer(unittest.TestCase):
         Board.reports.clear()
         Board.status = 200
 
-    def install(self, *args) -> subprocess.CompletedProcess:
+    def install(self, *args, connectors: str = CONNECTORS) -> subprocess.CompletedProcess:
         env = dict(os.environ, HOME=self.home, USERPROFILE=self.home, AI_WORKER_LANG="en")
         for name in ("AI_WORKER_CONNECTOR_DIR", "CODEX_HOME", "AI_WORKER_URL", "AI_WORKER_KEY"):
             env.pop(name, None)
         if WINDOWS:
-            command = [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", os.path.join(CONNECTORS, "install.ps1")]
+            command = [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", os.path.join(connectors, "install.ps1")]
             args = ["-" + a[2:].title().replace("-", "") if a.startswith("--") else a for a in args]
         else:
-            command = ["bash", os.path.join(CONNECTORS, "install.sh")]
+            command = ["bash", os.path.join(connectors, "install.sh")]
         return subprocess.run(command + list(args), input="", capture_output=True, text=True, timeout=120, env=env)
 
-    def first_install(self, tools: str, *more) -> subprocess.CompletedProcess:
-        return self.install("--server", URL + "/", "--key", KEY, "--name", 'Tool "Person"', "--account", "Tool@Example.com", "--tools", tools, *more)
+    def first_install(self, tools: str, *more, connectors: str = CONNECTORS) -> subprocess.CompletedProcess:
+        return self.install("--server", URL + "/", "--key", KEY, "--name", 'Tool "Person"', "--account", "Tool@Example.com", "--tools", tools, *more, connectors=connectors)
 
     def write(self, relative: str, text: str) -> str:
         path = os.path.join(self.home, *relative.split("/"))
@@ -413,6 +413,78 @@ class Installer(unittest.TestCase):
         self.assertEqual(os.listdir(skills), ["tdd"])
         with open(mine, encoding="utf-8") as f:
             self.assertEqual(f.read(), "my own skill\n")
+
+    def package(self, *skills) -> str:
+        """A small package of its own: the connector and a few skills, so a test can change what the package ships.
+        Một gói nhỏ riêng: bộ nối và vài skill, để bài test đổi được thứ mà gói mang theo."""
+        folder = tempfile.mkdtemp(prefix="package-", dir=TMP)
+        shutil.copytree(CONNECTORS, os.path.join(folder, "connectors"))
+        for skill in skills:
+            shutil.copytree(os.path.join(ROOT, "skills", skill), os.path.join(folder, "skills", skill))
+        return folder
+
+    def new_version_of(self, package: str, skill: str, text: str) -> None:
+        with open(os.path.join(package, "skills", skill, "SKILL.md"), "a", encoding="utf-8", newline="\n") as f:
+            f.write("\n" + text + "\n")
+
+    def skill_text(self, skill: str) -> str:
+        with open(os.path.join(self.home, ".agents", "skills", skill, "SKILL.md"), encoding="utf-8") as f:
+            return f.read()
+
+    def test_a_skill_the_person_changed_is_kept_and_the_others_get_the_new_version(self):
+        package = self.package("grilling", "tdd", "handoff")
+        connectors = os.path.join(package, "connectors")
+        self.assertEqual(self.first_install("codex", "--skills", connectors=connectors).returncode, 0)
+        skills = os.path.join(self.home, ".agents", "skills")
+        self.assertEqual(sorted(os.listdir(skills)), ["grilling", "handoff", "tdd"])
+        with open(os.path.join(skills, "grilling", "SKILL.md"), "a", encoding="utf-8", newline="\n") as f:
+            f.write("\nmy own extra rule\n")
+        # a file the system drops into a folder by itself is not a change by the person
+        # file hệ thống tự thả vào thư mục không phải là thay đổi của người dùng
+        with open(os.path.join(skills, "handoff", ".DS_Store"), "w", encoding="utf-8") as f:
+            f.write("x")
+        for skill in ("grilling", "tdd", "handoff"):
+            self.new_version_of(package, skill, "second version of the package")
+        done = self.install("--tools", "codex", "--skills", connectors=connectors)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("my own extra rule", self.skill_text("grilling"))
+        self.assertNotIn("second version", self.skill_text("grilling"))
+        self.assertIn("grilling: changed on this computer", done.stdout)
+        self.assertIn("second version", self.skill_text("tdd"))
+        self.assertIn("second version", self.skill_text("handoff"))
+        self.assertNotIn("tdd: changed", done.stdout)
+        self.assertNotIn("handoff: changed", done.stdout)
+        # a run with nothing new changes nothing and still keeps the changed skill
+        # chạy lại khi không có gì mới thì không đổi gì và vẫn giữ skill đã sửa
+        again = self.install("--tools", "codex", "--skills", connectors=connectors)
+        self.assertIn("my own extra rule", self.skill_text("grilling"))
+        self.assertIn("grilling: changed on this computer", again.stdout)
+        done = self.install("--uninstall", connectors=connectors)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual(os.listdir(skills), ["grilling"])
+        self.assertIn("my own extra rule", self.skill_text("grilling"))
+        self.assertIn("grilling: changed on this computer", done.stdout)
+
+    def test_skills_put_there_by_the_first_release_carry_no_mark(self):
+        package = self.package("grilling", "tdd")
+        connectors = os.path.join(package, "connectors")
+        self.assertEqual(self.first_install("codex", "--skills", connectors=connectors).returncode, 0)
+        # 0.32.0 wrote the names alone, so nothing says whether such a skill was changed since
+        # bản 0.32.0 chỉ ghi tên, nên không có gì cho biết skill như vậy đã bị sửa từ đó hay chưa
+        with open(os.path.join(self.folder, "skills-installed"), "w", encoding="utf-8", newline="\n") as f:
+            f.write("grilling\ntdd\n")
+        self.new_version_of(package, "tdd", "second version of the package")
+        done = self.install("--tools", "codex", "--skills", connectors=connectors)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        # it differs from the package and may hold the person's work: it is kept, and the person is told
+        # nó khác với gói và có thể chứa công sức của người dùng: được giữ lại, và người dùng được báo
+        self.assertNotIn("second version", self.skill_text("tdd"))
+        self.assertIn("tdd: changed on this computer", done.stdout)
+        self.assertNotIn("grilling: changed", done.stdout)
+        # removing still takes them out, as that release promised
+        # khi gỡ thì vẫn gỡ chúng, đúng như bản đó đã hứa
+        self.assertEqual(self.install("--uninstall", connectors=connectors).returncode, 0)
+        self.assertFalse(os.path.exists(os.path.join(self.home, ".agents")))
 
     def test_every_skill_in_the_plugin_is_either_copied_or_left_out_on_purpose(self):
         import re

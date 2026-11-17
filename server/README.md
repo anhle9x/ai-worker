@@ -98,6 +98,8 @@ Action log: the `audit` table in `data/board.db` records logins, changes and ref
 - The hour of "today" follows `TZ_OFFSET` (default 7, Vietnam time); the exchange rate follows `USD_RATE` (default 26000) and is used only on Vietnamese pages (English pages show US dollars, with no conversion).
 - Language of the pages: the visitor's own choice first (the EN / VI buttons, kept in the `lang` cookie), then `DEFAULT_LANG` in `/etc/ai-worker.env` (`en` or `vi`; empty follows the browser), then English. After changing `DEFAULT_LANG`, run `sudo systemctl restart ai-worker-webhook`. Messages the server writes to its log, the refusals sent to `/ingest`, and the TV install files are always English.
 - Log in with Telegram (optional): set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_NAME` in `/etc/ai-worker.env`, then restart the service. Steps in [docs/INSTALL.md](../docs/INSTALL.md), section "Log in with Telegram".
+- Ask the board from an AI tool (MCP): the path `/mcp` is on, and gives nothing out until an admin approves a key asked for on the page `/mcp/connect`. `MCP=0` in `/etc/ai-worker.env`, then a restart of the service, takes it away. Steps in [docs/INSTALL.md](../docs/INSTALL.md), section "Ask the board from an AI tool (MCP)".
+- Ask the board from Telegram (optional): add `TELEGRAM_ASK=1` to `/etc/ai-worker.env` and run `install.sh`, put the token of a bot made for this into `/etc/ai-worker-telegram.env`, run `install.sh` again. A second service, `ai-worker-telegram`, then talks to Telegram; the webhook itself never connects out. Steps and what it means for people's data in [docs/INSTALL.md](../docs/INSTALL.md), section "Ask the board from Telegram".
 - An HTTP connection is not encrypted: open this page only inside the company network. To view it from outside you need HTTPS first.
 
 ## Operation
@@ -109,7 +111,7 @@ curl http://127.0.0.1:8788/health       # {"ok": true}
 ```
 
 Data: `/opt/ai-worker/data/board.db` (SQLite), one row of a few KB per computer, overwritten when the computer sends again. Tables and backup: [docs/DATA-MODEL.md](../docs/DATA-MODEL.md).
-A computer silent for over 30 days has its row deleted by itself. The load is very light: each computer sends at most once every 30 seconds when its numbers change,
+A computer silent for over 30 days has its row deleted by itself. One total per person per day (cost, tokens, tasks delegated, office) stays for up to 13 months, so `/board` can compare weeks and months. The load is very light: each computer sends at most once every 30 seconds when its numbers change,
 and at least once every 5 minutes while Claude is open.
 
 To update the program: copy the new version over the old one and run `sudo bash install.sh` again (the key and data are kept).
@@ -119,6 +121,6 @@ To remove: `sudo systemctl disable --now ai-worker-webhook`, delete `/opt/ai-wor
 ## What is stored
 
 Name, Claude account email, a random device id, the **sending computer's IP** (the server writes it from the connection, staff computers cannot claim one), the internal IP the computer reports (the server keeps the ones used in the last 30 days, at most 10), a hardware mark (a one-way hash of the computer's own id; devices with the same mark count as one, the mark is never shown on a page), the number of sessions open / working / waiting for a reply, tokens and money per hour
-(last 8 days), the number of tasks delegated to Gemini/ChatGPT/Gemma per hour. **Not stored**: chat content, questions, file names,
+(last 8 days), the number of tasks delegated to Gemini/ChatGPT/Gemma per hour, and one total of cost, tokens and tasks per person per day (up to 13 months, with name, email and office). **Not stored**: chat content, questions, file names,
 project names. The connection is HTTP inside the internal network (not encrypted); for HTTPS put it behind your existing nginx/Caddy and use an
 `https://...` address when building the package; then add `TRUST_PROXY=1` to `/etc/ai-worker.env` so the staff computer's real IP is recorded instead of the proxy's IP.

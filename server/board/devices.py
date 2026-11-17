@@ -315,6 +315,16 @@ def filter_quota(quota, now: float):
     return {"readAt": int(quota["readAt"]), "windows": windows} if windows else None
 
 
+def person_key(m: dict) -> str:
+    """What tells one person from another in the reports: the account plus the name; a report with no name falls back to its address, then its device id.
+    Thứ phân biệt người này với người khác trong các báo cáo: tài khoản cộng với tên; báo cáo không có tên thì lấy địa chỉ, rồi tới mã máy."""
+    return (str(m.get("account") or "") + "|" + (str(m.get("name") or "") or str(m.get("lanIp") or "") or str(m.get("ip") or "") or str(m.get("device")))).lower()
+
+
+def person_name(m: dict) -> str:
+    return str(m.get("name") or m.get("account") or m.get("lanIp") or m.get("ip") or m.get("device"))
+
+
 def group_by_person(devices: list, now: float) -> list:
     """Merge device files into one row per person: same account + same name (sharing an account still keeps people apart).
     Gộp file các máy thành mỗi người một dòng: cùng tài khoản + cùng tên (dùng chung tài khoản vẫn tách người)."""
@@ -325,9 +335,8 @@ def group_by_person(devices: list, now: float) -> list:
         if not isinstance(m, dict) or m.get("v") != 1 or not isinstance(m.get("updatedAt"), (int, float)):
             continue
         ip, lan_ip = str(m.get("ip") or ""), str(m.get("lanIp") or "")
-        name = str(m.get("name") or m.get("account") or lan_ip or ip or m.get("device"))
-        group_key = (str(m.get("account") or "") + "|" + (str(m.get("name") or "") or lan_ip or ip or str(m.get("device")))).lower()
-        r = people.setdefault(group_key, {"name": name, "account": str(m.get("account") or ""), "deviceCount": 0, "lanIps": [], "ip": [],
+        name, group_key = person_name(m), person_key(m)
+        r = people.setdefault(group_key, {"key": group_key, "name": name, "account": str(m.get("account") or ""), "deviceCount": 0, "lanIps": [], "ip": [],
                                     "enteredAccounts": [], "delegating": [0, 0, 0], "subagents": {}, "costByHour": {}, "tasksByHour": {}, "models": {},
                                     "gemma": [], "chatgpt": 0, "gemini": 0, "known": 0, "chatgptModels": [], "geminiModels": [], "updatedAt": 0, "openSessions": 0, "working": 0, "waiting": 0,
                                     "usdToday": 0.0, "tokensIn": 0, "tokensOut": 0, "usd7d": 0.0, "tasks": [0, 0, 0], "quota": None, "pluginVersion": [], "devices": [],

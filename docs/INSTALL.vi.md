@@ -53,7 +53,7 @@ Người làm việc trong Codex, Cursor hoặc Gemini CLI cũng hiện được
 
 Nếu dùng bản sao của kho mã này thay cho gói: `bash connectors/install.sh --server https://board.example.com` (Windows: `powershell -ExecutionPolicy Bypass -File connectors\install.ps1 -Server https://board.example.com`); bộ cài sẽ hỏi khoá gửi.
 
-Bộ cài hỏi về từng công cụ nó tìm thấy trên máy. Nó thêm hook của mình vào cấu hình của chính công cụ đó (`~/.codex/hooks.json` hoặc `config.toml`, `~/.cursor/hooks.json`, `~/.gemini/settings.json`) và để nguyên mọi thứ khác trong đó; một bản sao của file như lúc trước được giữ ngay bên cạnh, tên kết thúc bằng `.ai-worker-backup`. File cấu hình nào nó không đọc được như JSON thuần thì không bị sửa: bộ cài in ra các hook để bạn tự thêm. Nó dùng đúng tên và email mà plugin đã có trên máy, nên một người vẫn là một dòng trên bảng. Khi được yêu cầu, nó chép thêm 16 skill của plugin vào `~/.agents/skills/`, thư mục mà cả ba công cụ đều đọc; `make-skill` và `improve-codebase-architecture` dựa vào Claude Code nên không được chép.
+Bộ cài hỏi về từng công cụ nó tìm thấy trên máy. Nó thêm hook của mình vào cấu hình của chính công cụ đó (`~/.codex/hooks.json` hoặc `config.toml`, `~/.cursor/hooks.json`, `~/.gemini/settings.json`) và để nguyên mọi thứ khác trong đó; một bản sao của file như lúc trước được giữ ngay bên cạnh, tên kết thúc bằng `.ai-worker-backup`. File cấu hình nào nó không đọc được như JSON thuần thì không bị sửa: bộ cài in ra các hook để bạn tự thêm. Nó dùng đúng tên và email mà plugin đã có trên máy, nên một người vẫn là một dòng trên bảng. Khi được yêu cầu, nó chép thêm 16 skill của plugin vào `~/.agents/skills/`, thư mục mà cả ba công cụ đều đọc; `make-skill` và `improve-codebase-architecture` dựa vào Claude Code nên không được chép. Skill nào bạn đã sửa sau khi được chép thì là của bạn: lần chạy sau không thay nó và `--uninstall` không gỡ nó, và bộ cài có báo. Muốn lấy lại bản của gói thì xoá thư mục của skill đó rồi chạy lại bộ cài.
 
 **Codex hỏi một lần.** Codex chỉ chạy hook sau khi chủ máy đã xem qua: mở Codex, gõ `/hooks`, rồi bấm tin cậy bảy hook có lệnh kết thúc bằng `ai-worker-hook.sh`. Cursor và Gemini CLI nhận hook ở lần mở kế tiếp.
 
@@ -70,6 +70,59 @@ Bộ cài hỏi về từng công cụ nó tìm thấy trên máy. Nó thêm hoo
 - **Đã thử tới đâu.** Hook và bộ cài đã qua các bài test với sự kiện mẫu và thư mục nhà tạm trên macOS, Ubuntu và Windows (hai hệ sau chạy trên máy thử của GitHub); trong một phiên Codex CLI 0.164.0 thật trên macOS, các hook mở phiên, gửi câu hỏi, hết lượt và đóng phiên đã chạy, một câu hỏi của Codex đã hiện trên bảng mẫu là đang chờ, và việc bấm Esc cắt ngang một lượt được thấy là gửi `Interrupt` chứ không gửi `Stop`, sau đó phiên hiện là rảnh; còn hook xin duyệt và hook sau từng bước thì chưa thấy chạy trong phiên thật. Cursor và Gemini CLI được viết theo tài liệu của hai công cụ, chưa thử bên trong công cụ thật, và chưa có công cụ thật nào được thử trên Windows hay Linux. Trên Windows mỗi lần hook chạy tốn thời gian khởi động PowerShell, khoảng nửa giây trên máy thử. Nếu bạn thử, hãy cho chúng tôi biết bạn thấy gì.
 
 Quy cách báo cáo, để viết bộ nối cho công cụ khác: [connectors/README.vi.md](../connectors/README.vi.md).
+
+## Hỏi bảng từ một công cụ AI (MCP)
+
+Máy chủ có một cổng MCP ở `/mcp`. MCP (Model Context Protocol) là cách chung để một công cụ AI gọi công cụ trên một máy chủ khác. Có khoá, một công cụ AI như Claude Code, Codex CLI, Cursor hay Gemini CLI trả lời được câu "ai đang chờ lâu nhất?" từ số liệu của bảng, giống `/ai-worker:board` trong Claude Code. Cổng này chỉ đọc, và đưa đúng những gì màn hình treo tường nhận: tên, trạng thái, chi phí và hạn mức, không bao giờ có email, IP hay mã máy.
+
+**Cổng bật sẵn, và không đưa gì ra cho tới khi quản trị duyệt một khoá.** Muốn gỡ cổng và các trang của nó, thêm `MCP=0` vào `/etc/ai-worker.env` rồi khởi động lại dịch vụ.
+
+**Cách lấy khoá.**
+
+1. Người cần khoá mở `https://board.example.com/mcp/connect` bằng trình duyệt trong mạng công ty rồi bấm **Lấy mã**. Trang hiện một mã 8 số.
+2. Quản trị mở `/admin`, vào mục **Màn hình TV**, gõ mã rồi bấm **Xem yêu cầu**. Thẻ hiện ra ghi rõ đây là khoá cho công cụ AI. Quản trị chọn khoá được đọc gì (chỉ số gộp của cả đội và từng văn phòng, hoặc cả từng người), đặt tên cho khoá rồi bấm **Duyệt**.
+3. Trang của người xin sẽ hiện khoá một lần, kèm dòng để dán vào từng công cụ. Chỉ duyệt mã do chính người xin đọc cho bạn: bản thân mã không nói lên ai đang xin.
+
+**Điều cần biết về một khoá.**
+
+- Nó chỉ dùng được ở `/mcp`, và không khoá nào khác dùng được ở đó: khoá của TV, tiện ích, plugin hay mã gửi đều không.
+- Máy chủ lưu dạng băm của khoá, không bao giờ lưu khoá. Trang Quản trị hiện vài ký tự đầu, khoá đọc được gì và lần dùng cuối; bấm **Thu hồi** là khoá hết dùng được ngay. Khoá đã mất thì không hiện lại được: thu hồi rồi xin khoá mới.
+- Khoá hết hạn sau 30 ngày không dùng, và tối đa sau 1 năm.
+- Mỗi khoá được hỏi 120 lần trong 10 phút. Tối đa 50 khoá.
+- Mỗi lần đọc được ghi nhật ký 3 tháng và hiện ở trang Quản trị, mục **Các lần công cụ AI đọc bảng**: khoá nào, công cụ nào, từ IP nào. Bản thân câu hỏi không bao giờ tới máy chủ.
+- Những gì công cụ đọc sẽ được gửi tới hãng làm ra công cụ đó, như một phần câu hỏi của người dùng. Khoá chỉ đọc số gộp thì tên người không đi theo.
+
+**Đã thử tới đâu.** Trong công cụ thật, trên macOS: Claude Code 2.1.318 và Codex CLI 0.164.0 đều đọc được bảng và trả lời từ đó. Claude Code nói giao thức bản 2026-07-28 và, khi được bảo, cả kiểu bắt tay cũ mở đầu bằng `initialize`; Codex nói bản 2025-06-18. Khoá chỉ đọc số gộp đã được thử với Claude Code: nó trả lời rằng số liệu của từng người có tồn tại nhưng khoá của nó không được đọc. Hai dòng `claude mcp add` và `codex mcp add` mà trang đưa ra đã được chạy đúng nguyên văn. Cursor và Gemini CLI chưa được thử trong công cụ thật, và chưa công cụ nào được thử trên Windows hay Linux; các dòng đó viết theo tài liệu của từng công cụ. Tab Chat của app Claude trên máy tính cũng đã được thử, qua một kết nối của claude.ai: xem mục kế tiếp.
+
+### claude.ai và tab Chat của Claude Desktop: tắt mặc định
+
+Mẫu Caddy (`server/aiworker.caddy`) chỉ cho các mạng của bạn vào, và điều đó che luôn `/mcp`: công cụ AI chỉ tới được cổng này từ một máy nằm trong các mạng đó. claude.ai, tab Chat của Claude Desktop và app Claude trên điện thoại thì khác. Chúng kết nối từ máy chủ của Anthropic, không phải từ máy của người dùng, và cần địa chỉ trả lời được trên Internet ở cổng 443 ([trang trợ giúp của Anthropic về custom connector](https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp)). Vì vậy chúng bị từ chối, trừ khi bạn tự mở cửa đó.
+
+Muốn mở riêng cho `/mcp` và không gì khác, thay hai dòng `@outside not remote_ip ...` và `respond @outside ...` trong khối Caddy bằng:
+
+```
+	# mạng của bạn vào được mọi đường; địa chỉ đi ra của Anthropic chỉ vào được /mcp
+	@outside {
+		not remote_ip 203.0.113.0/24 198.51.100.0/24
+		not {
+			remote_ip 160.79.104.0/21 153.61.208.0/20
+			path /mcp
+		}
+	}
+	respond @outside "Forbidden" 403
+```
+
+Sau đó chạy `caddy validate` với file này rồi `sudo systemctl reload caddy`. Nếu bạn đã mở `/ingest` theo cách mẫu chỉ, giữ cả dòng `not path /ingest` của nó bên trong `@outside`. Nếu file của bạn đặt tên khối này khác `@outside` thì giữ nguyên tên của bạn. Muốn đóng cửa lại thì đặt lại hai dòng cũ rồi nạp lại.
+
+Hai dải trong khối trên là địa chỉ IPv4 đi ra của Anthropic, công bố ở [platform.claude.com/docs/en/api/ip-addresses](https://platform.claude.com/docs/en/api/ip-addresses), đọc ngày 2026-11-16. Hãy tự đọc trang đó trước khi dùng, và thỉnh thoảng đọc lại: các dải có thể đổi.
+
+Trước khi mở:
+
+- **Khi đó `/mcp` nhận kết nối từ ngoài văn phòng.** Bất kỳ ai trên claude.ai gõ địa chỉ của bạn đều đi tới từ chính các địa chỉ đó của Anthropic, nên khoá là thứ duy nhất đứng giữa họ và số liệu. Mọi đường khác vẫn đóng, kể cả `/mcp/connect`: khoá vẫn phải xin từ bên trong mạng của bạn.
+- **Trong claude.ai:** Customize > Connectors > Add custom connector, và địa chỉ `https://board.example.com/mcp`. Lúc đầu Claude đánh dấu "Sign in now" là đã phát hiện, vì bảng trả lời rằng nó cần một khoá: hãy chọn **No sign-in**. Ở mục **Request headers**, thêm header `authorization` với giá trị là chữ `Bearer`, một dấu cách, rồi tới khoá. Để kiểu truyền là **Streamable HTTP**.
+- **Claude có thể gọi công cụ mà không hỏi.** Trang của kết nối liệt kê công cụ của bảng là loại chỉ đọc ở mức "Needs approval", và ghi rằng mức này áp dụng ở chế độ Manual. Trong lần thử, Claude gọi công cụ mà không hỏi câu nào. Công cụ đọc được gì là do khoá quyết định, nên hãy duyệt khoá chỉ đọc số gộp, trừ khi bạn chủ ý cho tên người đi ra ngoài.
+- **Nhật ký hiện địa chỉ của Anthropic, không phải của người dùng,** và dòng của khoá có thêm một dòng báo khoá được dùng từ IP mới.
+- **Đã thử một lần, ngày 2026-11-17, từ tab Chat của app Claude trên máy tính,** với một bảng nằm sau Caddy 2.6.2 dùng khối ở trên và một khoá chỉ đọc số gộp: thêm được kết nối, và Claude trả lời từ số liệu của bảng. Có ba điều thấy được. Lần thêm kết nối đầu tiên báo không tới được địa chỉ, lần thứ hai thì qua; chưa tìm ra lý do. Claude còn hỏi ba đường `/.well-known/oauth-...`, khối này vẫn đóng các đường đó (403), và việc đó không cản trở gì. Mục Request headers có trên tài khoản dùng để thử. claude.ai trên trình duyệt và app trên điện thoại dùng cùng loại kết nối này và chưa được thử.
 
 ## Biểu tượng thanh menu cho quản lý
 
@@ -122,7 +175,52 @@ Ai dùng Telegram hằng ngày có thể đăng nhập bảng tổng bằng nút
    ```
 4. **Mỗi người liên kết một lần:** đăng nhập bằng tên và mã, mở `/telegram` (hoặc nút **Telegram** trên bảng chi tiết), nhập mã 6 số, bấm **Log in with Telegram** và xác nhận trong Telegram. Lần sau chỉ cần bấm nút đó ở trang đăng nhập.
 
-Máy chủ không bao giờ gọi Telegram: nút đưa trình duyệt sang trang đăng nhập của Telegram rồi quay về, máy chủ chỉ kiểm chữ ký bằng token. Trang đăng nhập không nạp gì từ Telegram. Một lần đăng nhập đã ký chỉ nhận trong 5 phút và một lần. Nếu văn phòng không vào được Telegram thì đăng nhập bằng tên và mã. Quản trị xem ai đã liên kết Telegram ở `/admin` và gỡ được ở đó; cấp lại khoá hoặc chuyển tài khoản sang treo tường cũng gỡ liên kết.
+Với việc này máy chủ không bao giờ gọi Telegram: nút đưa trình duyệt sang trang đăng nhập của Telegram rồi quay về, máy chủ chỉ kiểm chữ ký bằng token. Trang đăng nhập không nạp gì từ Telegram. Một lần đăng nhập đã ký chỉ nhận trong 5 phút và một lần. Nếu văn phòng không vào được Telegram thì đăng nhập bằng tên và mã. Quản trị xem ai đã liên kết Telegram ở `/admin` và gỡ được ở đó; cấp lại khoá hoặc chuyển tài khoản sang treo tường cũng gỡ liên kết.
+
+## Hỏi bảng qua Telegram (tuỳ chọn)
+
+Quản lý không viết code có thể hỏi bảng từ một chat Telegram trên điện thoại: bấm **Ai đang chờ** hoặc **Chi phí**, hoặc gõ "ai đang chờ lâu nhất?", và một bot trả lời từ số liệu của bảng. Không mô hình AI nào đọc câu hỏi. Một nút, một lệnh hay một từ khoá chọn một trong năm câu trả lời cố định, nên không tốn tiền, không cần khoá API và không bịa được con số nào. Tắt cho tới khi bạn bật.
+
+**Bật là bạn chấp nhận điều gì.** Với mỗi chat được quản trị duyệt, những gì chat đọc sẽ đi qua máy chủ của Telegram và nằm lại trong chat đó trên điện thoại của người dùng: số gộp của cả đội và từng văn phòng, hoặc tên, trạng thái, chi phí và hạn mức của từng người khi quản trị chọn như vậy. Không bao giờ có email, IP hay mã máy. Telegram là bên thứ ba, và chat với bot không được mã hoá đầu cuối.
+
+**Nó được dựng thế nào.** Một dịch vụ nhỏ thứ hai trên máy chủ, `ai-worker-telegram`, hỏi Telegram xem có tin mới không. Nó chỉ kết nối đi ra, nên không phải mở gì ở Caddy hay tường lửa, và bảng không có địa chỉ công khai vẫn dùng được. Chính webhook vẫn không bao giờ kết nối ra ngoài: tiến trình bot đưa từng tin cho webhook trên cùng máy rồi gửi lại thứ webhook trả lời. Tiến trình bot chạy dưới người dùng riêng, chỉ cầm token của bot chứ không cầm gì của bảng, và chỉ tới được chính máy này, các máy chủ DNS của nó và các mạng của Telegram.
+
+1. **Tạo một bot riêng cho việc này** (trong app Telegram, điện thoại hoặc máy tính): tìm **@BotFather**, gửi `/newbot`, gõ tên hiển thị rồi một tên đăng nhập kết thúc bằng `bot`. BotFather trả lời kèm token, có dạng `1234567890:AAH...`. Sau đó gửi `/setjoingroups`, chọn bot và chọn **Disable**: bot chỉ trả lời trong chat riêng. Hãy tạo bot riêng, đừng dùng lại bot đăng nhập: token của bot đăng nhập ký được lần đăng nhập của bất kỳ ai, không nên để nó nằm cùng một tiến trình nói chuyện với Internet.
+2. **Bật.** Trên máy chủ, thêm dòng `TELEGRAM_ASK=1` vào `/etc/ai-worker.env` (`sudo nano /etc/ai-worker.env`), rồi chạy `sudo bash install.sh` trong thư mục `server/`. Kết quả đúng: bộ cài báo chưa có token của bot và nêu tên file `/etc/ai-worker-telegram.env`.
+3. **Đưa token cho nó.** Trong thư mục `server/`, chạy lệnh này; nó hỏi token mà không hiện lên màn hình:
+   ```bash
+   printf "Bot token: "; read -rs T; echo; sudo sed -i "s|^TELEGRAM_ASK_TOKEN=.*|TELEGRAM_ASK_TOKEN=$T|" /etc/ai-worker-telegram.env; unset T; sudo bash install.sh
+   ```
+   Tại `Bot token:` dán token ở bước 1 rồi bấm Enter (không hiện gì là đúng). Hoặc tự sửa file bằng `sudo nano /etc/ai-worker-telegram.env` rồi chạy lại `sudo bash install.sh`. Kết quả đúng: `✔ Tiến trình bot Telegram đang chạy.`, và ở `/admin`, mục **Màn hình TV**, có một dòng cho biết bot đang đọc tin kèm tên của nó.
+4. **Mỗi người nối một lần.** Họ mở bot trong Telegram, bấm **Start** và đọc mã 8 số bot đưa cho quản trị. Quản trị mở `/admin`, vào **Màn hình TV**, gõ mã và bấm **Xem yêu cầu**. Thẻ hiện tên và số Telegram của người đó, cùng tài khoản bảng mà Telegram ấy đã liên kết, nếu có. Quản trị chọn chat được đọc gì, đặt tên rồi bấm **Duyệt**. Người đó gửi một tin bất kỳ: bot chào và hiện các nút.
+
+**Cần biết.**
+
+- **Lệnh:** `/waiting`, `/cost`, `/offices`, `/team`, `/quota`, `/help` và `/stop`. Người nói tiếng Việt còn có `/cho`, `/chiphi`, `/vanphong`, `/tongquan` và `/hanmuc`. Câu gõ tự do chạy được khi có một từ khoá như "chờ", "tốn", "chi phí" hay "văn phòng"; còn lại thì nhận danh sách lệnh. Từ đơn tiếng Việt phải gõ có dấu, cụm hai từ trở lên thì không dấu cũng được. Câu trả lời theo ngôn ngữ của tin nhắn, rồi tới ngôn ngữ app Telegram của người đó.
+- **Chat đọc được gì** là do quản trị chọn lúc duyệt: chỉ số gộp của cả đội và từng văn phòng, hay cả từng người. Với số gộp, các văn phòng dưới 3 người dùng chung một dòng.
+- **Chat chưa được quản trị duyệt thì không đọc được gì.** Gửi `/stop` trong chat, hoặc bấm **Thu hồi** ở trang Quản trị, là chat dừng ngay. Chat hết hạn sau 30 ngày không dùng, và tối đa sau 1 năm. Tối đa 50 chat, mỗi chat 20 tin trong 10 phút.
+- **Mỗi câu trả lời có số liệu được ghi nhật ký 3 tháng** và hiện ở trang Quản trị, mục **Các lần công cụ AI và chat Telegram đọc bảng**: chat nào và lệnh nào. Chữ người dùng gõ không bao giờ được lưu hay ghi nhật ký.
+- **Trên điện thoại:** câu trả lời được gửi sao cho các app Telegram không cho chuyển tiếp hay lưu, và dòng đầu không bao giờ có tên người, vì điện thoại hiện dòng đó trên màn hình khoá. Trên chiếc điện thoại đã thử, app Telegram cũng không cho chụp màn hình. Đó không phải lời bảo đảm: trên máy tính vẫn chụp được màn hình, và màn hình nào cũng có thể bị chụp lại bằng máy khác.
+- **Bot không bao giờ hỏi mã đăng nhập hay mật khẩu.** Hãy dặn mọi người điều đó: ai lấy được token có thể nhắn cho họ dưới tên bot.
+- **Nếu trang Quản trị báo máy chủ không tới được Telegram:** thử ngay trên máy chủ bằng `curl -sS -m 10 -o /dev/null -w "%{http_code}\n" https://api.telegram.org`. Ra một con số nghĩa là tới được Telegram, và thứ đang chặn là giới hạn mạng của dịch vụ bot: có thể Telegram đã đổi mạng. Ghi danh sách của riêng bạn vào `TELEGRAM_NETS=` trong `/etc/ai-worker-telegram.env`, các địa chỉ cách nhau bằng dấu phẩy, hoặc `any` để bỏ giới hạn, rồi chạy lại `install.sh`. Danh sách mặc định là của chính Telegram, lấy từ [core.telegram.org/resources/cidr.txt](https://core.telegram.org/resources/cidr.txt), đọc ngày 2026-11-16.
+- **Nếu lộ token:** gửi `/revoke` cho @BotFather, rồi ghi token mới như ở bước 3. Người có token đọc được những gì mọi người gửi cho bot từ lúc đó và nhắn cho họ dưới tên bot. Họ không đọc được bảng: máy chủ chỉ trả lời chat đã được quản trị duyệt.
+- **Muốn tắt:** đổi dòng đó thành `TELEGRAM_ASK=0` trong `/etc/ai-worker.env` rồi chạy lại `install.sh`. Dịch vụ bị gỡ. Nếu không dùng lại thì xoá luôn `/etc/ai-worker-telegram.env` và gửi `/deletebot` cho @BotFather.
+
+**Thử trên máy của bạn trước.** Với bảng mẫu, trong một cửa sổ lệnh:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(32))" > /tmp/ai-worker-ask-key && TELEGRAM_ASK=1 TELEGRAM_ASK_KEY="$(cat /tmp/ai-worker-ask-key)" python3 server/demo.py
+```
+
+và trong cửa sổ thứ hai, nơi nó hỏi token mà không hiện lên màn hình:
+
+```bash
+printf "Bot token: "; read -rs TELEGRAM_ASK_TOKEN; echo; export TELEGRAM_ASK_TOKEN; TELEGRAM_ASK_KEY="$(cat /tmp/ai-worker-ask-key)" PORT=8799 python3 server/telegram_bot.py
+```
+
+Khi đó tên của những người mẫu sẽ đi qua Telegram. Đăng nhập `http://127.0.0.1:8799` bằng tài khoản `demo` với mã hiện ở cửa sổ thứ nhất, rồi duyệt chat của bạn ở `/admin`.
+
+**Đã thử tới đâu.** Với Telegram thật, chạy tay trên macOS như trên: ghép một chat, các nút, menu lệnh, và câu trả lời bằng cả hai ngôn ngữ. Dịch vụ do bộ cài dựng, cùng người dùng riêng và giới hạn mạng của nó, được bài kiểm cài đặt trên Ubuntu (`tests/linux/test-server.sh`) kiểm và đã được cài lên một máy chủ thật, nơi bot tới được Telegram qua giới hạn mạng và một chat chỉ đọc số gộp đã được ghép. Trên điện thoại, app Telegram không cho chuyển tiếp câu trả lời. Chat đọc từng người thì chưa được thử qua Telegram thật.
 
 ## Phát hành bản cập nhật
 
@@ -146,7 +244,7 @@ Máy nhân viên hỏi máy chủ tối đa 4 giờ một lần, thất bại th
 
 Chỉ gói công ty mới gửi; gói thường không gửi gì. Số liệu lên máy chủ của công ty, không gửi cho bên ngoài.
 
-**Có gửi:** họ tên, email tài khoản Claude và email nhập lúc cài, mã máy ngẫu nhiên, dấu máy (mã phần cứng đã băm một chiều, để nhận ra cùng máy khi cài lại plugin, không hiện trên bảng), IP nội bộ, số phiên mở, đang làm, chờ trả lời, mô hình đang dùng, hạn mức tài khoản Claude, token và chi phí theo giờ, số việc giao cho từng trợ lý, tên loại trợ lý phụ đang chạy, trợ lý có trên máy, phiên bản plugin. Máy chủ tự ghi thêm IP công cộng của máy gửi, và nhớ các IP nội bộ mỗi máy đã dùng trong 30 ngày.
+**Có gửi:** họ tên, email tài khoản Claude và email nhập lúc cài, mã máy ngẫu nhiên, dấu máy (mã phần cứng đã băm một chiều, để nhận ra cùng máy khi cài lại plugin, không hiện trên bảng), IP nội bộ, số phiên mở, đang làm, chờ trả lời, mô hình đang dùng, hạn mức tài khoản Claude, token và chi phí theo giờ, số việc giao cho từng trợ lý, tên loại trợ lý phụ đang chạy, trợ lý có trên máy, phiên bản plugin. Máy chủ tự ghi thêm IP công cộng của máy gửi, và nhớ các IP nội bộ mỗi máy đã dùng trong 30 ngày. Máy chủ cộng chi phí, token và số việc thành một con số tổng cho mỗi người mỗi ngày và giữ các tổng đó tối đa 13 tháng.
 
 **Bộ nối cho Codex, Cursor và Gemini CLI gửi:** họ tên và email gõ lúc cài, một mã máy ngẫu nhiên, thời điểm, và với mỗi công cụ là số phiên đang mở, đang làm và đang chờ. Máy chủ tự ghi IP công cộng của máy gửi. Ngoài ra không gửi gì khác. Trên máy, `~/.local/share/ai-worker/connector/` chứa khoá gửi (file chỉ tài khoản đó đọc được), mỗi phiên đang mở một dòng kèm mã phiên của chính công cụ, và báo cáo gần nhất. Mỗi công cụ đưa cho hook sự kiện của nó, trong đó có câu hỏi hoặc câu trả lời; hook đọc mã phiên và việc câu cuối có kết thúc bằng dấu hỏi hay không, và không giữ lại câu hỏi lẫn câu trả lời.
 

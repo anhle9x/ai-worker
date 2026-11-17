@@ -11,7 +11,7 @@
     'role-denied': tx('Denied by role'), error: tx('Error'), assign: tx('Add network'), unassign: tx('Remove network'), 'unassign-delete-location': tx('Last network removed, location deleted'), 'set-sales': tx('Mark as sales'), csv: tx('Load CSV'),
     'account-create': tx('Create account'), 'account-reissue': tx('Reissue key'), 'account-role': tx('Change role'), 'account-delete': tx('Delete account'), 'end-session': tx('End session'),
     'tv-request-code': tx('Screen asked for code'), 'tv-refused': tx('Code request refused'), 'tv-view': tx('Viewed screen request'), 'tv-approve': tx('Approved screen'), 'tv-joined': tx('Screen joined board'), 'tv-revoke': tx('Revoked screen'), 'tv-self-exit': tx('Screen exited by itself'), 'tv-unpaired-itself': tx('Paired device unpaired itself'), 'tv-reload': tx('Reloaded screen remotely'), 'tv-rename': tx('Renamed screen'), 'tv-ip-changed': tx('Screen changed IP'), 'tv-renewed': tx('Renewed screen'),
-    'tv-revoked-key-used': tx('Revoked device asked again'),
+    'tv-revoked-key-used': tx('Revoked device asked again'), 'mcp-rate-limited': tx('Key for an AI tool asked too often'),
     'account-telegram-unlink': tx('Unlink Telegram'), 'telegram-link': tx('Link Telegram'), 'telegram-unlink': tx('Unlink Telegram'), 'telegram-link-failed': tx('Telegram link failed'),
   }
   // Error text that means "the admin cancelled", so no error toast is shown.
@@ -267,6 +267,23 @@
     }
   }
 
+  // Asking the board from Telegram: when the server's owner turned it on, say whether the bot process is doing its part.
+  // It reports every 5 minutes, so a word older than 15 minutes means it has stopped.
+  // Hỏi bảng qua Telegram: khi chủ máy chủ đã bật, cho biết tiến trình bot có đang làm phần việc của nó không.
+  // Nó báo mỗi 5 phút, nên lời báo cũ hơn 15 phút nghĩa là nó đã dừng.
+  function telegramBotLine() {
+    const b = snapshot.telegramAsk
+    if (!b || !b.on) return null
+    const silent = !b.seenAt || Date.now() - b.seenAt > 15 * 60 * 1000
+    if (b.state === 'ok' && !silent) return o('small', 'qt-bot', tx('Asking from Telegram is on: the bot @{bot} is reading messages. A person sends it /start and reads you the code.', { bot: b.bot }))
+    const problem = silent ? (b.seenAt ? tx('Asking from Telegram is on, but the bot process has said nothing since {time}. Check that it runs on the server.', { time: dateTime(b.seenAt) }) : tx('Asking from Telegram is on, but the bot process has not been heard from. Check that it runs on the server.'))
+      : b.state === 'unauthorized' ? tx('Asking from Telegram: Telegram refuses the bot\'s token. Check TELEGRAM_ASK_TOKEN on the server.')
+      : b.state === 'conflict' ? tx('Asking from Telegram: another program reads the same bot. One bot can have one reader.')
+      : b.state === 'unreachable' ? tx('Asking from Telegram: the server cannot reach Telegram.')
+      : tx('Asking from Telegram is on, but the bot process has not been heard from. Check that it runs on the server.')
+    return o('div', 'qt-hint', problem)
+  }
+
   function tvSection() {
     const p = section(tx('TV screens'), tx('Scan the QR code on the TV with a phone camera, or enter the code here'))
     const row = o('div', 'qt-row')
@@ -278,24 +295,57 @@
     code.value = tvCode
     row.append(code, button(tx('View request'), () => viewTv(code.value.replace(/\D/g, '')), 'qt-button primary'))
     p.append(row)
+    const bot = telegramBotLine()
+    if (bot) p.append(bot)
     if (tvRequest) {
       const y = tvRequest
       const el = o('div', 'qt-secret qt-tv-card')
-      el.append(o('b', '', tx('Request from code {code}', { code: y.code.slice(0, 4) + '-' + y.code.slice(4) })), o('span', '', tx('Device: {device}', { device: y.device })), o('span', '', `IP: ${y.ip}`))
+      // A Telegram chat has no device and no IP to show: what tells the admin who is asking is the Telegram name and number,
+      // and the board account that Telegram is linked to for logging in, when there is one.
+      // Chat Telegram không có thiết bị hay IP để hiện: thứ cho quản trị biết ai đang xin là tên và số Telegram,
+      // cùng tài khoản bảng mà Telegram đó đã liên kết để đăng nhập, nếu có.
+      const isChat = y.kind === 'telegram'
+      el.append(o('b', '', tx('Request from code {code}', { code: y.code.slice(0, 4) + '-' + y.code.slice(4) })))
+      if (isChat) {
+        el.append(o('span', '', y.telegramUser ? tx('Telegram: @{name} (number {id})', { name: y.telegramUser, id: y.telegramId }) : tx('Telegram: no username (number {id})', { id: y.telegramId })))
+        if (y.account) el.append(o('span', '', tx('This Telegram is linked to the board account {name}.', { name: y.account })))
+        el.append(o('span', '', tx('Type: Telegram chat. Once approved, the person can ask the board from that chat: states, cost and quota, no email or IP.')),
+          o('div', 'qt-hint', tx('What the chat reads goes through Telegram and stays in the chat on the phone. Approve only a code the person read to you themselves.')))
+      } else el.append(o('span', '', tx('Device: {device}', { device: y.device })), o('span', '', `IP: ${y.ip}`))
       // A browser extension of a manager pairs with the same code: say so, so an admin can tell a laptop from a TV.
       // Tiện ích trình duyệt của quản lý ghép bằng cùng loại mã: nói rõ, để quản trị phân biệt laptop với TV.
-      const isExtension = y.kind === 'extension', isPlugin = y.kind === 'plugin'
+      const isExtension = y.kind === 'extension', isPlugin = y.kind === 'plugin', isMcp = y.kind === 'mcp'
       if (isExtension) el.append(o('span', '', tx('Type: browser extension for a manager')))
       // A manager's Claude plugin pairs the same way; once approved, Claude on that computer can read the wall view of the board.
       // Plugin Claude của quản lý ghép theo cùng cách; duyệt xong thì Claude trên máy đó đọc được phần treo tường của bảng.
       if (isPlugin) el.append(o('span', '', tx('Type: Claude plugin of a manager. Once approved, Claude on that computer can read the board: names, states, cost and quota, no email or IP.')))
-      if (y.branch) el.append(o('span', '', tx('Branch: {branch}', { branch: y.branch })))
-      else el.append(o('div', 'qt-hint', tx('This IP is outside the declared branches. Approve only if you are sure this is a company screen.')))
-      el.append(o('span', '', tx('Asked at {time}', { time: dateTime(y.createdAt) })), o('small', '', tx('Approve only if it is really the screen you are setting up. An approved device can see people names and costs.')))
+      // A key for an AI tool is asked for on the board's own page and reads the board from wherever that tool runs: say what it is, and where what it reads goes.
+      // Khoá cho công cụ AI được xin trên trang của chính bảng và đọc bảng từ nơi công cụ đó chạy: nói rõ nó là gì, và thứ nó đọc đi về đâu.
+      if (isMcp) el.append(o('span', '', tx('Type: key for an AI tool (MCP). Once approved, the tool can read the board: names, states, cost and quota, no email or IP.')),
+        o('div', 'qt-hint', tx('What the tool reads goes to the company that makes it. Approve only a code the person read to you themselves.')))
+      if (isChat) {
+        // a chat is not on any network of the company: nothing to say about its branch
+        // chat không nằm trên mạng nào của công ty: không có gì để nói về chi nhánh của nó
+      } else if (y.branch) el.append(o('span', '', tx('Branch: {branch}', { branch: y.branch })))
+      else el.append(o('div', 'qt-hint', isMcp ? tx('This IP is outside the declared branches. Approve only if you know who is asking.') : tx('This IP is outside the declared branches. Approve only if you are sure this is a company screen.')))
+      el.append(o('span', '', tx('Asked at {time}', { time: dateTime(y.createdAt) })), o('small', '', isChat ? tx('The chat reads the board until you revoke it here, or the person sends /stop in the chat.') : isMcp ? tx('The key reads the board until you revoke it here.') : tx('Approve only if it is really the screen you are setting up. An approved device can see people names and costs.')))
+      // What the key may read is chosen here, and only here: totals unless the admin picks more.
+      // Khoá được đọc gì là chọn ở đây, và chỉ ở đây: số gộp, trừ khi quản trị chọn nhiều hơn.
+      const scope = o('select')
+      scope.setAttribute('aria-label', isChat ? tx('What the chat may read') : tx('What the key may read'))
+      for (const [value, text] of [['totals', tx('Reads team and office totals only')], ['people', tx('Reads each person too: name, state, cost, quota')]]) {
+        const c = o('option', '', text)
+        c.value = value
+        scope.append(c)
+      }
+      if (isMcp || isChat) el.append(scope)
       const name = o('input')
-      name.placeholder = tx('Screen name, for example Meeting room TV')
+      name.placeholder = isChat ? tx('Chat name, for example Hoa on Telegram') : isMcp ? tx('Key name, for example Cursor of Hoa') : tx('Screen name, for example Meeting room TV')
       name.maxLength = 40
-      name.setAttribute('aria-label', tx('Screen name'))
+      name.setAttribute('aria-label', isChat ? tx('Chat name') : isMcp ? tx('Key name') : tx('Screen name'))
+      // the Telegram name is a fair first guess for the row's name; the admin may type another
+      // tên Telegram là gợi ý ban đầu hợp lý cho tên của dòng; quản trị có thể gõ tên khác
+      if (isChat && y.telegramUser) name.value = y.telegramUser
       // Pairing an old screen again replaces the old row instead of adding one. Same network and same device type can still be two different TVs, so the person must choose.
       // Ghép lại màn hình cũ thì thay dòng cũ, không tạo thêm. Cùng mạng và cùng loại máy vẫn có thể là hai TV khác nhau, nên bắt người chọn.
       const similar = new Set(y.similar.map(x => x.id))
@@ -306,22 +356,25 @@
         c.value = value
         picker.append(c)
       }
+      // a key replaces only a key, a screen only a screen. A chat replaces its own earlier row by itself, and nothing else takes a chat's row
+      // khoá chỉ thay cho khoá, màn hình chỉ thay cho màn hình. Chat tự thay dòng cũ của chính nó, và không thứ gì khác lấy được dòng của chat
+      const replaceable = isChat ? [] : snapshot.screens.filter(t => t.kind !== 'telegram' && (t.kind === 'mcp') === isMcp)
       if (similar.size) addOption('', tx('Choose: new screen or old screen…'))
-      addOption('new', tx('Add a new screen'))
-      for (const t of snapshot.screens) addOption(t.id, tx('Replace {name}', { name: t.name }) + (t.exitedAt ? ' ' + tx('(exited)') : '') + (similar.has(t.id) ? ' ' + tx('(same network, same device type)') : ''))
+      addOption('new', isMcp ? tx('Add a new key') : tx('Add a new screen'))
+      for (const t of replaceable) addOption(t.id, tx('Replace {name}', { name: t.name }) + (t.exitedAt ? ' ' + tx('(exited)') : '') + (similar.has(t.id) ? ' ' + tx('(same network, same device type)') : ''))
       picker.addEventListener('change', () => {
-        const existing = snapshot.screens.find(t => t.id === picker.value)
+        const existing = replaceable.find(t => t.id === picker.value)
         if (existing && !name.value.trim()) name.value = existing.name
       })
       if (similar.size) el.append(o('div', 'qt-hint', tx('This may be a screen already paired: {names}. If so, choose replace so no extra row is added.', { names: y.similar.map(x => x.name).join(', ') })))
-      if (snapshot.screens.length) el.append(picker)
+      if (replaceable.length) el.append(picker)
       const row = o('div', 'qt-row')
       row.append(name, button(tx('Approve'), () => {
-        if (snapshot.screens.length && !picker.value) return toast(tx('Choose new screen or old screen first'), true)
+        if (replaceable.length && !picker.value) return toast(tx('Choose new screen or old screen first'), true)
         if (!name.value.trim()) return toast(tx('Give the screen a name first'), true)
-        post('/admin/tv-approve', { code: y.code, name: name.value, ...(picker.value && picker.value !== 'new' ? { replaceId: picker.value } : {}) }, () => {
+        post('/admin/tv-approve', { code: y.code, name: name.value, ...(picker.value && picker.value !== 'new' ? { replaceId: picker.value } : {}), ...(isMcp || isChat ? { scope: scope.value } : {}) }, () => {
           tvRequest = null
-          toast(isPlugin ? tx('Approved. The plugin is paired the next time /ai-worker:board is typed on that computer.') : isExtension ? tx('Approved, the extension will be paired within a minute') : tx('Approved, the screen will join the board by itself within about 10 seconds'))
+          toast(isChat ? tx('Approved. The chat is connected at its next message.') : isMcp ? tx('Approved. The page that asked shows the key within a few seconds.') : isPlugin ? tx('Approved. The plugin is paired the next time /ai-worker:board is typed on that computer.') : isExtension ? tx('Approved, the extension will be paired within a minute') : tx('Approved, the screen will join the board by itself within about 10 seconds'))
         })
       }, 'qt-button primary'), button(tx('Skip'), () => {
         tvRequest = null
@@ -342,20 +395,20 @@
         // Đã thoát thì không còn trang nào để tải lại; dòng chỉ còn để ghép lại giữ tên, không cần nữa thì xoá.
         // a Claude plugin shows no page, so there is nothing to reload
         // plugin Claude không hiện trang nào, nên không có gì để tải lại
-        if (!t.exitedAt && t.kind !== 'plugin') actions.append(button(tx('Reload'), () => post('/admin/tv-reload', { id: t.id }, () => countdown(t.name, 10))))
+        if (!t.exitedAt && t.kind !== 'plugin' && t.kind !== 'mcp' && t.kind !== 'telegram') actions.append(button(tx('Reload'), () => post('/admin/tv-reload', { id: t.id }, () => countdown(t.name, 10))))
         actions.append(button(tx('Rename'), () => {
           const newName = prompt(tx('New name for the screen'), t.name)
           if (newName && newName.trim()) post('/admin/tv-rename', { id: t.id, name: newName })
         }), t.exitedAt ? button(tx('Delete'), () => {
           if (confirm(tx('Remove {name} from the list? This name will no longer be available to choose when pairing again.', { name: t.name }))) post('/admin/tv-revoke', { id: t.id }, () => toast(tx('Deleted {name}', { name: t.name })))
         }, 'qt-button critical') : button(tx('Revoke'), () => {
-          const question = t.kind === 'plugin' ? tx('Revoke {name}? Claude on that computer can no longer read the board.', { name: t.name }) : t.kind === 'extension' ? tx('Revoke {name}? Within a minute that browser shows it is not paired.', { name: t.name }) : tx('Revoke {name}? That screen goes back to the pairing page at once.', { name: t.name })
+          const question = t.kind === 'telegram' ? tx('Revoke {name}? That chat can no longer read the board.', { name: t.name }) : t.kind === 'mcp' ? tx('Revoke {name}? The AI tool that holds this key can no longer read the board.', { name: t.name }) : t.kind === 'plugin' ? tx('Revoke {name}? Claude on that computer can no longer read the board.', { name: t.name }) : t.kind === 'extension' ? tx('Revoke {name}? Within a minute that browser shows it is not paired.', { name: t.name }) : tx('Revoke {name}? That screen goes back to the pairing page at once.', { name: t.name })
           if (confirm(question)) post('/admin/tv-revoke', { id: t.id }, () => toast(tx('Revoked {name}', { name: t.name })))
         }, 'qt-button critical'))
-        const statusText = t.exitedAt ? tx('Exited at {time}', { time: dateTime(t.exitedAt * 1000) }) : t.running ? tx('Running') : t.lastSeenAt ? tx('Not seen for a while, last seen {time}', { time: dateTime(t.lastSeenAt) }) : tx('Not seen since the server started')
+        const statusText = t.kind === 'mcp' || t.kind === 'telegram' ? (t.running ? tx('Used just now') : t.lastSeenAt ? tx('Last used {time}', { time: dateTime(t.lastSeenAt) }) : tx('Not used since the server started')) : t.exitedAt ? tx('Exited at {time}', { time: dateTime(t.exitedAt * 1000) }) : t.running ? tx('Running') : t.lastSeenAt ? tx('Not seen for a while, last seen {time}', { time: dateTime(t.lastSeenAt) }) : tx('Not seen since the server started')
         const statusCell = o('td', t.running ? '' : 'qt-muted', statusText)
         const versionCell = o('td', t.upToDate === false ? 'qt-old' : '', t.upToDate === null ? '—' : t.upToDate ? tx('Latest') : tx('Old version'))
-        h.append(o('td', '', t.name), statusCell, versionCell, o('td', '', t.kind === 'plugin' ? t.device : t.kind === 'extension' ? tx('Browser extension · {device}', { device: t.device }) : t.device), o('td', '', t.branch || '—'), o('td', '', t.lastIp), o('td', '', t.owner ? tx('{name} (paired by themselves)', { name: t.owner }) : t.approvedBy), actions)
+        h.append(o('td', '', t.name), statusCell, versionCell, o('td', '', t.kind === 'telegram' ? tx('Telegram chat, {who}, {scope}', { who: t.telegramUser ? '@' + t.telegramUser : t.telegramId, scope: t.scope === 'people' ? tx('reads each person') : tx('reads totals only') }) : t.kind === 'mcp' ? tx('Key for an AI tool, {start}…, {scope}', { start: t.keyStart, scope: t.scope === 'people' ? tx('reads each person') : tx('reads totals only') }) : t.kind === 'plugin' ? t.device : t.kind === 'extension' ? tx('Browser extension · {device}', { device: t.device }) : t.device), o('td', '', t.branch || '—'), o('td', '', t.lastIp || '—'), o('td', '', t.owner ? tx('{name} (paired by themselves)', { name: t.owner }) : t.approvedBy), actions)
         board.append(h)
       }
       p.append(addLabel(board))
@@ -501,6 +554,23 @@
     return p
   }
 
+  // Each time an AI tool that holds a key read the board: which key, which tool, from where. The question itself never reaches the server.
+  // Mỗi lần công cụ AI cầm khoá đọc bảng: khoá nào, công cụ nào, từ đâu. Bản thân câu hỏi không bao giờ tới máy chủ.
+  function mcpCallsSection() {
+    const p = section(tx('Reads by AI tools and Telegram chats'), tx('Each time a key for an AI tool or a Telegram chat read the board in the chosen month; kept for 3 months, the newest 100 lines'))
+    const board = o('table', 'qt-table small')
+    const head = o('tr')
+    for (const c of [tx('Time'), tx('Key or chat'), tx('Through'), tx('Device IP'), tx('Result')]) head.append(o('th', '', c))
+    board.append(head)
+    for (const x of snapshot.mcpCalls) {
+      const h = o('tr', x.ok ? '' : 'qt-bad-row')
+      h.append(o('td', '', String(x.at || '').replace('T', ' ').slice(0, 19)), o('td', '', x.tv || '—'), o('td', '', x.client || '—'), o('td', '', x.clientIp || '—'), o('td', '', !x.ok ? tx('Refused') : x.action === 'telegram-ask' ? tx('Answered /{command}', { command: x.tool }) : tx('Read the board')))
+      board.append(h)
+    }
+    p.append(addLabel(board))
+    return p
+  }
+
   function auditSection() {
     const p = section(tx('Audit log'), tx('Kept for 12 months; the newest 300 lines'))
     const row = o('div', 'qt-row')
@@ -607,7 +677,7 @@
     backLink.href = '/'
     head.append(o('h1', '', tx('Admin')), o('span', '', viewerName), I18n.switcher(), backLink)
     const column = o('div', 'qt-column')
-    column.append(accountsSection(), tvSection(), menubarSection(), locationsSection(), teamSection(), sessionsSection(), auditSection())
+    column.append(accountsSection(), tvSection(), ...(snapshot.mcpCalls.length ? [mcpCallsSection()] : []), menubarSection(), locationsSection(), teamSection(), sessionsSection(), auditSection())
     root.replaceChildren(head, notice, column)
   }
 

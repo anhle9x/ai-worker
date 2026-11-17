@@ -4,6 +4,7 @@ Ngôn ngữ của từng yêu cầu và hàm tx() tra từ điển tiếng Việ
 import os
 import re
 import threading
+from contextlib import contextmanager
 
 from webhook_vi import VI
 
@@ -33,3 +34,20 @@ def tx(text: str, **params) -> str:
     Dịch cho yêu cầu này và điền các tham số {name}; chữ chưa có trong từ điển thì hiện tiếng Anh."""
     found = VI.get(text, text) if current_lang() == "vi" else text
     return found.format(**params) if params else found
+
+
+@contextmanager
+def speaking(lang: str):
+    """Write in one language for the length of a block, whatever the request's own language is, then put that one back. For text that
+    goes to a person who is not the one making the request: a Telegram answer follows the language of whoever asked in Telegram.
+    Viết bằng một ngôn ngữ trong suốt một khối lệnh, bất kể ngôn ngữ của chính yêu cầu, rồi trả lại ngôn ngữ đó. Dùng cho chữ gửi tới
+    một người không phải người tạo yêu cầu: câu trả lời qua Telegram theo ngôn ngữ của người hỏi trong Telegram."""
+    had, before = hasattr(REQUEST, "lang"), getattr(REQUEST, "lang", "")
+    REQUEST.lang = lang if lang in ("en", "vi") else "en"
+    try:
+        yield
+    finally:
+        if had:
+            REQUEST.lang = before
+        else:
+            del REQUEST.lang

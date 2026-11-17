@@ -1,5 +1,11 @@
-# Try the installer on a clean machine on every push: build on Ubuntu, test-install on Windows.
-# Thử file cài trên máy sạch mỗi lần đẩy code: đóng gói trên Ubuntu, cài thử trên Windows.
+# Try the installer on a clean machine on every push: build on Ubuntu, test-install on Ubuntu and on Windows.
+# Thử file cài trên máy sạch mỗi lần đẩy code: đóng gói trên Ubuntu, cài thử trên Ubuntu và trên Windows.
+# The two Windows jobs cost the most minutes. In a private repository, where minutes are limited, they run only when a push
+# changes something they test (see "Decide whether the Windows jobs run"), or when the workflow is started by hand.
+# In a public repository, where the minutes are free, they run on every push.
+# Hai việc trên Windows tốn nhiều phút nhất. Ở repo riêng tư, nơi số phút có hạn, chúng chỉ chạy khi lần đẩy
+# đổi thứ mà chúng kiểm (xem "Decide whether the Windows jobs run"), hoặc khi workflow được bấm chạy tay.
+# Ở repo công khai, nơi số phút miễn phí, chúng chạy ở mọi lần đẩy.
 # Only the normal package is used (no packaging/company.json, no company send code).
 # Chỉ dùng gói thường (không có packaging/company.json, không có mã gửi của công ty).
 name: Test install
@@ -23,7 +29,7 @@ jobs:
         run: npx -y @anthropic-ai/claude-code@2.1.319 plugin test .
       - name: Test the server
         working-directory: server
-        run: python3 -m unittest test_webhook test_demo
+        run: python3 -m unittest test_webhook test_demo test_mcp test_ask test_telegram_bot
       - name: Test the connector for Codex, Cursor and Gemini CLI
         run: python3 tests/connectors/test_connectors.py
       - name: Test the Chrome extension against the server
@@ -32,8 +38,35 @@ jobs:
         run: node tests/check-map-layout.js
   build:
     runs-on: ubuntu-latest
+    outputs:
+      windows: ${{ steps.scope.outputs.windows }}
     steps:
       - uses: actions/checkout@v4
+      # What the Windows jobs test: the installers and the package (packaging/), the connector, the menu bar app and tray script,
+      # their own tests, this workflow, and the plugin's manifest, so raising the version for a release runs them too.
+      # When the pushed commits cannot be compared (a new branch, a rewritten history), the jobs run.
+      # Thứ các việc Windows kiểm: bộ cài và gói (packaging/), bộ nối, app thanh menu và script khay,
+      # các bài test của chúng, chính workflow này, và file khai báo của plugin, để việc nâng phiên bản khi phát hành cũng chạy chúng.
+      # Khi không so được các commit vừa đẩy (nhánh mới, lịch sử bị viết lại) thì các việc đó vẫn chạy.
+      - name: Decide whether the Windows jobs run
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          PRIVATE: ${{ github.event.repository.private }}
+          BEFORE: ${{ github.event.before }}
+          WINDOWS_PATHS: '^(\.github/workflows/|\.claude-plugin/|packaging/|connectors/|server/menubar/|tests/connectors/|tests/menubar/|tests/windows/)'
+        run: |
+          if [ "$EVENT" != "push" ] || [ "$PRIVATE" != "true" ]; then
+            windows=true
+          elif ! git fetch -q --depth=1 origin "$BEFORE" 2>/dev/null; then
+            windows=true
+          elif git diff --name-only "$BEFORE" "$GITHUB_SHA" | grep -qE "$WINDOWS_PATHS"; then
+            windows=true
+          else
+            windows=false
+          fi
+          echo "windows=$windows" >> "$GITHUB_OUTPUT"
+          echo "Windows jobs run: $windows"
       - name: Build the package
         run: bash packaging/build.sh
       - name: Test the private-data check
@@ -81,6 +114,7 @@ jobs:
 
   windows:
     needs: build
+    if: needs.build.outputs.windows == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -114,6 +148,8 @@ jobs:
           if-no-files-found: ignore
 
   windows-app:
+    needs: build
+    if: needs.build.outputs.windows == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
