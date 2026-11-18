@@ -126,7 +126,7 @@ class FakeTelegram(Served):
                 return 200, {"ok": True, "result": list(self.queue)}
             if method == "sendMessage":
                 return 200, {"ok": True, "result": {"message_id": 1, "chat": {"id": (body or {}).get("chat_id")}}}
-            if method in ("setMyCommands", "leaveChat"):
+            if method in ("setMyCommands", "leaveChat", "setChatMenuButton"):
                 return 200, {"ok": True, "result": True}
         return 404, {"ok": False, "error_code": 404, "description": "Not Found"}
 
@@ -142,10 +142,13 @@ class FakeBoard(Served):
         self.calls, self.headers = [], []
         self.status = 200
         self.reply = lambda message: {"text": "You said: %s" % message.get("text")}
+        # what the next round's question about menu buttons is answered with, once
+        # câu trả lời cho câu hỏi về nút menu của vòng kế tiếp, dùng một lần
+        self.menus = []
         super().__init__()
 
     def messages(self) -> list:
-        return [c for c in self.calls if "report" not in c]
+        return [c for c in self.calls if "report" not in c and "tick" not in c]
 
     def reports(self) -> list:
         return [(c["report"], c["bot"]) for c in self.calls if "report" in c]
@@ -162,6 +165,9 @@ class FakeBoard(Served):
             self.calls.append(body)
             if isinstance(body, dict) and "report" in body:
                 return 200, {"ok": True, "commands": self.COMMANDS}
+            if isinstance(body, dict) and body.get("tick") is True:
+                menus, self.menus = self.menus, []
+                return 200, {"ok": True, "menus": menus, "menuText": "AI Worker"}
             return 200, self.reply(body)
 
 
@@ -635,6 +641,44 @@ class Settings(unittest.TestCase):
         bot = telegram_bot.Bot(TOKEN, "http://127.0.0.1:1", KEY, "https://api.telegram.org/")
         self.assertEqual(bot.api_base, "https://api.telegram.org/bot%s/" % TOKEN)
         self.assertEqual(bot.board_endpoint, "http://127.0.0.1:1/bot/telegram")
+
+
+class MenuButtons(BotCase):
+    """The board's window inside Telegram: once in a while the bot process asks the webhook which chats' menu buttons to change.
+    Khung bảng bên trong Telegram: thỉnh thoảng tiến trình bot hỏi webhook cần đổi nút menu của chat nào."""
+
+    def buttons(self):
+        return [body for method, body in self.telegram.calls if method == "setChatMenuButton"]
+
+    def test_a_chat_gets_the_window_or_the_plain_menu(self):
+        self.board.menus = [{"to": 700100200, "url": "https://board.example.com/tg/app"}, {"to": 700100201, "url": None}]
+        self.bot.step()
+        self.assertEqual(self.buttons(), [
+            {"chat_id": 700100200, "menu_button": {"type": "web_app", "text": "AI Worker", "web_app": {"url": "https://board.example.com/tg/app"}}},
+            {"chat_id": 700100201, "menu_button": {"type": "default"}},
+        ])
+
+    def test_only_an_https_address_opens_a_window(self):
+        self.board.menus = [{"to": 1, "url": "http://board.example.com/tg/app"}, {"to": 2, "url": "javascript:alert(1)"}, {"to": True, "url": None}, {"to": -5, "url": None}, "x"]
+        self.bot.step()
+        self.assertEqual(self.buttons(), [{"chat_id": 1, "menu_button": {"type": "default"}}, {"chat_id": 2, "menu_button": {"type": "default"}}])
+
+    def test_the_webhook_is_asked_at_most_every_twenty_seconds(self):
+        ticks = lambda: [c for c in self.board.calls if isinstance(c, dict) and c.get("tick") is True]
+        self.bot.step()
+        self.bot.step()
+        self.assertEqual(len(ticks()), 1)
+        self.clock.now += telegram_bot.MENU_SECONDS
+        self.bot.step()
+        self.assertEqual(len(ticks()), 2)
+
+    def test_not_asked_while_the_webhook_does_not_answer(self):
+        self.bot.step()
+        self.board.status = 500
+        self.bot.board_down = True
+        self.clock.now += telegram_bot.MENU_SECONDS
+        self.bot.sync_menus()
+        self.assertEqual(len([c for c in self.board.calls if isinstance(c, dict) and c.get("tick") is True]), 1)
 
 
 if __name__ == "__main__":

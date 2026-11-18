@@ -13,6 +13,7 @@
     'tv-request-code': tx('Screen asked for code'), 'tv-refused': tx('Code request refused'), 'tv-view': tx('Viewed screen request'), 'tv-approve': tx('Approved screen'), 'tv-joined': tx('Screen joined board'), 'tv-revoke': tx('Revoked screen'), 'tv-self-exit': tx('Screen exited by itself'), 'tv-unpaired-itself': tx('Paired device unpaired itself'), 'tv-reload': tx('Reloaded screen remotely'), 'tv-rename': tx('Renamed screen'), 'tv-ip-changed': tx('Screen changed IP'), 'tv-renewed': tx('Renewed screen'),
     'tv-revoked-key-used': tx('Revoked device asked again'), 'mcp-rate-limited': tx('Key for an AI tool asked too often'),
     'account-telegram-unlink': tx('Unlink Telegram'), 'telegram-link': tx('Link Telegram'), 'telegram-unlink': tx('Unlink Telegram'), 'telegram-link-failed': tx('Telegram link failed'),
+    'telegram-app-on': tx('Allowed a chat the window'), 'telegram-app-off': tx('Stopped a chat\'s window'), 'telegram-app-open': tx('Chat opened the window'), 'telegram-app-refused': tx('Window refused'),
   }
   // Error text that means "the admin cancelled", so no error toast is shown.
   // Chữ lỗi nghĩa là "quản trị viên đã huỷ", nên không hiện thông báo lỗi.
@@ -431,6 +432,15 @@
         // a Claude plugin shows no page, so there is nothing to reload
         // plugin Claude không hiện trang nào, nên không có gì để tải lại
         if (!t.exitedAt && t.kind !== 'plugin' && t.kind !== 'mcp' && t.kind !== 'telegram') actions.append(button(tx('Reload'), () => post('/admin/tv-reload', { id: t.id }, () => countdown(t.name, 10))))
+        // the board's window inside Telegram, allowed chat by chat; only a chat that reads each person may have it for now
+        // khung bảng bên trong Telegram, cho phép từng chat; hiện chỉ chat được đọc từng người mới có được
+        if (t.kind === 'telegram' && snapshot.telegramAsk && snapshot.telegramAsk.app && (t.app || t.scope === 'people')) {
+          actions.append(t.app
+            ? button(tx('Stop the window'), () => post('/admin/tv-app', { id: t.id, on: false }, () => toast(tx('{name} no longer opens the window', { name: t.name }))))
+            : button(tx('Allow the window'), () => {
+              if (confirm(tx('Let {name} open the board\'s window inside Telegram? It shows what the menu bar window shows: each person waiting and working, costs and quotas.', { name: t.name }))) post('/admin/tv-app', { id: t.id, on: true }, () => toast(tx('{name} gets a button for the window within a minute', { name: t.name })))
+            }))
+        }
         actions.append(button(tx('Rename'), () => {
           const newName = prompt(tx('New name for the screen'), t.name)
           if (newName && newName.trim()) post('/admin/tv-rename', { id: t.id, name: newName })
@@ -443,7 +453,7 @@
         const statusText = t.kind === 'mcp' || t.kind === 'telegram' ? (t.running ? tx('Used just now') : t.lastSeenAt ? tx('Last used {time}', { time: dateTime(t.lastSeenAt) }) : tx('Not used since the server started')) : t.exitedAt ? tx('Exited at {time}', { time: dateTime(t.exitedAt * 1000) }) : t.running ? tx('Running') : t.lastSeenAt ? tx('Not seen for a while, last seen {time}', { time: dateTime(t.lastSeenAt) }) : tx('Not seen since the server started')
         const statusCell = o('td', t.running ? '' : 'qt-muted', statusText)
         const versionCell = o('td', t.upToDate === false ? 'qt-old' : '', t.upToDate === null ? '—' : t.upToDate ? tx('Latest') : tx('Old version'))
-        h.append(o('td', '', t.name), statusCell, versionCell, o('td', '', t.kind === 'telegram' ? tx('Telegram chat, {who}, {scope}', { who: t.telegramUser ? '@' + t.telegramUser : t.telegramId, scope: t.scope === 'people' ? tx('reads each person') : tx('reads totals only') }) : t.kind === 'mcp' ? tx('Key for an AI tool, {start}…, {scope}', { start: t.keyStart, scope: t.scope === 'people' ? tx('reads each person') : tx('reads totals only') }) : t.kind === 'plugin' ? t.device : t.kind === 'extension' ? tx('Browser extension · {device}', { device: t.device }) : t.device), o('td', '', t.branch || '—'), o('td', '', t.lastIp || '—'), o('td', '', t.owner ? tx('{name} (paired by themselves)', { name: t.owner }) : t.approvedBy), actions)
+        h.append(o('td', '', t.name), statusCell, versionCell, o('td', '', t.kind === 'telegram' ? tx('Telegram chat, {who}, {scope}', { who: t.telegramUser ? '@' + t.telegramUser : t.telegramId, scope: t.scope === 'people' ? tx('reads each person') : tx('reads totals only') }) + (t.app ? ', ' + tx('opens the window') : '') : t.kind === 'mcp' ? tx('Key for an AI tool, {start}…, {scope}', { start: t.keyStart, scope: t.scope === 'people' ? tx('reads each person') : tx('reads totals only') }) : t.kind === 'plugin' ? t.device : t.kind === 'extension' ? tx('Browser extension · {device}', { device: t.device }) : t.device), o('td', '', t.branch || '—'), o('td', '', t.lastIp || '—'), o('td', '', t.owner ? tx('{name} (paired by themselves)', { name: t.owner }) : t.approvedBy), actions)
         board.append(h)
       }
       p.append(addLabel(board))

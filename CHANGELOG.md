@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.37.0 - 2026-11-18
+
+### Added
+- The board's small window can open inside Telegram, as a Telegram Mini App: the number of people waiting, the 7-day cost chart and the tabs of the menu bar icon, from the bot's menu button. Off unless `TELEGRAM_APP=1` and `TELEGRAM_APP_URL` are set; then an admin allows each chat that reads each person, with **Allow the window** on the Admin page. The numbers go from the board to Telegram's built-in browser over HTTPS, not through Telegram's servers, so the window opens on the networks the proxy lets in (your offices, by default). The webhook checks what Telegram signs with a key the installer derives from the bot token, and keeps sessions in memory only; revoking the chat, `/stop`, or **Stop the window** ends them at once. Not yet tried in Telegram's own apps. See [INSTALL.md](docs/INSTALL.md).
+
+### Changed
+- `qa-test` finds the app by the name the user gives: it lists the apps on the device and picks the one that matches, and shows the list only when none or several do. Nobody has to know a bundle ID.
+
 ## 0.36.0 - 2026-11-18
 
 ### Added

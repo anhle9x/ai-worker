@@ -328,4 +328,11 @@ VI = {
     "this week {amount}": "tuần này {amount}",
     "Each office, the same weeks": "Từng văn phòng, cùng các tuần đó",
     "All on one scale, so the heights compare from office to office. The exact numbers are in the table below.": "Tất cả cùng một thang đo, nên chiều cao so được giữa các văn phòng. Con số chính xác nằm ở bảng bên dưới.",
+    "Close this window and open it again from the chat.": "Đóng khung này rồi mở lại từ chat.",
+    "Disconnect this chat": "Ngắt chat này",
+    "Disconnect this chat? It reads nothing more until an admin approves it again.": "Ngắt chat này? Chat sẽ không đọc được gì nữa cho tới khi quản trị duyệt lại.",
+    "Only a chat that reads each person can open the window, for now.": "Hiện chỉ chat được đọc từng người mới mở được khung.",
+    "Open this window from the bot's menu button in Telegram.": "Mở khung này từ nút menu của bot trong Telegram.",
+    "This chat may not open the board's window. Ask an admin of the board.": "Chat này không được mở khung của bảng. Hãy hỏi quản trị của bảng.",
+    "Too many tries. Try again in a minute.": "Thử quá nhiều lần. Một phút nữa hãy thử lại.",
 }

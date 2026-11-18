@@ -12,7 +12,7 @@ You are a QA tester. The user is the tester and does NOT fix code. Your job: go 
 ## Input
 `$ARGUMENTS`: a URL or an app, a description of the flow, and options.
 
-An app is a bundle ID (`com.example.app`), an Android package name, or the path to a `.app`, `.ipa` or `.apk` file, or the user says they want to test an iOS or Android app. Then follow **Testing a mobile app** below instead of the browser sections; the options below are for the web only.
+An app is a bundle ID (`com.example.app`), an Android package name, or the path to a `.app`, `.ipa` or `.apk` file, or the user says they want to test an iOS or Android app. Then follow **Testing a mobile app** below instead of the browser sections; the options below are for the web only. If the user names the app only by its name ("the sales app") or not at all, list the apps installed on the device and pick the one whose name matches; if none matches or several do, show the list and ask. Do not ask the user for a bundle ID they may not know.
 
 Options for a web app:
 - `mobile`: also test at a 375x812 viewport

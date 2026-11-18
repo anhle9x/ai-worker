@@ -576,7 +576,7 @@ class TvStore(Store):
         """Never includes the session hash.
         Không bao giờ có băm phiên."""
         return sorted(({"id": k, "exitedAt": v.get("exitedAt", 0), "owner": v.get("owner", ""), "kind": v.get("kind", ""), "scope": v.get("scope", ""), "keyStart": v.get("keyStart", ""),
-                        "telegramUser": v.get("telegramUser", ""), "telegramId": v.get("telegramId", ""),
+                        "telegramUser": v.get("telegramUser", ""), "telegramId": v.get("telegramId", ""), "app": v.get("app") is True,
                         **{f: v[f] for f in ("name", "createdAt", "expiresAt", "ceilingAt", "approvedBy", "device", "lastIp", "lastUsedAt")}}
                        for k, v in self.d.items() if v["expiresAt"] > now), key=lambda x: x["name"].lower())
 
@@ -636,6 +636,18 @@ class TvStore(Store):
                 raise ValueError(tx("This screen no longer exists"))
             d[tv_id].update(notify=notify, notifyMinutes=minutes)
         self.mutate(change)
+
+    def set_app(self, tv_id: str, on: bool) -> dict:
+        """Let a Telegram chat open the board's window inside Telegram, or stop it. Only a chat that reads each person: see board/tgapp.py.
+        Cho một chat Telegram mở khung của bảng bên trong Telegram, hoặc thôi. Chỉ chat được đọc từng người: xem board/tgapp.py."""
+        def change(d):
+            if tv_id not in d or d[tv_id].get("kind") != KIND_TELEGRAM:
+                raise ValueError(tx("This screen no longer exists"))
+            if on and d[tv_id].get("scope") != MCP_SCOPE_PEOPLE:
+                raise ValueError(tx("Only a chat that reads each person can open the window, for now."))
+            d[tv_id]["app"] = on
+            return dict(d[tv_id])
+        return self.mutate(change)
 
     def revoke(self, tv_id: str) -> str:
         def change(d):

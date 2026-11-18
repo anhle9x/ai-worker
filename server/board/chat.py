@@ -10,7 +10,7 @@ Nothing here talks to Telegram, and the words a person typed are neither stored 
 import re
 import threading
 
-from board import ask
+from board import ask, tgapp
 from board.lang import speaking, tx
 from board.security import WALL, CallLimit
 from board.settings import KIND_TELEGRAM, TELEGRAM_CALLS_PER_CHAT, TELEGRAM_CALLS_WINDOW_SECONDS, TELEGRAM_STRANGER_SECONDS
@@ -67,6 +67,12 @@ def on_call(msg, now: float) -> dict:
     if isinstance(msg, dict) and "report" in msg:
         TELEGRAM_BOT.report(msg.get("report"), msg.get("bot"), now)
         return {"ok": True, "commands": {language: [list(row) for row in ask.menu(language)] for language in ("en", "vi")}}
+    # once a round the bot process asks which chats' menu buttons to change: the board's window for a chat an admin allowed, the plain
+    # menu for one that lost it (board/tgapp.py)
+    # mỗi vòng tiến trình bot hỏi cần đổi nút menu của chat nào: khung của bảng cho chat được quản trị cho phép, menu thường cho chat
+    # bị bỏ quyền đó (board/tgapp.py)
+    if isinstance(msg, dict) and msg.get("tick") is True:
+        return {"ok": True, "menus": tgapp.MENUS.changes(now), "menuText": tgapp.MENU_TEXT}
     TELEGRAM_BOT.seen(now)
     return on_message(msg, now)
 

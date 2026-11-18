@@ -81,7 +81,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable, NamedTuple, Optional
 from urllib.parse import parse_qs, quote, urlparse
 
-from board import assets, chat, db, mcp, packages, settings
+from board import assets, chat, db, mcp, packages, settings, tgapp
 from board.assets import RELEASE_NAME_RE, STATIC_DIR, STATIC_FILES, has_3d_page
 from board.devices import clean_payload, key_matches, refuse_constant, save_ingest
 from board.lang import REQUEST, lang_from, tx
@@ -133,6 +133,7 @@ from board.settings import (
     DATA_DIR,
     KIND_EXTENSION,
     KIND_MCP,
+    KIND_TELEGRAM,
     KIND_PLUGIN,
     MAX_BODY_BYTES,
     MCP_CALLS_PER_KEY,
@@ -157,6 +158,7 @@ from board.stores import (
     TV_PAIRING,
     TV_STATUS,
     MenubarLimit,
+    chat_key,
     device_label,
     is_menubar_client,
     is_plugin_client,
@@ -203,6 +205,10 @@ class Handler(BaseHTTPRequestHandler):
         # an AI tool with a live MCP key is not probing either; how often it may ask is counted per key, in mcp_post
         # công cụ AI có khoá MCP còn hạn cũng không phải đang dò; nó được hỏi bao nhiêu lần thì đếm theo khoá, trong mcp_post
         if bearer.startswith("mcp_") and self.path == "/mcp" and settings.MCP_ENABLED and TV.find(bearer, now, side=KIND_MCP):
+            return False
+        # nor is the board's window inside Telegram holding a live session; /tg/session counts its own tries per IP and per chat
+        # khung bảng bên trong Telegram đang giữ phiên còn sống cũng vậy; /tg/session tự đếm số lần thử theo IP và theo chat
+        if bearer.startswith(tgapp.SESSION_PREFIX) and self.path in ("/tg/data", "/tg/unpair") and settings.TELEGRAM_APP_ENABLED and tgapp.SESSIONS.owner(bearer, now):
             return False
         # nor is the Telegram bot process of this machine, which shows its own key on its own path
         # tiến trình bot Telegram của chính máy này cũng vậy, nó trình khoá riêng trên đường riêng
@@ -324,6 +330,10 @@ class Handler(BaseHTTPRequestHandler):
         # đường của bot Telegram cũng thế, nó chỉ có mặt khi chủ máy chủ đã bật việc hỏi qua Telegram
         if d and d.telegram_ask and not settings.TELEGRAM_ASK_ENABLED:
             d = None
+        # and for the window inside Telegram, which is there only with TELEGRAM_APP=1 as well
+        # và cho khung bên trong Telegram, chỉ có mặt khi cũng có TELEGRAM_APP=1
+        if d and d.telegram_app and not settings.TELEGRAM_APP_ENABLED:
+            d = None
         if not d:
             return self.reply(404, {"error": tx("Not found")})
         y = self.gate(d)
@@ -366,6 +376,23 @@ class Handler(BaseHTTPRequestHandler):
             if key_matches(self.headers.get("Authorization", ""), settings.TELEGRAM_ASK_KEY):
                 return RequestCtx("bot:telegram", WALL, "", now)
             self.reply(401, {"error": "wrong bot key"})
+            return None
+        if d.permission == PERM_TG_SESSION:
+            # the window inside Telegram: a session from /tg/session, in the Authorization header; cookies count for nothing. The chat is
+            # found again on every call, so a chat revoked or no longer allowed the window is refused at once
+            # khung bên trong Telegram: phiên lấy ở /tg/session, nằm trong header Authorization; cookie không có giá trị gì. Chat được
+            # tìm lại ở mỗi lần gọi, nên chat bị thu hồi hay không còn được mở khung bị từ chối ngay
+            origin = self.headers.get("Origin")
+            if origin and urlparse(origin).netloc != self.headers.get("Host"):
+                self.reply(403, {"error": tx("Wrong origin")})
+                return None
+            telegram_id = tgapp.SESSIONS.owner(self.bearer(), now)
+            chat_row = tgapp.allowed_chat(telegram_id, now) if telegram_id else None
+            if chat_row:
+                return RequestCtx("tg:" + telegram_id, WALL, "", now)
+            if telegram_id:
+                tgapp.SESSIONS.end_chat(telegram_id)
+            self.reply(401, {"error": tx("Close this window and open it again from the chat.")}, quiet=True)
             return None
         if d.permission == PERM_MCP_KEY:
             # an AI tool on the MCP endpoint: its key is in the Authorization header and cookies are ignored. A tool sends no Origin;
@@ -574,6 +601,92 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as e:
             return self.reply(400, {"error": str(e)[:200]})
         AUDIT_LOG.write(action="tv-unpaired-itself", tv=name, id=tv_id, **({"kind": kind} if kind else {}), clientIp=self.client_ip())
+        self.reply(200, {"ok": True})
+
+    def get_tg_app(self, y: "RequestCtx") -> None:
+        """The board's window inside Telegram, in ?lang=en|vi (else the request's language). The page holds no numbers: its script
+        reads Telegram's signed fields from the address and asks /tg/session for a session first.
+        Khung bảng bên trong Telegram, theo ?lang=en|vi (không có thì theo ngôn ngữ của yêu cầu). Trang không chứa số liệu: script của nó
+        đọc các trường Telegram đã ký trong địa chỉ và xin /tg/session một phiên trước."""
+        lang = parse_qs(urlparse(self.path).query).get("lang", [""])[0]
+        if lang in ("en", "vi"):
+            REQUEST.lang = lang
+        self.reply_page(200, page_mini(True, telegram=True))
+
+    def get_tg_file(self, y: "RequestCtx") -> None:
+        """The window's own script and the menu bar window's script and style, served under /tg/ with no login.
+        Script riêng của khung và script, kiểu trình bày của khung thanh menu, phục vụ dưới /tg/ không cần đăng nhập."""
+        file_name = {"/tg/app.js": "tg-app.js", "/tg/mini.js": "mini.js", "/tg/mini.css": "mini.css"}[self.path.split("?", 1)[0]]
+        with open(os.path.join(assets.STATIC_DIR, file_name), "rb") as f:
+            self.reply_page(200, f.read(), content_type=("text/css" if file_name.endswith(".css") else "text/javascript") + "; charset=utf-8", cache_control="no-cache")
+
+    def tg_session(self, y: "RequestCtx") -> None:
+        """Telegram's signed fields in, a session out, for a chat an admin approved and allowed the window. A wrong signature counts as
+        probing; fields that are only too old do not, so a phone left open for a while cannot get its office blocked.
+        Nhận các trường Telegram đã ký, trả một phiên, cho chat đã được quản trị duyệt và cho mở khung. Chữ ký sai tính là dò;
+        các trường chỉ quá cũ thì không, để một điện thoại để mở lâu không làm cả văn phòng bị chặn."""
+        ip = self.client_ip()
+        if not tgapp.SESSION_LIMIT_IP.allow(ip, y.now):
+            return self.reply(429, {"error": tx("Too many tries. Try again in a minute.")})
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = 0
+        if n <= 0 or n > tgapp.INIT_DATA_MAX_BYTES + 256:
+            return self.reply(413, {"error": tx("Too large")})
+        try:
+            body = json.loads(self.rfile.read(n), parse_constant=refuse_constant)
+            raw = body.get("initData") if isinstance(body, dict) else None
+        except ValueError:
+            return self.reply(400, {"error": tx("Not JSON")})
+        telegram_id = tgapp.check_init_data(raw, settings.TELEGRAM_APP_KEY, y.now)
+        if not telegram_id:
+            # the same fields with a signature that still holds, only too old: a quiet answer; anything else is counted against the IP
+            # cùng các trường với chữ ký vẫn đúng, chỉ quá cũ: trả lời êm; mọi thứ khác bị tính vào IP
+            stale = self.signed_but_old(raw)
+            AUDIT_LOG.write(action="telegram-app-refused", reason="old" if stale else "signature", clientIp=ip)
+            return self.reply(401, {"error": tx("Close this window and open it again from the chat.")}, quiet=stale)
+        chat_row = tgapp.allowed_chat(telegram_id, y.now)
+        if not chat_row or not tgapp.SESSION_LIMIT_CHAT.allow(telegram_id, y.now):
+            AUDIT_LOG.write(action="telegram-app-refused", reason="not-allowed" if not chat_row else "rate", telegramId=telegram_id, clientIp=ip)
+            return self.reply(403, {"error": tx("This chat may not open the board's window. Ask an admin of the board.")}, quiet=True)
+        token = tgapp.SESSIONS.issue(telegram_id, y.now)
+        chat_id = TV.id_of(chat_key(telegram_id))
+        TV_STATUS.mark_seen(chat_id, "", y.now)
+        AUDIT_LOG.write(action="telegram-app-open", tv=chat_row["name"], id=chat_id, kind=KIND_TELEGRAM, clientIp=ip)
+        self.reply(200, {"token": token})
+
+    @staticmethod
+    def signed_but_old(raw) -> bool:
+        """Whether Telegram signed these fields, whatever their age: told apart from a forged signature only to choose how to answer.
+        Telegram có ký các trường này không, bất kể chúng cũ bao lâu: chỉ để phân biệt với chữ ký giả khi chọn cách trả lời."""
+        if not isinstance(raw, str):
+            return False
+        signed = re.search(r"(?:^|&)auth_date=([0-9]{1,12})(?:&|$)", raw)
+        return bool(signed) and tgapp.check_init_data(raw, settings.TELEGRAM_APP_KEY, int(signed.group(1))) is not None
+
+    def get_tg_data(self, y: "RequestCtx") -> None:
+        """What the menu bar window reads, for the window inside Telegram: the wall view, as for the browser extension. Only a chat that
+        reads each person gets here (board/tgapp.py), so it shows no more than the chat's own answers already do.
+        Thứ khung thanh menu đọc, cho khung bên trong Telegram: phần màn hình treo tường, như với tiện ích trình duyệt. Chỉ chat được đọc
+        từng người mới tới được đây (board/tgapp.py), nên nó không cho thấy gì hơn các câu trả lời của chính chat đó."""
+        telegram_id = y.user[len("tg:"):]
+        if not tgapp.DATA_LIMIT.allow(telegram_id, y.now):
+            return self.reply(429, {"error": tx("Too many tries. Try again in a minute.")}, quiet=True)
+        TV_STATUS.mark_seen(TV.id_of(chat_key(telegram_id)), "", y.now)
+        self.reply_page(200, json.dumps(role_view(WALL, y.now), ensure_ascii=False).encode(), content_type="application/json; charset=utf-8")
+
+    def tg_unpair(self, y: "RequestCtx") -> None:
+        """The window disconnects its own chat, as /stop in the chat does: the chat reads nothing more until an admin approves it again.
+        Khung ngắt chính chat của nó, như gõ /stop trong chat: chat không đọc được gì nữa cho tới khi quản trị duyệt lại."""
+        telegram_id = y.user[len("tg:"):]
+        chat_id = TV.id_of(chat_key(telegram_id))
+        try:
+            name = TV.revoke(chat_id)
+        except ValueError as e:
+            return self.reply(400, {"error": str(e)[:200]})
+        tgapp.SESSIONS.end_chat(telegram_id)
+        AUDIT_LOG.write(action="telegram-stop", tv=name, id=chat_id, kind=KIND_TELEGRAM, via="window")
         self.reply(200, {"ok": True})
 
     def mini_action(self, y: "RequestCtx") -> None:
@@ -1160,6 +1273,9 @@ PERM_MCP_KEY = "mcp-key"
 # the key of the Telegram bot process, from this machine only: see Handler.from_this_machine
 # khoá của tiến trình bot Telegram, chỉ từ chính máy này: xem Handler.from_this_machine
 PERM_BOT_KEY = "bot-key"
+# a session of the board's window inside Telegram in the Authorization header, given on /tg/session: see board/tgapp.py
+# phiên của khung bảng bên trong Telegram trong header Authorization, cấp ở /tg/session: xem board/tgapp.py
+PERM_TG_SESSION = "tg-session"
 # a request that carries one of these did not come straight from a program on this machine
 # yêu cầu mang một trong các header này thì không tới thẳng từ một chương trình trên máy này
 FORWARDED_HEADERS = ("X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Real-IP", "Forwarded", "Via", "Origin")
@@ -1204,6 +1320,9 @@ class Route(NamedTuple):
     # part of asking the board from Telegram: gone (404) unless TELEGRAM_ASK=1
     # thuộc việc hỏi bảng qua Telegram: biến mất (404) trừ khi TELEGRAM_ASK=1
     telegram_ask: bool = False
+    # part of the board's window inside Telegram: gone (404) unless TELEGRAM_APP=1
+    # thuộc khung bảng bên trong Telegram: biến mất (404) trừ khi TELEGRAM_APP=1
+    telegram_app: bool = False
 
 
 # Every path of the server is listed here; one that is not here is 404. Add a new path to the permission table in test_webhook.py too.
@@ -1245,6 +1364,15 @@ GET_ROUTES = {
     "/telegram": Route(Handler.get_telegram, PERM_NOT_WALL, is_page=True, allow_query=True),
     "/telegram/link": Route(Handler.telegram_link, PERM_NOT_WALL, is_page=True, allow_query=True),
     "/admin/data": Route(Handler.get_admin_data, PERM_ADMIN, allow_query=True),
+    # the board's window inside Telegram: a page with no numbers and its files, all under /tg/ so a proxy can let just that part through;
+    # the numbers come only with a session that /tg/session gives for Telegram's signed fields
+    # khung bảng bên trong Telegram: một trang không có số liệu và các file của nó, đều nằm dưới /tg/ để proxy có thể chỉ cho riêng phần đó đi qua;
+    # số liệu chỉ có khi cầm phiên mà /tg/session cấp cho các trường Telegram đã ký
+    "/tg/app": Route(Handler.get_tg_app, PERM_PUBLIC, allow_query=True, telegram_app=True),
+    "/tg/app.js": Route(Handler.get_tg_file, PERM_PUBLIC, allow_query=True, telegram_app=True),
+    "/tg/mini.js": Route(Handler.get_tg_file, PERM_PUBLIC, allow_query=True, telegram_app=True),
+    "/tg/mini.css": Route(Handler.get_tg_file, PERM_PUBLIC, allow_query=True, telegram_app=True),
+    "/tg/data": Route(Handler.get_tg_data, PERM_TG_SESSION, telegram_app=True),
     # the MCP endpoint takes POST only; do_DELETE comes here too
     # cổng MCP chỉ nhận POST; do_DELETE cũng về đây
     "/mcp": Route(Handler.mcp_not_allowed, PERM_MCP_KEY, mcp=True),
@@ -1281,6 +1409,10 @@ POST_ROUTES = {
     # the Telegram bot process on this machine hands over each message it gets, and is told what to answer
     # tiến trình bot Telegram trên máy này đưa từng tin nó nhận được, và được cho biết phải trả lời gì
     "/bot/telegram": Route(Handler.bot_telegram, PERM_BOT_KEY, telegram_ask=True),
+    # the window inside Telegram trades Telegram's signed fields for a session, and can disconnect its own chat
+    # khung bên trong Telegram đổi các trường Telegram đã ký lấy một phiên, và có thể ngắt chính chat của nó
+    "/tg/session": Route(Handler.tg_session, PERM_PUBLIC, origin_policy=ORIGIN_IF_PRESENT, telegram_app=True),
+    "/tg/unpair": Route(Handler.tg_unpair, PERM_TG_SESSION, telegram_app=True),
     "/mini/handoff": Route(Handler.mini_action, PERM_LOGIN, origin_policy=ORIGIN_IF_PRESENT),
     "/mini/pair": Route(Handler.mini_self_pair, PERM_PUBLIC, origin_policy=ORIGIN_REQUIRED),
     "/mini/settings": Route(Handler.mini_action, PERM_LOGIN, origin_policy=ORIGIN_REQUIRED),
@@ -1295,6 +1427,7 @@ POST_ROUTES = {
     "/admin/tv-approve": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True),
     "/admin/tv-revoke": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True),
     "/admin/tv-rename": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True),
+    "/admin/tv-app": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True),
     # reloading a screen changes no permission or data, so it does not require re-entering the OTP
     # tải lại màn hình không đổi quyền hay dữ liệu gì, nên không bắt nhập lại OTP
     "/admin/tv-reload": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED),

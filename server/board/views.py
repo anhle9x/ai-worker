@@ -30,6 +30,7 @@ from board.devices import (
 from board.lang import tx
 from board.login import SESSIONS
 from board.packages import menubar_extension, menubar_mac_dmg
+from board.tgapp import SESSIONS as TG_APP_SESSIONS
 from board.security import ACCOUNT_NAME_RE, ADMIN, VIEWER, WALL
 from board.settings import (
     DAILY_RECOUNT_SECONDS,
@@ -370,6 +371,16 @@ def tv_action(path: str, body: dict, actor: str) -> tuple:
         TV.check_name(name, tv_id, now)
         TV.rename(tv_id, name)
         return {"action": "tv-rename", "tv": name, "id": tv_id}, {}
+    if path == "/admin/tv-app":
+        # a Telegram chat may open the board's window inside Telegram, or no longer; the bot process sets its menu button within a minute
+        # một chat Telegram được mở khung của bảng bên trong Telegram, hoặc thôi; tiến trình bot đặt nút menu của nó trong vòng một phút
+        tv_id, on = str(body.get("id") or ""), body.get("on")
+        if not isinstance(on, bool):
+            raise ValueError(tx("Invalid settings"))
+        row = TV.set_app(tv_id, on)
+        if not on:
+            TG_APP_SESSIONS.end_chat(str(row.get("telegramId", "")))
+        return {"action": "telegram-app-on" if on else "telegram-app-off", "tv": row["name"], "id": tv_id, "kind": KIND_TELEGRAM}, {}
     code = re.sub(r"\D", "", str(body.get("code") or ""))
     if path == "/admin/tv-view":
         r = TV_PAIRING.peek(code, actor, now)
@@ -424,7 +435,7 @@ def admin_data(now: float, cookie: str, month: str) -> dict:
             "menubarMsi": os.path.isfile(os.path.join(packages.MENUBAR_DIR, "AI-Worker.msi")), "menubarExtension": bool(menubar_extension()),
             # asking the board from Telegram: whether it is turned on, and what the bot process last said about itself
             # hỏi bảng qua Telegram: có đang bật không, và tiến trình bot nói gì gần nhất về chính nó
-            "telegramAsk": dict(TELEGRAM_BOT.read(), on=settings.TELEGRAM_ASK_ENABLED),
+            "telegramAsk": dict(TELEGRAM_BOT.read(), on=settings.TELEGRAM_ASK_ENABLED, app=settings.TELEGRAM_APP_ENABLED),
             # whether /mcp/connect exists, so the page points to it only when it does (MCP=0 turns it off)
             # /mcp/connect có tồn tại không, để trang chỉ trỏ tới khi có (MCP=0 tắt nó)
             "mcpOn": settings.MCP_ENABLED}

@@ -153,6 +153,16 @@ KIND_TELEGRAM = "telegram"
 # TELEGRAM_ASK_KEY là thứ tiến trình đó trình ra ở /bot/telegram; bộ cài tạo nó. Không có khoá từ 32 ký tự trở lên thì vẫn tắt
 TELEGRAM_ASK_KEY = os.environ.get("TELEGRAM_ASK_KEY", "").strip()
 TELEGRAM_ASK_ENABLED = os.environ.get("TELEGRAM_ASK", "0").strip() == "1" and len(TELEGRAM_ASK_KEY) >= 32
+# The board's small window opened inside Telegram (a Telegram Mini App), for chats an admin allows one by one. Off unless the owner sets
+# TELEGRAM_APP=1 and the address of the window, TELEGRAM_APP_URL (https://<board>/tg/app). The installer writes TELEGRAM_APP_KEY, the key
+# Telegram's rule derives from the bot token to sign what it hands the window: it checks a signature but cannot drive the bot.
+# Khung nhỏ của bảng mở bên trong Telegram (một Telegram Mini App), cho từng chat được quản trị cho phép. Tắt trừ khi chủ máy chủ đặt
+# TELEGRAM_APP=1 và địa chỉ của khung, TELEGRAM_APP_URL (https://<bảng>/tg/app). Bộ cài ghi TELEGRAM_APP_KEY, khoá mà quy tắc của Telegram
+# suy ra từ khoá bot để ký thứ nó giao cho khung: khoá này kiểm được chữ ký nhưng không điều khiển được bot.
+TELEGRAM_APP_KEY = os.environ.get("TELEGRAM_APP_KEY", "").strip().lower()
+TELEGRAM_APP_URL = os.environ.get("TELEGRAM_APP_URL", "").strip()
+TELEGRAM_APP_ENABLED = (TELEGRAM_ASK_ENABLED and os.environ.get("TELEGRAM_APP", "0").strip() == "1" and re.fullmatch(r"[0-9a-f]{64}", TELEGRAM_APP_KEY) is not None
+                        and re.fullmatch(r"https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/tg/app", TELEGRAM_APP_URL) is not None)
 TELEGRAM_CHATS_MAX = 50
 # chats waiting for an admin at one time. Counted apart from screens, so strangers who press Start cannot keep a TV from pairing
 # số chat cùng lúc chờ quản trị. Đếm riêng với màn hình, để người lạ bấm Start không làm TV hết chỗ ghép

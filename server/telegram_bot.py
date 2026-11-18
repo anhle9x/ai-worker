@@ -4,7 +4,8 @@ it is for asking the board from a Telegram chat. Run: python3 telegram_bot.py, w
 
 It is a pipe and decides nothing. It asks Telegram for new messages (getUpdates, a call that goes out and waits, so no port is opened),
 hands each one to the webhook on this same machine (POST /bot/telegram), and sends back what the webhook answers. Whether a chat is
-approved, what it may read and how often it may ask is decided by the webhook. This process holds the bot's token and the key of that
+approved, what it may read and how often it may ask is decided by the webhook. Every 20 seconds or so it also asks the webhook which chats'
+menu buttons should open the board's window inside Telegram (TELEGRAM_APP=1), and sets them. This process holds the bot's token and the key of that
 one path, and nothing else: no database, no OTP keys, no send key, no texts of its own. It keeps nothing on disk.
 
 Settings (environment):
@@ -18,7 +19,8 @@ Settings (environment):
 
   Nó là một ống dẫn và không quyết định điều gì. Nó hỏi Telegram có tin mới không (getUpdates, một lời gọi đi ra rồi chờ, nên không mở
   cổng nào), đưa từng tin cho webhook trên chính máy này (POST /bot/telegram), rồi gửi lại thứ webhook trả lời. Chat đã được duyệt chưa,
-  được đọc gì và được hỏi bao nhiêu lần là do webhook quyết định. Tiến trình này cầm khoá của bot và khoá của đúng một đường đó,
+  được đọc gì và được hỏi bao nhiêu lần là do webhook quyết định. Cứ khoảng 20 giây nó cũng hỏi webhook nút menu của chat
+  nào cần mở khung bảng bên trong Telegram (TELEGRAM_APP=1), rồi đặt các nút đó. Tiến trình này cầm khoá của bot và khoá của đúng một đường đó,
   ngoài ra không có gì: không cơ sở dữ liệu, không khoá OTP, không mã gửi, không chữ nào của riêng nó. Nó không ghi gì xuống đĩa.
 
   Cấu hình (môi trường):
@@ -48,6 +50,9 @@ STALE_SECONDS = 120
 # the webhook is told the bot is still running this often, for the Admin page
 # cứ ngần này thì báo cho webhook rằng bot vẫn đang chạy, để trang Quản trị hiện
 HEARTBEAT_SECONDS = 300
+# the webhook is asked which menu buttons to change at most this often
+# hỏi webhook cần đổi nút menu nào tối đa ngần này một lần
+MENU_SECONDS = 20
 # Telegram takes 1 to 4096 characters in one message
 # Telegram nhận 1 tới 4096 ký tự trong một tin
 TEXT_LIMIT = 4096
@@ -93,6 +98,9 @@ class Bot:
         self.state, self.reported_at = "", 0.0
         self.commands_set = False
         self.failures = 0
+        # when the menu buttons were last asked about, and whether the webhook answered the last call at all
+        # lần gần nhất hỏi về nút menu, và webhook có trả lời lời gọi gần nhất không
+        self.menus_at, self.board_down = None, False
 
     def log(self, text: str) -> None:
         """One line for the service's log. The token is taken out if it ever got into the text; messages, names and numbers of people are never put in.
@@ -124,6 +132,7 @@ class Bot:
                 self.sleep(1)
             try:
                 with self.board_opener.open(request, timeout=10) as r:
+                    self.board_down = False
                     return r.status, read_json(r.read(MAX_REPLY_BYTES))
             except urllib.error.HTTPError as e:
                 e.close()
@@ -133,6 +142,7 @@ class Bot:
             except (urllib.error.URLError, http.client.HTTPException, OSError, ValueError):
                 continue
         self.log("the board did not answer on this machine")
+        self.board_down = True
         return 0, {}
 
     def note(self, state: str) -> None:
@@ -197,6 +207,7 @@ class Bot:
             # xác nhận trước khi xử lý: tin không trả lời được thì bỏ, không hỏi lại hết lần này tới lần khác
             self.offset = update["update_id"] + 1
             self.handle(update.get("message"))
+        self.sync_menus()
         # Telegram holds the call until a message comes. Something in between that answers "nothing" at once must not
         # turn this into a loop that calls without pause
         # Telegram giữ lời gọi cho tới khi có tin. Thứ gì đó ở giữa trả lời "không có gì" ngay lập tức thì không được
@@ -266,6 +277,34 @@ class Bot:
             status, reply = self.telegram("sendMessage", payload)
         if status != 200:
             self.log("an answer could not be sent (status %d)" % status)
+
+    def sync_menus(self) -> None:
+        """Ask the webhook which chats' menu buttons to change, and change them: a button that opens the board's window inside Telegram
+        for a chat an admin allowed, the plain menu for one that lost it. The webhook decides; an old webhook answers nothing to this.
+        Hỏi webhook cần đổi nút menu của chat nào, rồi đổi: nút mở khung của bảng bên trong Telegram cho chat được quản trị cho phép,
+        menu thường cho chat bị bỏ quyền đó. Webhook quyết định; webhook bản cũ không trả lời gì cho câu hỏi này."""
+        now = self.clock()
+        if self.board_down or (self.menus_at is not None and now - self.menus_at < MENU_SECONDS):
+            return
+        self.menus_at = now
+        status, answer = self.board({"tick": True})
+        menus, text = answer.get("menus"), answer.get("menuText")
+        if status != 200 or not isinstance(menus, list):
+            return
+        text = text if isinstance(text, str) and 0 < len(text) <= 32 else "AI Worker"
+        for row in menus[:100]:
+            chat_id, url = (row.get("to"), row.get("url")) if isinstance(row, dict) else (None, None)
+            if not isinstance(chat_id, int) or isinstance(chat_id, bool) or chat_id <= 0:
+                continue
+            # Telegram opens only an https:// address in a window; anything else from the webhook is taken as "the plain menu"
+            # Telegram chỉ mở địa chỉ https:// trong một khung; thứ gì khác webhook gửi đều coi như "menu thường"
+            button = {"type": "web_app", "text": text, "web_app": {"url": url}} if isinstance(url, str) and url.startswith("https://") and len(url) <= 512 else {"type": "default"}
+            status, reply = self.telegram("setChatMenuButton", {"chat_id": chat_id, "menu_button": button})
+            if status == 429:
+                self.sleep(self.retry_after(reply, 30))
+                status, reply = self.telegram("setChatMenuButton", {"chat_id": chat_id, "menu_button": button})
+            if status != 200:
+                self.log("a menu button could not be set (status %d)" % status)
 
     def run(self) -> None:
         # the webhook may still be starting: wait for it, and stop at once if it does not take this process

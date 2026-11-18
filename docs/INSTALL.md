@@ -222,6 +222,32 @@ The sample people's names then go through Telegram. Log in to `http://127.0.0.1:
 
 **Tried so far.** With the real Telegram, by hand on macOS as above: pairing a chat, the buttons, the command menu, and answers in both languages. The service the installer sets up, with its own user and its network limit, is covered by the install test on Ubuntu (`tests/linux/test-server.sh`) and has been installed on one production server, where the bot reached Telegram through the limit and a chat that reads totals only was paired. On a phone, Telegram's app refused to forward an answer. A chat that reads each person was tried there once, on 2026-11-17: the cost answer named the person with the highest cost and gave each office its own line. The waiting and quota answers with names in them were not seen, because nobody was waiting and nobody was near a quota.
 
+### The board's window inside Telegram (optional)
+
+A chat that reads each person can also open the small window of the menu bar icon inside Telegram: the number of people waiting, the 7-day cost chart, and the Waiting, Working, Quota and Cost tabs. It is a Telegram Mini App: Telegram shows the bot's menu button as **AI Worker**, and tapping it opens the window. Off until you turn it on, and then only for the chats an admin allows one by one.
+
+**What changes by turning it on.** The window is a page of the board, opened by Telegram's built-in browser on the person's phone or computer. The numbers go straight from the board to that browser over HTTPS, not through Telegram's servers; Telegram knows only that the window was opened. So the phone must reach the board: with the template's Caddy block that means a network on its list of allowed IPs (your offices). Outside them the window says it cannot reach the server, and the chat's buttons still work.
+
+1. **Turn it on.** Asking from Telegram must already work (above). Add these two lines to `/etc/ai-worker.env`, with your board's own address, then run `sudo bash install.sh` in the `server/` folder:
+   ```
+   TELEGRAM_APP=1
+   TELEGRAM_APP_URL=https://board.example.com/tg/app
+   ```
+   The installer writes `TELEGRAM_APP_KEY` next to them: a key it derives from the bot's token by Telegram's rule. The webhook checks with it what Telegram signs for the window, and cannot use it to drive the bot; the token itself stays with the bot process. Correct result: no line about `TELEGRAM_APP_URL`, and on `/admin`, under **TV screens**, each chat that reads each person has an **Allow the window** button.
+2. **Allow a chat.** Click **Allow the window** on the chat's row and confirm. Correct result: the row says *opens the window*, and within a minute the chat's menu button in Telegram turns into **AI Worker**. In Telegram, close the chat and open it again if the old menu still shows.
+3. **Open it.** In the chat, tap **AI Worker** next to the message field. Correct result: the window shows the same numbers as the menu bar icon.
+
+**What to know.**
+
+- **Who may open it:** only a chat an admin approved, that reads each person, and that an admin allowed the window. A chat that reads totals only cannot have it yet: the window draws each person.
+- **How it is checked:** Telegram signs a few fields for the window (who opened it, and when) and puts them after the `#` of the address, so they never reach a log. The page trades them once for a session that lives an hour after its last use, 12 hours at most, in the server's memory only: no cookie. Fields older than 5 minutes are refused.
+- **Ending it:** **Stop the window** or **Revoke** on the Admin page, `/stop` in the chat, or **Disconnect this chat** in the window's settings end every open window of that chat at once. A restart of the server ends the sessions too: close the window and open it again.
+- **In the log:** each opening, each refusal, and each time an admin allows or stops a chat. Never the fields Telegram signed.
+- **To turn it off:** remove the line `TELEGRAM_APP=1` and run `install.sh` again. The paths under `/tg/` answer 404, and the menu buttons go back to the plain menu the next time the bot process runs.
+- **Opening it from outside your offices** needs the proxy to let `/tg/` in from anywhere, which is a decision about exposing the board. It is not part of this release.
+
+**Tried so far.** The checks of Telegram's signature, the sessions, the limits and the menu buttons are covered by the server tests (`server/test_webhook.py`, `TelegramApp`; `server/test_telegram_bot.py`, `MenuButtons`), and the installer's key by the install test on Ubuntu. The window itself has been looked at in a browser at phone and computer width, with fields signed by the tests. Not yet tried in Telegram's own apps: Android, iPhone or Telegram Desktop.
+
 ## Releasing an update
 
 1. Change `version` in `.claude-plugin/plugin.json`.

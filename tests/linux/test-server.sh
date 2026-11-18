@@ -113,6 +113,22 @@ check 'the token is neither printed nor logged nor in the unit' '! grep -qF "$FA
 check 'the key is the same after the second run, once on each side' '[ "$(sed -n "s/^TELEGRAM_ASK_KEY=//p" "$ENV_FILE")" = "$ASK_KEY" ] && [ "$(grep -c "^TELEGRAM_ASK_KEY=" $BOT_ENV)" = 1 ]'
 check 'the webhook is still active' '[ "$(systemctl is-active $SERVICE)" = active ]'
 
+# the board's window inside Telegram: the installer derives the webhook's key from the token, and never writes the token there
+# khung bảng bên trong Telegram: bộ cài suy ra khoá của webhook từ khoá bot, và không bao giờ ghi khoá bot vào đó
+printf 'TELEGRAM_APP=1\nTELEGRAM_APP_URL=https://board.example.com/tg/app\n' >> "$ENV_FILE"
+AI_WORKER_LANG=en bash server/install.sh > /tmp/server-ask.txt 2>&1
+RESULT=$?
+sleep 2
+APP_KEY_WANT=$(printf '%s' "$FAKE_TOKEN" | python3 -c 'import hashlib, hmac, sys; print(hmac.new(b"WebAppData", sys.stdin.read().encode(), hashlib.sha256).hexdigest())')
+check 'window: exit 0' '[ "$RESULT" = 0 ]'
+check 'window: the key is derived from the token, written once' '[ "$(grep -c "^TELEGRAM_APP_KEY=" "$ENV_FILE")" = 1 ] && grep -qx "TELEGRAM_APP_KEY=$APP_KEY_WANT" "$ENV_FILE"'
+check 'window: the token is not in the webhook settings' '! grep -qF "$FAKE_TOKEN" "$ENV_FILE"'
+check 'window: the page is there' '[ "$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT/tg/app")" = 200 ]'
+sed -i '/^TELEGRAM_APP=1/d' "$ENV_FILE"
+AI_WORKER_LANG=en bash server/install.sh > /dev/null 2>&1
+sleep 2
+check 'window off: the key is gone and so is the page' '! grep -q "^TELEGRAM_APP_KEY=" "$ENV_FILE" && [ "$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT/tg/app")" = 404 ]'
+
 # a list of the owner's own, then no limit
 # danh sách riêng của chủ máy, rồi không giới hạn
 sed -i 's#^TELEGRAM_NETS=.*#TELEGRAM_NETS=203.0.113.0/24, 2001:db8::/32#' $BOT_ENV

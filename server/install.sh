@@ -153,6 +153,24 @@ EOF
   printf 'TELEGRAM_ASK_KEY=%s\nPORT=%s\n' "$ASK_KEY" "${BOT_PORT:-$PORT}" >> "$BOT_ENV"
 fi
 
+# The board's window inside Telegram (optional): on only with TELEGRAM_APP=1 as well. The webhook gets a key derived from the bot's token
+# by Telegram's rule, which checks what Telegram signs for the window but cannot drive the bot; the token itself stays with the bot process.
+# Khung bảng bên trong Telegram (tuỳ chọn): chỉ bật khi có thêm TELEGRAM_APP=1. Webhook nhận một khoá suy ra từ khoá bot theo quy tắc
+# của Telegram, khoá này kiểm được phần Telegram ký cho khung nhưng không điều khiển được bot; bản thân khoá bot vẫn chỉ nằm ở tiến trình bot.
+sed -i '/^TELEGRAM_APP_KEY=/d' "$ENV"
+if [ "$ASK" = 1 ] && grep -q '^TELEGRAM_APP=1[[:space:]]*$' "$ENV"; then
+  APP_TOKEN=$(sed -n 's/^TELEGRAM_ASK_TOKEN=//p' "$BOT_ENV" | tail -n 1 | tr -d '[:space:]')
+  if [ -n "$APP_TOKEN" ]; then
+    # the token goes in on stdin, not on the command line, where other users could read it
+    # khoá bot đi vào qua stdin, không nằm trên dòng lệnh, nơi người dùng khác có thể đọc được
+    APP_KEY=$(printf '%s' "$APP_TOKEN" | python3 -c 'import hashlib, hmac, sys; print(hmac.new(b"WebAppData", sys.stdin.read().encode(), hashlib.sha256).hexdigest())')
+    echo "TELEGRAM_APP_KEY=$APP_KEY" >> "$ENV"
+  fi
+  if ! grep -Eq '^TELEGRAM_APP_URL=https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/tg/app[[:space:]]*$' "$ENV"; then
+    say "  The window inside Telegram is on, but TELEGRAM_APP_URL is missing or wrong in $ENV: set it to https://<your board's address>/tg/app, then run this installer again." "  Khung bên trong Telegram đang bật, nhưng TELEGRAM_APP_URL trong $ENV thiếu hoặc sai: đặt thành https://<địa chỉ bảng của bạn>/tg/app, rồi chạy lại bộ cài này."
+  fi
+fi
+
 cat > /etc/systemd/system/ai-worker-webhook.service <<EOF
 [Unit]
 Description=AI Worker Office dashboard webhook

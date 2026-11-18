@@ -513,6 +513,14 @@ class RoutePermissions(unittest.TestCase):
         # trang xin khoá mở như trang ghép TV: không cấp gì cho tới khi quản trị duyệt mã của nó
         "/mcp/connect": (200, 200, 200, 200, 200),
         "/mcp-connect.js": (200, 200, 200, 200, 200),
+        # the board's window inside Telegram is off in the tests: its paths answer as if they were not there
+        # khung bảng bên trong Telegram tắt khi chạy thử: các đường của nó trả lời như không có
+        "/tg/app": (404, 404, 404, 404, 404),
+        "/tg/app?lang=vi": (404, 404, 404, 404, 404),
+        "/tg/app.js": (404, 404, 404, 404, 404),
+        "/tg/mini.js": (404, 404, 404, 404, 404),
+        "/tg/mini.css": (404, 404, 404, 404, 404),
+        "/tg/data": (404, 404, 404, 404, 404),
         "/.well-known/oauth-protected-resource": (404, 404, 404, 404, 404),
         "/.well-known/oauth-protected-resource/mcp": (404, 404, 404, 404, 404),
         "/.well-known/oauth-authorization-server": (404, 404, 404, 404, 404),
@@ -522,9 +530,9 @@ class RoutePermissions(unittest.TestCase):
         "/missing": (404, 404, 404, 404, 404),
     }
     POST_ADMIN = ("/locations", "/team-csv", "/team-sale", "/admin/confirm", "/admin/accounts", "/admin/sessions",
-                     "/admin/tv-view", "/admin/tv-approve", "/admin/tv-revoke", "/admin/tv-rename", "/admin/tv-reload")
+                     "/admin/tv-view", "/admin/tv-approve", "/admin/tv-revoke", "/admin/tv-rename", "/admin/tv-reload", "/admin/tv-app")
     NEEDS_OTP_CONFIRM = ("/admin/accounts", "/admin/sessions", "/admin/tv-view", "/admin/tv-approve",
-                        "/admin/tv-revoke", "/admin/tv-rename")
+                        "/admin/tv-revoke", "/admin/tv-rename", "/admin/tv-app")
 
     @classmethod
     def setUpClass(cls):
@@ -1079,7 +1087,7 @@ class RoutePermissions(unittest.TestCase):
         self.assertEqual(set(w.POST_ROUTES), set(self.POST_ADMIN) | {"/ingest", "/login", "/logout", "/tv/request-code", "/tv/poll",
                                                                        "/mini/handoff", "/mini/settings", "/mini/unpair", "/mini/pair",
                                                                        "/ext/request-code", "/ext/poll", "/ext/unpair", "/telegram/start", "/telegram/unlink",
-                                                                       "/mcp", "/mcp/request-code", "/mcp/poll", "/bot/telegram"})
+                                                                       "/mcp", "/mcp/request-code", "/mcp/poll", "/bot/telegram", "/tg/session", "/tg/unpair"})
 
     def test_the_telegram_bots_path_is_not_there_until_it_is_turned_on(self):
         self.assertFalse(settings.TELEGRAM_ASK_ENABLED)
@@ -2417,7 +2425,7 @@ class TelegramAsk(unittest.TestCase):
         settings.TELEGRAM_ASK_ENABLED = False
         stores.TELEGRAM_BOT.__init__()
         d = json.loads(self.call("GET", "/admin/data", Cookie="session=tok-tg-adm")[1])
-        self.assertEqual(d["telegramAsk"], {"on": False, "state": "", "bot": "", "seenAt": 0})
+        self.assertEqual(d["telegramAsk"], {"on": False, "app": False, "state": "", "bot": "", "seenAt": 0})
 
     def test_the_bot_process_between_a_fake_telegram_and_this_server(self):
         """The whole way: a person writes in Telegram (played by FakeTelegram), the real bot process reads it and asks this server,
@@ -3813,7 +3821,7 @@ class PageMatchesServer(unittest.TestCase):
         allowed = {
             "/admin/accounts": body_reads(inspect.getsource(views.manage_account)),
             "/admin/sessions": body_reads(branch("/admin/sessions")),
-            "/admin/tv-approve": tv, "/admin/tv-reload": tv, "/admin/tv-rename": tv, "/admin/tv-revoke": tv, "/admin/tv-view": tv,
+            "/admin/tv-approve": tv, "/admin/tv-reload": tv, "/admin/tv-rename": tv, "/admin/tv-revoke": tv, "/admin/tv-view": tv, "/admin/tv-app": tv,
             "/locations": body_reads(inspect.getsource(views.edit_location)),
             "/team-csv": body_reads(branch("/team-csv")),
             "/team-sale": body_reads(branch("/team-sale")),
@@ -3954,6 +3962,251 @@ class PageMatchesServer(unittest.TestCase):
     def test_web_copies_match_server(self):
         for name in ("i18n.js", "ops.vi.js", "ops.js", "ops.css", "ops3d.js"):
             self.assertEqual(read_text("..", "web", name), read_text("static", name), name)
+
+
+class TelegramApp(unittest.TestCase):
+    """The board's window inside Telegram. These tests play Telegram, which signs a few fields for the window with a key derived from
+    the bot's token, and the bot process, which pairs a chat on /bot/telegram. Only a chat an admin allowed, and that reads each person,
+    gets a session; every later call finds the chat again, so revoking it ends the window at once.
+    Khung bảng bên trong Telegram. Các bài test này đóng vai Telegram, bên ký vài trường cho khung bằng một khoá suy ra từ khoá bot,
+    và vai tiến trình bot, bên ghép chat ở /bot/telegram. Chỉ chat được quản trị cho phép, và được đọc từng người, mới nhận phiên;
+    mỗi lần gọi sau đó lại tìm chat, nên thu hồi chat là khung hết dùng được ngay."""
+
+    KEY = TelegramAsk.KEY
+    TOKEN = "123456789:" + "A" * 35
+    URL = "https://board.example.com/tg/app"
+    HOA, LAN = TelegramAsk.HOA, "700100299"
+    setUpClass = classmethod(TelegramAsk.setUpClass.__func__)
+    tearDownClass = classmethod(TelegramAsk.tearDownClass.__func__)
+    call, bot, say, admin, code_for, pair = TelegramAsk.call, TelegramAsk.bot, TelegramAsk.say, TelegramAsk.admin, TelegramAsk.code_for, TelegramAsk.pair
+
+    def setUp(self):
+        TelegramAsk.setUp(self)
+        from board import tgapp
+        self.tgapp = tgapp
+        tgapp.SESSIONS.__init__()
+        tgapp.MENUS.__init__()
+        for limit, args in ((tgapp.SESSION_LIMIT_IP, (10, 60)), (tgapp.SESSION_LIMIT_CHAT, (20, 600)), (tgapp.DATA_LIMIT, (60, 600))):
+            limit.__init__(*args)
+        self.app_was = (settings.TELEGRAM_APP_ENABLED, settings.TELEGRAM_APP_KEY, settings.TELEGRAM_APP_URL)
+        settings.TELEGRAM_APP_ENABLED, settings.TELEGRAM_APP_KEY, settings.TELEGRAM_APP_URL = True, tgapp.app_key_from_token(self.TOKEN), self.URL
+
+    def tearDown(self):
+        settings.TELEGRAM_APP_ENABLED, settings.TELEGRAM_APP_KEY, settings.TELEGRAM_APP_URL = self.app_was
+        TelegramAsk.tearDown(self)
+
+    def signed(self, who=None, age=0, token=None, **fields):
+        """The fields Telegram hands the window, signed by Telegram's rule with the bot's token.
+        Các trường Telegram giao cho khung, ký theo quy tắc của Telegram bằng khoá bot."""
+        data = dict({"auth_date": str(int(time.time() - age)), "query_id": "AAH-test", "user": json.dumps({"id": int(who or self.HOA), "first_name": "Hoa", "username": "hoa_ql"})}, **fields)
+        check = "\n".join("%s=%s" % (k, data[k]) for k in sorted(data))
+        secret = hmac.new(b"WebAppData", (token or self.TOKEN).encode(), hashlib.sha256).digest()
+        data["hash"] = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
+        return urllib.parse.urlencode(data)
+
+    def session(self, init_data, **headers):
+        status, b = self.call("POST", "/tg/session", json.dumps({"initData": init_data}), **headers)
+        return status, json.loads(b)
+
+    def chat_row(self, who=None):
+        return next((k, v) for k, v in stores.TV.d.items() if v.get("telegramId") == (who or self.HOA))
+
+    def allowed(self, who=None, name="Hoa on Telegram"):
+        """A chat that reads each person, paired and then allowed the window by an admin. Returns its row id.
+        Một chat đọc từng người, đã ghép rồi được quản trị cho mở khung. Trả id dòng của nó."""
+        self.pair(who, name=name, scope="people")
+        tv_id = self.chat_row(who)[0]
+        self.assertEqual(self.admin("/admin/tv-app", {"id": tv_id, "on": True})[0], 200)
+        return tv_id
+
+    def open_window(self, who=None):
+        status, d = self.session(self.signed(who))
+        self.assertEqual(status, 200, d)
+        return d["token"]
+
+    def test_a_chat_allowed_the_window_reads_the_wall_view(self):
+        self.allowed()
+        token = self.open_window()
+        status, b = self.call("GET", "/tg/data", Authorization="Bearer " + token)
+        self.assertEqual(status, 200)
+        # the same view a wall screen and the browser extension read, nothing more
+        # đúng phần màn hình treo tường và tiện ích trình duyệt đọc, không hơn
+        d = json.loads(b)
+        self.assertEqual(set(d), set(views.role_view(security.WALL, time.time())))
+        for private in ("@example.com", IP_LAN, IP_PUBLIC, "device-an"):
+            self.assertNotIn(private, b.decode())
+
+    def test_the_page_has_no_numbers_and_loads_only_its_own_files(self):
+        status, b = self.call("GET", "/tg/app?lang=vi")
+        self.assertEqual(status, 200)
+        page = b.decode()
+        self.assertIn('src="/tg/app.js?v=', page)
+        self.assertIn('src="/tg/mini.js?v=', page)
+        self.assertIn('href="/tg/mini.css?v=', page)
+        self.assertNotIn("/static/", page)
+        self.assertNotIn('href="/board"', page)
+        self.assertIn(lang.VI["Disconnect this chat"], page)
+        # a chat has no alert setting yet: the row is there for mini.js, and never shown
+        # chat chưa có cài đặt báo: dòng đó có mặt cho mini.js, và không bao giờ hiện
+        self.assertIn('<div class="row" hidden style="display:none"><label><input type="checkbox" id="notify">', page)
+        for name in ("Hoa", "@example.com", IP_LAN):
+            self.assertNotIn(name, page)
+        # every file exactly as the page asks for it, with its ?v=
+        # mọi file đúng như trang gọi, kèm ?v=
+        files = re.findall(r'(?:src|href)="(/tg/[^"]+)"', page)
+        self.assertEqual(len(files), 3, files)
+        for path in files:
+            self.assertEqual(self.call("GET", path)[0], 200, path)
+
+    def test_the_paths_are_gone_unless_it_is_turned_on(self):
+        self.allowed()
+        token = self.open_window()
+        settings.TELEGRAM_APP_ENABLED = False
+        for method, path in (("GET", "/tg/app"), ("GET", "/tg/app.js"), ("GET", "/tg/mini.js"), ("GET", "/tg/data"), ("POST", "/tg/session"), ("POST", "/tg/unpair")):
+            self.assertEqual(self.call(method, path, "{}" if method == "POST" else None, Authorization="Bearer " + token)[0], 404, path)
+
+    def test_no_session_for_a_chat_that_was_not_allowed(self):
+        self.assertEqual(self.session(self.signed())[0], 403)
+        self.pair(scope="people")
+        self.assertEqual(self.session(self.signed())[0], 403)
+        self.assertEqual(self.session(self.signed(self.LAN))[0], 403)
+
+    def test_a_chat_that_reads_totals_only_cannot_be_allowed_the_window(self):
+        self.pair()
+        tv_id = self.chat_row()[0]
+        status, d = self.admin("/admin/tv-app", {"id": tv_id, "on": True})
+        self.assertEqual(status, 400)
+        self.assertIn("reads each person", d["error"])
+        self.assertNotIn("app", stores.TV.d[tv_id])
+        self.assertEqual(self.session(self.signed())[0], 403)
+
+    def test_fields_not_signed_by_telegram_are_refused(self):
+        self.allowed()
+        good = self.signed()
+        bad = [
+            self.signed(token="987654321:" + "B" * 35),
+            good.replace("hash=", "hash=0")[:-1],
+            re.sub(r"query_id=[^&]+", "query_id=other", good),
+            good.replace("hoa_ql", "lan_kt"),
+            self.signed(age=self.tgapp.INIT_DATA_SECONDS + 5),
+            self.signed(age=-120),
+            good + "&auth_date=1",
+            "",
+            "x" * 5000,
+        ]
+        for raw in bad:
+            self.assertEqual(self.session(raw)[0], 401 if len(raw) < 4500 else 413, raw[:80])
+        user_less = {"auth_date": str(int(time.time())), "query_id": "q"}
+        check = "\n".join("%s=%s" % (k, user_less[k]) for k in sorted(user_less))
+        user_less["hash"] = hmac.new(bytes.fromhex(settings.TELEGRAM_APP_KEY), check.encode(), hashlib.sha256).hexdigest()
+        self.assertEqual(self.session(urllib.parse.urlencode(user_less))[0], 401)
+        self.tgapp.SESSION_LIMIT_IP.__init__(10, 60)
+        security.BOT.__init__()
+        self.assertEqual(self.session(good)[0], 200)
+
+    def test_only_old_fields_are_answered_quietly(self):
+        # a phone left open for an hour is not probing; a forged signature is
+        # điện thoại để mở một giờ không phải đang dò; chữ ký giả thì là đang dò
+        self.allowed()
+        security.BOT.__init__()
+        self.assertEqual(self.session(self.signed(age=3600))[0], 401)
+        self.assertEqual(security.BOT.error, {})
+        self.assertEqual(self.session(self.signed(token="987654321:" + "B" * 35))[0], 401)
+        self.assertNotEqual(security.BOT.error, {})
+
+    def test_revoking_the_chat_or_taking_the_window_away_ends_the_session_at_once(self):
+        tv_id = self.allowed()
+        token = self.open_window()
+        self.assertEqual(self.admin("/admin/tv-app", {"id": tv_id, "on": False})[0], 200)
+        self.assertEqual(self.call("GET", "/tg/data", Authorization="Bearer " + token)[0], 401)
+        self.assertEqual(self.admin("/admin/tv-app", {"id": tv_id, "on": True})[0], 200)
+        token = self.open_window()
+        self.assertEqual(self.admin("/admin/tv-revoke", {"id": tv_id})[0], 200)
+        self.assertEqual(self.call("GET", "/tg/data", Authorization="Bearer " + token)[0], 401)
+        self.assertEqual(self.session(self.signed())[0], 403)
+
+    def test_stop_in_the_chat_ends_the_window_too(self):
+        self.allowed()
+        token = self.open_window()
+        self.say("/stop")
+        self.assertEqual(self.call("GET", "/tg/data", Authorization="Bearer " + token)[0], 401)
+
+    def test_the_window_can_disconnect_its_own_chat(self):
+        tv_id = self.allowed()
+        token = self.open_window()
+        status, b = self.call("POST", "/tg/unpair", "", Authorization="Bearer " + token)
+        self.assertEqual(status, 200)
+        self.assertNotIn(tv_id, stores.TV.d)
+        self.assertEqual(self.call("GET", "/tg/data", Authorization="Bearer " + token)[0], 401)
+        self.assertIn("not connected", self.say("hello")["text"])
+
+    def test_nothing_else_opens_the_window_and_the_session_opens_nothing_else(self):
+        self.allowed()
+        token = self.open_window()
+        tv_key = "tv_" + "a" * 40
+        for headers in ({}, {"Cookie": "session=tok-tg-adm"}, {"Authorization": "Bearer " + tv_key}, {"Authorization": "Bearer mcp_" + "a" * 40},
+                        {"Authorization": "Bearer tg_" + self.HOA}, {"Authorization": "Bearer " + self.KEY}, {"Authorization": "Bearer tgs_" + "a" * 43}):
+            self.assertEqual(self.call("GET", "/tg/data", **headers)[0], 401, headers)
+        for method, path in (("GET", "/data"), ("GET", "/ext/data"), ("GET", "/admin/data"), ("POST", "/mcp"), ("POST", "/bot/telegram"), ("GET", "/history")):
+            status = self.call(method, path, "{}" if method == "POST" else None, Authorization="Bearer " + token)[0]
+            self.assertIn(status, (303, 401, 403, 404), path)
+            self.assertNotEqual(status, 200, path)
+        self.assertEqual(self.call("GET", "/tg/data", Authorization="Bearer " + token, Origin="https://evil.example")[0], 403)
+
+    def test_a_chat_keeps_three_sessions_at_most(self):
+        self.allowed()
+        tokens = [self.open_window() for _ in range(4)]
+        self.assertEqual(self.call("GET", "/tg/data", Authorization="Bearer " + tokens[0])[0], 401)
+        for token in tokens[1:]:
+            self.assertEqual(self.call("GET", "/tg/data", Authorization="Bearer " + token)[0], 200)
+
+    def test_sessions_and_reads_are_limited(self):
+        self.allowed()
+        statuses = [self.session(self.signed())[0] for _ in range(12)]
+        self.assertEqual(statuses[:10], [200] * 10)
+        self.assertEqual(statuses[10:], [429, 429])
+        self.tgapp.SESSION_LIMIT_IP.__init__(10, 60)
+        token = self.open_window()
+        reads = [self.call("GET", "/tg/data", Authorization="Bearer " + token)[0] for _ in range(self.tgapp.DATA_LIMIT.per_window + 1)]
+        self.assertEqual(reads[-1], 429)
+        self.assertEqual(set(reads[:-1]), {200})
+
+    def test_the_bot_is_told_which_menu_buttons_to_set(self):
+        self.pair(scope="people")
+        status, d = self.bot({"tick": True})
+        self.assertEqual((status, d["menus"]), (200, [{"to": int(self.HOA), "url": None}]))
+        self.assertEqual(self.bot({"tick": True})[1]["menus"], [])
+        tv_id = self.chat_row()[0]
+        self.admin("/admin/tv-app", {"id": tv_id, "on": True})
+        self.assertEqual(self.bot({"tick": True})[1]["menus"], [{"to": int(self.HOA), "url": self.URL}])
+        self.admin("/admin/tv-revoke", {"id": tv_id})
+        self.assertEqual(self.bot({"tick": True})[1]["menus"], [{"to": int(self.HOA), "url": None}])
+        self.assertEqual(self.bot({"tick": True}, key="wrong" + self.KEY)[0], 401)
+
+    def test_opening_and_refusals_are_logged_without_the_signed_fields(self):
+        self.allowed()
+        raw = self.signed()
+        self.assertEqual(self.session(raw)[0], 200)
+        self.session(self.signed(token="987654321:" + "B" * 35))
+        rows = stores.AUDIT_LOG.read(datetime.now(settings.LOCAL_TZ).strftime("%Y-%m"), 50)
+        actions = [r.get("action") for r in rows]
+        self.assertIn("telegram-app-open", actions)
+        self.assertIn("telegram-app-on", actions)
+        self.assertIn("telegram-app-refused", actions)
+        logged = json.dumps(rows)
+        self.assertNotIn(raw.split("hash=")[1], logged)
+        self.assertNotIn("AAH-test", logged)
+
+    def test_the_key_the_installer_writes_follows_telegrams_rule(self):
+        self.assertEqual(self.tgapp.app_key_from_token(self.TOKEN), hmac.new(b"WebAppData", self.TOKEN.encode(), hashlib.sha256).hexdigest())
+        src = read_text("install.sh")
+        self.assertIn('hmac.new(b"WebAppData", sys.stdin.read().encode(), hashlib.sha256).hexdigest()', src)
+        self.assertNotIn("TELEGRAM_APP_KEY=$APP_TOKEN", src)
+
+    def test_turned_on_only_with_a_key_an_address_and_asking_from_telegram(self):
+        src = read_text("board", "settings.py")
+        self.assertIn('TELEGRAM_APP_ENABLED = (TELEGRAM_ASK_ENABLED and os.environ.get("TELEGRAM_APP", "0").strip() == "1"', src)
+        self.assertIn('/tg/app", TELEGRAM_APP_URL)', src)
 
 
 if __name__ == "__main__":

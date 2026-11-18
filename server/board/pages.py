@@ -581,12 +581,16 @@ MINI_PAIR_JS = """
 """
 
 
-def page_mini(paired: bool, browser: bool = False) -> bytes:
+def page_mini(paired: bool, browser: bool = False, telegram: bool = False) -> bytes:
     """The small window under the menu bar icon (about 360x480). Its words come translated in data-words; the numbers come from /data.
     browser=True is the same window for the manager browser extension (/ext/mini): only the unpair words say "this browser".
     Khung nhỏ dưới biểu tượng thanh menu (khoảng 360x480). Chữ được dịch sẵn trong data-words; số liệu lấy từ /data.
-    browser=True là cùng khung đó cho tiện ích trình duyệt của quản lý (/ext/mini): chỉ chữ bỏ ghép ghi "trình duyệt này"."""
-    unpair = tx("Unpair this browser") if browser else tx("Unpair this computer")
+    browser=True là cùng khung đó cho tiện ích trình duyệt của quản lý (/ext/mini): chỉ chữ bỏ ghép ghi "trình duyệt này".
+    telegram=True is the same window inside Telegram (/tg/app): its files come from /tg/, its first script trades Telegram's signed fields
+    for a session (static/tg-app.js), and it has no board link and no alert setting, which a chat does not have yet.
+    telegram=True là cùng khung đó bên trong Telegram (/tg/app): các file của nó lấy từ /tg/, script đầu tiên đổi các trường Telegram đã ký
+    lấy một phiên (static/tg-app.js), và nó không có liên kết tới bảng hay cài đặt báo, thứ một chat chưa có."""
+    unpair = tx("Disconnect this chat") if telegram else tx("Unpair this browser") if browser else tx("Unpair this computer")
     # in the apps the three buttons (unpair, quit, uninstall) share one row, so their labels are short; the questions stay in full
     # trong app ba nút (bỏ ghép, thoát, gỡ app) nằm cùng một dòng nên chữ trên nút ngắn; câu hỏi vẫn ghi đủ
     words = json.dumps({
@@ -616,8 +620,10 @@ def page_mini(paired: bool, browser: bool = False) -> bytes:
         "Unpair this computer": unpair,
         "Remove the app": tx("Remove the app"),
         "Cancel": tx("Cancel"),
-        "Unpair this computer? You will need a new code from an admin.": tx("Unpair this browser? You will need a new code from an admin.") if browser
-        else tx("Unpair this computer? You will need a new code from an admin."),
+        "Unpair this computer? You will need a new code from an admin.": tx("Disconnect this chat? It reads nothing more until an admin approves it again.") if telegram
+        else tx("Unpair this browser? You will need a new code from an admin.") if browser else tx("Unpair this computer? You will need a new code from an admin."),
+        **({"Close this window and open it again from the chat.": tx("Close this window and open it again from the chat."),
+            "Open this window from the bot's menu button in Telegram.": tx("Open this window from the bot's menu button in Telegram.")} if telegram else {}),
         "Saved": tx("Saved"),
         "Could not save": tx("Could not save"),
         "5-hour": tx("5-hour"),
@@ -632,8 +638,8 @@ def page_mini(paired: bool, browser: bool = False) -> bytes:
         "Remove the app from this computer? This computer is unpaired and the app is removed.": tx("Remove the app from this computer? This computer is unpaired and the app is removed."),
     }, ensure_ascii=False)
     head = ('<!doctype html><html lang="%s"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            '<meta name="color-scheme" content="light dark"><title>%s</title><link rel="stylesheet" href="/static/mini.css?v=__V_MINI_CSS__"></head>'
-            % (current_lang(), html.escape(tx("AI Worker")))).replace("__V_MINI_CSS__", asset_version("mini.css"))
+            '<meta name="color-scheme" content="light dark"><title>%s</title><link rel="stylesheet" href="%s?v=__V_MINI_CSS__"></head>'
+            % (current_lang(), html.escape(tx("AI Worker")), "/tg/mini.css" if telegram else "/static/mini.css")).replace("__V_MINI_CSS__", asset_version("mini.css"))
     if not paired:
         return (head + '<body><main class="mini" style="font:14px -apple-system,Segoe UI,sans-serif;padding:16px"><header><span class="logo" aria-hidden="true"></span><b>%s</b></header>'
                 '<p class="empty">%s</p></main></body></html>' % (
@@ -650,18 +656,20 @@ def page_mini(paired: bool, browser: bool = False) -> bytes:
             '<button role="tab" data-tab="settings"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2.2"/><path stroke-width="3" stroke-linecap="butt" d="M12 2.6v3M12 18.4v3M2.6 12h3M18.4 12h3M5.4 5.4l2.1 2.1M16.5 16.5l2.1 2.1M5.4 18.6l2.1-2.1M16.5 7.5l2.1-2.1"/></svg><span class="lbl">__L_settings__</span></button></nav>'
             '<h2 id="title"></h2><ul id="list"></ul>'
             '<section id="settings" class="settings" hidden>'
-            '<div class="row"><label><input type="checkbox" id="notify"> <span>%s</span></label> <select id="minutes">%s</select> <span>%s</span></div>'
+            '<div class="row"%s><label><input type="checkbox" id="notify"> <span>%s</span></label> <select id="minutes">%s</select> <span>%s</span></div>'
             '<div class="row app-only"><label><input type="checkbox" id="login"> <span>%s</span></label></div>'
             '<div class="row"><label for="lang">%s</label> <select id="lang"><option value="en">English</option><option value="vi">Tiếng Việt</option></select></div>'  # i18n-allow: each language is named in itself
             '<small id="saved" role="status"></small>'
             '<div class="actions"><button id="unpair" class="btn">%s</button><button id="quit" class="btn app-only">%s</button><button id="uninstall" class="btn danger app-only">%s</button></div></section>'
-            '<footer><a class="btn primary" href="/board" target="_blank" rel="noopener">%s</a></footer>'
-            '</main><script src="/static/mini.js?v=__V_MINI_JS__"></script></body></html>' % (
+            '%s'
+            '</main>%s</body></html>' % (
                 html.escape(words, quote=True), current_lang(), USD_RATE, html.escape(tx("AI Worker")),
-                html.escape(tx("Notify when a wait passes")),
+                ' hidden style="display:none"' if telegram else "", html.escape(tx("Notify when a wait passes")),
                 "".join('<option value="%d">%d</option>' % (m, m) for m in MINI_NOTIFY_MINUTES), html.escape(tx("min")),
-                html.escape(tx("Start at login")), html.escape(tx("Language")), html.escape(unpair if browser else tx("Unpair")), html.escape(tx("Quit")), html.escape(tx("Uninstall")),
-                html.escape(tx("Open board")))).replace("__V_MINI_JS__", asset_version("mini.js"))
+                html.escape(tx("Start at login")), html.escape(tx("Language")), html.escape(unpair if browser or telegram else tx("Unpair")), html.escape(tx("Quit")), html.escape(tx("Uninstall")),
+                "" if telegram else '<footer><a class="btn primary" href="/board" target="_blank" rel="noopener">%s</a></footer>' % html.escape(tx("Open board")),
+                '<script src="/tg/app.js?v=__V_TG_JS__"></script><script src="/tg/mini.js?v=__V_MINI_JS__"></script>' if telegram
+                else '<script src="/static/mini.js?v=__V_MINI_JS__"></script>')).replace("__V_MINI_JS__", asset_version("mini.js")).replace("__V_TG_JS__", asset_version("tg-app.js"))
             .replace("__L_waiting__", html.escape(tx("Waiting"))).replace("__L_working__", html.escape(tx("Working"))).replace("__L_quota__", html.escape(tx("Quota")))
             .replace("__L_cost__", html.escape(tx("Cost"))).replace("__L_settings__", html.escape(tx("Settings")))).encode()
 
