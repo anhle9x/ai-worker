@@ -310,3 +310,39 @@ test("a subagent's own transcript is compacted as the engine would: no added ins
   expect(seen.instructions).toEqual([undefined])
   expect(seen.toasts).toEqual([])
 })
+
+/** A session at `percent` of its context, then the person's messages: returns what Claude was given beside each one. */
+async function toldBeside($: Engine, on: On, percents: number[]): Promise<(readonly string[])[]> {
+  mock.clock(on)
+  mock.store(on)
+  mock.env(on, { HOME: '/Users/an' })
+  const told: (readonly string[])[] = []
+  on('command.register', () => ({ value: { command: 'office' } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.toast', () => ({ value: undefined }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.measure', (_, e) => ({ changed: e.changed }))
+  on('fs.read', (_, e) => {
+    if (e.path.endsWith('/skills/handoff/SKILL.md') && !e.path.startsWith('/Users/an/')) return { value: '---\nname: handoff\n---\n' }
+    throw new Error('no such file')
+  })
+  on('prompt.submit', (_, e) => {
+    told.push(e.context ?? [])
+    return { text: e.text, context: e.context }
+  })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  for (const percent of percents) {
+    await $.session.measure({ context: { tokens: percent * 10_000, window: 1_000_000, percent }, rateLimits: [], changed: ['context'] })
+    await $.prompt.submit({ text: 'carry on', asUser: true })
+  }
+  return told
+}
+
+test('past 80% Claude is told once, beside the next message, to finish and then suggest a handoff', async ($, on) => {
+  const told = await toldBeside($, on, [62, 82, 88, 20, 84])
+  const notes = told.map(c => c.filter(t => t.startsWith('ai-worker:')))
+  expect(notes.map(n => n.length)).toEqual([0, 1, 0, 0, 1])
+  expect(notes[1][0]).toContain('82%')
+  expect(notes[1][0]).toContain('/handoff')
+  expect(notes[1][0]).toContain('First finish what this message asks')
+})

@@ -75,6 +75,8 @@ export type TeamState = {
   context?: ContextFill
   /** The context level (0, 60 or 80) last warned about, so each warning shows once per climb. */
   contextWarned?: number
+  /** The context level (0 or 80) Claude was last told about beside a message, so it is told once per climb. */
+  contextToldClaude?: number
   /** The rate-limit warning last toasted (`hanMucCanhBao().key`): toast each level of each window once. */
   quotaWarned?: string
   /** The rate-limit band the person hid; it comes back when the key changes. */

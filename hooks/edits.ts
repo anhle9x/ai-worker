@@ -203,6 +203,18 @@ export function compactKeepInstructions(): string {
   ].join('\n')
 }
 
+// What Claude is told, beside the person's next message, once the context passes 80%: the person may miss the toast, and
+// a compaction at the limit makes them wait a minute or two and drops detail. Claude finishes the asked work first.
+// Điều Claude được báo, kèm tin nhắn kế tiếp của người dùng, một lần khi context vượt 80%: người dùng có thể bỏ lỡ thông báo,
+// và một lần nén ở sát giới hạn bắt họ chờ một hai phút và làm rụng chi tiết. Claude làm xong việc được nhờ trước.
+export function contextNoteForClaude(percent: number, handoff: boolean): string | undefined {
+  if (percent < 80) return undefined
+  const step = handoff
+    ? tx('write a handoff note with the handoff skill (the project\'s own one if it has one, otherwise /handoff)')
+    : tx('write a short note of what is done, what was decided and what is still open, in a file the next session can read')
+  return tx('ai-worker: this conversation has used {percent}% of its context. Near the limit Claude Code compacts it on its own, which makes the person wait a minute or two and drops detail. First finish what this message asks; do not stop in the middle of it. Then, before starting anything new, {step}, and tell the person in one line, in their language, to open a new session that carries on from that note. Say it once; if they choose to carry on here, do so.', { percent, step })
+}
+
 /** What the person is told right after an automatic compaction: nothing broke, and no new session is needed. */
 /** Điều người dùng được báo ngay sau một lần nén tự động: không có gì hỏng, và không cần mở phiên mới. */
 export function compactedNotice(): string {

@@ -11,7 +11,7 @@ import type { EngineInterface, Register, ToolCallResult } from 'claude-code'
 
 import type { Activity, Job, Ledger, TeamState, Usage, WorkerId } from '../types'
 import { applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, staleSessionFiles } from './activity'
-import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
+import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextNoteForClaude, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
 import { answerModel, buildMachineSummary, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
 import type { ShareConfig } from './team'
 import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT, findHostApp, parseLinuxHost, parseWindowsHost, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
@@ -1770,8 +1770,30 @@ export const register: Register = on => {
   })
 
 
-  on('prompt.submit', ($, e, next) => {
+  // a message the person wrote (typed here, through the desktop app or from a phone), not a task's or a timer's
+  // tin nhắn người dùng viết (gõ ở đây, qua app desktop hay từ điện thoại), không phải của một tác vụ hay bộ hẹn giờ
+  const personsOwn = (o: { kind: string; asUser?: true } | undefined) =>
+    !o || o.kind === 'composer' || o.kind === 'bridge' || o.kind === 'sdk' || o.kind === 'unclassified' || (o.kind === 'plugin' && o.asUser === true)
+  on('prompt.submit', async ($, e, next) => {
     if (!e.command) pastedImages = e.attachments?.filter(a => a.type === 'image').length ?? 0
+    // the person's own message, once the context passed 80%: Claude is told too, once per climb, so it suggests a handoff
+    // tin nhắn của chính người dùng, khi context đã vượt 80%: Claude cũng được báo, mỗi lần leo một lần, để đề nghị bàn giao
+    if (!e.command && personsOwn(e.origin)) {
+      try {
+        const s = await read($, team)
+        const percent = s.context?.percent ?? 0
+        const level = percent >= 80 ? 80 : 0
+        const told = s.contextToldClaude ?? 0
+        if (level !== told) {
+          await commit($, st => ({ ...st, contextToldClaude: level }))
+          const note = level > told ? contextNoteForClaude(percent, await hasHandoffSkill($)) : undefined
+          if (note) return next({ ...e, context: [...(e.context ?? []), note] })
+        }
+      } catch {
+        // the message goes through as typed
+        // tin nhắn đi qua như đã gõ
+      }
+    }
     return next(e)
   })
 

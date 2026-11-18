@@ -45,6 +45,25 @@ test('each kind of secret is found, with its line and a hint that is not the val
   expect(found.find(s => s.line === 10)!.hint).toBe('INGEST_KEY=…')
 })
 
+test('a .env-style setting is found in the middle of a line, and in JSON and YAML', () => {
+  // the names are put together so this file holds no line a scanner would flag
+  // tên được ghép lại để file này không chứa dòng nào bị máy quét bắt
+  const PASS = 'DB_PASS' + 'WORD'
+  const TOKEN = 'API_' + 'TOKEN'
+  for (const [text, hint] of [
+    [`review: ${PASS}=abc12345xyz`, `${PASS}=…`],
+    [`export ${PASS}=abc12345xyz`, `${PASS}=…`],
+    [`{"${PASS}": "abc12345xyz"}`, `${PASS}=…`],
+    [`${PASS}: 'abc12345xyz'`, `${PASS}=…`],
+    [`run with ${TOKEN}=Zq8wLp3nVb7x ./app`, `${TOKEN}=…`],
+  ]) {
+    const found = findSecrets(text)
+    expect([text, found.map(s => s.kind)]).toEqual([text, ['password or key in a .env line']])
+    expect(found[0].hint).toBe(hint)
+    expect(found[0].hint).not.toContain('abc12345xyz')
+  }
+})
+
 test('ordinary code, placeholders and the providers own examples pass', () => {
   for (const text of [
     'def login(): password = request.form["password"]',
@@ -57,6 +76,12 @@ test('ordinary code, placeholders and the providers own examples pass', () => {
     'aws_access_key_id = ' + 'AKIA' + 'IOSFODNN7' + 'EXAMPLE',
     'Use sk-... for the key, and postgres://user@host/db without a password',
     'The token is in the environment variable OPENAI_API_KEY.',
+    'api_key = os.getenv("OPENAI_API_KEY")',
+    'const API_KEY = os.getenv("OPENAI_API_KEY")',
+    'const SECRET_KEY = process.env.SECRET_KEY',
+    'GITHUB_TOKEN: string',
+    'MY_SECRET_TOKEN=${{ secrets.MY_SECRET_TOKEN }}',
+    'if (ACCESS_TOKEN == null) refresh()',
     'eyJ is how a JWT starts',
     '',
   ]) {

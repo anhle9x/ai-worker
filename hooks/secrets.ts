@@ -26,9 +26,11 @@ const PATTERNS: [string, RegExp][] = [
   ['Telegram bot token', /\b\d{8,10}:AA[A-Za-z0-9_-]{30,40}\b/g],
   ['JSON web token', /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g],
   ['password in a connection string', /\b(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis|rediss|amqps?|mssql|sqlserver):\/\/[^\s:/@]+:[^\s@/]{3,}@/gi],
-  // a line of a .env file: an upper-case name that says password, secret, token or key, and a value that is not a placeholder
-  // một dòng của file .env: tên viết hoa nói mật khẩu, bí mật, token hay khoá, và giá trị không phải chỗ trống để điền
-  ['password or key in a .env line', /^[ \t]*(?:export[ \t]+)?[A-Z][A-Z0-9_]*(?:PASSWORD|PASSWD|SECRET|TOKEN|_KEY|APIKEY)[A-Z0-9_]*[ \t]*=[ \t]*["']?(?![<$%{]|x{4}|\*{4}|changeme|your[_-])[^\s"'#]{8,}/gm],
+  // a .env-style setting anywhere in a line: an upper-case name that says password, secret, token or key, then = (or : and a
+  // quote, as in JSON and YAML), and a value that is not a placeholder, nor a read of the environment such as os.getenv(...)
+  // một thiết lập kiểu .env ở bất cứ đâu trong dòng: tên viết hoa nói mật khẩu, bí mật, token hay khoá, rồi = (hoặc : và dấu
+  // ngoặc kép, như trong JSON và YAML), và giá trị không phải chỗ trống để điền, cũng không phải lời đọc biến môi trường như os.getenv(...)
+  ['password or key in a .env line', /(?<![A-Za-z0-9_])[A-Z][A-Z0-9_]*(?:PASSWORD|PASSWD|SECRET|TOKEN|_KEY|APIKEY)[A-Z0-9_]*(?:[ \t]*=[ \t]*["']?|["']?[ \t]*:[ \t]*["'])(?![<$%{]|x{4}|\*{4}|changeme|your[_-]|process\.env|import\.meta|os\.environ)(?=([^\s"'#()]{8,}))\1(?!\()/g],
 ]
 
 // the providers' own published examples, and values that only stand for a secret
@@ -48,7 +50,7 @@ export function findSecrets(text: string): Secret[] {
         const line = text.slice(0, m.index).split('\n').length
         // a .env line shows its name, which says what kind of secret it is, and never its value
         // một dòng .env hiện tên của nó, tên nói loại bí mật, và không bao giờ hiện giá trị
-        const name = /^[ \t]*(?:export[ \t]+)?([A-Z][A-Z0-9_]*)/.exec(value)?.[1]
+        const name = /^([A-Z][A-Z0-9_]*)/.exec(value)?.[1]
         const hint = kind.endsWith('.env line') && name ? `${name}=…` : `${value.trim().slice(0, 4)}…`
         if (!out.some(s => s.line === line && s.kind === kind)) out.push({ kind, line, hint })
       }

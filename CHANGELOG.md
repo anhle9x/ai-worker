@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.39.1 - 2026-11-18
+
+### Fixed
+- A password or key written as a `.env` setting in the middle of a line (`review: DB_PASSWORD=…`), or in JSON (`"DB_PASSWORD": "…"`) or YAML (`DB_PASSWORD: '…'`), was sent to ChatGPT or Gemini, because the check looked for such a name only at the start of a line. It is now caught anywhere in the line. Reads of the environment (`os.getenv(…)`, `process.env.X`, `${{ secrets.X }}`) still pass.
+
+### Changed
+- Past 80% of the context, Claude is told too, not only the person: beside the person's next message, once per climb, it is asked to finish what that message asks, then write a handoff note and suggest a new session in one line. A compaction at the limit makes the person wait one to two minutes and drops detail; a fresh session does neither. If the person carries on here, so does Claude.
+
 ## 0.39.0 - 2026-11-18
 
 ### Added
