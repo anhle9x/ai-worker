@@ -29,7 +29,8 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | Wall screen | Dashboard on a TV | See numbers with shortened names; no emails or internal IPs |
 | Manager | Menu bar icon, browser extension | See who is waiting or working, quota and cost today without opening the board, with the wall screen's data; see [menu-bar-spec.md](menu-bar-spec.md) and [chrome-extension-spec.md](chrome-extension-spec.md) |
 | Person with an AI tool | Claude Code, Codex CLI, Cursor, Gemini CLI or another tool that speaks MCP, with a key an admin approved | Ask the board in their own words. The tool reads the wall screen's data as text, or team and office totals only when the admin chose that; see [INSTALL.md](INSTALL.md) |
-| Person in a Telegram chat | Telegram on a phone, in a private chat an admin approved; only when the server's owner turned it on (`TELEGRAM_ASK=1`) | Ask the board by tapping a button or typing a short question. The answer is a few lines made from the wall screen's data, or team and office totals only when the admin chose that; see [INSTALL.md](INSTALL.md) |
+| Person in a Telegram chat | Telegram on a phone or a computer, in a private chat an admin approved; only when the server's owner turned it on (`TELEGRAM_ASK=1`) | Ask the board by tapping a button or typing a short question. The answer is a few lines made from the wall screen's data, or team and office totals only when the admin chose that; see [INSTALL.md](INSTALL.md) |
+| Person who opens the board's window in Telegram | The bot's menu button in a chat that reads each person and that an admin allowed the window; only with `TELEGRAM_APP=1` too, and from a network the proxy lets in | See the menu bar window inside Telegram: people waiting and working, the 7-day cost chart, quotas and costs, from the wall screen's data; see [INSTALL.md](INSTALL.md) |
 | Server owner | Server, signing keys | Install the webhook, build packages, sign releases |
 
 ### What it must do
@@ -49,7 +50,9 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | F11 | A person on Codex, Cursor or Gemini CLI shows on the board without Claude Code: sessions open, working and waiting, per tool | `connectors/ai-worker-hook.sh`, `connectors/ai-worker-hook.ps1`; `from_connector`, `is_fresh` in `server/board/devices.py` |
 | F12 | An AI tool that speaks MCP reads the board with a key of its own that an admin approved: read-only, the wall view as text, within what the key may read | `server/board/mcp.py`; `mcp_post`, `PERM_MCP_KEY` in `server/webhook.py`; `TvStore.find` in `server/board/stores.py` |
 | F13 | A person asks the board from a Telegram chat an admin approved: one of a fixed set of answers, with no AI model, within what the chat may read. A process of its own talks to Telegram; the webhook never connects out | `server/telegram_bot.py`; `server/board/chat.py`, `server/board/ask.py`; `bot_telegram`, `PERM_BOT_KEY` in `server/webhook.py` |
-| F13 | Use can be compared by week and by month: the server adds the hours each computer already sends into one total per person per day and keeps it 13 months; admins and viewers see it on `/board` | `server/board/daily.py`; `record_daily`, `usage_view` in `server/board/views.py`; `usage_section`, `usage_chart` in `server/board/pages.py` |
+| F14 | Use can be compared by week and by month: the server adds the hours each computer already sends into one total per person per day and keeps it 13 months; admins and viewers see it on `/board` | `server/board/daily.py`; `record_daily`, `usage_view` in `server/board/views.py`; `usage_section`, `usage_chart` in `server/board/pages.py` |
+| F15 | A chat an admin allowed opens the menu bar window inside Telegram (a Telegram Mini App). The phone or computer reaches the board itself over HTTPS; the webhook checks what Telegram signed for the window with a key derived from the bot token, and keeps the session in memory | `server/board/tgapp.py`; `tg_session`, `get_tg_data`, `PERM_TG_SESSION` in `server/webhook.py`; `server/static/tg-app.js`; `page_mini(telegram=True)` in `server/board/pages.py`; `sync_menus` in `server/telegram_bot.py` |
+| F16 | A Telegram chat that turned alerts on gets a message when someone has waited longer than the minutes it chose: each wait once, grouped, at most one message every 5 minutes, 6 an hour and 30 a day, none at night; the first line names nobody, and a chat that reads totals gets the count alone | `server/board/alerts.py`; `alerts_due`, `_alerts` in `server/board/chat.py`; `sync_menus` in `server/telegram_bot.py`; `get_tg_state`, `tg_settings` in `server/webhook.py` |
 
 ### Limits the server enforces
 
@@ -64,6 +67,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | TV screens | 20 joined, 3 waiting per IP, 30 waiting in total |
 | Keys for AI tools (MCP) | 50 keys; 120 requests per key in 10 minutes; a message of 16 KB |
 | Telegram chats | 50 chats; 10 waiting for approval; 20 messages per chat in 10 minutes; a chat that is not approved is answered once an hour |
+| The window inside Telegram | 10 sessions per IP a minute, 20 per chat in 10 minutes, 3 open per chat; 60 reads per session in 10 minutes; Telegram's signed fields at most 5 minutes old and 4 KB |
 
 ### How long data is kept
 
@@ -81,6 +85,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | TV sessions | 30 days, renewed while in use; 1 year at most; survive restarts |
 | Keys for AI tools (MCP) | 30 days without use; 1 year at most; survive restarts |
 | Telegram chats | 30 days without use; 1 year at most; survive restarts |
+| Sessions of the window inside Telegram | 1 hour after last use, 12 hours at most; in memory only, lost when the webhook restarts |
 
 ## 2. The parts
 
@@ -109,6 +114,7 @@ flowchart TD
   Mgr -- "paired session,<br/>wall view" --> Proxy
   Tool -- "key approved by an admin,<br/>wall view as text" --> Proxy
   Phone --> TG
+  Phone -- "window inside Telegram:<br/>Telegram's signed fields, /tg/ only" --> Proxy
   Bot -- "asks for messages,<br/>sends answers" --> TG
   IT -. "copies signed<br/>release" .-> Releases
 ```
@@ -319,6 +325,39 @@ sequenceDiagram
 What stands for a chat is the sender's Telegram number, which is no secret. So paired rows live on three sides (`side_of` in `server/board/stores.py`): keys for the MCP endpoint, Telegram chats, and everything else. A row is found, counted and replaced only on its own side, and `/bot/telegram` takes only a direct call from the same machine with `TELEGRAM_ASK_KEY`: a request that carries a proxy's headers gets 404.
 
 `server/telegram_bot.py` imports nothing of the board, keeps nothing on disk and holds two secrets: the bot's token and that key. It uses Telegram's Bot API over HTTPS with long polling (`getUpdates`) and not a webhook from Telegram, so nothing is opened towards the Internet and a board with no public address can use it. It does not use MTProto, the protocol of Telegram's own apps: the standard library does not speak it, and it would log in as a person. When Telegram refuses the token, when another program reads the same bot, or when Telegram cannot be reached, the process tells the webhook, and the Admin page shows it. The installer runs it as the service `ai-worker-telegram` under its own user, with `IPAddressDeny=any` and an allow-list of this machine, its DNS servers and Telegram's networks.
+
+### The board's window inside Telegram (optional)
+
+Only with `TELEGRAM_APP=1` as well, and only for a chat that reads each person and that an admin allowed the window. Telegram does not carry the numbers: its app opens the board's page `/tg/app` in its own browser, and that browser asks the board for them over HTTPS, so the phone or computer must be on a network the proxy lets in. The bot process only sets each chat's menu button.
+
+```mermaid
+sequenceDiagram
+  participant A as Admin
+  participant W as webhook.py
+  participant B as telegram_bot.py
+  participant T as Telegram
+  participant P as Person's Telegram app
+  A->>W: Allow the window on /admin (OTP again)
+  B->>W: POST /bot/telegram {tick}, at most every 20 seconds
+  W-->>B: menus: this chat, the window's address
+  B->>T: setChatMenuButton
+  Note over P: Tap AI Worker. Telegram signs a few fields,<br/>after the #35; of the address
+  P->>W: GET /tg/app, /tg/app.js, /tg/mini.js, /tg/mini.css
+  P->>W: POST /tg/session with the signed fields
+  W->>W: Check the signature with TELEGRAM_APP_KEY, at most 5 minutes old, find the chat, is it allowed?
+  W-->>P: A session, in memory only
+  P->>W: GET /tg/data every 30 seconds, with the session
+  W->>W: Find the chat again: still approved and allowed?
+  W-->>P: The wall view
+```
+
+`server/board/tgapp.py` holds the check, the sessions and the menu buttons. Telegram's rule signs the fields with HMAC-SHA256, keyed by HMAC-SHA256("WebAppData", bot token); the installer writes that key as `TELEGRAM_APP_KEY`, so the webhook checks a signature without ever holding the token, and the key cannot drive the bot. The fields come after the `#` of the address, which a browser never sends, so they reach no log. A session is a random string kept as a hash in memory, 1 hour after last use and 12 hours at most, 3 per chat; every call finds the chat again, so **Stop the window**, **Revoke** or `/stop` ends it at once. A wrong signature counts as probing; fields that are only too old do not.
+
+The page is the menu bar window's own (`page_mini(telegram=True)`): its files come from `/tg/`, so a proxy can let just that prefix through, it has no link to the board and no alert setting, and its unpair button disconnects the chat. `server/static/tg-app.js` runs before `mini.js` and gives it `window.MiniApi`, as the browser extension does. It does not load Telegram's script from telegram.org: it reads the fields from the address itself and speaks to the app through the bridge Telegram puts in the page, so no script from another site runs where the team's numbers are shown and the page's `script-src 'self'` stays as it is.
+
+`MenuSync` in the same module compares the chats that should have the window with what the bot process was last told, and hands the changes to it; after a restart it tells every live chat again, so a chat that lost the window while the server was down gets its plain menu back. `TELEGRAM_APP=0` makes every path under `/tg/` answer 404.
+
+The same round of the bot process (`{tick}`) also carries the alerts. `server/board/alerts.py` reads the wall view, finds the waits past each chat's minutes that it has not told yet, and applies the gap, the hourly and daily caps and the quiet hours (19:00 to 07:00); `alerts_due` in `server/board/chat.py` hands the messages to the bot process, with the window's address when the chat may open it, and writes one row of the log for each (`telegram-alert`, with how many people). Each chat sets this for itself, with `/alerts` or in the window (`/tg/settings`); it is off until then. What was told is kept in memory only.
 
 ### Updating the plugin
 

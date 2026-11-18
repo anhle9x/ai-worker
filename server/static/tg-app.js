@@ -73,10 +73,15 @@
 
   window.MiniApi = {
     data: function () { return call('/tg/data').then(function (r) { return r.json() }).catch(function (e) { showProblem(); throw e }) },
-    // a chat has no alert setting yet: the row is hidden, and nothing is read or saved
-    // chat chưa có cài đặt báo: dòng đó bị ẩn, không đọc hay lưu gì
-    state: function () { return Promise.resolve(null) },
-    save: function () { return Promise.resolve(false) },
+    // the chat's own alerts: a message from the bot when someone waits longer than the minutes chosen, in the window's language
+    // tin báo của chính chat: bot nhắn khi có người chờ lâu hơn số phút đã chọn, bằng ngôn ngữ của khung
+    state: function () { return call('/tg/state').then(function (r) { return r.json() }).catch(function () { return null }) },
+    save: function (next) {
+      return session().then(function (t) {
+        return fetch('/tg/settings', { method: 'POST', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, cache: 'no-store',
+          body: JSON.stringify({ notify: next.notify, notifyMinutes: next.notifyMinutes, lang: document.documentElement.lang === 'vi' ? 'vi' : 'en' }) })
+      }).then(function (r) { return r.ok })
+    },
     unpair: function () { return call('/tg/unpair', 'POST').then(function () { postEvent('web_app_close') }) },
     // the language is chosen in the address; the part after # stays, so the session can be asked for again
     // ngôn ngữ được chọn qua địa chỉ; phần sau dấu # được giữ, để còn xin lại phiên

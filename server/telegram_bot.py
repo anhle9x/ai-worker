@@ -262,7 +262,7 @@ class Bot:
         if isinstance(text, str) and text:
             self.send(chat_id, text, answer)
 
-    def send(self, chat_id: int, text: str, answer: dict) -> None:
+    def send(self, chat_id: int, text: str, answer: dict, markup=None) -> None:
         # protect_content: Telegram's apps do not let the answer be forwarded or saved. No formatting is asked for: the text goes as it is
         # protect_content: các app Telegram không cho chuyển tiếp hay lưu câu trả lời. Không yêu cầu định dạng nào: chữ đi nguyên như nó là
         payload = {"chat_id": chat_id, "text": text[:TEXT_LIMIT], "protect_content": True, "link_preview_options": {"is_disabled": True}}
@@ -271,6 +271,8 @@ class Bot:
             payload["reply_markup"] = {"keyboard": [[{"text": label} for label in row] for row in keyboard], "resize_keyboard": True, "is_persistent": True}
         elif answer.get("removeKeyboard") is True:
             payload["reply_markup"] = {"remove_keyboard": True}
+        if markup:
+            payload["reply_markup"] = markup
         status, reply = self.telegram("sendMessage", payload)
         if status == 429:
             self.sleep(self.retry_after(reply, 30))
@@ -305,6 +307,15 @@ class Bot:
                 status, reply = self.telegram("setChatMenuButton", {"chat_id": chat_id, "menu_button": button})
             if status != 200:
                 self.log("a menu button could not be set (status %d)" % status)
+        # messages to chats that turned alerts on, each with a button that opens the window when the chat may open it
+        # tin tới các chat đã bật báo, mỗi tin kèm nút mở khung khi chat được mở khung
+        sends = answer.get("send")
+        for row in sends[:100] if isinstance(sends, list) else []:
+            chat_id, text, url = (row.get("to"), row.get("text"), row.get("app")) if isinstance(row, dict) else (None, None, None)
+            if not isinstance(chat_id, int) or isinstance(chat_id, bool) or chat_id <= 0 or not isinstance(text, str) or not text:
+                continue
+            button = {"inline_keyboard": [[{"text": "AI Worker", "web_app": {"url": url}}]]} if isinstance(url, str) and url.startswith("https://") and len(url) <= 512 else None
+            self.send(chat_id, text, {}, button)
 
     def run(self) -> None:
         # the webhook may still be starting: wait for it, and stop at once if it does not take this process

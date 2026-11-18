@@ -664,7 +664,7 @@ def page_mini(paired: bool, browser: bool = False, telegram: bool = False) -> by
             '%s'
             '</main>%s</body></html>' % (
                 html.escape(words, quote=True), current_lang(), USD_RATE, html.escape(tx("AI Worker")),
-                ' hidden style="display:none"' if telegram else "", html.escape(tx("Notify when a wait passes")),
+                "", html.escape(tx("Message me when a wait passes") if telegram else tx("Notify when a wait passes")),
                 "".join('<option value="%d">%d</option>' % (m, m) for m in MINI_NOTIFY_MINUTES), html.escape(tx("min")),
                 html.escape(tx("Start at login")), html.escape(tx("Language")), html.escape(unpair if browser or telegram else tx("Unpair")), html.escape(tx("Quit")), html.escape(tx("Uninstall")),
                 "" if telegram else '<footer><a class="btn primary" href="/board" target="_blank" rel="noopener">%s</a></footer>' % html.escape(tx("Open board")),

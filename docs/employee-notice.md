@@ -23,7 +23,7 @@ From [date], [company] will install the AI Worker plugin for Claude Code on [whi
 
 **What is never sent:** chat content, prompts, file names or file contents.
 
-**Who can see it:** [admin names or roles] see everything. [Viewer roles] see [what they see]. Wall screens do not show email or IP addresses. Totals by week and by month are shown to [admins and viewers] only.
+**Who can see it:** [admin names or roles] see everything. [Viewer roles] see [what they see]. Wall screens do not show email or IP addresses. Totals by week and by month are shown to [admins and viewers] only. [Only if asking the board from Telegram is on] Managers whose Telegram chat an admin approved can read [team and office totals / each person's name as a wall screen shows it, state, minutes waiting, cost and quota] in that chat; those answers pass through Telegram's servers, a company outside [company]. [Only if the window inside Telegram is on] The same managers can open the board's small window inside Telegram, on the company network; those numbers go from the company server to their phone or computer, not through Telegram.
 
 **How long it is kept:** the server keeps the latest numbers of each computer, with tokens and cost per hour for the last 8 days, until 30 days after that computer last sent. From those it adds up one total per person per day (cost, tokens, tasks given to each assistant, and your office that day, next to your name and account email) and keeps these daily totals for up to 13 months, so that use can be compared by week, by month and with the same month a year before. The log of logins and admin actions is kept for 12 months. Backup copies the company makes follow [backup retention period]. [Anything your company keeps for longer or shorter.]
 

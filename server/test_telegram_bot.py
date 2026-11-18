@@ -145,6 +145,9 @@ class FakeBoard(Served):
         # what the next round's question about menu buttons is answered with, once
         # câu trả lời cho câu hỏi về nút menu của vòng kế tiếp, dùng một lần
         self.menus = []
+        # and the alerts to send on that round, once
+        # và các tin báo cần gửi ở vòng đó, dùng một lần
+        self.sends = []
         super().__init__()
 
     def messages(self) -> list:
@@ -167,7 +170,8 @@ class FakeBoard(Served):
                 return 200, {"ok": True, "commands": self.COMMANDS}
             if isinstance(body, dict) and body.get("tick") is True:
                 menus, self.menus = self.menus, []
-                return 200, {"ok": True, "menus": menus, "menuText": "AI Worker"}
+                sends, self.sends = self.sends, []
+                return 200, {"ok": True, "menus": menus, "menuText": "AI Worker", "send": sends}
             return 200, self.reply(body)
 
 
@@ -671,6 +675,18 @@ class MenuButtons(BotCase):
         self.clock.now += telegram_bot.MENU_SECONDS
         self.bot.step()
         self.assertEqual(len(ticks()), 2)
+
+    def test_alerts_go_out_protected_with_the_windows_button(self):
+        self.board.sends = [{"to": 700100200, "text": "⏳ AI Worker · 1 waiting longer than 10 min", "app": "https://board.example.com/tg/app"},
+                            {"to": 700100201, "text": "⏳ AI Worker · 2 waiting longer than 10 min", "app": None},
+                            {"to": 7, "text": "x", "app": "http://board.example.com/tg/app"}, {"to": True, "text": "x"}, {"to": 8, "text": ""}, "x"]
+        self.bot.step()
+        sent = self.telegram.sent()
+        self.assertEqual([s["chat_id"] for s in sent], [700100200, 700100201, 7])
+        self.assertTrue(all(s["protect_content"] is True for s in sent))
+        self.assertEqual(sent[0]["reply_markup"], {"inline_keyboard": [[{"text": "AI Worker", "web_app": {"url": "https://board.example.com/tg/app"}}]]})
+        self.assertNotIn("reply_markup", sent[1])
+        self.assertNotIn("reply_markup", sent[2])
 
     def test_not_asked_while_the_webhook_does_not_answer(self):
         self.bot.step()

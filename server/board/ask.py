@@ -31,14 +31,14 @@ from board.summary import (
 )
 from webhook_vi import ASK_WORDS
 
-WAITING, COST, OFFICES, TEAM, QUOTA, HELP, START, STOP = "waiting", "cost", "offices", "team", "quota", "help", "start", "stop"
+WAITING, COST, OFFICES, TEAM, QUOTA, HELP, START, STOP, ALERTS = "waiting", "cost", "offices", "team", "quota", "help", "start", "stop", "alerts"
 # the commands that read numbers; start and stop are about the chat itself and belong to the caller
 # các lệnh đọc số liệu; start và stop là chuyện của chính chat đó và thuộc về bên gọi
 DATA_COMMANDS = (WAITING, COST, OFFICES, TEAM, QUOTA)
-COMMANDS = DATA_COMMANDS + (HELP, START, STOP)
+COMMANDS = DATA_COMMANDS + (HELP, START, STOP, ALERTS)
 # a second name for Vietnamese speakers. Telegram takes only lowercase English letters, digits and underscores in a command, so no accents
 # tên thứ hai cho người nói tiếng Việt. Telegram chỉ nhận chữ thường tiếng Anh, chữ số và gạch dưới trong một lệnh, nên không có dấu
-VI_NAMES = {WAITING: "cho", COST: "chiphi", OFFICES: "vanphong", TEAM: "tongquan", QUOTA: "hanmuc"}
+VI_NAMES = {WAITING: "cho", COST: "chiphi", OFFICES: "vanphong", TEAM: "tongquan", QUOTA: "hanmuc", ALERTS: "baocho"}
 ALIASES = {name: command for command, name in VI_NAMES.items()}
 # words in a typed question that point to a command. The Vietnamese ones are in webhook_vi.py (ASK_WORDS)
 # các từ trong câu gõ tự do chỉ tới một lệnh. Các từ tiếng Việt nằm ở webhook_vi.py (ASK_WORDS)
@@ -59,7 +59,7 @@ PRIORITY = (QUOTA, WAITING, COST, OFFICES, TEAM, HELP)
 # Một hình nhỏ ở đầu dòng, để nhìn lướt màn hình điện thoại là đọc được: cùng bộ hình cho cả hai ngôn ngữ, trên các nút,
 # trong danh sách lệnh và trong câu trả lời. Chúng là ký tự thường, không phải định dạng, nên chữ vẫn đi nguyên như nó là
 HEADER = "📊 AI Worker"
-ICONS = {WAITING: "⏳", COST: "💰", OFFICES: "🏢", TEAM: "👥", QUOTA: "🔋", HELP: "❓", STOP: "🚪"}
+ICONS = {WAITING: "⏳", COST: "💰", OFFICES: "🏢", TEAM: "👥", QUOTA: "🔋", HELP: "❓", STOP: "🚪", ALERTS: "🔔"}
 ALL_WELL, TOTALS_NOTE, NOTE, EMPTY, TOP, BULLET = "✅", "🔒", "📝", "📭", "📈", "•"
 STATE_DOTS = (("working", "🟢"), ("waiting", "🟡"), ("open", "⚪"), ("offline", "⚫"))
 
@@ -176,6 +176,7 @@ def _menu_pairs() -> list:
         (OFFICES, tx("Each office in one line")),
         (TEAM, tx("The whole team in short")),
         (QUOTA, tx("Who is close to their quota")),
+        (ALERTS, tx("Message me when someone waits too long")),
         (HELP, tx("Show these commands")),
         (STOP, tx("Disconnect this chat from the board")),
     ]

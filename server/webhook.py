@@ -208,7 +208,7 @@ class Handler(BaseHTTPRequestHandler):
             return False
         # nor is the board's window inside Telegram holding a live session; /tg/session counts its own tries per IP and per chat
         # khung bảng bên trong Telegram đang giữ phiên còn sống cũng vậy; /tg/session tự đếm số lần thử theo IP và theo chat
-        if bearer.startswith(tgapp.SESSION_PREFIX) and self.path in ("/tg/data", "/tg/unpair") and settings.TELEGRAM_APP_ENABLED and tgapp.SESSIONS.owner(bearer, now):
+        if bearer.startswith(tgapp.SESSION_PREFIX) and self.path in ("/tg/data", "/tg/state", "/tg/settings", "/tg/unpair") and settings.TELEGRAM_APP_ENABLED and tgapp.SESSIONS.owner(bearer, now):
             return False
         # nor is the Telegram bot process of this machine, which shows its own key on its own path
         # tiến trình bot Telegram của chính máy này cũng vậy, nó trình khoá riêng trên đường riêng
@@ -675,6 +675,35 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(429, {"error": tx("Too many tries. Try again in a minute.")}, quiet=True)
         TV_STATUS.mark_seen(TV.id_of(chat_key(telegram_id)), "", y.now)
         self.reply_page(200, json.dumps(role_view(WALL, y.now), ensure_ascii=False).encode(), content_type="application/json; charset=utf-8")
+
+    def get_tg_state(self, y: "RequestCtx") -> None:
+        """The chat's own alert setting, for the window's settings tab: off until the chat turns it on (board/alerts.py).
+        Cài đặt báo của chính chat, cho thẻ cài đặt của khung: tắt cho tới khi chat tự bật (board/alerts.py)."""
+        row = TV.d.get(TV.id_of(chat_key(y.user[len("tg:"):])), {})
+        minutes = row.get("notifyMinutes") if row.get("notifyMinutes") in MINI_NOTIFY_MINUTES else 10
+        self.reply(200, {"notify": row.get("notify") is True, "notifyMinutes": minutes})
+
+    def tg_settings(self, y: "RequestCtx") -> None:
+        """The window turns the chat's alerts on or off and sets the minutes, in the window's language.
+        Khung bật hay tắt tin báo của chat và đặt số phút, theo ngôn ngữ của khung."""
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = 0
+        if n <= 0 or n > 1024:
+            return self.reply(413, {"error": tx("Too large")})
+        try:
+            body = json.loads(self.rfile.read(n), parse_constant=refuse_constant)
+            minutes = body.get("notifyMinutes") if isinstance(body, dict) else None
+            if not isinstance(body.get("notify"), bool) or minutes not in MINI_NOTIFY_MINUTES or isinstance(minutes, bool):
+                raise ValueError
+        except (ValueError, AttributeError):
+            return self.reply(400, {"error": tx("Invalid settings")})
+        telegram_id = y.user[len("tg:"):]
+        chat_id = TV.id_of(chat_key(telegram_id))
+        row = TV.set_alerts(chat_id, body["notify"], minutes, body.get("lang") if body.get("lang") in ("en", "vi") else "")
+        AUDIT_LOG.write(action="telegram-alerts-on" if body["notify"] else "telegram-alerts-off", tv=row["name"], id=chat_id, kind=KIND_TELEGRAM, minutes=minutes)
+        self.reply(200, {"ok": True})
 
     def tg_unpair(self, y: "RequestCtx") -> None:
         """The window disconnects its own chat, as /stop in the chat does: the chat reads nothing more until an admin approves it again.
@@ -1373,6 +1402,7 @@ GET_ROUTES = {
     "/tg/mini.js": Route(Handler.get_tg_file, PERM_PUBLIC, allow_query=True, telegram_app=True),
     "/tg/mini.css": Route(Handler.get_tg_file, PERM_PUBLIC, allow_query=True, telegram_app=True),
     "/tg/data": Route(Handler.get_tg_data, PERM_TG_SESSION, telegram_app=True),
+    "/tg/state": Route(Handler.get_tg_state, PERM_TG_SESSION, telegram_app=True),
     # the MCP endpoint takes POST only; do_DELETE comes here too
     # cổng MCP chỉ nhận POST; do_DELETE cũng về đây
     "/mcp": Route(Handler.mcp_not_allowed, PERM_MCP_KEY, mcp=True),
@@ -1413,6 +1443,7 @@ POST_ROUTES = {
     # khung bên trong Telegram đổi các trường Telegram đã ký lấy một phiên, và có thể ngắt chính chat của nó
     "/tg/session": Route(Handler.tg_session, PERM_PUBLIC, origin_policy=ORIGIN_IF_PRESENT, telegram_app=True),
     "/tg/unpair": Route(Handler.tg_unpair, PERM_TG_SESSION, telegram_app=True),
+    "/tg/settings": Route(Handler.tg_settings, PERM_TG_SESSION, telegram_app=True),
     "/mini/handoff": Route(Handler.mini_action, PERM_LOGIN, origin_policy=ORIGIN_IF_PRESENT),
     "/mini/pair": Route(Handler.mini_self_pair, PERM_PUBLIC, origin_policy=ORIGIN_REQUIRED),
     "/mini/settings": Route(Handler.mini_action, PERM_LOGIN, origin_policy=ORIGIN_REQUIRED),

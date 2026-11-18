@@ -387,11 +387,11 @@ class Answer(unittest.TestCase):
         # a line is a picture, the command and what it does
         # một dòng gồm một hình, tên lệnh và việc nó làm
         name = lambda line: line.split(" - ")[0].split(" ", 1)[1]
-        self.assertEqual([name(line) for line in vi[3:]], ["/cho", "/chiphi", "/vanphong", "/tongquan", "/hanmuc", "/help", "/stop"])
+        self.assertEqual([name(line) for line in vi[3:]], ["/cho", "/chiphi", "/vanphong", "/tongquan", "/hanmuc", "/baocho", "/help", "/stop"])
         # the same commands in the same order, whatever the language
         # cùng các lệnh theo cùng thứ tự, dù ngôn ngữ nào
         self.assertEqual([ask.match(name(line)).command for line in en[3:]], [ask.match(name(line)).command for line in vi[3:]])
-        self.assertEqual([ask.match(name(line)).command for line in en[3:]], list(ask.DATA_COMMANDS) + [ask.HELP, ask.STOP])
+        self.assertEqual([ask.match(name(line)).command for line in en[3:]], list(ask.DATA_COMMANDS) + [ask.ALERTS, ask.HELP, ask.STOP])
 
     def test_the_pictures_are_the_same_in_both_languages(self):
         # the head of every line that starts with a picture: an answer reads the same at a glance in either language
@@ -455,16 +455,16 @@ class Menu(unittest.TestCase):
         # Telegram: một lệnh gồm 1 tới 32 chữ thường tiếng Anh, chữ số và gạch dưới; một mô tả dài 1 tới 256 ký tự
         for language in ("en", "vi"):
             rows = ask.menu(language)
-            self.assertEqual(len(rows), 7)
+            self.assertEqual(len(rows), 8)
             self.assertEqual(len({name for name, _ in rows}), len(rows))
             for name, text in rows:
                 self.assertRegex(name, r"^[a-z0-9_]{1,32}$")
                 self.assertTrue(1 <= len(text) <= 256)
-            self.assertEqual([ask.match("/" + name).command for name, _ in rows], list(ask.DATA_COMMANDS) + [ask.HELP, ask.STOP])
+            self.assertEqual([ask.match("/" + name).command for name, _ in rows], list(ask.DATA_COMMANDS) + [ask.ALERTS, ask.HELP, ask.STOP])
 
     def test_vietnamese_gets_its_own_names_and_start_is_not_listed(self):
-        self.assertEqual([name for name, _ in ask.menu("en")], ["waiting", "cost", "offices", "team", "quota", "help", "stop"])
-        self.assertEqual([name for name, _ in ask.menu("vi")], ["cho", "chiphi", "vanphong", "tongquan", "hanmuc", "help", "stop"])
+        self.assertEqual([name for name, _ in ask.menu("en")], ["waiting", "cost", "offices", "team", "quota", "alerts", "help", "stop"])
+        self.assertEqual([name for name, _ in ask.menu("vi")], ["cho", "chiphi", "vanphong", "tongquan", "hanmuc", "baocho", "help", "stop"])
         self.assertEqual([text for _, text in ask.menu("vi")][0], VI["Who is waiting for an answer, longest first"])
 
     def test_the_keyboard_has_three_rows(self):

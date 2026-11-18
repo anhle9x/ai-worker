@@ -36,6 +36,7 @@ import test_ask  # noqa: E402
 import test_mcp  # noqa: E402
 import test_telegram_bot  # noqa: E402
 import webhook as w  # noqa: E402
+import webhook_vi  # noqa: E402
 from board import ask, assets, chat, daily, db, devices, lang, login, mcp, packages, pages, security, settings, stores, views  # noqa: E402
 
 NOW = time.time()
@@ -521,6 +522,7 @@ class RoutePermissions(unittest.TestCase):
         "/tg/mini.js": (404, 404, 404, 404, 404),
         "/tg/mini.css": (404, 404, 404, 404, 404),
         "/tg/data": (404, 404, 404, 404, 404),
+        "/tg/state": (404, 404, 404, 404, 404),
         "/.well-known/oauth-protected-resource": (404, 404, 404, 404, 404),
         "/.well-known/oauth-protected-resource/mcp": (404, 404, 404, 404, 404),
         "/.well-known/oauth-authorization-server": (404, 404, 404, 404, 404),
@@ -1087,7 +1089,7 @@ class RoutePermissions(unittest.TestCase):
         self.assertEqual(set(w.POST_ROUTES), set(self.POST_ADMIN) | {"/ingest", "/login", "/logout", "/tv/request-code", "/tv/poll",
                                                                        "/mini/handoff", "/mini/settings", "/mini/unpair", "/mini/pair",
                                                                        "/ext/request-code", "/ext/poll", "/ext/unpair", "/telegram/start", "/telegram/unlink",
-                                                                       "/mcp", "/mcp/request-code", "/mcp/poll", "/bot/telegram", "/tg/session", "/tg/unpair"})
+                                                                       "/mcp", "/mcp/request-code", "/mcp/poll", "/bot/telegram", "/tg/session", "/tg/unpair", "/tg/settings"})
 
     def test_the_telegram_bots_path_is_not_there_until_it_is_turned_on(self):
         self.assertFalse(settings.TELEGRAM_ASK_ENABLED)
@@ -4046,9 +4048,9 @@ class TelegramApp(unittest.TestCase):
         self.assertNotIn("/static/", page)
         self.assertNotIn('href="/board"', page)
         self.assertIn(lang.VI["Disconnect this chat"], page)
-        # a chat has no alert setting yet: the row is there for mini.js, and never shown
-        # chat chưa có cài đặt báo: dòng đó có mặt cho mini.js, và không bao giờ hiện
-        self.assertIn('<div class="row" hidden style="display:none"><label><input type="checkbox" id="notify">', page)
+        # the chat's own alerts are set in the window: the row is shown, with words that say a message comes
+        # tin báo của chính chat được đặt trong khung: dòng đó hiện, với chữ nói rằng sẽ có tin nhắn
+        self.assertIn('<div class="row"><label><input type="checkbox" id="notify"> <span>' + lang.VI["Message me when a wait passes"], page)
         for name in ("Hoa", "@example.com", IP_LAN):
             self.assertNotIn(name, page)
         # every file exactly as the page asks for it, with its ?v=
@@ -4207,6 +4209,184 @@ class TelegramApp(unittest.TestCase):
         src = read_text("board", "settings.py")
         self.assertIn('TELEGRAM_APP_ENABLED = (TELEGRAM_ASK_ENABLED and os.environ.get("TELEGRAM_APP", "0").strip() == "1"', src)
         self.assertIn('/tg/app", TELEGRAM_APP_URL)', src)
+
+
+class AlertRules(unittest.TestCase):
+    """The rules of the messages a chat gets when someone waits too long, without a server: board/alerts.py on a view the test writes.
+    Quy tắc của tin báo một chat nhận khi có người chờ quá lâu, không cần máy chủ: board/alerts.py trên một phần treo tường do bài test viết."""
+
+    def setUp(self):
+        from board import alerts
+        self.alerts = alerts
+        self.a = alerts.Alerts()
+        # 10:00 in the board's time zone, outside the quiet hours
+        # 10 giờ sáng theo múi giờ của bảng, ngoài giờ im lặng
+        self.now = datetime.now(settings.LOCAL_TZ).replace(hour=10, minute=0, second=0, microsecond=0).timestamp()
+        self.chat = {"telegramId": "700100200", "notifyMinutes": 10, "scope": "people", "notifyLang": "en", "name": "Hoa"}
+
+    def view(self, *people):
+        """people: (name, minutes waiting) or (name, minutes, state).
+        people: (tên, số phút chờ) hoặc (tên, số phút, trạng thái)."""
+        return {"people": [{"name": p[0], "status": p[2] if len(p) > 2 else "waiting", "waitingSince": (self.now - p[1] * 60) * 1000} for p in people]}
+
+    def due(self, view, chat=None, at=None):
+        return self.a.due([chat or self.chat], view, self.now if at is None else at)
+
+    def test_a_wait_past_the_line_is_told_once(self):
+        self.assertEqual(self.due(self.view(("An", 9))), [])
+        out = self.due(self.view(("An", 12), ("Binh", 3)))
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["to"], 700100200)
+        lines = out[0]["text"].split("\n")
+        self.assertEqual(lines[0], "⏳ AI Worker · 1 waiting longer than 10 min")
+        self.assertIn("• An: 12 min", lines)
+        self.assertNotIn("Binh", out[0]["text"])
+        # the same wait, still going an hour later
+        # cùng lần chờ đó, một giờ sau vẫn còn
+        self.assertEqual(self.due(self.view(("An", 12)), at=self.now + 3600), [])
+
+    def test_the_first_line_names_nobody(self):
+        out = self.due(self.view(("An", 12), ("Binh", 20)))
+        self.assertNotIn("An", out[0]["text"].split("\n")[0].replace("AI Worker", ""))
+        self.assertNotIn("Binh", out[0]["text"].split("\n")[0])
+        # longest first
+        # lâu nhất trước
+        self.assertLess(out[0]["text"].index("Binh"), out[0]["text"].index("An:"))
+
+    def test_a_chat_that_reads_totals_is_told_how_many_never_who(self):
+        out = self.due(self.view(("An", 12), ("Binh", 20)), dict(self.chat, scope="totals"))
+        self.assertIn("2 waiting longer than 10 min", out[0]["text"])
+        for name in ("An", "Binh"):
+            self.assertNotIn(name, out[0]["text"].replace("AI Worker", ""))
+
+    def test_one_message_every_five_minutes_and_the_rest_waits_for_the_next(self):
+        self.assertEqual(len(self.due(self.view(("An", 12)))), 1)
+        # Binh passes the line two minutes later: held back until five minutes after the first message
+        # Binh vượt mức hai phút sau: giữ lại tới năm phút sau tin đầu
+        both = self.view(("An", 12), ("Binh", 9))
+        self.assertEqual(self.due(both, at=self.now + 120), [])
+        later = self.due(both, at=self.now + self.alerts.GAP_SECONDS)
+        self.assertEqual(len(later), 1)
+        self.assertIn("Binh", later[0]["text"])
+        self.assertNotIn("An:", later[0]["text"])
+
+    def test_at_most_six_an_hour(self):
+        sent = 0
+        for i in range(10):
+            at = self.now + i * self.alerts.GAP_SECONDS
+            sent += len(self.a.due([self.chat], {"people": [{"name": "P%d" % i, "status": "waiting", "waitingSince": (at - 11 * 60) * 1000}]}, at))
+        self.assertEqual(sent, self.alerts.PER_HOUR)
+
+    def test_nothing_at_night_and_not_the_next_morning_either(self):
+        night = datetime.fromtimestamp(self.now, settings.LOCAL_TZ).replace(hour=22).timestamp()
+        view = {"people": [{"name": "An", "status": "waiting", "waitingSince": (night - 12 * 60) * 1000}]}
+        self.assertEqual(self.a.due([self.chat], view, night), [])
+        self.assertEqual(self.a.due([self.chat], view, night + 9 * 3600), [])
+
+    def test_a_session_left_open_or_a_person_gone_is_not_told(self):
+        self.assertEqual(self.due(self.view(("An", self.alerts.STALE_MINUTES + 5))), [])
+        self.assertEqual(self.due(self.view(("An", 30, "offline"), ("Binh", 30, "working"))), [])
+
+    def test_a_new_wait_of_the_same_person_is_told_again(self):
+        self.assertEqual(len(self.due(self.view(("An", 12)))), 1)
+        self.assertEqual(len(self.a.due([self.chat], {"people": [{"name": "An", "status": "waiting", "waitingSince": (self.now + 3600 - 11 * 60) * 1000}]}, self.now + 3600)), 1)
+
+    def test_the_language_and_the_minutes_of_the_chat(self):
+        out = self.due(self.view(("An", 16)), dict(self.chat, notifyLang="vi", notifyMinutes=15))
+        self.assertTrue(out[0]["text"].startswith("⏳ AI Worker · " + lang.VI["{n} waiting longer than {m} min"].format(n=1, m=15)))
+
+
+class TelegramAlerts(unittest.TestCase):
+    """A chat turns alerts on with /alerts or in the window, and the bot process is told what to send on its round.
+    Một chat bật tin báo bằng /alerts hoặc trong khung, và tiến trình bot được báo cần gửi gì ở vòng hỏi của nó."""
+
+    KEY = TelegramAsk.KEY
+    HOA, LAN = TelegramAsk.HOA, TelegramApp.LAN
+    setUpClass = classmethod(TelegramAsk.setUpClass.__func__)
+    tearDownClass = classmethod(TelegramAsk.tearDownClass.__func__)
+    call, bot, say, admin, code_for, pair = TelegramAsk.call, TelegramAsk.bot, TelegramAsk.say, TelegramAsk.admin, TelegramAsk.code_for, TelegramAsk.pair
+    signed, session, chat_row, allowed, open_window = TelegramApp.signed, TelegramApp.session, TelegramApp.chat_row, TelegramApp.allowed, TelegramApp.open_window
+    TOKEN, URL = TelegramApp.TOKEN, TelegramApp.URL
+
+    def setUp(self):
+        TelegramApp.setUp(self)
+        from board import alerts
+        self.alerts_mod = alerts
+        alerts.ALERTS.__init__()
+        self.quiet_was = (alerts.QUIET_FROM, alerts.QUIET_TO)
+        alerts.QUIET_FROM = alerts.QUIET_TO = 0
+        now = time.time()
+        self.wall = {"people": [{"name": "An Nguyen", "status": "waiting", "waitingSince": (now - 12 * 60) * 1000, "email": "an@example.com"}]}
+        chat.role_view = lambda role, now: self.roles_asked.append(role) or self.wall
+
+    def tearDown(self):
+        self.alerts_mod.QUIET_FROM, self.alerts_mod.QUIET_TO = self.quiet_was
+        TelegramApp.tearDown(self)
+
+    def tick(self):
+        status, d = self.bot({"tick": True})
+        self.assertEqual(status, 200)
+        return d["send"]
+
+    def test_off_until_the_chat_turns_it_on(self):
+        self.pair(scope="people")
+        self.assertEqual(self.tick(), [])
+        d = self.say("/alerts 10")
+        self.assertIn("Alerts are on", d["text"])
+        self.assertTrue(d["text"].startswith("📊 AI Worker"))
+        sent = self.tick()
+        self.assertEqual([s["to"] for s in sent], [int(self.HOA)])
+        self.assertIn("An Nguyen: 12 min", sent[0]["text"])
+        self.assertNotIn("an@example.com", sent[0]["text"])
+        self.assertIsNone(sent[0]["app"])
+        self.assertEqual(self.tick(), [])
+        self.assertEqual(self.roles_asked[-1], security.WALL)
+
+    def test_off_and_how_it_stands(self):
+        self.pair(scope="people")
+        self.say("/alerts on")
+        self.assertIn("Alerts are on", self.say("/alerts")["text"])
+        self.assertIn("Alerts are off", self.say("/alerts off")["text"])
+        self.assertIn("Alerts are off", self.say("/alerts")["text"])
+        self.assertEqual(self.tick(), [])
+        self.assertIn(lang.VI["Alerts are off. Send /alerts 10 to get them again."], self.say("/baocho " + webhook_vi.ALERT_WORDS["off"][1], lang="vi")["text"])
+        self.assertIn("Send /alerts 10", self.say("/alerts 7")["text"])
+
+    def test_a_chat_that_may_open_the_window_gets_its_button(self):
+        self.allowed()
+        self.say("/alerts 10")
+        sent = self.tick()
+        self.assertEqual(sent[0]["app"], self.URL)
+        settings.TELEGRAM_APP_ENABLED = False
+        self.alerts_mod.ALERTS.__init__()
+        self.assertIsNone(self.tick()[0]["app"])
+
+    def test_the_window_reads_and_sets_the_chats_alerts(self):
+        self.allowed()
+        token = self.open_window()
+        status, b = self.call("GET", "/tg/state", Authorization="Bearer " + token)
+        self.assertEqual((status, json.loads(b)), (200, {"notify": False, "notifyMinutes": 10}))
+        for bad in ({"notify": "yes", "notifyMinutes": 10}, {"notify": True, "notifyMinutes": 7}, {"notify": True, "notifyMinutes": True}):
+            self.assertEqual(self.call("POST", "/tg/settings", json.dumps(bad), Authorization="Bearer " + token)[0], 400, bad)
+        status, _ = self.call("POST", "/tg/settings", json.dumps({"notify": True, "notifyMinutes": 5, "lang": "vi"}), Authorization="Bearer " + token)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(self.call("GET", "/tg/state", Authorization="Bearer " + token)[1]), {"notify": True, "notifyMinutes": 5})
+        sent = self.tick()
+        self.assertTrue(sent[0]["text"].startswith("⏳ AI Worker · " + lang.VI["{n} waiting longer than {m} min"].format(n=1, m=5)))
+
+    def test_only_its_own_chat_and_never_without_a_session(self):
+        self.allowed()
+        for headers in ({}, {"Cookie": "session=tok-tg-adm"}, {"Authorization": "Bearer tg_" + self.HOA}):
+            self.assertEqual(self.call("POST", "/tg/settings", json.dumps({"notify": True, "notifyMinutes": 5}), **headers)[0], 401, headers)
+            self.assertEqual(self.call("GET", "/tg/state", **headers)[0], 401, headers)
+
+    def test_each_message_is_logged_with_how_many_and_never_who(self):
+        self.pair(scope="people")
+        self.say("/alerts 10")
+        self.tick()
+        rows = [r for r in stores.AUDIT_LOG.read(datetime.now(settings.LOCAL_TZ).strftime("%Y-%m"), 50) if r.get("action") == "telegram-alert"]
+        self.assertEqual(rows[0]["people"], 1)
+        self.assertNotIn("An Nguyen", json.dumps(rows))
 
 
 if __name__ == "__main__":

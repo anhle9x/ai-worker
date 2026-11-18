@@ -29,7 +29,8 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | Màn hình treo tường | Bảng trên TV | Xem số liệu với tên rút gọn; không có email, IP nội bộ |
 | Quản lý | Biểu tượng thanh menu, tiện ích trình duyệt | Xem ai đang chờ, ai đang làm, hạn mức và chi phí hôm nay mà không phải mở bảng, với dữ liệu của màn hình treo tường; xem [menu-bar-spec.vi.md](menu-bar-spec.vi.md) và [chrome-extension-spec.vi.md](chrome-extension-spec.vi.md) |
 | Người có công cụ AI | Claude Code, Codex CLI, Cursor, Gemini CLI hoặc công cụ khác nói được MCP, kèm một khoá do quản trị duyệt | Hỏi bảng bằng lời của mình. Công cụ đọc dữ liệu của màn hình treo tường dưới dạng chữ, hoặc chỉ số gộp của cả đội và từng văn phòng khi quản trị chọn vậy; xem [INSTALL.vi.md](INSTALL.vi.md) |
-| Người ở trong một chat Telegram | Telegram trên điện thoại, trong một chat riêng được quản trị duyệt; chỉ khi chủ máy chủ đã bật (`TELEGRAM_ASK=1`) | Hỏi bảng bằng cách bấm nút hoặc gõ một câu ngắn. Câu trả lời là vài dòng làm từ dữ liệu của màn hình treo tường, hoặc chỉ số gộp của cả đội và từng văn phòng khi quản trị chọn vậy; xem [INSTALL.vi.md](INSTALL.vi.md) |
+| Người ở trong một chat Telegram | Telegram trên điện thoại hoặc máy tính, trong một chat riêng được quản trị duyệt; chỉ khi chủ máy chủ đã bật (`TELEGRAM_ASK=1`) | Hỏi bảng bằng cách bấm nút hoặc gõ một câu ngắn. Câu trả lời là vài dòng làm từ dữ liệu của màn hình treo tường, hoặc chỉ số gộp của cả đội và từng văn phòng khi quản trị chọn vậy; xem [INSTALL.vi.md](INSTALL.vi.md) |
+| Người mở khung bảng trong Telegram | Nút menu của bot trong một chat được đọc từng người và được quản trị cho mở khung; chỉ khi có thêm `TELEGRAM_APP=1`, và từ mạng mà proxy cho vào | Xem khung thanh menu ngay trong Telegram: người đang chờ và đang làm, biểu đồ chi phí 7 ngày, hạn mức và chi phí, từ dữ liệu của màn hình treo tường; xem [INSTALL.vi.md](INSTALL.vi.md) |
 | Người giữ máy chủ | Máy chủ, khoá ký | Cài webhook, đóng gói, ký bản phát hành |
 
 ### Hệ thống phải làm được
@@ -49,7 +50,9 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | F11 | Người dùng Codex, Cursor hoặc Gemini CLI hiện trên bảng mà không cần Claude Code: số phiên mở, đang làm và đang chờ, theo từng công cụ | `connectors/ai-worker-hook.sh`, `connectors/ai-worker-hook.ps1`; `from_connector`, `is_fresh` trong `server/board/devices.py` |
 | F12 | Công cụ AI nói được MCP đọc bảng bằng khoá của riêng nó, do quản trị duyệt: chỉ đọc, phần treo tường dạng chữ, trong phạm vi khoá được đọc | `server/board/mcp.py`; `mcp_post`, `PERM_MCP_KEY` trong `server/webhook.py`; `TvStore.find` trong `server/board/stores.py` |
 | F13 | Một người hỏi bảng từ một chat Telegram được quản trị duyệt: một trong số câu trả lời cố định, không có mô hình AI, trong phạm vi chat được đọc. Một tiến trình riêng nói chuyện với Telegram; webhook không bao giờ kết nối ra ngoài | `server/telegram_bot.py`; `server/board/chat.py`, `server/board/ask.py`; `bot_telegram`, `PERM_BOT_KEY` trong `server/webhook.py` |
-| F13 | So được mức dùng theo tuần và theo tháng: máy chủ cộng số liệu theo giờ mà các máy vốn đã gửi thành một con số tổng cho mỗi người mỗi ngày và giữ 13 tháng; quản trị và người xem thấy nó trên `/board` | `server/board/daily.py`; `record_daily`, `usage_view` trong `server/board/views.py`; `usage_section`, `usage_chart` trong `server/board/pages.py` |
+| F14 | So được mức dùng theo tuần và theo tháng: máy chủ cộng số liệu theo giờ mà các máy vốn đã gửi thành một con số tổng cho mỗi người mỗi ngày và giữ 13 tháng; quản trị và người xem thấy nó trên `/board` | `server/board/daily.py`; `record_daily`, `usage_view` trong `server/board/views.py`; `usage_section`, `usage_chart` trong `server/board/pages.py` |
+| F15 | Một chat được quản trị cho phép mở khung thanh menu bên trong Telegram (một Telegram Mini App). Điện thoại hay máy tính tự tới bảng qua HTTPS; webhook kiểm phần Telegram ký cho khung bằng một khoá suy ra từ khoá bot, và giữ phiên trong bộ nhớ | `server/board/tgapp.py`; `tg_session`, `get_tg_data`, `PERM_TG_SESSION` trong `server/webhook.py`; `server/static/tg-app.js`; `page_mini(telegram=True)` trong `server/board/pages.py`; `sync_menus` trong `server/telegram_bot.py` |
+| F16 | Chat Telegram đã bật tin báo nhận một tin khi có người chờ lâu hơn số phút nó chọn: mỗi lần chờ một lần, gộp lại, tối đa một tin mỗi 5 phút, 6 tin mỗi giờ, 30 tin mỗi ngày, không gửi ban đêm; dòng đầu không nêu tên ai, và chat chỉ đọc số gộp chỉ nhận con số | `server/board/alerts.py`; `alerts_due`, `_alerts` trong `server/board/chat.py`; `sync_menus` trong `server/telegram_bot.py`; `get_tg_state`, `tg_settings` trong `server/webhook.py` |
 
 ### Giới hạn máy chủ áp dụng
 
@@ -64,6 +67,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | Màn hình TV | 20 đã ghép, 3 đang chờ mỗi IP, tổng 30 đang chờ |
 | Khoá cho công cụ AI (MCP) | 50 khoá; mỗi khoá 120 yêu cầu trong 10 phút; mỗi thông điệp 16 KB |
 | Chat Telegram | 50 chat; 10 chat chờ duyệt; mỗi chat 20 tin trong 10 phút; chat chưa được duyệt được trả lời mỗi giờ một lần |
+| Khung bên trong Telegram | 10 phiên mỗi IP mỗi phút, 20 phiên mỗi chat trong 10 phút, 3 phiên mở mỗi chat; 60 lần đọc mỗi phiên trong 10 phút; các trường Telegram ký cũ tối đa 5 phút và tối đa 4 KB |
 
 ### Dữ liệu giữ bao lâu
 
@@ -81,6 +85,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | Phiên TV | 30 ngày, tự gia hạn khi đang dùng; tối đa 1 năm; không mất khi khởi động lại |
 | Khoá cho công cụ AI (MCP) | 30 ngày không dùng; tối đa 1 năm; không mất khi khởi động lại |
 | Chat Telegram | 30 ngày không dùng; tối đa 1 năm; không mất khi khởi động lại |
+| Phiên của khung bên trong Telegram | 1 giờ sau lần dùng cuối, tối đa 12 giờ; chỉ trong bộ nhớ, mất khi webhook khởi động lại |
 
 ## 2. Các phần
 
@@ -109,6 +114,7 @@ flowchart TD
   Mgr -- "phiên đã ghép,<br/>phần treo tường" --> Proxy
   Tool -- "khoá do quản trị duyệt,<br/>phần treo tường dạng chữ" --> Proxy
   Phone --> TG
+  Phone -- "khung trong Telegram:<br/>trường Telegram ký, chỉ /tg/" --> Proxy
   Bot -- "hỏi có tin không,<br/>gửi câu trả lời" --> TG
   IT -. "chép bản<br/>đã ký" .-> Releases
 ```
@@ -319,6 +325,39 @@ sequenceDiagram
 Thứ đứng thay cho một chat là số Telegram của người gửi, vốn không bí mật. Vì vậy các dòng đã ghép nằm ở ba phía (`side_of` trong `server/board/stores.py`): khoá cho cổng MCP, chat Telegram, và mọi thứ còn lại. Một dòng chỉ được tìm, đếm và thay ở đúng phía của nó, và `/bot/telegram` chỉ nhận lời gọi thẳng từ cùng máy kèm `TELEGRAM_ASK_KEY`: yêu cầu mang header của proxy nhận 404.
 
 `server/telegram_bot.py` không nạp gì của bảng, không ghi gì xuống đĩa và cầm hai thứ bí mật: token của bot và khoá đó. Nó dùng Bot API của Telegram qua HTTPS theo kiểu giữ kết nối chờ tin (`getUpdates`) chứ không dùng webhook do Telegram gọi tới, nên không mở gì về phía Internet và bảng không có địa chỉ công khai vẫn dùng được. Nó không dùng MTProto, giao thức của chính các app Telegram: thư viện chuẩn không nói được giao thức đó, và dùng nó là đăng nhập như một người. Khi Telegram từ chối token, khi có chương trình khác đọc cùng bot, hay khi không tới được Telegram, tiến trình báo cho webhook và trang Quản trị hiện điều đó. Bộ cài chạy nó thành dịch vụ `ai-worker-telegram` dưới người dùng riêng, với `IPAddressDeny=any` và danh sách cho phép gồm chính máy này, các máy chủ DNS của nó và các mạng của Telegram.
+
+### Khung bảng bên trong Telegram (tuỳ chọn)
+
+Chỉ khi có thêm `TELEGRAM_APP=1`, và chỉ cho chat được đọc từng người mà quản trị cho mở khung. Telegram không chở số liệu: app của nó mở trang `/tg/app` của bảng trong trình duyệt riêng, và trình duyệt đó tự hỏi bảng qua HTTPS, nên điện thoại hay máy tính phải ở mạng mà proxy cho vào. Tiến trình bot chỉ đặt nút menu cho từng chat.
+
+```mermaid
+sequenceDiagram
+  participant A as Quản trị
+  participant W as webhook.py
+  participant B as telegram_bot.py
+  participant T as Telegram
+  participant P as App Telegram của người dùng
+  A->>W: Cho mở khung ở /admin (nhập lại OTP)
+  B->>W: POST /bot/telegram {tick}, tối đa 20 giây một lần
+  W-->>B: menus: chat này, địa chỉ khung
+  B->>T: setChatMenuButton
+  Note over P: Bấm AI Worker. Telegram ký vài trường,<br/>đặt sau dấu #35; của địa chỉ
+  P->>W: GET /tg/app, /tg/app.js, /tg/mini.js, /tg/mini.css
+  P->>W: POST /tg/session kèm các trường đã ký
+  W->>W: Kiểm chữ ký bằng TELEGRAM_APP_KEY, cũ tối đa 5 phút, tìm chat, có được phép không?
+  W-->>P: Một phiên, chỉ trong bộ nhớ
+  P->>W: GET /tg/data mỗi 30 giây, kèm phiên
+  W->>W: Tìm lại chat: vẫn được duyệt và cho phép?
+  W-->>P: Phần màn hình treo tường
+```
+
+`server/board/tgapp.py` chứa phần kiểm, phiên và nút menu. Quy tắc của Telegram ký các trường bằng HMAC-SHA256, khoá là HMAC-SHA256("WebAppData", khoá bot); bộ cài ghi khoá đó thành `TELEGRAM_APP_KEY`, nên webhook kiểm được chữ ký mà không bao giờ cầm khoá bot, và khoá này không điều khiển được bot. Các trường nằm sau dấu `#` của địa chỉ, phần trình duyệt không bao giờ gửi đi, nên chúng không vào nhật ký nào. Phiên là một chuỗi ngẫu nhiên, giữ dạng băm trong bộ nhớ, sống 1 giờ sau lần dùng cuối, tối đa 12 giờ, 3 phiên mỗi chat; mỗi lần gọi đều tìm lại chat, nên **Thôi mở khung**, **Thu hồi** hay `/stop` đều kết thúc phiên ngay. Chữ ký sai bị tính là dò; các trường chỉ quá cũ thì không.
+
+Trang là chính trang của khung thanh menu (`page_mini(telegram=True)`): các file của nó lấy từ `/tg/`, để proxy có thể chỉ cho riêng tiền tố đó đi qua; nó không có liên kết tới bảng, không có cài đặt báo, và nút bỏ ghép thì ngắt chat. `server/static/tg-app.js` chạy trước `mini.js` và đưa cho nó `window.MiniApi`, như tiện ích trình duyệt. Nó không nạp script của Telegram từ telegram.org: nó tự đọc các trường trong địa chỉ và nói với app qua cầu nối Telegram đặt sẵn trong trang, nên không có script từ trang khác chạy ở nơi hiện số liệu của team, và `script-src 'self'` của trang giữ nguyên.
+
+`MenuSync` trong cùng module so các chat cần có khung với những gì tiến trình bot được báo lần trước, rồi giao phần thay đổi cho nó; sau khi khởi động lại, nó báo lại cho mọi chat còn hạn, nên chat bị bỏ quyền lúc máy chủ tắt cũng được trả lại menu thường. `TELEGRAM_APP=0` làm mọi đường dưới `/tg/` trả 404.
+
+Cùng vòng hỏi đó của tiến trình bot (`{tick}`) còn chở tin báo. `server/board/alerts.py` đọc phần treo tường, tìm các lần chờ vượt số phút của từng chat mà chưa báo, rồi áp khoảng cách giữa hai tin, trần mỗi giờ, mỗi ngày và giờ im lặng (19:00 tới 07:00); `alerts_due` trong `server/board/chat.py` giao các tin cho tiến trình bot, kèm địa chỉ khung khi chat được mở khung, và ghi mỗi tin một dòng nhật ký (`telegram-alert`, kèm số người). Mỗi chat tự đặt việc này, bằng `/alerts` hoặc trong khung (`/tg/settings`); tắt cho tới lúc đó. Những gì đã báo chỉ giữ trong bộ nhớ.
 
 ### Cập nhật plugin
 

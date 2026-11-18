@@ -14,6 +14,10 @@ ASK_WORDS = {
     "help": ["giúp", "trợ giúp", "hướng dẫn", "lệnh"],
 }
 
+# what may follow /alerts (or /baocho) in Vietnamese to turn alerts on or off, with and without accents
+# chữ có thể theo sau /alerts (hoặc /baocho) bằng tiếng Việt để bật hay tắt tin báo, có dấu và không dấu
+ALERT_WORDS = {"on": ("bat", "bật"), "off": ("tat", "tắt")}
+
 VI = {
     "At least one admin must remain": "Phải còn ít nhất một quản trị",
     "This name is already taken": "Tên này đã có",
@@ -335,4 +339,14 @@ VI = {
     "Open this window from the bot's menu button in Telegram.": "Mở khung này từ nút menu của bot trong Telegram.",
     "This chat may not open the board's window. Ask an admin of the board.": "Chat này không được mở khung của bảng. Hãy hỏi quản trị của bảng.",
     "Too many tries. Try again in a minute.": "Thử quá nhiều lần. Một phút nữa hãy thử lại.",
+    "Alerts are off.": "Tin báo đang tắt.",
+    "Alerts are off. Send /alerts 10 to get them again.": "Đã tắt tin báo. Gửi /baocho 10 để bật lại.",
+    "Alerts are on: a message when someone has waited more than {m} min.": "Đã bật tin báo: nhắn khi có người chờ quá {m} phút.",
+    "At most one message every 5 minutes, none from 19:00 to 07:00. Send /alerts off to stop.": "Tối đa một tin mỗi 5 phút, không gửi từ 19:00 tới 07:00. Gửi /baocho tat để tắt.",
+    "Message me when a wait passes": "Nhắn tôi khi có người chờ quá",
+    "Message me when someone waits too long": "Nhắn khi có người chờ quá lâu",
+    "Send /alerts 10 for a message after 10 minutes of waiting (or 5, 15, 30, 60), /alerts off to stop.": "Gửi /baocho 10 để được nhắn khi có người chờ quá 10 phút (hoặc 5, 15, 30, 60), /baocho tat để tắt.",
+    "This chat reads totals only, so nobody is named.": "Chat này chỉ đọc số gộp, nên không nêu tên ai.",
+    "Turn these messages off with /alerts off.": "Tắt các tin này bằng /baocho tat.",
+    "{n} waiting longer than {m} min": "{n} người chờ quá {m} phút",
 }

@@ -244,9 +244,22 @@ Chat được đọc từng người còn có thể mở khung nhỏ của biể
 - **Kết thúc:** **Thôi mở khung** hay **Thu hồi** ở trang Quản trị, `/stop` trong chat, hoặc **Ngắt chat này** trong phần cài đặt của khung, đều đóng ngay mọi khung đang mở của chat đó. Khởi động lại máy chủ cũng kết thúc các phiên: đóng khung rồi mở lại.
 - **Trong nhật ký:** mỗi lần mở, mỗi lần bị từ chối, và mỗi lần quản trị cho phép hay thôi cho một chat. Không bao giờ có các trường Telegram đã ký.
 - **Tắt đi:** bỏ dòng `TELEGRAM_APP=1` rồi chạy lại `install.sh`. Các đường dưới `/tg/` trả 404, và nút menu trở về menu thường ở lần chạy kế tiếp của tiến trình bot.
+- **Nếu khung hiện chữ *Forbidden*:** chữ đó do Caddy trả, không phải do bảng: điện thoại tới máy chủ bằng một IP không có trong danh sách. Văn phòng có nhiều đường Internet có thể đẩy Telegram ra bằng đường danh sách chưa có, dù trình duyệt của điện thoại vào được. Xem IP bị Caddy chặn bằng `sudo grep '/tg/app' /var/log/caddy/aiworker.log | tail -3` (trường `remote_ip`), và chỉ thêm IP đó vào dòng `remote_ip` khi nó là đường Internet của chính bạn; nếu không phải (proxy đặt trong Telegram, VPN), hãy tắt thứ đó.
 - **Mở từ ngoài văn phòng** cần proxy cho `/tg/` vào từ mọi nơi, tức là một quyết định về việc đưa bảng ra Internet. Việc đó không nằm trong bản này.
 
-**Đã thử tới đâu.** Phần kiểm chữ ký của Telegram, phiên, giới hạn và nút menu có bài test máy chủ (`server/test_webhook.py`, `TelegramApp`; `server/test_telegram_bot.py`, `MenuButtons`), còn khoá do bộ cài ghi có bài test cài trên Ubuntu. Bản thân khung đã được xem trong trình duyệt ở khổ điện thoại và máy tính, với các trường do bài test ký. Chưa thử trong chính app Telegram: Android, iPhone hay Telegram Desktop.
+**Đã thử tới đâu.** Phần kiểm chữ ký của Telegram, phiên, giới hạn và nút menu có bài test máy chủ (`server/test_webhook.py`, `TelegramApp`; `server/test_telegram_bot.py`, `MenuButtons`), còn khoá do bộ cài ghi có bài test cài trên Ubuntu. Bản thân khung đã được xem trong trình duyệt ở khổ điện thoại và máy tính, với các trường do bài test ký. Ngày 2026-11-18 đã bật trên một máy chủ thật: sau khi quản trị cho phép một chat, nút menu của bot đổi thành **AI Worker**, và trong Telegram Desktop trên máy Mac ở mạng văn phòng khung mở ra với số liệu của bảng. Trên một điện thoại Android dùng Wi-Fi văn phòng, lúc đầu khung hiện chữ *Forbidden* của proxy: văn phòng có nhiều đường Internet, và Telegram đi ra bằng một đường chưa có trong danh sách của Caddy, trong khi trình duyệt của điện thoại đi bằng đường khác. Thêm IP của đường đó vào danh sách xong thì khung mở được trên điện thoại. Chưa thử trên iPhone, và chưa thử từ ngoài văn phòng.
+
+### Tin báo khi có người chờ quá lâu (tuỳ chọn, theo từng chat)
+
+Khi chat đã được kết nối (mục trên), nó có thể nhờ bot tự nhắn trước: một tin khi có người chờ trả lời lâu hơn mức chat đã chọn. Không cần bật gì trên máy chủ; mỗi chat tự bật cho mình, và tắt cho tới lúc đó.
+
+- **Bật:** gửi `/baocho 10` cho bot (hoặc `/alerts 10`; 5, 15, 30, 60 cũng được), hoặc trong khung bảng bên trong Telegram, mở **Cài đặt** và đánh dấu **Nhắn tôi khi có người chờ quá**. `/baocho tat` (`/alerts off`) hoặc bỏ dấu ở ô đó là tắt; chỉ gửi `/baocho` thì bot cho biết đang bật hay tắt.
+- **Nhận được gì:** mỗi lần chờ chỉ báo một lần. Nhiều lần chờ gộp trong một tin. Mỗi chat tối đa một tin mỗi 5 phút, 6 tin mỗi giờ, 30 tin mỗi ngày, và không gửi từ 19:00 tới 07:00 theo múi giờ của bảng; lần chờ vượt mức ban đêm không được báo vào sáng hôm sau. Lần chờ quá 4 giờ, hoặc người đã ngoại tuyến, được coi là phiên bỏ mở và không báo.
+- **Nội dung:** dòng đầu không nêu tên ai (điện thoại hiện dòng này trên màn hình khoá): có bao nhiêu người chờ quá số phút của chat. Sau đó, với chat đọc từng người, là từng cái tên như màn hình treo tường hiện kèm số phút; chat chỉ đọc số gộp thì chỉ nhận con số. Chat được mở khung có thêm nút **AI Worker** dưới tin để mở khung.
+- **Trong nhật ký:** mỗi tin, kèm chat và số người, không bao giờ ghi là ai.
+- **Thay đổi gì:** từ nay bot tự nhắn vào chat mà không cần được hỏi. Tên và số phút trong các tin này đi qua máy chủ của Telegram và nằm lại trong chat, như câu trả lời cho các câu hỏi của chính chat đó. Những gì bot đã báo được giữ trong bộ nhớ: sau khi máy chủ khởi động lại, một lần chờ còn đang diễn ra có thể được báo thêm một lần.
+
+**Đã thử tới đâu.** Có bài test máy chủ (`server/test_webhook.py`, `AlertRules` và `TelegramAlerts`; `server/test_telegram_bot.py`, `MenuButtons`) và đã thử trên bảng mẫu; chưa thử trên máy chủ thật.
 
 ## Phát hành bản cập nhật
 

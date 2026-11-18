@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.38.0 - 2026-11-18
+
+### Added
+- The Telegram bot can write first: a message when someone has waited for an answer longer than the chat chose. Each chat turns it on for itself with `/alerts 10` (`/baocho 10`; 5, 15, 30 or 60 too) or in the window's settings, and it is off until then. Each wait is told once, several go in one message, at most one message every 5 minutes, 6 an hour and 30 a day, none from 19:00 to 07:00. The first line names nobody; a chat that reads totals only gets the count alone; a chat allowed the window gets a button that opens it. Each message is logged with how many people, never who. See [INSTALL.md](docs/INSTALL.md).
+
 ## 0.37.0 - 2026-11-18
 
 ### Added

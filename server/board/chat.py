@@ -10,7 +10,9 @@ Nothing here talks to Telegram, and the words a person typed are neither stored 
 import re
 import threading
 
-from board import ask, tgapp
+from board import ask, settings, tgapp
+from board.alerts import ALERTS
+from webhook_vi import ALERT_WORDS
 from board.lang import speaking, tx
 from board.security import WALL, CallLimit
 from board.settings import KIND_TELEGRAM, TELEGRAM_CALLS_PER_CHAT, TELEGRAM_CALLS_WINDOW_SECONDS, TELEGRAM_STRANGER_SECONDS
@@ -72,7 +74,7 @@ def on_call(msg, now: float) -> dict:
     # mỗi vòng tiến trình bot hỏi cần đổi nút menu của chat nào: khung của bảng cho chat được quản trị cho phép, menu thường cho chat
     # bị bỏ quyền đó (board/tgapp.py)
     if isinstance(msg, dict) and msg.get("tick") is True:
-        return {"ok": True, "menus": tgapp.MENUS.changes(now), "menuText": tgapp.MENU_TEXT}
+        return {"ok": True, "menus": tgapp.MENUS.changes(now), "menuText": tgapp.MENU_TEXT, "send": alerts_due(now)}
     TELEGRAM_BOT.seen(now)
     return on_message(msg, now)
 
@@ -98,10 +100,45 @@ def on_message(msg, now: float) -> dict:
     asked = ask.match(msg.get("text"))
     language = ask.language_for(asked.lang, msg.get("lang"))
     with speaking(language):
-        return _answer(telegram_id, username, asked.command, language, now)
+        return _answer(telegram_id, username, asked.command, language, now, msg.get("text"))
 
 
-def _answer(telegram_id: str, username: str, command: str, language: str, now: float) -> dict:
+def alerts_due(now: float) -> list:
+    """The messages the bot process should send now to chats that turned alerts on (board/alerts.py), each with the window's address
+    when the chat may open it. One row in the log for each, with how many people and never who.
+    Các tin tiến trình bot cần gửi ngay tới các chat đã bật báo (board/alerts.py), mỗi tin kèm địa chỉ của khung khi chat được mở khung.
+    Mỗi tin một dòng nhật ký, ghi bao nhiêu người và không bao giờ ghi là ai."""
+    chats = [dict(v, id=k) for k, v in TV.d.items() if v.get("kind") == KIND_TELEGRAM and v["expiresAt"] > now and v.get("notify") is True]
+    if not chats:
+        return []
+    out = []
+    for m in ALERTS.due(chats, role_view(WALL, now), now):
+        chat = m["chat"]
+        AUDIT_LOG.write(action="telegram-alert", tv=chat["name"], id=chat["id"], kind=KIND_TELEGRAM, people=m["count"])
+        window = settings.TELEGRAM_APP_ENABLED and chat.get("app") is True and chat.get("scope") == SCOPE_PEOPLE
+        out.append({"to": m["to"], "text": m["text"], "app": settings.TELEGRAM_APP_URL if window else None})
+    return out
+
+
+def _alerts(chat_id: str, chat: dict, text, language: str) -> dict:
+    """/alerts in a chat: on with a number of minutes, off, or how it stands. The chat sets this for itself; the admin chose what it reads.
+    /alerts trong một chat: bật kèm số phút, tắt, hoặc cho biết đang thế nào. Chat tự đặt việc này; quản trị đã chọn nó được đọc gì."""
+    m = re.match(r"/[A-Za-z0-9_]+(?:@[A-Za-z0-9_]+)?\s*(.*)", text.strip()[:80]) if isinstance(text, str) else None
+    arg = m.group(1).strip().casefold() if m else ""
+    minutes = chat.get("notifyMinutes") if chat.get("notifyMinutes") in settings.MINI_NOTIFY_MINUTES else 10
+    if arg in ("off", "0") + ALERT_WORDS["off"]:
+        TV.set_alerts(chat_id, False, minutes, language)
+        return _say("\n".join([ask.HEADER, "", "🔕 " + tx("Alerts are off. Send /alerts 10 to get them again.")]))
+    if arg in ("on",) + ALERT_WORDS["on"] or (arg.isdigit() and int(arg) in settings.MINI_NOTIFY_MINUTES):
+        minutes = int(arg) if arg.isdigit() else minutes
+        TV.set_alerts(chat_id, True, minutes, language)
+        return _say("\n".join([ask.HEADER, "", "🔔 " + tx("Alerts are on: a message when someone has waited more than {m} min.", m=minutes),
+                                tx("At most one message every 5 minutes, none from 19:00 to 07:00. Send /alerts off to stop.")]))
+    state = tx("Alerts are on: a message when someone has waited more than {m} min.", m=minutes) if chat.get("notify") is True else tx("Alerts are off.")
+    return _say("\n".join([ask.HEADER, "", "🔔 " + state, tx("Send /alerts 10 for a message after 10 minutes of waiting (or 5, 15, 30, 60), /alerts off to stop.")]))
+
+
+def _answer(telegram_id: str, username: str, command: str, language: str, now: float, text=None) -> dict:
     key = chat_key(telegram_id)
     chat, joined = TV.find(key, now, KIND_TELEGRAM), False
     if not chat:
@@ -130,6 +167,8 @@ def _answer(telegram_id: str, username: str, command: str, language: str, now: f
         return _say("🚦 " + tx("This chat has asked too often. Try again in a few minutes."))
     TV.touch(key, "", now, KIND_TELEGRAM)
     TV_STATUS.mark_seen(chat_id, "", now)
+    if command == ask.ALERTS and not joined:
+        return _alerts(chat_id, chat, text, language)
     keyboard = ask.keyboard(language)
     if command in ask.DATA_COMMANDS and not joined:
         text = ask.answer(command, role_view(WALL, now), chat.get("scope", ""), now * 1000, language)

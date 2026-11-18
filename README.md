@@ -39,7 +39,7 @@ AI Worker is for the person who has to roll Claude out to an office and then ans
 - **Codex, Cursor and Gemini CLI on the same board:** a connector, installed per tool by whoever uses it, shows sessions open, working and waiting for each tool. It needs no Claude Code, Python or Node, and it sends counts only. New: tried inside a real Codex CLI on macOS; on Linux and Windows, and for Cursor and Gemini CLI, tested with sample events only, not inside the real tools. See the [install guide](docs/INSTALL.md#codex-cursor-and-gemini-cli-on-the-board).
 - **Cost and quota:** cost today and over 7 days and quota left, per person and per office.
 - **Ask Claude about the team:** a manager pairs their Claude with the board once, then simply asks, for example "who is waiting longest right now?". You can type or dictate the question in your own language; Claude answers from the board's numbers.
-- **Ask from other AI tools, or from Telegram:** the server has a read-only MCP endpoint, so any AI tool that speaks MCP can answer the same questions with a key an admin approves. Managers who do not write code can tap a button in a Telegram chat instead: optional, off by default, and no AI model reads the question. The [install guide](docs/INSTALL.md) shows how to turn each one on.
+- **Ask from other AI tools, or from Telegram:** the server has a read-only MCP endpoint, so any AI tool that speaks MCP can answer the same questions with a key an admin approves. Managers who do not write code can tap a button in a Telegram chat instead, or open the menu bar window inside Telegram from the bot's menu: optional, off by default, and no AI model reads the question. The [install guide](docs/INSTALL.md) shows how to turn each one on.
 - **Use by week and month:** the detail board compares this week and this month with the last, for the team, each office and each person.
 - **Turn a procedure into a skill:** give `/ai-worker:make-skill` an SOP or a description of how a job is done. It writes a draft skill, stops at passwords and keys, leaves personal data out, and switches the skill on only after you say yes.
 - **Asks before deleting or sending out:** a command that deletes a whole folder, `git reset --hard`, `git push --force` and `git clean` need your confirmation, and so does sending text to another company's AI unless you allowed it yourself.
@@ -133,6 +133,9 @@ Where the project is going. There are no dates: an item ships when it has been c
 - [ ] The Cursor, Gemini CLI and Windows connectors tried inside the real tools. So far only Codex on macOS has been.
 - [ ] The MCP endpoint tried from Cursor and Gemini CLI. So far Claude Code, Codex CLI and the Chat tab of the Claude app (through a claude.ai connector) have been.
 - [x] Charts of use by week and month on the detail board: cost per week for 12 weeks and per month for up to 13 months, for the team and for each office
+- [x] The menu bar window inside Telegram (0.37.0), for chats an admin allows: tried on Telegram Desktop and Android, on the office network
+- [ ] The window inside Telegram for chats that read totals only, and from outside the office network
+- [x] A Telegram message when someone waits too long, turned on by each chat (`/alerts`), with a button that opens the window
 
 ## Documents
 

@@ -8,6 +8,8 @@ Biểu tượng trên thanh menu của macOS, khay hệ thống của Windows v�
 
 Quản lý thấy ngay trên thanh menu, kể cả khi đã tắt trình duyệt, có bao nhiêu người đang chờ và ai chờ lâu, rồi mở bảng chỉ bằng một lần bấm. Giao diện chỉ thiết kế một lần, trên máy chủ. Biểu tượng không bao giờ nhận nhiều dữ liệu hơn màn hình treo tường, và không thêm thư viện ngoài, trừ bộ WebView2 của Microsoft cho khung Windows (xem `THIRD-PARTY.md`).
 
+Cùng khung đó, từ cùng `page_mini` và `mini.js`, còn mở trong tiện ích trình duyệt của quản lý (`/ext/mini`) và, khi chủ máy chủ đã bật, bên trong Telegram cho chat được quản trị cho phép (`/tg/app`, xem [ARCHITECTURE.vi.md](ARCHITECTURE.vi.md)). Sửa khung là cả ba nơi cùng thấy.
+
 ## Ngoài phạm vi
 
 - **Email, IP nội bộ, tên đầy đủ.** Biểu tượng và khung nhận đúng phần của màn hình treo tường (`role_view`, vai `wall`).

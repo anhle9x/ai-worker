@@ -637,6 +637,16 @@ class TvStore(Store):
             d[tv_id].update(notify=notify, notifyMinutes=minutes)
         self.mutate(change)
 
+    def set_alerts(self, tv_id: str, notify: bool, minutes: int, language: str) -> dict:
+        """A Telegram chat's own choice of messages when someone waits too long (board/alerts.py): off by default, set by the chat itself.
+        Lựa chọn của chính một chat Telegram về tin báo khi có người chờ quá lâu (board/alerts.py): mặc định tắt, do chính chat đặt."""
+        def change(d):
+            if tv_id not in d or d[tv_id].get("kind") != KIND_TELEGRAM:
+                raise ValueError(tx("This screen no longer exists"))
+            d[tv_id].update(notify=notify, notifyMinutes=minutes, notifyLang=language if language in ("en", "vi") else "")
+            return dict(d[tv_id])
+        return self.mutate(change)
+
     def set_app(self, tv_id: str, on: bool) -> dict:
         """Let a Telegram chat open the board's window inside Telegram, or stop it. Only a chat that reads each person: see board/tgapp.py.
         Cho một chat Telegram mở khung của bảng bên trong Telegram, hoặc thôi. Chỉ chat được đọc từng người: xem board/tgapp.py."""

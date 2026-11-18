@@ -8,6 +8,8 @@ An icon in the macOS menu bar, the Windows notification area and the Ubuntu top 
 
 A manager sees in the menu bar, even with the browser closed, how many people are waiting and who has waited long, and opens the board in one click. The interface is designed once, on the server. The icon never gets more data than a wall screen, and no outside library is added, except Microsoft's WebView2 SDK for the Windows window (see `THIRD-PARTY.md`).
 
+The same window, from the same `page_mini` and `mini.js`, also opens in the manager browser extension (`/ext/mini`) and, when the server's owner turned it on, inside Telegram for a chat an admin allowed (`/tg/app`, see [ARCHITECTURE.md](ARCHITECTURE.md)). A change to the window shows in all of them.
+
 ## Not in scope
 
 - **Emails, internal IPs, full names.** The icon and its window get the wall screen's view (`role_view`, role `wall`).
