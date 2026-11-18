@@ -153,7 +153,7 @@ export const VI: Record<string, string> = {
   'design modules with a small, clear interface': 'thiết kế các khối code có cách dùng gọn, rõ',
   "agree on the project's terms and record decisions": 'thống nhất thuật ngữ của dự án và ghi lại quyết định',
   "find where the code's structure can be made better": 'tìm chỗ cấu trúc code có thể làm tốt hơn',
-  'test one web flow and write a bug report': 'test một luồng trên web và viết báo cáo lỗi',
+  'test one flow of a website or a phone app and write a bug report': 'test một luồng của website hoặc app điện thoại và viết báo cáo lỗi',
   'test a whole website, flow by flow, into one report': 'test cả một website, từng luồng một, gộp thành một báo cáo',
   'test a page in Chrome: screen, console, network': 'test một trang trong Chrome: màn hình, console, mạng',
   'review code for security problems': 'rà code tìm lỗi bảo mật',

@@ -4,7 +4,7 @@
 
 **Every skill comes with the plugin.** Four are for everyday work: `meeting-notes`, `lesson-generator`, `handoff`, `make-skill`. The others are for people who write code or run systems: testing, coding, security and UI, `write-spec` for specifications, `draw-flow` for Mermaid diagrams. The plugin also ships the `planner` assistant, the rules for technical work, and the guidance and security rules (on only in the company package). Type `/ai-worker:help` in a session to see the list on your computer.
 
-**The tools some of those skills need are a separate step, for people who write code.** In the unzipped package, open the `setup` folder and double-click `INSTALL-DevTools-Mac.command` or `INSTALL-DevTools-Windows.bat`, after installing the plugin. It installs Node 20.19 or newer, registers Playwright and Chrome DevTools, and asks whether to also download `stageshow` and `video-shotcraft`. Windows uses `winget` to install Python, Chrome and ffmpeg when missing. A Mac can install those three only if Homebrew is writable; otherwise the installer lists at the end what is still missing. Without this step the skills are still there; `qa-test`, `qa-site` and `browser-testing-with-devtools` cannot drive a browser.
+**The tools some of those skills need are a separate step, for people who write code.** In the unzipped package, open the `setup` folder and double-click `INSTALL-DevTools-Mac.command` or `INSTALL-DevTools-Windows.bat`, after installing the plugin. It installs Node 20.19 or newer, registers Playwright and Chrome DevTools, and asks whether to also download `stageshow` and `video-shotcraft`. Windows uses `winget` to install Python, Chrome and ffmpeg when missing. A Mac can install those three only if Homebrew is writable; otherwise the installer lists at the end what is still missing. Without this step the skills are still there; `qa-test`, `qa-site` and `browser-testing-with-devtools` cannot drive a browser. To test a phone app, `qa-test` also needs a mobile MCP, which this step does not install: the skill names the one line to run when it finds none.
 
 `video-shotcraft` uses Remotion, which has its own license, and some audio of unclear source: check before making videos for the company.
 
@@ -18,7 +18,7 @@ Sources and licenses of the skills: `skills/SOURCES.md`. The skills written by o
 | `lesson-generator` | Everyone | Builds a short multi-lesson course with flashcards and quizzes | Elvis Saravia, DAIR.AI | MIT |
 | `handoff` | Everyone | Writes the handoff note so the next session can carry on | This project | MIT |
 | `make-skill` | Everyone | Turns a document or a team's procedure into a new skill: refuses a source holding secrets, checks its own draft, keeps it as a draft, switches it on only after a yes | This project | MIT |
-| `qa-test` | Coding and systems | Tests one web flow and writes a bug report | This project | MIT |
+| `qa-test` | Coding and systems | Tests one flow of a website, or of an iOS or Android app on a simulator or phone, and writes a bug report | This project | MIT |
 | `qa-site` | Coding and systems | Tests a whole web project, flow by flow, into one report | This project | MIT |
 | `write-spec` | Coding and systems | Writes a specification: goal, scope, roles, numbered requirements | This project | MIT |
 | `draw-flow` | Coding and systems | Draws how a system really works as checked Mermaid diagrams | This project | MIT |

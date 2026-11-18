@@ -39,7 +39,7 @@ function plainAbout(name: string): string | undefined {
   if (name === 'codebase-design') return tx('design modules with a small, clear interface')
   if (name === 'domain-modeling') return tx("agree on the project's terms and record decisions")
   if (name === 'improve-codebase-architecture') return tx("find where the code's structure can be made better")
-  if (name === 'qa-test') return tx('test one web flow and write a bug report')
+  if (name === 'qa-test') return tx('test one flow of a website or a phone app and write a bug report')
   if (name === 'qa-site') return tx('test a whole website, flow by flow, into one report')
   if (name === 'browser-testing-with-devtools') return tx('test a page in Chrome: screen, console, network')
   if (name === 'security-audit') return tx('review code for security problems')

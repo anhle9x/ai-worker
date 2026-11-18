@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.36.0 - 2026-11-18
+
+### Added
+- `qa-test` also tests iOS and Android apps on a simulator, an emulator or a phone, through a mobile MCP: Mobile MCP or Appium MCP, both open source. The skill installs nothing: when no such MCP is there, it names the one line to run, with Mobile MCP's usage data switched off. It never uses a cloud device unless asked, and asks before installing an app or clearing its data. Tried with Mobile MCP 1.0.17 on an iPhone 18 Pro simulator with iOS 27.2.
+
 ## 0.35.1 - 2026-11-17
 
 ### Changed
