@@ -4,7 +4,7 @@
 // Bảng cả team: một máy chia sẻ gì vào thư mục chung, và máy của người
 // quản lý gộp mọi file ở đó ra sao. Chỉ có con số: không bao giờ có tiêu đề cuộc trò chuyện,
 // lời nhắc, tên file hay thư mục. Hàm thuần: không dùng `$`.
-import type { Ledger, Spend, TeamState, Quota } from '../types'
+import type { BlockKind, Ledger, Spend, TeamState, Quota } from '../types'
 import { LEDGER_HOURS } from './edits'
 import { tx } from './lang'
 
@@ -100,6 +100,9 @@ export type MachineSummary = {
   /** Tasks handed to each worker, by hour since the epoch (UTC). */
   /** Số việc giao cho từng trợ lý, theo giờ kể từ epoch (UTC). */
   tasks: Record<string, WorkerCount>
+  /** What ai-worker stopped or put to the person, by hour since the epoch (UTC): counts only, never what it was. */
+  /** Những gì ai-worker đã chặn hay đưa người dùng xem, theo giờ kể từ epoch (UTC): chỉ số đếm, không bao giờ là nội dung. */
+  blocks?: Record<string, Partial<Record<BlockKind, number>>>
   /** The machine's own address on the office network, as it reports it (the webhook adds the address it sees as `ip`). */
   /** Địa chỉ của chính máy trên mạng văn phòng, như nó tự báo (webhook thêm địa chỉ nó thấy thành `ip`). */
   lanIp?: string
@@ -347,6 +350,7 @@ export function buildMachineSummary(
 ): MachineSummary {
   const fromHour = Math.floor(now / 3_600_000) - LEDGER_HOURS
   const tasks: Record<string, WorkerCount> = {}
+  const blocks: Record<string, Partial<Record<BlockKind, number>>> = {}
   let openSessions = 0
   let working = 0
   let waiting = 0
@@ -366,6 +370,12 @@ export function buildMachineSummary(
       // một việc bị bỏ dở bởi phiên đã sập thì sau một lúc thôi không được tính
       for (const j of s.jobs ?? []) if (j.worker !== 'claude' && j.endedAt === undefined && now - j.startedAt < BUSY_MS) delegating[j.worker]++
     }
+    for (const b of s.blocks ?? []) {
+      const hour = Math.floor(b.at / 3_600_000)
+      if (hour <= fromHour) continue
+      const c = (blocks[hour] ??= {})
+      c[b.kind] = (c[b.kind] ?? 0) + 1
+    }
     for (const j of s.jobs ?? []) {
       if (j.worker === 'claude') continue
       const hour = Math.floor(j.startedAt / 3_600_000)
@@ -380,6 +390,7 @@ export function buildMachineSummary(
     ...(pluginVersion ? { pluginVersion } : {}),
     ...(hardwareMark ? { hardwareMark } : {}),
     ...(Object.keys(subagents).length ? { subagents } : {}),
+    ...(Object.keys(blocks).length ? { blocks } : {}),
     updatedAt: now, openSessions, working, waiting, delegating, models, ledger: ledger ?? {}, tasks,
   }
 }

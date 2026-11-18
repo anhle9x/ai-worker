@@ -420,6 +420,11 @@
       p.append(el)
     }
     if (snapshot.screens.length) {
+      // keys for AI tools nobody has used for a month: one line above the table, so an admin revokes what nobody needs
+      // khoá cho công cụ AI không ai dùng suốt một tháng: một dòng phía trên bảng, để quản trị thu hồi thứ không ai cần
+      const idleLimit = snapshot.mcpIdleDays || 30
+      const idle = snapshot.screens.filter(t => t.kind === 'mcp' && t.idleDays >= idleLimit)
+      if (idle.length) p.append(o('div', 'qt-hint', tx('{n} key(s) for AI tools not used for {days} days or more: {names}. Revoke the ones nobody needs, so a key left in an old config file cannot read the board.', { n: idle.length, days: idleLimit, names: idle.map(t => t.name).join(', ') })))
       const board = o('table', 'qt-table')
       const head = o('tr')
       for (const c of [tx('Name'), tx('Status'), tx('Version'), tx('Device'), tx('Branch'), tx('Latest IP'), tx('Approved by'), '']) head.append(o('th', '', c))
@@ -450,8 +455,9 @@
           const question = t.kind === 'telegram' ? tx('Revoke {name}? That chat can no longer read the board.', { name: t.name }) : t.kind === 'mcp' ? tx('Revoke {name}? The AI tool that holds this key can no longer read the board.', { name: t.name }) : t.kind === 'plugin' ? tx('Revoke {name}? Claude on that computer can no longer read the board.', { name: t.name }) : t.kind === 'extension' ? tx('Revoke {name}? Within a minute that browser shows it is not paired.', { name: t.name }) : tx('Revoke {name}? That screen goes back to the pairing page at once.', { name: t.name })
           if (confirm(question)) post('/admin/tv-revoke', { id: t.id }, () => toast(tx('Revoked {name}', { name: t.name })))
         }, 'qt-button critical'))
-        const statusText = t.kind === 'mcp' || t.kind === 'telegram' ? (t.running ? tx('Used just now') : t.lastSeenAt ? tx('Last used {time}', { time: dateTime(t.lastSeenAt) }) : tx('Not used since the server started')) : t.exitedAt ? tx('Exited at {time}', { time: dateTime(t.exitedAt * 1000) }) : t.running ? tx('Running') : t.lastSeenAt ? tx('Not seen for a while, last seen {time}', { time: dateTime(t.lastSeenAt) }) : tx('Not seen since the server started')
-        const statusCell = o('td', t.running ? '' : 'qt-muted', statusText)
+        const idleKey = t.kind === 'mcp' && t.idleDays >= idleLimit
+        const statusText = idleKey ? tx('Not used for {n} days', { n: t.idleDays }) : t.kind === 'mcp' || t.kind === 'telegram' ? (t.running ? tx('Used just now') : t.lastSeenAt ? tx('Last used {time}', { time: dateTime(t.lastSeenAt) }) : tx('Not used since the server started')) : t.exitedAt ? tx('Exited at {time}', { time: dateTime(t.exitedAt * 1000) }) : t.running ? tx('Running') : t.lastSeenAt ? tx('Not seen for a while, last seen {time}', { time: dateTime(t.lastSeenAt) }) : tx('Not seen since the server started')
+        const statusCell = o('td', idleKey ? 'qt-old' : t.running ? '' : 'qt-muted', statusText)
         const versionCell = o('td', t.upToDate === false ? 'qt-old' : '', t.upToDate === null ? '—' : t.upToDate ? tx('Latest') : tx('Old version'))
         h.append(o('td', '', t.name), statusCell, versionCell, o('td', '', t.kind === 'telegram' ? tx('Telegram chat, {who}, {scope}', { who: t.telegramUser ? '@' + t.telegramUser : t.telegramId, scope: t.scope === 'people' ? tx('reads each person') : tx('reads totals only') }) + (t.app ? ', ' + tx('opens the window') : '') : t.kind === 'mcp' ? tx('Key for an AI tool, {start}…, {scope}', { start: t.keyStart, scope: t.scope === 'people' ? tx('reads each person') : tx('reads totals only') }) : t.kind === 'plugin' ? t.device : t.kind === 'extension' ? tx('Browser extension · {device}', { device: t.device }) : t.device), o('td', '', t.branch || '—'), o('td', '', t.lastIp || '—'), o('td', '', t.owner ? tx('{name} (paired by themselves)', { name: t.owner }) : t.approvedBy), actions)
         board.append(h)
@@ -616,6 +622,30 @@
     return p
   }
 
+  // what ai-worker stopped or put to a person across the team in the last 7 days: totals only, no person and no computer
+  // những gì ai-worker đã chặn hay đưa người dùng xem trên cả team trong 7 ngày qua: chỉ số tổng, không có người, không có máy
+  function blockedSection() {
+    const b = snapshot.blocked7d || {}
+    const p = section(tx('Stopped by ai-worker'), tx('The whole team, the last 7 days; counts only, never what it was'))
+    const rows = [
+      [tx('Text for ChatGPT or Gemini that held a key or a password, not sent'), b.secret],
+      [tx('Commits that would put a secret into git, asked first'), b.commit],
+      [tx('Commands that destroy work or weaken the computer, asked first'), b.risky],
+      [tx('Pages that tried to steer Claude, Claude warned'), b.page],
+    ]
+    const board = o('table', 'qt-table small')
+    const head = o('tr')
+    for (const c of [tx('What was stopped'), tx('Times')]) head.append(o('th', '', c))
+    board.append(head)
+    for (const [label, n] of rows) {
+      const h = o('tr')
+      h.append(o('td', '', label), o('td', '', String(n || 0)))
+      board.append(h)
+    }
+    p.append(addLabel(board))
+    return p
+  }
+
   function auditSection() {
     const p = section(tx('Audit log'), tx('Kept for 12 months; the newest 300 lines'))
     const row = o('div', 'qt-row')
@@ -629,12 +659,22 @@
     })
     row.append(picker)
     p.append(row)
+    // each line carries the fingerprint of the one before: a line changed or taken out by hand breaks the chain
+    // mỗi dòng mang dấu vân tay của dòng trước: một dòng bị sửa hay bị xoá bằng tay làm đứt chuỗi
+    const chain = snapshot.auditChain
+    if (chain && chain.rows) {
+      p.append(chain.ok
+        ? o('small', 'qt-muted', tx('Log check: no line changed or taken out since {since} ({n} lines). Last fingerprint {head}: note it down to compare later.', { since: String(chain.since).replace('T', ' ').slice(0, 16), n: chain.rows, head: chain.head }))
+        : o('div', 'qt-hint', chain.brokenAt === 'end'
+          ? tx('Log check: the newest lines were taken out of the database by hand. Find out who can reach the server.')
+          : tx('Log check: a line near {at} was changed or taken out of the database by hand. Find out who can reach the server.', { at: String(chain.brokenAt).replace('T', ' ').slice(0, 16) })))
+    }
     const board = o('table', 'qt-table small')
     const head = o('tr')
     for (const c of [tx('Time'), tx('Who'), tx('Action'), tx('Device IP'), tx('Details')]) head.append(o('th', '', c))
     board.append(head)
     for (const x of snapshot.auditLog) {
-      const { at, actor, role, clientIp, action, path, device, ...rest } = x
+      const { at, actor, role, clientIp, action, path, device, prev, hash, ...rest } = x
       const h = o('tr', /tu-choi|sai|^loi$/.test(action || '') ? 'qt-bad-row' : '')
       h.append(o('td', '', String(at || '').replace('T', ' ').slice(0, 19)), o('td', '', actor || '—'), o('td', '', ACTION_NAMES[action] || action || '—'), o('td', '', clientIp || '—'), o('td', '', Object.entries(rest).map(([k, v]) => `${k}: ${v && typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ')))
       board.append(h)
@@ -722,7 +762,7 @@
     backLink.href = '/'
     head.append(o('h1', '', tx('Admin')), o('span', '', viewerName), I18n.switcher(), backLink)
     const column = o('div', 'qt-column')
-    column.append(accountsSection(), tvSection(), ...(snapshot.mcpCalls.length ? [mcpCallsSection()] : []), menubarSection(), locationsSection(), teamSection(), sessionsSection(), auditSection())
+    column.append(accountsSection(), tvSection(), ...(snapshot.mcpCalls.length ? [mcpCallsSection()] : []), menubarSection(), locationsSection(), teamSection(), sessionsSection(), ...(snapshot.blocked7d ? [blockedSection()] : []), auditSection())
     root.replaceChildren(head, notice, column)
   }
 

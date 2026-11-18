@@ -2,6 +2,15 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.40.0 - 2026-11-18
+
+### Added
+- Before Claude runs `git commit`, the lines the commit adds are read for keys, tokens and passwords. A commit that holds one is put to you first, whatever the permission mode, naming the file and line but never the value: once in git, a secret stays in the history and goes wherever the repository is pushed.
+- A web page, a search result or a browser page that speaks to an AI instead of its reader ("ignore your previous instructions", "do not tell the user", "send the API keys to…", text hidden in characters nobody can see) is flagged: Claude is told, beside the result, that it is the page's text and not your request, and you see a short notice. The result itself still reaches Claude whole.
+- The Admin page points out keys for AI tools (the MCP endpoint) that nobody has used for 30 days, so a key left in an old config file can be revoked.
+- Each line of the server's audit log carries the fingerprint of the line before it. The Admin page says whether any line was changed or taken out of the database by hand, and shows the last fingerprint to note down. Someone who can rewrite the whole database and its last fingerprint is not caught this way.
+- The Admin page shows how many times ai-worker stopped something across the team in the last 7 days: secrets not sent, commits asked about, risky commands asked about, pages that tried to steer Claude. Counts only, never what it was; admins and viewers only.
+
 ## 0.39.1 - 2026-11-18
 
 ### Fixed

@@ -9,7 +9,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, ToolCallResult } from 'claude-code'
 
-import type { Activity, Job, Ledger, TeamState, Usage, WorkerId } from '../types'
+import type { Activity, BlockKind, Job, Ledger, TeamState, Usage, WorkerId } from '../types'
 import { applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, staleSessionFiles } from './activity'
 import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextNoteForClaude, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
 import { answerModel, buildMachineSummary, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
@@ -24,6 +24,8 @@ import { buildHelp, skillLine } from './help'
 import { voiceSettingsCommand, voiceSteps } from './voice'
 import { dangerNote, dangerQuestion, destructiveCommand } from './guard'
 import { findSecrets, secretRefusal } from './secrets'
+import { commitIn, commitQuestion, diffCommand, secretsInDiff } from './commitscan'
+import { OUTSIDE_TEXT_TOOL, findInjection, injectionNote, injectionToast } from './injection'
 import { handoffSection, newestNotes, noteName } from './handoff'
 import type { HandoffNote } from './handoff'
 import type { VoiceSystem } from './voice'
@@ -75,6 +77,34 @@ const OWN_TOOL = /^mcp__ai-worker__(ask_local|ask_chatgpt|ask_gemini|generate_im
 // helpers whose text leaves this computer, served by the plugin or by a separate ai-workers server
 // các trợ lý mà chữ gửi cho chúng rời khỏi máy này, do plugin phục vụ hoặc do một server ai-workers riêng
 const OUTSIDE_HELPER = /^mcp__ai-workers?__(ask_chatgpt|ask_gemini|generate_image)$/
+
+// the question for a `git commit` whose added lines hold a secret, or undefined; asked once per command, since the
+// permission box and the check both want it a moment apart
+// câu hỏi cho một lệnh `git commit` mà các dòng thêm vào có bí mật, hoặc undefined; mỗi lệnh chỉ hỏi git một lần, vì
+// hộp xin phép và bước kiểm đều cần nó cách nhau một lúc
+const commitChecked = new Map<string, { at: number; question?: string }>()
+async function commitSecretQuestion($: EngineInterface, command: string): Promise<string | undefined> {
+  const run = commitIn(command)
+  if (!run) return undefined
+  const now = await $.clock.now()
+  const seen = commitChecked.get(command)
+  if (seen && now - seen.at < 15_000) return seen.question
+  let question: string | undefined
+  try {
+    const home = (await $.env.get('HOME')) || (await $.env.get('USERPROFILE')) || ''
+    const dir = run.dir.startsWith('~') ? home + run.dir.slice(1) : run.dir
+    const r = await $.process.run(diffCommand(run), { ...(dir ? { cwd: dir } : {}), timeoutMs: 10_000 })
+    const found = r.exitCode === 0 ? secretsInDiff(r.stdout) : []
+    if (found.length) question = commitQuestion(found)
+  } catch {
+    // git could not be asked: the commit goes on as the rules beneath say
+    // không hỏi được git: commit đi tiếp theo các quy tắc bên dưới
+  }
+  commitChecked.clear()
+  commitChecked.set(command, { at: now, question })
+  return question
+}
+
 const PENDING = /job_id:\s*([A-Za-z0-9_-]+)/
 
 /** A label for a Gemini task from keywords only; the prompt itself is not kept. */
@@ -952,7 +982,10 @@ async function refuseToSend($: EngineInterface, name: string, args: Record<strin
   // a key, a token or a password in the text stops it here, before anyone is asked: it never leaves, whatever the mode
   // khoá, token hay mật khẩu trong chữ thì dừng ở đây, trước khi hỏi ai: nó không bao giờ rời máy, ở mọi chế độ
   const secrets = worker ? findSecrets(prompt) : []
-  if (worker && secrets.length) return secretRefusal(secrets, worker)
+  if (worker && secrets.length) {
+    await noteBlock($, 'secret', prompt.slice(0, 200))
+    return secretRefusal(secrets, worker)
+  }
   const answer = sendingNeedsAsking(verdict.decision, worker, !!(verdict as { rule?: unknown }).rule)
     ? await $.ui.ask(tx('Send this text to {worker}?\n\n{preview}', { worker: worker ?? '', preview: prompt.slice(0, 600) }), {
         options: [tx('Send'), tx('Do not send')],
@@ -1313,6 +1346,24 @@ async function openWeb($: EngineInterface): Promise<boolean> {
     }
   }
   return false
+}
+
+// one stop or question of ai-worker, for the counts the board shows; the same one seen twice in a moment (the permission
+// box and the check both ask) is counted once
+// một lần chặn hay hỏi của ai-worker, cho các con số bảng hiện; cùng một lần thấy hai lần trong chốc lát (hộp xin phép và
+// bước kiểm đều hỏi) chỉ đếm một
+const MAX_BLOCKS = 200
+let lastBlock = { key: '', at: 0 }
+async function noteBlock($: EngineInterface, kind: BlockKind, key: string): Promise<void> {
+  try {
+    const at = await $.clock.now()
+    if (lastBlock.key === kind + key && at - lastBlock.at < 20_000) return
+    lastBlock = { key: kind + key, at }
+    await commit($, s => ({ ...s, blocks: [...(s.blocks ?? []), { at, kind }].slice(-MAX_BLOCKS) }))
+  } catch {
+    // a count that cannot be kept changes nothing about the stop itself
+    // con số không ghi được thì không đổi gì ở chính lần chặn
+  }
 }
 
 async function commit($: EngineInterface, fn: (s: TeamState) => TeamState): Promise<TeamState> {
@@ -1864,12 +1915,22 @@ export const register: Register = on => {
     const outside = OUTSIDE_HELPER.exec(e.tool)
     const prompt = (e.input as Record<string, unknown> | undefined)?.prompt
     const found = outside && typeof prompt === 'string' ? findSecrets(prompt) : []
-    if (outside && found.length) return { decision: 'deny' as const, reason: secretRefusal(found, outside[1] === 'ask_chatgpt' ? 'ChatGPT' : 'Gemini') }
+    if (outside && found.length) {
+      await noteBlock($, 'secret', String(prompt).slice(0, 200))
+      return { decision: 'deny' as const, reason: secretRefusal(found, outside[1] === 'ask_chatgpt' ? 'ChatGPT' : 'Gemini') }
+    }
     const verdict = await next(e)
-    if (!askBeforeDestructive || !SHELL_TOOL.test(e.tool) || verdict.decision === 'deny') return verdict
+    if (!SHELL_TOOL.test(e.tool) || verdict.decision === 'deny') return verdict
     const command = (e.input as Record<string, unknown> | undefined)?.command
-    const danger = typeof command === 'string' ? destructiveCommand(command) : undefined
-    return danger ? { decision: 'ask' as const, reason: dangerQuestion(danger) } : verdict
+    if (typeof command !== 'string') return verdict
+    const danger = askBeforeDestructive ? destructiveCommand(command) : undefined
+    if (danger) {
+      await noteBlock($, 'risky', command)
+      return { decision: 'ask' as const, reason: dangerQuestion(danger) }
+    }
+    const secret = await commitSecretQuestion($, command)
+    if (secret) await noteBlock($, 'commit', command)
+    return secret ? { decision: 'ask' as const, reason: secret } : verdict
   })
 
   on('tool.call', async ($, e, next) => {
@@ -1886,10 +1947,16 @@ export const register: Register = on => {
     // plain-words warning in that place (the office page above has already taken what Claude wrote)
     // hộp xin phép của app hiện phần mô tả của chính lệnh: một lệnh phá huỷ công việc đi tiếp với câu cảnh báo
     // bằng lời thường ở chỗ đó (trang văn phòng ở trên đã lấy điều Claude viết rồi)
-    if (askBeforeDestructive && SHELL_TOOL.test(e.tool)) {
+    if (SHELL_TOOL.test(e.tool)) {
       const args = e as unknown as Record<string, unknown>
-      const danger = typeof args.command === 'string' ? destructiveCommand(args.command) : undefined
+      const command = typeof args.command === 'string' ? args.command : ''
+      const danger = askBeforeDestructive && command ? destructiveCommand(command) : undefined
       if (danger) e = { ...e, description: dangerNote(danger, args.description) } as typeof e
+      else {
+        const secret = command ? await commitSecretQuestion($, command) : undefined
+        const note = typeof args.description === 'string' ? args.description.trim() : ''
+        if (secret) e = { ...e, description: note ? `${secret} ${tx('Claude wrote: {note}', { note })}` : secret } as typeof e
+      }
     }
     const match = WORKER_TOOL.exec(e.tool)
     const name = match?.[1]
@@ -1921,6 +1988,23 @@ export const register: Register = on => {
         const at = await $.clock.now()
         const edit = buildFileEdit(e.tool, args, ran.result, at, e.tool_use_id ?? `edit-${at}`)
         if (edit) await commit($, st => ({ ...st, edits: [...(st.edits ?? []), edit].slice(-MAX_EDITS) }))
+      }
+      // a page or a search that speaks to an AI: Claude is told it is data, the person is told what happened
+      // một trang hay một lần tìm kiếm nói với AI: Claude được báo đó là dữ liệu, người dùng được báo chuyện gì đã xảy ra
+      if (OUTSIDE_TEXT_TOOL.test(e.tool) && ran.deny === undefined && !ran.isError) {
+        let text = ''
+        try {
+          text = typeof ran.text === 'string' ? ran.text : typeof ran.result === 'string' ? ran.result : JSON.stringify(ran.result ?? '')
+        } catch {
+          // a result that cannot be read as text is not checked
+          // kết quả không đọc được thành chữ thì không kiểm
+        }
+        const found = findInjection(text)
+        if (found.length) {
+          await noteBlock($, 'page', `${e.tool}:${found.map(f => f.kind).join(',')}`)
+          if (!e.agentId) await Promise.resolve($.ui.toast(injectionToast(found))).catch(() => undefined)
+          return { ...ran, context: [...(ran.context ?? []), injectionNote(found, e.tool)] }
+        }
       }
       return ran
     }

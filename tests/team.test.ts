@@ -402,3 +402,17 @@ test('the help is a short list: commands, skills in plain words in two groups, a
   // before the helpers have been looked for, it says so instead of saying none
   expect(buildHelp({ ...base })).toContain('not checked yet')
 })
+
+test('what ai-worker stopped leaves the machine as counts by hour, never what it was', () => {
+  const who = { device: 'device-1', name: 'An', account: 'an@example.com' }
+  const hour = Math.floor((NOW - 20_000) / 3_600_000)
+  const blocks = [
+    { at: NOW - 60_000, kind: 'secret' as const },
+    { at: NOW - 30_000, kind: 'secret' as const },
+    { at: NOW - 20_000, kind: 'risky' as const },
+    { at: NOW - 30 * 24 * 3_600_000, kind: 'commit' as const },
+  ]
+  const m = buildMachineSummary([{ jobs: [], now: NOW, seenAt: NOW, blocks }], undefined, NOW, who)
+  expect(m.blocks).toEqual({ [hour]: { secret: 2, risky: 1 } })
+  expect(buildMachineSummary([{ jobs: [], now: NOW, seenAt: NOW }], undefined, NOW, who).blocks).toBeUndefined()
+})

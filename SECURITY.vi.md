@@ -36,6 +36,15 @@ AI Worker được thiết kế để chống tám rủi ro web thường gặp 
 | **Sai cấu hình bảo mật** | Không có tài khoản hay khoá mặc định, thiếu `INGEST_KEY` thì máy chủ không chạy. Sau Caddy thì chỉ nghe trong máy. Dịch vụ chạy bằng người dùng riêng với quyền hạn chế; file khoá và dữ liệu chỉ dịch vụ đọc được | Bạn phải tự đặt danh sách IP, bật HTTPS và giữ ít người có sudo |
 | **Lộ dữ liệu nhạy cảm** | Không bao giờ gửi nội dung trò chuyện, tên file, tên dự án. Màn hình treo tường không nhận email, IP nội bộ. Phiên TV lưu dạng mã băm, nhật ký không chứa khoá, file trông như chứa bí mật chỉ được ghi tên. Tổng theo từng người từng ngày (chi phí, token, số việc giao) chỉ hiện cho quản trị và người xem | Không có HTTPS thì số liệu đi không mã hoá. Tổng theo ngày ở lại tối đa 13 tháng kèm tên và email tài khoản của người đó, lâu hơn nhiều so với 30 ngày của dòng riêng từng máy: hãy báo cho nhân viên, và khi cần thì xoá các dòng của một người bằng `webhook.py --forget-usage`. Bản sao cơ sở dữ liệu làm trước một lần nâng lược đồ nằm cạnh nó trong 30 ngày. Khoá OTP nằm trên máy chủ không mã hoá, dịch vụ và người có sudo đọc được. Gói cài có chứa mã gửi |
 
+### Những gì plugin chặn trên máy
+
+- **Bí mật rời máy:** chữ gửi ChatGPT hay Gemini có thứ trông như khoá, token hay mật khẩu thì không được gửi, ở mọi chế độ quyền. Bộ kiểm biết hình dạng các loại khoá phổ biến và các thiết lập kiểu `.env`; bí mật không có hình dạng nhận ra được thì vẫn có thể lọt.
+- **Bí mật vào git:** trước khi Claude chạy `git commit`, các dòng commit thêm vào được đọc như vậy, và commit có bí mật thì được đưa người dùng xem trước. Commit người dùng tự làm ngoài Claude thì không được kiểm.
+- **Lệnh rủi ro:** xoá cả thư mục, `git reset --hard`, `git push --force`, `git clean`, chạy ngay script vừa tải, tắt Gatekeeper, ghi thẳng ra ổ đĩa và `chmod 777` được đưa người dùng xem ở mọi chế độ.
+- **Trang tìm cách lái Claude:** chữ từ web, tìm kiếm hay trình duyệt mà ra lệnh cho AI thì được báo cho Claude và người dùng. Việc tìm dựa vào câu chữ, nên trang nói cùng ý theo cách khác vẫn lọt; kết quả không bao giờ bị giấu.
+
+Trên máy chủ, trang Quản trị hiện số lần những việc này xảy ra trên cả team trong 7 ngày qua (chỉ số đếm), chỉ ra các khoá cho công cụ AI không dùng 30 ngày, và kiểm không dòng nào của nhật ký bị sửa hay bị xoá bằng tay. Mỗi dòng mang dấu vân tay của dòng trước; người viết lại được cả cơ sở dữ liệu lẫn dấu vân tay cuối thì không bị phát hiện, nên thỉnh thoảng hãy ghi lại dấu vân tay hiện trên trang.
+
 ### Bộ nối cho Codex, Cursor và Gemini CLI
 
 Bộ nối (`connectors/`) là phần tuỳ chọn, tách riêng khỏi plugin. Những điều cần biết trước khi cho phép dùng:

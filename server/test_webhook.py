@@ -4389,5 +4389,98 @@ class TelegramAlerts(unittest.TestCase):
         self.assertNotIn("An Nguyen", json.dumps(rows))
 
 
+class UnusedKeys(unittest.TestCase):
+    """A key for an AI tool nobody has used for a month is pointed out on the Admin page.
+    Khoá cho công cụ AI không ai dùng suốt một tháng được chỉ ra trên trang Quản trị."""
+
+    def test_idle_days(self):
+        from board.views import idle_days
+        now = 1_800_000_000
+        self.assertEqual(idle_days({"createdAt": now - 40 * 86400, "lastUsedAt": now - 31 * 86400 - 5}, now), 31)
+        self.assertEqual(idle_days({"createdAt": now - 3 * 86400, "lastUsedAt": 0}, now), 3)
+        self.assertEqual(idle_days({"createdAt": now - 90 * 86400, "lastUsedAt": now - 3600}, now), 0)
+        self.assertEqual(idle_days({}, now), 0)
+
+    def test_page_points_out_unused_keys(self):
+        page = open(os.path.join(os.path.dirname(__file__), "static", "admin.js"), encoding="utf-8").read()
+        self.assertIn("t.idleDays >= idleLimit", page)
+        self.assertIn("snapshot.mcpIdleDays", page)
+
+
+class AuditChain(unittest.TestCase):
+    """Each line of the audit log carries the fingerprint of the one before, so a line changed or taken out by hand shows.
+    Mỗi dòng nhật ký mang dấu vân tay của dòng trước, nên một dòng bị sửa hay bị xoá bằng tay sẽ lộ ra."""
+
+    def setUp(self):
+        from board import db as dbm, stores
+        self.tmp = tempfile.mkdtemp()
+        self.db = dbm.Database(os.path.join(self.tmp, "t.db"), dbm.DATA_STEPS, "NORMAL")
+        self.log = stores.AuditLog(self.db)
+        for i in range(5):
+            self.log.write(action="test", n=i)
+
+    def tearDown(self):
+        self.db.conn.close()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_unbroken(self):
+        r = self.log.check(0)
+        self.assertEqual((r["ok"], r["rows"]), (True, 5))
+        self.assertEqual(len(r["head"]), 16)
+        self.assertNotIn("hash", json.dumps(self.log.read(self.log.month)[0].get("n")))
+
+    def test_a_changed_line_breaks_the_chain(self):
+        rowid, body = self.db.rows("SELECT id, body FROM audit ORDER BY id LIMIT 1 OFFSET 2")[0]
+        with self.db.tx() as c:
+            c.execute("UPDATE audit SET body = ? WHERE id = ?", (body.replace('"n":2', '"n":9'), rowid))
+        r = self.log.check(0)
+        self.assertFalse(r["ok"])
+        self.assertNotEqual(r["brokenAt"], "end")
+
+    def test_a_line_taken_out_breaks_the_chain(self):
+        with self.db.tx() as c:
+            c.execute("DELETE FROM audit WHERE id = (SELECT id FROM audit ORDER BY id LIMIT 1 OFFSET 2)")
+        self.assertFalse(self.log.check(0)["ok"])
+
+    def test_the_newest_lines_taken_out_show(self):
+        with self.db.tx() as c:
+            c.execute("DELETE FROM audit WHERE id = (SELECT MAX(id) FROM audit)")
+        self.assertEqual(self.log.check(0)["brokenAt"], "end")
+
+    def test_old_lines_dropped_by_age_do_not_break_it(self):
+        with self.db.tx() as c:
+            c.execute("DELETE FROM audit WHERE id IN (SELECT id FROM audit ORDER BY id LIMIT 2)")
+        r = self.log.check(0)
+        self.assertEqual((r["ok"], r["rows"]), (True, 3))
+
+    def test_a_field_named_hash_cannot_forge_a_line(self):
+        self.log.write(action="test", hash="0" * 64, prev="x")
+        self.assertTrue(self.log.check(0)["ok"])
+
+
+class BlockCounts(unittest.TestCase):
+    """What ai-worker stopped on each computer reaches the Admin page as team totals of a fixed list of kinds.
+    Những gì ai-worker đã chặn trên từng máy tới trang Quản trị thành số tổng của cả team theo danh sách loại cố định."""
+
+    def test_clean_and_add_up(self):
+        from board import devices
+        now = 1_800_000_000
+        hour = str(int(now // 3600))
+        old = str(int(now // 3600) - 8 * 24)
+        sent = {"v": 1, "device": "device-d1", "updatedAt": now * 1000, "blocks": {hour: {"secret": 2, "risky": 1, "what": 5, "page": "x"}, old: {"commit": 4}, "bad": {"secret": 1}}}
+        clean = devices.clean_payload(sent, now)
+        self.assertEqual(clean["blocks"][hour], {"secret": 2, "risky": 1})
+        other = {"blocks": {hour: {"secret": 1, "commit": 1}}}
+        total = devices.blocks_since([clean, other, {"blocks": "no"}], int(now // 3600) - 7 * 24 + 1)
+        self.assertEqual(total, {"secret": 3, "commit": 1, "risky": 1, "page": 0})
+
+    def test_only_admin_and_viewer_see_it(self):
+        from board import views
+        from board.security import ADMIN, VIEWER, WALL
+        self.assertIn("blocked7d", views.COMMON_FIELDS_BY_ROLE[ADMIN])
+        self.assertIn("blocked7d", views.COMMON_FIELDS_BY_ROLE[VIEWER])
+        self.assertNotIn("blocked7d", views.COMMON_FIELDS_BY_ROLE[WALL])
+
+
 if __name__ == "__main__":
     unittest.main()

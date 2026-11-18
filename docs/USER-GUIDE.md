@@ -95,6 +95,8 @@ Claude hands side jobs to the helper assistants following the company rules:
 
 Before sending anything to ChatGPT or Gemini, Claude asks you, unless a permission rule already allows that assistant. A permission mode that asks nothing does not count as such a rule: you are still asked, because the text leaves your computer. Text that holds what looks like a key, a token or a password (an AWS or GitHub key, a private key, a password in a connection string or in a `.env` line, and the like) is not sent at all, whatever the rule or the mode: Claude is told what was found and on which line, without the value, so it can take it out and send again. A desk for an assistant that is not installed is hidden in the office.
 
+Before Claude runs `git commit`, the lines the commit adds are read the same way. If one holds what looks like a secret, you are asked first, with the file and the line but not the value: once a secret is in git it stays in the history, even if a later commit takes it out. And when a web page or a search result Claude reads holds text aimed at an AI (an order to ignore earlier instructions, to hide something from you, or to send keys somewhere), you see a short notice and Claude is told it is the page's text, not your request.
+
 To sign in later: open Terminal or PowerShell and type `codex login` (ChatGPT) or `agy` (Gemini).
 
 ### 1.5 Updates

@@ -128,6 +128,9 @@ KIND_PLUGIN = "plugin"
 # approves, like the others, but kept apart from them: this key works on /mcp only, and no other key works there
 # loại của khoá cho cổng MCP, cổng cho mọi công cụ AI nói được MCP đọc số liệu của bảng. Ghép bằng mã do quản trị duyệt
 # như các loại kia, nhưng tách riêng: khoá này chỉ dùng được ở /mcp, và không khoá nào khác dùng được ở đó
+# a key for an AI tool unused this many days is pointed out on the Admin page, for an admin to revoke if nobody needs it
+# khoá cho công cụ AI không dùng từng này ngày được chỉ ra trên trang Quản trị, để quản trị thu hồi nếu không ai cần
+MCP_IDLE_DAYS = 30
 KIND_MCP = "mcp"
 # MCP=0 takes the MCP endpoint and its pairing paths away: they answer 404. On by default; nothing can be read until an admin approves a key
 # MCP=0 gỡ cổng MCP và các đường ghép của nó: chúng trả 404. Mặc định bật; không đọc được gì cho tới khi quản trị duyệt một khoá

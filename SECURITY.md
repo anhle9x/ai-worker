@@ -36,6 +36,15 @@ AI Worker is designed to defend against these eight common web risks, from the O
 | **Security misconfiguration** | There are no default accounts or keys, and the server will not start without `INGEST_KEY`. Behind Caddy it listens only inside the server. The service runs as its own user with limited rights; key and data files are private to it | You must set your own IP list, turn on HTTPS and keep the number of sudo users small |
 | **Sensitive data exposure** | Chat content, file names and project names are never sent. Wall screens get no emails or internal IPs. TV sessions are stored as hashes, the log holds no keys, and files that look like secrets are recorded by name only. Totals per person per day (cost, tokens, tasks delegated) are shown to admins and viewers only | Without HTTPS the numbers travel unencrypted. The totals per day stay for up to 13 months with the person's name and account email, far longer than the 30 days of a computer's own row: tell staff, and delete a person's rows with `webhook.py --forget-usage` when that is needed. A copy of the database made before a schema upgrade sits next to it for 30 days. OTP keys sit unencrypted on the server, readable by the service and by sudo users. The install package holds the send key |
 
+### What the plugin stops on the computer
+
+- **Secrets leaving:** text for ChatGPT or Gemini that holds what looks like a key, a token or a password is not sent, whatever the permission mode. The check knows the shapes of common keys and `.env`-style settings; a secret with no recognisable shape can still pass.
+- **Secrets in git:** before Claude runs `git commit`, the lines it adds are read the same way, and a commit that holds one is put to the person. A commit the person makes outside Claude is not checked.
+- **Risky commands:** deleting a whole folder, `git reset --hard`, `git push --force`, `git clean`, running a downloaded script at once, turning off Gatekeeper, writing straight to a disk and `chmod 777` are put to the person in every mode.
+- **Pages that try to steer Claude:** text from the web, a search or a browser that gives orders to an AI is flagged to Claude and to the person. It is found by wording, so a page that says the same thing differently passes; the result is never withheld.
+
+On the server, the Admin page shows how many of these happened across the team in the last 7 days (counts only), points out keys for AI tools unused for 30 days, and checks that no line of the audit log was changed or taken out by hand. Each line carries the fingerprint of the one before; someone who can rewrite the whole database and its last fingerprint is not caught, so note the fingerprint shown on the page now and then.
+
 ### The connector for Codex, Cursor and Gemini CLI
 
 The connector (`connectors/`) is optional and separate from the plugin. What to know before allowing it:

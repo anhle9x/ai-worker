@@ -95,6 +95,8 @@ Claude giao việc phụ cho các trợ lý theo quy định của công ty:
 
 Trước khi gửi gì sang ChatGPT hay Gemini, Claude hỏi bạn, trừ khi đã có một quy tắc quyền cho phép sẵn trợ lý đó. Chế độ quyền không hỏi gì thì không được tính là quy tắc như vậy: bạn vẫn được hỏi, vì chữ sẽ rời khỏi máy bạn. Trợ lý nào chưa cài thì bàn của trợ lý đó bị ẩn trong văn phòng. Chữ có thứ trông như khoá, token hay mật khẩu (khoá AWS hay GitHub, khoá riêng, mật khẩu trong chuỗi kết nối hay trong một dòng `.env`, và tương tự) thì hoàn toàn không được gửi, dù có quy tắc hay chế độ nào: Claude được báo đã thấy gì và ở dòng nào, không kèm giá trị, để bỏ nó ra rồi gửi lại.
 
+Trước khi Claude chạy `git commit`, các dòng commit thêm vào cũng được đọc như vậy. Dòng nào có thứ trông như bí mật thì bạn được hỏi trước, kèm file và dòng nhưng không kèm giá trị: bí mật đã vào git thì ở lại trong lịch sử, kể cả khi commit sau bỏ nó đi. Còn khi một trang web hay kết quả tìm kiếm Claude đọc có chữ nhắm vào AI (lệnh bỏ qua hướng dẫn trước, giấu bạn điều gì, hay gửi khoá đi đâu đó), bạn thấy một thông báo ngắn và Claude được báo đó là chữ của trang, không phải yêu cầu của bạn.
+
 Đăng nhập sau: mở Terminal hoặc PowerShell, gõ `codex login` (ChatGPT) hoặc `agy` (Gemini).
 
 ### 1.5 Cập nhật

@@ -22,6 +22,7 @@ from board.daily import NUMBERS, PERIODS, DailyStore, totals_by_day
 from board.db import data_db, dumps, keys_db
 from board.devices import (
     IngestGate,
+    blocks_since,
     group_by_person,
     load_branches,
     read_all_devices,
@@ -232,8 +233,8 @@ TEAM_DAYS = 7
 TEAM_DAY_FIELDS = frozenset({"day", "usd"})
 COMMON_FIELDS_ALL = frozenset({"updatedAt", "usdRate", "tasks24", "tzOffsetHours", "people", "branches", "teamDays"})
 COMMON_FIELDS_BY_ROLE = {
-    ADMIN: COMMON_FIELDS_ALL | {"unnamedGroups", "team"},
-    VIEWER: COMMON_FIELDS_ALL | {"team"},
+    ADMIN: COMMON_FIELDS_ALL | {"unnamedGroups", "team", "blocked7d"},
+    VIEWER: COMMON_FIELDS_ALL | {"team", "blocked7d"},
     WALL: COMMON_FIELDS_ALL,
 }
 PERSON_FIELDS_ALL = frozenset({
@@ -429,16 +430,26 @@ def admin_data(now: float, cookie: str, month: str) -> dict:
     for x in TV.list_screens(now):
         seen_state = None if x["exitedAt"] else TV_STATUS.read(x["id"])
         tv.append(dict(x, branch=branch_name_for_ip(x["lastIp"]), device=device_label(x["device"]), upToDate=None if x.get("owner") or x["kind"] in (KIND_EXTENSION, KIND_PLUGIN, KIND_MCP, KIND_TELEGRAM) or re.search(r"menu ?bar", x["device"], re.I) else (seen_state["ui"] == UI_VERSION) if seen_state else None,
-                       lastSeenAt=int(seen_state["seenAt"] * 1000) if seen_state else None, running=bool(seen_state) and now - seen_state["seenAt"] < TV_ABSENT_SECONDS))
-    return {"accounts": ACCOUNTS.list_accounts(), "screens": tv, "sessions": SESSIONS.list_sessions(cookie, now), "unnamedGroups": d["unnamedGroups"], "branches": d["branches"], "team": d["team"],
-            "usdRate": USD_RATE, "month": month, "auditLog": AUDIT_LOG.read(month), "mcpCalls": AUDIT_LOG.read_calls(month, 100), "menubarDmg": bool(menubar_mac_dmg()),
+                       lastSeenAt=int(seen_state["seenAt"] * 1000) if seen_state else None, running=bool(seen_state) and now - seen_state["seenAt"] < TV_ABSENT_SECONDS,
+                       # a key for an AI tool: whole days since it was last used (or made), so a key nobody uses any more stands out
+                       # khoá cho công cụ AI: số ngày tròn từ lần dùng cuối (hoặc lúc tạo), để khoá không ai dùng nữa nổi lên
+                       idleDays=idle_days(x, now) if x["kind"] == KIND_MCP else None))
+    return {"accounts": ACCOUNTS.list_accounts(), "screens": tv, "sessions": SESSIONS.list_sessions(cookie, now), "unnamedGroups": d["unnamedGroups"], "branches": d["branches"], "team": d["team"], "blocked7d": d.get("blocked7d"),
+            "usdRate": USD_RATE, "month": month, "auditLog": AUDIT_LOG.read(month), "auditChain": AUDIT_LOG.check(now), "mcpCalls": AUDIT_LOG.read_calls(month, 100), "menubarDmg": bool(menubar_mac_dmg()),
             "menubarMsi": os.path.isfile(os.path.join(packages.MENUBAR_DIR, "AI-Worker.msi")), "menubarExtension": bool(menubar_extension()),
             # asking the board from Telegram: whether it is turned on, and what the bot process last said about itself
             # hỏi bảng qua Telegram: có đang bật không, và tiến trình bot nói gì gần nhất về chính nó
             "telegramAsk": dict(TELEGRAM_BOT.read(), on=settings.TELEGRAM_ASK_ENABLED, app=settings.TELEGRAM_APP_ENABLED),
             # whether /mcp/connect exists, so the page points to it only when it does (MCP=0 turns it off)
             # /mcp/connect có tồn tại không, để trang chỉ trỏ tới khi có (MCP=0 tắt nó)
-            "mcpOn": settings.MCP_ENABLED}
+            "mcpOn": settings.MCP_ENABLED, "mcpIdleDays": settings.MCP_IDLE_DAYS}
+
+
+def idle_days(row: dict, now: float) -> int:
+    """Whole days since a paired row was last used, or made when it never was. Use is written at most once a day, so this is right to the day.
+    Số ngày tròn từ lần cuối một dòng đã ghép được dùng, hoặc từ lúc tạo nếu chưa dùng lần nào. Lần dùng ghi tối đa mỗi ngày một lần, nên đúng tới ngày."""
+    last = max(int(row.get("lastUsedAt") or 0), int(row.get("createdAt") or 0))
+    return max(0, int((now - last) // 86400)) if last else 0
 
 
 def manage_account(body: dict, actor: str, token: str) -> tuple:
@@ -490,7 +501,8 @@ def manage_account(body: dict, actor: str, token: str) -> tuple:
 def _raw_data(now: float) -> dict:
     """All the numbers, unfiltered: only role_view may call it, do not return this function directly.
     Mọi số liệu, chưa lọc: chỉ role_view được gọi, đừng trả thẳng hàm này ra ngoài."""
-    rows = group_by_person(read_all_devices(), now)
+    devices = read_all_devices()
+    rows = group_by_person(devices, now)
     this_hour = int(now // 3600)
     out = []
     branches = all_branches()
@@ -518,6 +530,9 @@ def _raw_data(now: float) -> dict:
     # việc giao cho từng AI theo giờ, cả team, 24 giờ gần nhất
     jobs24 = [[sum(r["tasksByHour"].get(this_hour - 23 + i, [0, 0, 0])[k] for r in rows) for i in range(24)] for k in range(3)]
     return {"updatedAt": int(now * 1000), "usdRate": USD_RATE, "tasks24": jobs24, "tzOffsetHours": LOCAL_TZ.utcoffset(None).total_seconds() / 3600, "teamDays": _team_days(now), "people": out,
+            # what ai-worker stopped or asked about across the team in the last 7 days, totals only
+            # những gì ai-worker đã chặn hay hỏi trên cả team trong 7 ngày qua, chỉ số tổng
+            "blocked7d": blocks_since(devices, this_hour - 7 * 24 + 1),
             "branches": [{"id": b["id"], "name": b["name"], "lat": b["lat"], "lon": b["lon"], "isHq": b["isHq"], "customNetworks": b["customNetworks"]} for b in branches],
             "unnamedGroups": unnamed_groups(rows, branches, now), "team": team_summary(rows)}
 

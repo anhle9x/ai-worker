@@ -52,12 +52,18 @@ export type Activity = {
 
 export type PlanItem = { content: string; status: 'pending' | 'in_progress' | 'completed' }
 
+/** secret: text for ChatGPT or Gemini held a secret and was not sent; commit: a commit that adds a secret was put to the person;
+ * risky: a command that destroys work or weakens the computer was put to the person; page: a page Claude read tried to steer it. */
+export type BlockKind = 'secret' | 'commit' | 'risky' | 'page'
+
 export type TeamState = {
   /** A newer signed plugin is on the server; `tuDong` false when this machine cannot check signatures, so it only says so. */
   update?: { version: string; auto: boolean }
   /** Subagents running now: `ten` is the agent type, `moTa` the task. Only the type ever leaves this machine. */
   subagents?: { name: string; description: string }[]
   jobs: Job[]
+  /** What ai-worker stopped or put to the person, newest last: only the kind and the time ever leave this machine. */
+  blocks?: { at: number; kind: BlockKind }[]
   /** Milliseconds since the epoch at the last tick; drives elapsed times. */
   now: number
   claudeBusySince?: number

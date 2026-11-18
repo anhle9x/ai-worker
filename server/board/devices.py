@@ -92,6 +92,27 @@ def clean_hours(v, now_ms: float, keys=None) -> dict:
 
 
 SESSION_COUNTS = ("openSessions", "working", "waiting")
+# secret: text for ChatGPT or Gemini held a secret, not sent; commit: a commit that adds a secret, asked first;
+# risky: a command that destroys work or weakens the computer, asked first; page: a page tried to steer Claude
+# secret: chữ gửi ChatGPT hay Gemini có bí mật, không gửi; commit: commit thêm bí mật, hỏi trước;
+# risky: lệnh phá huỷ công việc hay làm yếu máy, hỏi trước; page: một trang cố lái Claude
+BLOCK_KINDS = ("secret", "commit", "risky", "page")
+
+
+def blocks_since(devices: list, from_hour: int) -> dict:
+    """The whole team's counts of each kind from that hour on, every computer added up: no person, no computer.
+    Số đếm từng loại của cả team từ giờ đó trở đi, cộng mọi máy: không có người, không có máy."""
+    out = dict.fromkeys(BLOCK_KINDS, 0)
+    for m in devices:
+        table = m.get("blocks") if isinstance(m, dict) else None
+        for hour, v in (table.items() if isinstance(table, dict) else ()):
+            if not (isinstance(hour, str) and hour.isdigit() and int(hour) >= from_hour and isinstance(v, dict)):
+                continue
+            for kind in BLOCK_KINDS:
+                n = v.get(kind)
+                if isinstance(n, int) and not isinstance(n, bool) and 0 < n < 100000:
+                    out[kind] += n
+    return out
 
 
 def from_connector(m: dict) -> bool:
@@ -156,6 +177,11 @@ def clean_payload(d, now: float):
     out["subagents"] = clean_counts(d.get("subagents"), None, 10, 40)
     out["ledger"] = clean_hours(d.get("ledger"), now_ms)
     out["tasks"] = clean_hours(d.get("tasks"), now_ms, workers)
+    # what ai-worker stopped or put to the person on that computer, by hour: counts of a fixed list of kinds, never what it was
+    # những gì ai-worker đã chặn hay đưa người dùng xem trên máy đó, theo giờ: số đếm của một danh sách loại cố định, không bao giờ là nội dung
+    blocks = clean_hours(d.get("blocks"), now_ms, BLOCK_KINDS)
+    if blocks:
+        out["blocks"] = blocks
     assistants = d.get("assistants")
     if isinstance(assistants, dict):
         out["assistants"] = {"chatgpt": assistants.get("chatgpt") is True, "gemini": assistants.get("gemini") is True,

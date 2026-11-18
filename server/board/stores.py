@@ -876,14 +876,33 @@ class AuditLog:
     def __init__(self, database):
         self.db = database
         self.month = ""
+        self.checked = None
+
+    # each row carries the fingerprint of the row before it and its own, so a row changed or taken out of the database
+    # by hand breaks the chain, and the Admin page says where. Someone who can rewrite the whole file and the last
+    # fingerprint goes unseen: the fingerprint shown on the page is for an admin to note down and compare later.
+    # mỗi dòng mang dấu vân tay của dòng trước và của chính nó, nên một dòng bị sửa hay bị xoá khỏi cơ sở dữ liệu bằng tay
+    # làm đứt chuỗi, và trang Quản trị nói đứt ở đâu. Người viết lại được cả file lẫn dấu vân tay cuối thì không bị thấy:
+    # dấu vân tay hiện trên trang là để quản trị ghi lại và so về sau.
+    HEAD = "audit_head"
+    CHECK_SECONDS = 60
+
+    @staticmethod
+    def fingerprint(prev: str, row: dict) -> str:
+        return hashlib.sha256((prev + "\n" + dumps({k: v for k, v in row.items() if k != "hash"})).encode("utf-8")).hexdigest()
 
     def write(self, **fields) -> None:
         now = datetime.now(LOCAL_TZ)
         month = now.strftime("%Y-%m")
-        row = {"at": now.isoformat(timespec="seconds"), **fields}
+        row = {"at": now.isoformat(timespec="seconds"), **{k: v for k, v in fields.items() if k not in ("prev", "hash")}}
         try:
             with self.db.tx() as c:
+                head = c.execute("SELECT value FROM meta WHERE key = ?", (self.HEAD,)).fetchone()
+                row["prev"] = head[0] if head else ""
+                row["hash"] = self.fingerprint(row["prev"], row)
                 c.execute("INSERT INTO audit (at, month, action, body) VALUES (?, ?, ?, ?)", (row["at"], month, str(fields.get("action") or ""), dumps(row)))
+                c.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (self.HEAD, row["hash"]))
+                self.checked = None
                 if month != self.month:
                     self.month = month
                     year, month_index = now.year, now.month - self.KEEP_MONTHS
@@ -905,13 +924,50 @@ class AuditLog:
         Các lần đọc bảng từ bên ngoài các trang của bảng trong một tháng, mới nhất trước: lần gọi công cụ MCP và câu trả lời cho chat Telegram."""
         return self._read("SELECT body FROM audit WHERE month = ? AND action IN (?, ?) ORDER BY id DESC LIMIT ?", (month,) + self.READ_ACTIONS + (limit,))
 
+    def check(self, now: float) -> dict:
+        """Walk the chain from the oldest row kept: {"ok", "rows", "since", "brokenAt", "head"}. Rows written before the chain
+        began are not counted; the oldest row kept may point to a row already dropped by age. Kept a minute.
+        Đi dọc chuỗi từ dòng cũ nhất còn giữ: {"ok", "rows", "since", "brokenAt", "head"}. Dòng ghi trước khi có chuỗi không
+        được tính; dòng cũ nhất còn giữ có thể trỏ tới một dòng đã bị bỏ vì quá cũ. Giữ kết quả một phút."""
+        if self.checked and now - self.checked[0] < self.CHECK_SECONDS:
+            return self.checked[1]
+        rows, since, broken, last = 0, "", "", None
+        for (body,) in self.db.rows("SELECT body FROM audit ORDER BY id"):
+            try:
+                row = json.loads(body)
+            except ValueError:
+                row = {}
+            if not isinstance(row, dict) or "hash" not in row:
+                if last is not None and not broken:
+                    broken = str(row.get("at", "")) if isinstance(row, dict) else ""
+                continue
+            if row["hash"] != self.fingerprint(str(row.get("prev", "")), row) or (last is not None and row.get("prev") != last):
+                broken = broken or str(row.get("at", ""))
+            since = since or str(row.get("at", ""))
+            last = row["hash"]
+            rows += 1
+        head = self.db.get_meta(self.HEAD)
+        # the newest rows taken out: the last fingerprint kept no longer matches the newest row
+        # các dòng mới nhất bị xoá: dấu vân tay cuối được giữ không còn khớp dòng mới nhất
+        if head and last != head:
+            broken = broken or "end"
+        result = {"ok": not broken, "rows": rows, "since": since, "brokenAt": broken, "head": head[:16]}
+        self.checked = (now, result)
+        return result
+
     def _read(self, sql: str, args: tuple) -> list:
         out = []
         for (body,) in self.db.rows(sql, args):
             try:
-                out.append(json.loads(body))
+                row = json.loads(body)
             except ValueError:
                 continue
+            # the chain's fingerprints are for check() alone; readers get the row as it was written
+            # dấu vân tay của chuỗi chỉ cho check(); người đọc nhận dòng đúng như lúc ghi
+            if isinstance(row, dict):
+                row.pop("prev", None)
+                row.pop("hash", None)
+            out.append(row)
         return out
 
 
