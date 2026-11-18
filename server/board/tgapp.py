@@ -91,12 +91,18 @@ def app_key_from_token(token: str) -> str:
 
 
 def allowed_chat(telegram_id: str, now: float) -> Optional[dict]:
-    """The approved chat of this Telegram user, if an admin let it open the window. Only a chat that reads each person may for now:
-    the window draws each person's numbers, and a chat that reads totals only would see more than it was approved for.
-    Chat đã được duyệt của người dùng Telegram này, nếu quản trị cho nó mở khung. Hiện chỉ chat được đọc từng người mới được:
-    khung vẽ số của từng người, và chat chỉ được đọc tổng sẽ thấy nhiều hơn phần được duyệt."""
+    """The approved chat of this Telegram user, if an admin let it open the window. A chat that reads totals only gets the window too,
+    fed totals the server adds up itself (totals_only), so no name reaches it.
+    Chat đã được duyệt của người dùng Telegram này, nếu quản trị cho nó mở khung. Chat chỉ được đọc tổng cũng có khung, nhận các con số
+    tổng do máy chủ tự cộng (totals_only), nên không tên nào tới được nó."""
     chat = TV.find(chat_key(telegram_id), now, KIND_TELEGRAM)
-    return chat if chat and chat.get("app") is True and chat.get("scope") == SCOPE_PEOPLE else None
+    return chat if chat and chat.get("app") is True else None
+
+
+def totals_only(chat: dict) -> bool:
+    """Whether the chat reads totals only, so the window gets totals and never a person.
+    Chat có chỉ được đọc tổng không, để khung nhận số tổng và không bao giờ nhận một người."""
+    return chat.get("scope") != SCOPE_PEOPLE
 
 
 class AppSessions:
@@ -169,7 +175,7 @@ class MenuSync:
         for row in TV.d.values():
             if row.get("kind") != KIND_TELEGRAM or row["expiresAt"] <= now or not re.fullmatch(r"[0-9]{1,20}", str(row.get("telegramId", ""))):
                 continue
-            on = settings.TELEGRAM_APP_ENABLED and row.get("app") is True and row.get("scope") == SCOPE_PEOPLE
+            on = settings.TELEGRAM_APP_ENABLED and row.get("app") is True
             want[row["telegramId"]] = settings.TELEGRAM_APP_URL if on else ""
         with self.lock:
             told = self.told if self.told is not None else {}

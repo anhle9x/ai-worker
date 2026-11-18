@@ -437,13 +437,15 @@
         // a Claude plugin shows no page, so there is nothing to reload
         // plugin Claude không hiện trang nào, nên không có gì để tải lại
         if (!t.exitedAt && t.kind !== 'plugin' && t.kind !== 'mcp' && t.kind !== 'telegram') actions.append(button(tx('Reload'), () => post('/admin/tv-reload', { id: t.id }, () => countdown(t.name, 10))))
-        // the board's window inside Telegram, allowed chat by chat; only a chat that reads each person may have it for now
-        // khung bảng bên trong Telegram, cho phép từng chat; hiện chỉ chat được đọc từng người mới có được
-        if (t.kind === 'telegram' && snapshot.telegramAsk && snapshot.telegramAsk.app && (t.app || t.scope === 'people')) {
+        // the board's window inside Telegram, allowed chat by chat; a chat that reads totals only gets a window of totals
+        // khung bảng bên trong Telegram, cho phép từng chat; chat chỉ được đọc tổng thì nhận khung chỉ có số tổng
+        if (t.kind === 'telegram' && snapshot.telegramAsk && snapshot.telegramAsk.app) {
           actions.append(t.app
             ? button(tx('Stop the window'), () => post('/admin/tv-app', { id: t.id, on: false }, () => toast(tx('{name} no longer opens the window', { name: t.name }))))
             : button(tx('Allow the window'), () => {
-              if (confirm(tx('Let {name} open the board\'s window inside Telegram? It shows what the menu bar window shows: each person waiting and working, costs and quotas.', { name: t.name }))) post('/admin/tv-app', { id: t.id, on: true }, () => toast(tx('{name} gets a button for the window within a minute', { name: t.name })))
+              if (confirm(t.scope === 'people'
+                ? tx('Let {name} open the board\'s window inside Telegram? It shows what the menu bar window shows: each person waiting and working, costs and quotas.', { name: t.name })
+                : tx('Let {name} open the board\'s window inside Telegram? This chat reads totals only, so the window shows the team\'s counts and costs and names nobody.', { name: t.name }))) post('/admin/tv-app', { id: t.id, on: true }, () => toast(tx('{name} gets a button for the window within a minute', { name: t.name })))
             }))
         }
         actions.append(button(tx('Rename'), () => {

@@ -224,7 +224,7 @@ The sample people's names then go through Telegram. Log in to `http://127.0.0.1:
 
 ### The board's window inside Telegram (optional)
 
-A chat that reads each person can also open the small window of the menu bar icon inside Telegram: the number of people waiting, the 7-day cost chart, and the Waiting, Working, Quota and Cost tabs. It is a Telegram Mini App: Telegram shows the bot's menu button as **AI Worker**, and tapping it opens the window. Off until you turn it on, and then only for the chats an admin allows one by one.
+An approved chat can also open the small window of the menu bar icon inside Telegram: the number of people waiting, the 7-day cost chart, and the Waiting, Working, Quota and Cost tabs. It is a Telegram Mini App: Telegram shows the bot's menu button as **AI Worker**, and tapping it opens the window. Off until you turn it on, and then only for the chats an admin allows one by one.
 
 **What changes by turning it on.** The window is a page of the board, opened by Telegram's built-in browser on the person's phone or computer. The numbers go straight from the board to that browser over HTTPS, not through Telegram's servers; Telegram knows only that the window was opened. So the phone must reach the board: with the template's Caddy block that means a network on its list of allowed IPs (your offices). Outside them the window says it cannot reach the server, and the chat's buttons still work.
 
@@ -239,7 +239,7 @@ A chat that reads each person can also open the small window of the menu bar ico
 
 **What to know.**
 
-- **Who may open it:** only a chat an admin approved, that reads each person, and that an admin allowed the window. A chat that reads totals only cannot have it yet: the window draws each person.
+- **Who may open it:** only a chat an admin approved and allowed the window. A chat that reads each person sees each name, as a wall screen does; a chat that reads totals only gets the team's counts and costs, added up on the server, with no name, and each tab shows one line of totals.
 - **How it is checked:** Telegram signs a few fields for the window (who opened it, and when) and puts them after the `#` of the address, so they never reach a log. The page trades them once for a session that lives an hour after its last use, 12 hours at most, in the server's memory only: no cookie. Fields older than 5 minutes are refused.
 - **Ending it:** **Stop the window** or **Revoke** on the Admin page, `/stop` in the chat, or **Disconnect this chat** in the window's settings end every open window of that chat at once. A restart of the server ends the sessions too: close the window and open it again.
 - **In the log:** each opening, each refusal, and each time an admin allows or stops a chat. Never the fields Telegram signed.

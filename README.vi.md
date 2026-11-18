@@ -56,10 +56,10 @@ AI Worker dành cho người phải triển khai Claude cho cả văn phòng r�
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/architecture-dark.vi.svg">
-  <img alt="Máy nhân viên gửi số liệu lên máy chủ bảng tổng (tên người dùng, tài khoản Claude, vài thông tin về máy, và số phiên, token, chi phí, việc giao; không bao giờ gửi chat, câu hỏi hay tên file) và nhận lại bản cập nhật có chữ ký. Máy chủ đứng sau Caddy có HTTPS và danh sách IP văn phòng, lưu dữ liệu trong SQLite, phục vụ bảng trên trình duyệt, màn hình TV, biểu tượng thanh menu, tiện ích trình duyệt, công cụ AI qua một cổng MCP chỉ đọc, và một bot Telegram tuỳ chọn: trả lời trong chat, tự nhắn khi có người chờ quá lâu, và mở khung thanh menu ngay trong Telegram." src="assets/architecture-light.vi.svg" width="860">
+  <img alt="Máy nhân viên gửi số liệu lên máy chủ bảng tổng (tên người dùng, tài khoản Claude, vài thông tin về máy, và số phiên, token, chi phí, việc giao; không bao giờ gửi chat, câu hỏi hay tên file) và nhận lại bản cập nhật có chữ ký. Máy chủ đứng sau Caddy có HTTPS và danh sách IP văn phòng, lưu dữ liệu trong SQLite, phục vụ bảng trên trình duyệt, màn hình TV, biểu tượng thanh menu, tiện ích trình duyệt, công cụ AI qua một cổng MCP chỉ đọc, và một bot Telegram tuỳ chọn trả lời trong chat và tự nhắn khi có người chờ quá lâu; điện thoại mở khung thanh menu ngay trong Telegram qua HTTPS. Trên máy, plugin hỏi trước lệnh rủi ro và commit có bí mật, báo trang tìm cách lái Claude, và không bao giờ gửi sang ChatGPT hay Gemini chữ có khoá, token hay mật khẩu. Máy chủ giữ nhật ký có các dòng nối với nhau, và trang Quản trị đếm số lần chặn, chỉ ra khoá MCP bỏ quên." src="assets/architecture-light.vi.svg" width="860">
 </picture>
 
-Hình chưa vẽ: khung bên trong Telegram, điện thoại hay máy tính tự tới máy chủ qua HTTPS bằng đường riêng `/tg/`; xem [docs/ARCHITECTURE.vi.md](docs/ARCHITECTURE.vi.md#khung-bảng-bên-trong-telegram-tuỳ-chọn).
+Khung bên trong Telegram tới máy chủ bằng đường riêng `/tg/`; xem [docs/ARCHITECTURE.vi.md](docs/ARCHITECTURE.vi.md#khung-bảng-bên-trong-telegram-tuỳ-chọn). Những gì plugin chặn trên máy có trong [SECURITY.vi.md](SECURITY.vi.md#những-gì-plugin-chặn-trên-máy).
 
 Không có máy chủ thì plugin vẫn chạy trên từng máy với trang văn phòng riêng, nhưng không có bảng cả công ty và không tự cập nhật. Thiết kế xem [docs/ARCHITECTURE.vi.md](docs/ARCHITECTURE.vi.md).
 

@@ -648,13 +648,11 @@ class TvStore(Store):
         return self.mutate(change)
 
     def set_app(self, tv_id: str, on: bool) -> dict:
-        """Let a Telegram chat open the board's window inside Telegram, or stop it. Only a chat that reads each person: see board/tgapp.py.
-        Cho một chat Telegram mở khung của bảng bên trong Telegram, hoặc thôi. Chỉ chat được đọc từng người: xem board/tgapp.py."""
+        """Let a Telegram chat open the board's window inside Telegram, or stop it. A chat that reads totals only gets totals: see board/tgapp.py.
+        Cho một chat Telegram mở khung của bảng bên trong Telegram, hoặc thôi. Chat chỉ được đọc tổng thì nhận số tổng: xem board/tgapp.py."""
         def change(d):
             if tv_id not in d or d[tv_id].get("kind") != KIND_TELEGRAM:
                 raise ValueError(tx("This screen no longer exists"))
-            if on and d[tv_id].get("scope") != MCP_SCOPE_PEOPLE:
-                raise ValueError(tx("Only a chat that reads each person can open the window, for now."))
             d[tv_id]["app"] = on
             return dict(d[tv_id])
         return self.mutate(change)

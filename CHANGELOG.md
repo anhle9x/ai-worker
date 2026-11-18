@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.41.0 - 2026-11-18
+
+### Added
+- A Telegram chat that reads totals only can open the board's window inside Telegram too, once an admin clicks **Allow the window**. The server adds the numbers up itself and sends only the team's counts and costs, never a person: the big number, the 7-day chart and the small numbers are there, and each tab shows one line of totals with a note that nobody is named.
+
+### Changed
+- The architecture drawing in the README is drawn again: it shows the window inside Telegram on its own path, what the plugin stops on the computer, what may leave for ChatGPT or Gemini, the chained audit log and what the Admin page counts.
+
 ## 0.40.0 - 2026-11-18
 
 ### Added

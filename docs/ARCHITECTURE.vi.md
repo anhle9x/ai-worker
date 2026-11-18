@@ -30,7 +30,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | Quản lý | Biểu tượng thanh menu, tiện ích trình duyệt | Xem ai đang chờ, ai đang làm, hạn mức và chi phí hôm nay mà không phải mở bảng, với dữ liệu của màn hình treo tường; xem [menu-bar-spec.vi.md](menu-bar-spec.vi.md) và [chrome-extension-spec.vi.md](chrome-extension-spec.vi.md) |
 | Người có công cụ AI | Claude Code, Codex CLI, Cursor, Gemini CLI hoặc công cụ khác nói được MCP, kèm một khoá do quản trị duyệt | Hỏi bảng bằng lời của mình. Công cụ đọc dữ liệu của màn hình treo tường dưới dạng chữ, hoặc chỉ số gộp của cả đội và từng văn phòng khi quản trị chọn vậy; xem [INSTALL.vi.md](INSTALL.vi.md) |
 | Người ở trong một chat Telegram | Telegram trên điện thoại hoặc máy tính, trong một chat riêng được quản trị duyệt; chỉ khi chủ máy chủ đã bật (`TELEGRAM_ASK=1`) | Hỏi bảng bằng cách bấm nút hoặc gõ một câu ngắn, và, nếu chat tự bật (`/baocho`), nhận tin nhắn khi có người chờ quá lâu. Câu trả lời là vài dòng làm từ dữ liệu của màn hình treo tường, hoặc chỉ số gộp của cả đội và từng văn phòng khi quản trị chọn vậy; xem [INSTALL.vi.md](INSTALL.vi.md) |
-| Người mở khung bảng trong Telegram | Nút menu của bot trong một chat được đọc từng người và được quản trị cho mở khung; chỉ khi có thêm `TELEGRAM_APP=1`, và từ mạng mà proxy cho vào | Xem khung thanh menu ngay trong Telegram: người đang chờ và đang làm, biểu đồ chi phí 7 ngày, hạn mức và chi phí, từ dữ liệu của màn hình treo tường; xem [INSTALL.vi.md](INSTALL.vi.md) |
+| Người mở khung bảng trong Telegram | Nút menu của bot trong một chat được quản trị cho mở khung (chat chỉ đọc số gộp thì nhận số tổng, không có tên ai); chỉ khi có thêm `TELEGRAM_APP=1`, và từ mạng mà proxy cho vào | Xem khung thanh menu ngay trong Telegram: người đang chờ và đang làm, biểu đồ chi phí 7 ngày, hạn mức và chi phí, từ dữ liệu của màn hình treo tường; xem [INSTALL.vi.md](INSTALL.vi.md) |
 | Người giữ máy chủ | Máy chủ, khoá ký | Cài webhook, đóng gói, ký bản phát hành |
 
 ### Hệ thống phải làm được
@@ -330,7 +330,7 @@ Thứ đứng thay cho một chat là số Telegram của người gửi, vốn 
 
 ### Khung bảng bên trong Telegram (tuỳ chọn)
 
-Chỉ khi có thêm `TELEGRAM_APP=1`, và chỉ cho chat được đọc từng người mà quản trị cho mở khung. Telegram không chở số liệu: app của nó mở trang `/tg/app` của bảng trong trình duyệt riêng, và trình duyệt đó tự hỏi bảng qua HTTPS, nên điện thoại hay máy tính phải ở mạng mà proxy cho vào. Tiến trình bot chỉ đặt nút menu cho từng chat.
+Chỉ khi có thêm `TELEGRAM_APP=1`, và chỉ cho chat được quản trị cho mở khung. Chat được đọc từng người đọc phần treo tường; chat chỉ đọc số gộp đọc số tổng của cả team, cộng sẵn trên máy chủ, không có người nào trong đó. Telegram không chở số liệu: app của nó mở trang `/tg/app` của bảng trong trình duyệt riêng, và trình duyệt đó tự hỏi bảng qua HTTPS, nên điện thoại hay máy tính phải ở mạng mà proxy cho vào. Tiến trình bot chỉ đặt nút menu cho từng chat.
 
 ```mermaid
 sequenceDiagram

@@ -176,6 +176,7 @@ from board.views import (
     parse_team_csv,
     record_history,
     role_view,
+    totals_view,
     tv_action,
 )
 
@@ -666,15 +667,17 @@ class Handler(BaseHTTPRequestHandler):
         return bool(signed) and tgapp.check_init_data(raw, settings.TELEGRAM_APP_KEY, int(signed.group(1))) is not None
 
     def get_tg_data(self, y: "RequestCtx") -> None:
-        """What the menu bar window reads, for the window inside Telegram: the wall view, as for the browser extension. Only a chat that
-        reads each person gets here (board/tgapp.py), so it shows no more than the chat's own answers already do.
-        Thứ khung thanh menu đọc, cho khung bên trong Telegram: phần màn hình treo tường, như với tiện ích trình duyệt. Chỉ chat được đọc
-        từng người mới tới được đây (board/tgapp.py), nên nó không cho thấy gì hơn các câu trả lời của chính chat đó."""
+        """What the menu bar window reads, for the window inside Telegram: the wall view, as for the browser extension, to a chat that reads
+        each person; the team's totals and no person to a chat that reads totals only. Neither shows more than the chat's own answers do.
+        Thứ khung thanh menu đọc, cho khung bên trong Telegram: phần màn hình treo tường, như với tiện ích trình duyệt, cho chat được đọc
+        từng người; số tổng của cả team và không có người nào cho chat chỉ được đọc tổng. Không bên nào thấy hơn các câu trả lời của chính chat đó."""
         telegram_id = y.user[len("tg:"):]
         if not tgapp.DATA_LIMIT.allow(telegram_id, y.now):
             return self.reply(429, {"error": tx("Too many tries. Try again in a minute.")}, quiet=True)
         TV_STATUS.mark_seen(TV.id_of(chat_key(telegram_id)), "", y.now)
-        self.reply_page(200, json.dumps(role_view(WALL, y.now), ensure_ascii=False).encode(), content_type="application/json; charset=utf-8")
+        chat = TV.d.get(TV.id_of(chat_key(telegram_id)), {})
+        view = totals_view(y.now) if tgapp.totals_only(chat) else role_view(WALL, y.now)
+        self.reply_page(200, json.dumps(view, ensure_ascii=False).encode(), content_type="application/json; charset=utf-8")
 
     def get_tg_state(self, y: "RequestCtx") -> None:
         """The chat's own alert setting, for the window's settings tab: off until the chat turns it on (board/alerts.py).

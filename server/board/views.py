@@ -283,6 +283,25 @@ def role_view(role: str, now: float, every_branch: bool = False) -> dict:
     return d
 
 
+def totals_view(now: float) -> dict:
+    """What the window inside Telegram reads for a chat that reads totals only: the team's counts, added up here, and no person.
+    Thứ khung bên trong Telegram đọc cho chat chỉ được đọc tổng: các con số của cả team, cộng sẵn ở đây, và không có người nào."""
+    d = role_view(WALL, now)
+    people = d.get("people", [])
+    online = [p for p in people if p.get("status") != "offline"]
+    return {
+        "totalsOnly": True, "updatedAt": d["updatedAt"], "usdRate": d["usdRate"], "tzOffsetHours": d["tzOffsetHours"],
+        "tasks24": d["tasks24"], "teamDays": d["teamDays"], "people": [], "role": d["role"], "uiVersion": d["uiVersion"],
+        "totals": {
+            "waiting": sum(1 for p in online if p.get("waiting")),
+            "working": sum(1 for p in online if p.get("working") and not p.get("waiting")),
+            "openSessions": sum(int(p.get("openSessions") or 0) for p in online),
+            "usdToday": round(sum(float(p.get("usdToday") or 0) for p in people), 4),
+            "tokens": sum(int(p.get("tokensIn") or 0) + int(p.get("tokensOut") or 0) for p in people),
+        },
+    }
+
+
 def _team_days(now: float) -> list:
     """The team's last TEAM_DAYS days for role_view; an empty list when the side table cannot be read, so the board still answers.
     TEAM_DAYS ngày gần nhất của cả team cho role_view; danh sách rỗng khi không đọc được bảng phụ, để bảng vẫn trả lời."""

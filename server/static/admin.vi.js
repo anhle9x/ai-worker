@@ -63,6 +63,7 @@ window.I18n.add({
   'Not used since the server started': 'Chưa dùng từ khi máy chủ khởi động',
   '{n} key(s) for AI tools not used for {days} days or more: {names}. Revoke the ones nobody needs, so a key left in an old config file cannot read the board.': '{n} khoá cho công cụ AI không dùng từ {days} ngày trở lên: {names}. Thu hồi khoá nào không ai cần, để một khoá bỏ quên trong file cấu hình cũ không đọc được bảng.',
   'Not used for {n} days': 'Không dùng {n} ngày',
+  'Let {name} open the board\'s window inside Telegram? This chat reads totals only, so the window shows the team\'s counts and costs and names nobody.': 'Cho {name} mở khung bảng bên trong Telegram? Chat này chỉ được đọc số tổng, nên khung chỉ hiện số đếm và chi phí của cả team, không nêu tên ai.',
   'Stopped by ai-worker': 'ai-worker đã chặn',
   'What was stopped': 'Thứ đã chặn',
   'Times': 'Số lần',

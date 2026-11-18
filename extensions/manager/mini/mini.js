@@ -67,8 +67,8 @@
     if (!box) return
     var big = $('big')
     if (!data) { big.textContent = '\u2013'; $('bigLabel').textContent = t('waiting for an answer'); $('sub').textContent = ''; $('chart').hidden = true; $('stats').hidden = true; return }
-    var working = people.filter(function (p) { return p.working && !p.waiting }).length
-    var total = (data.people || []).reduce(function (sum, p) { return sum + (p.usdToday || 0) }, 0)
+    var working = totals() ? totals().working : people.filter(function (p) { return p.working && !p.waiting }).length
+    var total = totals() ? totals().usdToday : (data.people || []).reduce(function (sum, p) { return sum + (p.usdToday || 0) }, 0)
     if (waiting.length) {
       big.textContent = String(waiting.length)
       $('bigLabel').textContent = t('waiting for an answer')
@@ -90,6 +90,7 @@
     var tokens = 0, sessions = 0, tasks = 0
     ;(data.people || []).forEach(function (p) { tokens += (p.tokensIn || 0) + (p.tokensOut || 0) })
     people.forEach(function (p) { sessions += p.openSessions || 0 })
+    if (totals()) { tokens = totals().tokens || 0; sessions = totals().openSessions || 0 }
     ;(data.tasks24 || []).forEach(function (hours) { (hours || []).forEach(function (n) { tasks += n || 0 }) })
     box.textContent = ''
     box.hidden = false
@@ -176,11 +177,22 @@
     list.hidden = tab === 'settings'
     var people = data ? (data.people || []).filter(function (p) { return p.status !== 'offline' }) : []
     var waiting = people.filter(function (p) { return p.waiting })
+    // a chat that reads totals only gets counts the server added up, and no person: one line per tab and a note why
+    // chat chỉ được đọc tổng nhận các con số máy chủ đã cộng, không có người nào: mỗi thẻ một dòng và một câu giải thích
+    if (totals()) waiting = new Array(totals().waiting || 0)
     hero(people, waiting)
     if (!data || tab === 'settings') return
     var badge = $('badge')
     badge.hidden = !waiting.length
     badge.textContent = String(waiting.length)
+    if (totals()) {
+      var sum = totals()
+      if (tab === 'waiting') list.appendChild(row(sum.waiting ? 'long' : '', t('Waiting'), String(sum.waiting || 0)))
+      else if (tab === 'working') list.appendChild(row('work', t('Working'), String(sum.working || 0)))
+      else if (tab === 'cost') list.appendChild(row('work total', t('Whole team'), money(sum.usdToday || 0)))
+      list.appendChild(empty(t('This chat reads totals only, so nobody is named.')))
+      return
+    }
     if (tab === 'waiting') {
       waiting.sort(function (a, b) { return (a.waitingSince || 0) - (b.waitingSince || 0) })
       // each bar is the wait against the longest one, or against the notify time when nobody has waited that long yet
@@ -223,6 +235,10 @@
       list.insertBefore(row('work total', t('Whole team'), money(total)), list.firstChild)
     }
   }
+
+  // the counts the server added up for a chat that reads totals only, or null for every other reader
+  // các con số máy chủ đã cộng cho chat chỉ được đọc tổng, hoặc null với mọi người đọc khác
+  function totals() { return data && data.totalsOnly && data.totals ? data.totals : null }
 
   function load() {
     Promise.resolve().then(server.data).then(function (d) {

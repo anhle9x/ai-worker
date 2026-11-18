@@ -632,6 +632,7 @@ def page_mini(paired: bool, browser: bool = False, telegram: bool = False) -> by
         "7-day Sonnet": tx("7-day Sonnet"),
         "spending": tx("spending"),
         "Whole team": tx("Whole team"),
+        "This chat reads totals only, so nobody is named.": tx("This chat reads totals only, so nobody is named."),
         "offline": tx("offline"),
         "Settings": tx("Settings"),
         "Remove the app from this Mac? This computer is unpaired and the app goes to the Trash.": tx("Remove the app from this Mac? This computer is unpaired and the app goes to the Trash."),

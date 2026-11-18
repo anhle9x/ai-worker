@@ -56,10 +56,10 @@ AI Worker is for the person who has to roll Claude out to an office and then ans
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/architecture-dark.svg">
-  <img alt="Employee computers send their numbers to the dashboard server (the name, the Claude account, a few details about the computer, and counts of sessions, tokens, cost and tasks; never chat, prompts or file names) and get signed updates back. The server, behind Caddy with HTTPS and an office IP list, keeps data in SQLite and serves the browser dashboard, TV wall screens, the menu bar icon, the browser extension, AI tools over a read-only MCP endpoint, and an optional Telegram bot: answers in a chat, alerts when someone waits too long, and the menu bar window opened inside Telegram." src="assets/architecture-light.svg" width="860">
+  <img alt="Employee computers send their numbers to the dashboard server (the name, the Claude account, a few details about the computer, and counts of sessions, tokens, cost and tasks; never chat, prompts or file names) and get signed updates back. The server, behind Caddy with HTTPS and an office IP list, keeps data in SQLite and serves the browser dashboard, TV wall screens, the menu bar icon, the browser extension, AI tools over a read-only MCP endpoint, and an optional Telegram bot that answers in a chat and alerts when someone waits too long; a phone opens the menu bar window inside Telegram over HTTPS. On the computer the plugin asks before risky commands and commits that hold a secret, flags pages that try to steer Claude, and never sends text with a key, a token or a password to ChatGPT or Gemini. The server keeps an audit log whose lines are chained, and the Admin page counts what was stopped and points out unused MCP keys." src="assets/architecture-light.svg" width="860">
 </picture>
 
-Not drawn yet: the window inside Telegram, which reaches the server over HTTPS from the phone or computer on its own path, `/tg/`; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#the-boards-window-inside-telegram-optional).
+The window inside Telegram reaches the server on its own path, `/tg/`; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#the-boards-window-inside-telegram-optional). What the plugin stops on the computer is in [SECURITY.md](SECURITY.md#what-the-plugin-stops-on-the-computer).
 
 Without a server the plugin still runs on each computer, with its own office page, but there is no company board and no self-update. The design is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 

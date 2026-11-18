@@ -4073,14 +4073,26 @@ class TelegramApp(unittest.TestCase):
         self.assertEqual(self.session(self.signed())[0], 403)
         self.assertEqual(self.session(self.signed(self.LAN))[0], 403)
 
-    def test_a_chat_that_reads_totals_only_cannot_be_allowed_the_window(self):
+    def test_a_chat_that_reads_totals_only_gets_totals_and_no_person(self):
         self.pair()
         tv_id = self.chat_row()[0]
-        status, d = self.admin("/admin/tv-app", {"id": tv_id, "on": True})
-        self.assertEqual(status, 400)
-        self.assertIn("reads each person", d["error"])
-        self.assertNotIn("app", stores.TV.d[tv_id])
-        self.assertEqual(self.session(self.signed())[0], 403)
+        self.assertEqual(self.admin("/admin/tv-app", {"id": tv_id, "on": True})[0], 200)
+        token = self.open_window()
+        status, b = self.call("GET", "/tg/data", Authorization="Bearer " + token)
+        self.assertEqual(status, 200)
+        d = json.loads(b)
+        self.assertTrue(d["totalsOnly"])
+        self.assertEqual(d["people"], [])
+        self.assertEqual(set(d["totals"]), {"waiting", "working", "openSessions", "usdToday", "tokens"})
+        wall = views.role_view(security.WALL, time.time())
+        # no name, account or device of anyone on the board reaches the chat
+        # không tên, tài khoản hay máy của ai trên bảng tới được chat
+        for p in wall["people"]:
+            for value in (p.get("name"), p.get("account")):
+                if value:
+                    self.assertNotIn(value, b.decode())
+        for private in ("@example.com", IP_LAN, IP_PUBLIC, "device-an"):
+            self.assertNotIn(private, b.decode())
 
     def test_fields_not_signed_by_telegram_are_refused(self):
         self.allowed()

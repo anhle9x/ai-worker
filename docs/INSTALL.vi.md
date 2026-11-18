@@ -224,7 +224,7 @@ Khi đó tên của các nhân viên giả lập sẽ đi qua Telegram. Đăng n
 
 ### Khung của bảng bên trong Telegram (tuỳ chọn)
 
-Chat được đọc từng người còn có thể mở khung nhỏ của biểu tượng thanh menu ngay bên trong Telegram: số người đang chờ, biểu đồ chi phí 7 ngày, và các thẻ Đang chờ, Đang làm, Hạn mức, Chi phí. Đây là một Telegram Mini App: Telegram hiện nút menu của bot là **AI Worker**, bấm vào là mở khung. Tắt cho tới khi bạn bật, và khi bật thì chỉ cho những chat quản trị cho phép từng cái một.
+Chat đã được duyệt còn có thể mở khung nhỏ của biểu tượng thanh menu ngay bên trong Telegram: số người đang chờ, biểu đồ chi phí 7 ngày, và các thẻ Đang chờ, Đang làm, Hạn mức, Chi phí. Đây là một Telegram Mini App: Telegram hiện nút menu của bot là **AI Worker**, bấm vào là mở khung. Tắt cho tới khi bạn bật, và khi bật thì chỉ cho những chat quản trị cho phép từng cái một.
 
 **Bật lên thì có gì thay đổi.** Khung là một trang của bảng, mở bằng trình duyệt có sẵn trong Telegram trên điện thoại hay máy tính của người đó. Số liệu đi thẳng từ bảng tới trình duyệt đó qua HTTPS, không qua máy chủ của Telegram; Telegram chỉ biết là khung đã được mở. Vì vậy điện thoại phải tới được bảng: với khối Caddy mẫu, nghĩa là đang ở một mạng có trong danh sách IP được vào (các văn phòng của bạn). Ở ngoài các mạng đó, khung báo không tới được máy chủ, còn các nút của chat vẫn dùng bình thường.
 
@@ -239,7 +239,7 @@ Chat được đọc từng người còn có thể mở khung nhỏ của biể
 
 **Cần biết.**
 
-- **Ai được mở:** chỉ chat đã được quản trị duyệt, được đọc từng người, và được quản trị cho mở khung. Chat chỉ đọc số gộp thì chưa có: khung vẽ từng người.
+- **Ai được mở:** chỉ chat đã được quản trị duyệt và cho mở khung. Chat được đọc từng người thấy từng cái tên, như màn hình treo tường; chat chỉ đọc số gộp nhận số đếm và chi phí của cả team, cộng sẵn trên máy chủ, không có tên ai, và mỗi thẻ chỉ hiện một dòng số tổng.
 - **Cách kiểm:** Telegram ký vài trường cho khung (ai mở, lúc nào) và đặt chúng sau dấu `#` của địa chỉ, nên chúng không bao giờ vào nhật ký nào. Trang đổi chúng một lần lấy một phiên, sống một giờ sau lần dùng cuối, tối đa 12 giờ, chỉ nằm trong bộ nhớ máy chủ: không có cookie. Các trường cũ hơn 5 phút bị từ chối.
 - **Kết thúc:** **Thôi mở khung** hay **Thu hồi** ở trang Quản trị, `/stop` trong chat, hoặc **Ngắt chat này** trong phần cài đặt của khung, đều đóng ngay mọi khung đang mở của chat đó. Khởi động lại máy chủ cũng kết thúc các phiên: đóng khung rồi mở lại.
 - **Trong nhật ký:** mỗi lần mở, mỗi lần bị từ chối, và mỗi lần quản trị cho phép hay thôi cho một chat. Không bao giờ có các trường Telegram đã ký.

@@ -30,7 +30,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | Manager | Menu bar icon, browser extension | See who is waiting or working, quota and cost today without opening the board, with the wall screen's data; see [menu-bar-spec.md](menu-bar-spec.md) and [chrome-extension-spec.md](chrome-extension-spec.md) |
 | Person with an AI tool | Claude Code, Codex CLI, Cursor, Gemini CLI or another tool that speaks MCP, with a key an admin approved | Ask the board in their own words. The tool reads the wall screen's data as text, or team and office totals only when the admin chose that; see [INSTALL.md](INSTALL.md) |
 | Person in a Telegram chat | Telegram on a phone or a computer, in a private chat an admin approved; only when the server's owner turned it on (`TELEGRAM_ASK=1`) | Ask the board by tapping a button or typing a short question, and, if the chat turns it on (`/alerts`), get a message when someone waits too long. The answer is a few lines made from the wall screen's data, or team and office totals only when the admin chose that; see [INSTALL.md](INSTALL.md) |
-| Person who opens the board's window in Telegram | The bot's menu button in a chat that reads each person and that an admin allowed the window; only with `TELEGRAM_APP=1` too, and from a network the proxy lets in | See the menu bar window inside Telegram: people waiting and working, the 7-day cost chart, quotas and costs, from the wall screen's data; see [INSTALL.md](INSTALL.md) |
+| Person who opens the board's window in Telegram | The bot's menu button in a chat that an admin allowed the window (a chat that reads totals only gets totals and no name); only with `TELEGRAM_APP=1` too, and from a network the proxy lets in | See the menu bar window inside Telegram: people waiting and working, the 7-day cost chart, quotas and costs, from the wall screen's data; see [INSTALL.md](INSTALL.md) |
 | Server owner | Server, signing keys | Install the webhook, build packages, sign releases |
 
 ### What it must do
@@ -330,7 +330,7 @@ What stands for a chat is the sender's Telegram number, which is no secret. So p
 
 ### The board's window inside Telegram (optional)
 
-Only with `TELEGRAM_APP=1` as well, and only for a chat that reads each person and that an admin allowed the window. Telegram does not carry the numbers: its app opens the board's page `/tg/app` in its own browser, and that browser asks the board for them over HTTPS, so the phone or computer must be on a network the proxy lets in. The bot process only sets each chat's menu button.
+Only with `TELEGRAM_APP=1` as well, and only for a chat that an admin allowed the window. A chat that reads each person reads the wall view; a chat that reads totals only reads the team's totals, added up on the server, with no person in them. Telegram does not carry the numbers: its app opens the board's page `/tg/app` in its own browser, and that browser asks the board for them over HTTPS, so the phone or computer must be on a network the proxy lets in. The bot process only sets each chat's menu button.
 
 ```mermaid
 sequenceDiagram
