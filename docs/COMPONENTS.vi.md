@@ -8,11 +8,13 @@ Mọi phần của AI Worker: chạy ở đâu, cần gì, phiên bản nào đ�
 
 | Phần | Chạy trên | Ngôn ngữ | Phiên bản |
 |---|---|---|---|
-| Plugin (hook, `/office`, skill) | Máy nhân viên, bên trong Claude Code | TypeScript | `version` trong `.claude-plugin/plugin.json` (hiện 0.38.0) |
+| Plugin (hook, `/office`, skill) | Máy nhân viên, bên trong Claude Code | TypeScript | `version` trong `.claude-plugin/plugin.json` (hiện 0.39.0) |
 | Máy chủ bảng tổng (webhook) | Máy chủ Linux | Python, chỉ thư viện chuẩn; dữ liệu trong SQLite | Theo bản phát hành của plugin |
 | Trang văn phòng 3D | Trình duyệt | JavaScript, three.js | Theo bản phát hành của plugin |
 | Biểu tượng thanh menu | macOS, Windows, Ubuntu | Python (SwiftBar trên Mac, Ubuntu), app Swift (`macos-app/`), PowerShell và C# (Windows) | Máy chủ dựng cho mỗi lần tải |
 | Tiện ích trình duyệt cho quản lý | Chrome | JavaScript | `version` trong `extensions/manager/manifest.json` (hiện 0.1.0) |
+| Bot Telegram (`server/telegram_bot.py`), tuỳ chọn | Máy chủ Linux, là một dịch vụ riêng | Python, chỉ thư viện chuẩn | Theo bản phát hành của plugin |
+| Khung bảng bên trong Telegram (`/tg/app`, `server/static/tg-app.js`), tuỳ chọn | Trình duyệt có sẵn của Telegram trên điện thoại hoặc máy tính | JavaScript, dùng chính `mini.js` của khung thanh menu; không có script của Telegram | Theo bản phát hành của plugin |
 | Bộ nối cho Codex, Cursor và Gemini CLI (`connectors/`) | Máy nhân viên, dưới dạng hook trong từng công cụ | sh và PowerShell; bộ cài của nó còn dùng `osascript` hoặc Node để gộp JSON | Nằm trong gói cài; cập nhật bằng cách chạy lại bộ cài của nó |
 | File cài | macOS, Windows, Linux | Bash, PowerShell | Nằm trong gói cài |
 
@@ -27,6 +29,7 @@ Mọi phần của AI Worker: chạy ở đâu, cần gì, phiên bản nào đ�
 | Thanh menu Ubuntu | `python3`, `python3-gi`, `python3-gi-cairo`, GTK 3, AyatanaAppIndicator3 (hoặc AppIndicator3), WebKit2 4.1 (hoặc 4.0) | `apt`, theo phần phụ thuộc của gói `.deb` |
 | Thanh menu macOS khi chưa có app dựng sẵn | SwiftBar | `install-mac.command`, từ Homebrew hoặc bản phát hành trên GitHub |
 | Thanh menu Windows | WebView2 runtime (có sẵn trong Windows 10 và 11) | Windows |
+| Quản lý dùng bot Telegram | Telegram trên điện thoại hoặc máy tính; với khung, cần ở mạng mà máy chủ cho vào | Quản lý |
 
 ## 3. Code bên ngoài được ghim phiên bản
 

@@ -29,7 +29,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | Wall screen | Dashboard on a TV | See numbers with shortened names; no emails or internal IPs |
 | Manager | Menu bar icon, browser extension | See who is waiting or working, quota and cost today without opening the board, with the wall screen's data; see [menu-bar-spec.md](menu-bar-spec.md) and [chrome-extension-spec.md](chrome-extension-spec.md) |
 | Person with an AI tool | Claude Code, Codex CLI, Cursor, Gemini CLI or another tool that speaks MCP, with a key an admin approved | Ask the board in their own words. The tool reads the wall screen's data as text, or team and office totals only when the admin chose that; see [INSTALL.md](INSTALL.md) |
-| Person in a Telegram chat | Telegram on a phone or a computer, in a private chat an admin approved; only when the server's owner turned it on (`TELEGRAM_ASK=1`) | Ask the board by tapping a button or typing a short question. The answer is a few lines made from the wall screen's data, or team and office totals only when the admin chose that; see [INSTALL.md](INSTALL.md) |
+| Person in a Telegram chat | Telegram on a phone or a computer, in a private chat an admin approved; only when the server's owner turned it on (`TELEGRAM_ASK=1`) | Ask the board by tapping a button or typing a short question, and, if the chat turns it on (`/alerts`), get a message when someone waits too long. The answer is a few lines made from the wall screen's data, or team and office totals only when the admin chose that; see [INSTALL.md](INSTALL.md) |
 | Person who opens the board's window in Telegram | The bot's menu button in a chat that reads each person and that an admin allowed the window; only with `TELEGRAM_APP=1` too, and from a network the proxy lets in | See the menu bar window inside Telegram: people waiting and working, the 7-day cost chart, quotas and costs, from the wall screen's data; see [INSTALL.md](INSTALL.md) |
 | Server owner | Server, signing keys | Install the webhook, build packages, sign releases |
 
@@ -68,6 +68,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | Keys for AI tools (MCP) | 50 keys; 120 requests per key in 10 minutes; a message of 16 KB |
 | Telegram chats | 50 chats; 10 waiting for approval; 20 messages per chat in 10 minutes; a chat that is not approved is answered once an hour |
 | The window inside Telegram | 10 sessions per IP a minute, 20 per chat in 10 minutes, 3 open per chat; 60 reads per session in 10 minutes; Telegram's signed fields at most 5 minutes old and 4 KB |
+| Alerts to Telegram chats | Each wait told once; one message every 5 minutes, 6 an hour and 30 a day per chat; none from 19:00 to 07:00; a wait over 4 hours is not told |
 
 ### How long data is kept
 
@@ -86,6 +87,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | Keys for AI tools (MCP) | 30 days without use; 1 year at most; survive restarts |
 | Telegram chats | 30 days without use; 1 year at most; survive restarts |
 | Sessions of the window inside Telegram | 1 hour after last use, 12 hours at most; in memory only, lost when the webhook restarts |
+| What the bot has told a chat, for its alerts | In memory only; after a restart a wait still going may be told once more |
 
 ## 2. The parts
 

@@ -8,11 +8,13 @@ Every part of AI Worker, where it runs, what it needs and which version is pinne
 
 | Part | Runs on | Language | Version |
 |---|---|---|---|
-| Plugin (hooks, `/office`, skills) | Staff computers, inside Claude Code | TypeScript | `version` in `.claude-plugin/plugin.json` (now 0.38.0) |
+| Plugin (hooks, `/office`, skills) | Staff computers, inside Claude Code | TypeScript | `version` in `.claude-plugin/plugin.json` (now 0.39.0) |
 | Dashboard server (webhook) | Linux server | Python, standard library only; data in SQLite | Same as the plugin release |
 | 3D office page | Browser | JavaScript, three.js | Same as the plugin release |
 | Menu bar icon | macOS, Windows, Ubuntu | Python (SwiftBar on Mac, Ubuntu), Swift app (`macos-app/`), PowerShell and C# (Windows) | Built by the server for each download |
 | Manager browser extension | Chrome | JavaScript | `version` in `extensions/manager/manifest.json` (now 0.1.0) |
+| Telegram bot (`server/telegram_bot.py`), optional | Linux server, as a service of its own | Python, standard library only | Same as the plugin release |
+| The board's window inside Telegram (`/tg/app`, `server/static/tg-app.js`), optional | Telegram's built-in browser on a phone or a computer | JavaScript, the menu bar window's own `mini.js`; no script from Telegram | Same as the plugin release |
 | Connector for Codex, Cursor and Gemini CLI (`connectors/`) | Staff computers, as a hook inside each tool | sh and PowerShell; its installer also uses `osascript` or Node to merge JSON | Inside the package; updated by running its installer again |
 | Installers | macOS, Windows, Linux | Bash, PowerShell | Inside the package |
 
@@ -27,6 +29,7 @@ Every part of AI Worker, where it runs, what it needs and which version is pinne
 | Ubuntu menu bar | `python3`, `python3-gi`, `python3-gi-cairo`, GTK 3, AyatanaAppIndicator3 (or AppIndicator3), WebKit2 4.1 (or 4.0) | `apt`, from the `.deb` dependencies |
 | macOS menu bar without the built app | SwiftBar | `install-mac.command`, from Homebrew or its GitHub release |
 | Windows menu bar | WebView2 runtime (built into Windows 10 and 11) | Windows |
+| A manager using the Telegram bot | Telegram on a phone or a computer; for the window, a network the server lets in | The manager |
 
 ## 3. Pinned outside code
 

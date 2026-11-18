@@ -2,6 +2,12 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.39.0 - 2026-11-18
+
+### Added
+- Text for ChatGPT or Gemini is read before it leaves the computer: if it holds what looks like a secret (a private key, an AWS, GitHub, GitLab, Slack, OpenAI, Anthropic, Google, Stripe or Telegram bot key or token, a JSON web token, a password in a connection string, or a password or key in a `.env` line), it is not sent, whatever the permission rule or mode. Claude is told what was found and on which line, never the value, so it can take it out and send again. The same check covers a separate ai-workers server (`mcp__ai-workers__ask_chatgpt` and the like). Placeholders and the providers' own documentation examples pass.
+- Four more kinds of shell command are put to a person before they run, like a folder delete: a downloaded script run at once (`curl … | sh`, `bash <(curl …)`, `iwr … | iex`), turning off macOS's check on downloaded apps (`xattr -d com.apple.quarantine`, `spctl --master-disable`), writing straight to a disk or erasing one (`dd of=/dev/…`, `mkfs`, `diskutil eraseDisk`), and opening a file to every user and program (`chmod 777`, `chmod o+w`).
+
 ## 0.38.0 - 2026-11-18
 
 ### Added

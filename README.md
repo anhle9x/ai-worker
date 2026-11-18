@@ -40,9 +40,10 @@ AI Worker is for the person who has to roll Claude out to an office and then ans
 - **Cost and quota:** cost today and over 7 days and quota left, per person and per office.
 - **Ask Claude about the team:** a manager pairs their Claude with the board once, then simply asks, for example "who is waiting longest right now?". You can type or dictate the question in your own language; Claude answers from the board's numbers.
 - **Ask from other AI tools, or from Telegram:** the server has a read-only MCP endpoint, so any AI tool that speaks MCP can answer the same questions with a key an admin approves. Managers who do not write code can tap a button in a Telegram chat instead, or open the menu bar window inside Telegram from the bot's menu: optional, off by default, and no AI model reads the question. The [install guide](docs/INSTALL.md) shows how to turn each one on.
+- **The board in Telegram, on your phone:** a manager whose Telegram chat an admin allows opens the menu bar window right inside Telegram, from the bot's **AI Worker** button: people waiting, the 7-day cost chart, quotas and costs. The bot can also write first when someone has waited too long (`/alerts 10`), with a button that opens the window. Both are optional and off by default; the window opens on your office network. See [the window inside Telegram](docs/INSTALL.md#the-boards-window-inside-telegram-optional) and [messages when someone waits too long](docs/INSTALL.md#messages-when-someone-waits-too-long-optional-per-chat).
 - **Use by week and month:** the detail board compares this week and this month with the last, for the team, each office and each person.
 - **Turn a procedure into a skill:** give `/ai-worker:make-skill` an SOP or a description of how a job is done. It writes a draft skill, stops at passwords and keys, leaves personal data out, and switches the skill on only after you say yes.
-- **Asks before deleting or sending out:** a command that deletes a whole folder, `git reset --hard`, `git push --force` and `git clean` need your confirmation, and so does sending text to another company's AI unless you allowed it yourself.
+- **Asks before deleting or sending out:** a command that deletes a whole folder, `git reset --hard`, `git push --force`, `git clean`, a downloaded script run at once (`curl … | sh`), turning off macOS's Gatekeeper, writing straight to a disk, or `chmod 777` need your confirmation, and so does sending text to another company's AI unless you allowed it yourself. Text holding what looks like a key, a token or a password is not sent to that AI at all.
 - **Roles and audit:** admins, managers and wall screens see different data; log in with a 6-digit OTP code or with Telegram (Telegram needs a bot set up first, see the [install guide](docs/INSTALL.md)); every change is logged for 12 months.
 
 ## Is it the right tool?
@@ -55,8 +56,10 @@ AI Worker is for the person who has to roll Claude out to an office and then ans
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/architecture-dark.svg">
-  <img alt="Employee computers send their numbers to the dashboard server (the name, the Claude account, a few details about the computer, and counts of sessions, tokens, cost and tasks; never chat, prompts or file names) and get signed updates back. The server, behind Caddy with HTTPS and an office IP list, keeps data in SQLite and serves the browser dashboard, TV wall screens, the menu bar icon, the browser extension, AI tools over a read-only MCP endpoint, and an optional Telegram chat." src="assets/architecture-light.svg" width="860">
+  <img alt="Employee computers send their numbers to the dashboard server (the name, the Claude account, a few details about the computer, and counts of sessions, tokens, cost and tasks; never chat, prompts or file names) and get signed updates back. The server, behind Caddy with HTTPS and an office IP list, keeps data in SQLite and serves the browser dashboard, TV wall screens, the menu bar icon, the browser extension, AI tools over a read-only MCP endpoint, and an optional Telegram bot: answers in a chat, alerts when someone waits too long, and the menu bar window opened inside Telegram." src="assets/architecture-light.svg" width="860">
 </picture>
+
+Not drawn yet: the window inside Telegram, which reaches the server over HTTPS from the phone or computer on its own path, `/tg/`; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#the-boards-window-inside-telegram-optional).
 
 Without a server the plugin still runs on each computer, with its own office page, but there is no company board and no self-update. The design is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -108,6 +111,7 @@ How to use each screen: [docs/USER-GUIDE.md](docs/USER-GUIDE.md).
 | Connector for Codex, Cursor, Gemini CLI | macOS, Linux, Windows | The tool itself, and curl or wget; no Claude Code |
 | Dashboard server | Linux with systemd | Python 3.8 or newer, Caddy or nginx; no other library |
 | Menu bar icon | macOS, Windows 10/11, Ubuntu (X11 and Wayland) | Downloaded from the server's Admin page |
+| Telegram bot, its alerts and its window (optional) | Telegram on a phone or a computer | A bot made with @BotFather; `TELEGRAM_ASK=1` on the server, and `TELEGRAM_APP=1` for the window, which opens on the networks the server lets in. The window was tried on Android and Telegram Desktop, not yet on an iPhone |
 | Browser extension | Chrome, Edge | Download from the server's Admin page, pair with a code |
 
 ### What is not counted

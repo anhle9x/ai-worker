@@ -81,3 +81,29 @@ test('an allow rule the person set for ChatGPT sends without a question', async 
   expect(seen.sent).toBe(1)
   expect(r.isError).toBe(false)
 })
+
+test('a key in the text stops it before anyone is asked, even with an allow rule, and nothing is sent', async ($, on) => {
+  const seen = computer(on, { verdict: { decision: 'allow', rule: 'mcp__ai-worker__ask_chatgpt' } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const key = 'gh' + 'p_' + 'a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8'
+  const r = (await $.tool.call({ tool: 'mcp__ai-worker__ask_chatgpt', prompt: `why does this fail?\nGITHUB_TOKEN=${key}` } as never)) as unknown as { result: string; isError: boolean }
+  expect(r.isError).toBe(true)
+  expect(r.result).toContain('Not sent to ChatGPT')
+  expect(r.result).toContain('line 2')
+  expect(r.result).not.toContain(key)
+  expect(seen.asked).toEqual([])
+  expect(seen.sent).toBe(0)
+})
+
+test('a separate ai-workers server gets the same check: its call is refused before it runs', async ($, on) => {
+  computer(on, { verdict: { decision: 'allow' } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const key = 'AKIA' + 'Q7RZ4PLMN2XW8VTB'
+  const refused = await $.tool.check({ tool: 'mcp__ai-workers__ask_gemini', input: { prompt: `deploy with ${key}` } } as never)
+  expect(refused.decision).toBe('deny')
+  expect(String((refused as { reason?: string }).reason)).toContain('Not sent to Gemini')
+  const fine = await $.tool.check({ tool: 'mcp__ai-workers__ask_gemini', input: { prompt: 'what is new in Python 3.15?' } } as never)
+  expect(fine.decision).toBe('allow')
+  const local = await $.tool.check({ tool: 'mcp__ai-workers__ask_local', input: { prompt: `summarise ${key}` } } as never)
+  expect(local.decision).toBe('allow')
+})

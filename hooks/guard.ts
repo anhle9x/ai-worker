@@ -8,7 +8,11 @@
 // Nó đọc lệnh dưới dạng chữ, nên bắt được các dạng phổ biến, không phải mọi cách xoá.
 import { tx } from './lang'
 
-export type Danger = { kind: 'delete-folder' | 'reset-hard' | 'force-push' | 'clean'; target: string }
+// and a few that put the whole computer at risk: a script downloaded and run at once, macOS's check on downloaded apps
+// turned off, a disk written to or erased, a file opened to every user and program
+// và vài lệnh đặt cả máy vào rủi ro: một script tải về rồi chạy ngay, tắt bước kiểm app tải về của macOS,
+// ghi thẳng ra hay xoá một ổ đĩa, mở một file cho mọi người dùng và chương trình
+export type Danger = { kind: 'delete-folder' | 'reset-hard' | 'force-push' | 'clean' | 'pipe-to-shell' | 'quarantine-off' | 'disk-write' | 'open-permissions'; target: string }
 
 // folders a build makes again, and the system's temporary folders: deleting them loses nothing
 // các thư mục mà một lần build sẽ tạo lại, và thư mục tạm của hệ thống: xoá chúng không mất gì
@@ -17,6 +21,13 @@ const SAFE_ROOTS = /^(\/private)?\/tmp\/.|^\/var\/folders\/./
 const PREFIXES = new Set(['sudo', 'command', 'time', 'nohup', 'exec', 'env', 'xargs'])
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash'])
 const WINDOWS_DELETERS = new Set(['remove-item', 'ri', 'del', 'erase', 'rd', 'rmdir'])
+const DISK_ERASERS = new Set(['erasedisk', 'erasevolume', 'zerodisk', 'randomdisk', 'secureerase', 'partitiondisk', 'reformat'])
+// a download handed straight to a program that runs it: curl … | sh, wget -O- … | python, iwr … | iex
+// một bản tải về được đưa thẳng cho chương trình chạy nó: curl … | sh, wget -O- … | python, iwr … | iex
+const PIPE_TO_SHELL = /\b(?:curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod)\b[^;&\n|]*\|\s*(?:sudo\s+(?:-\S+\s+)*)?(?:sh|bash|zsh|dash|ksh|python3?|perl|ruby|node|iex|invoke-expression)\b/i
+const RUN_DOWNLOAD = /\b(?:iex|invoke-expression)\b[^\n;]*\(\s*(?:iwr|irm|invoke-webrequest|invoke-restmethod|\(?\s*new-object\s+net\.webclient)/i
+const FETCHED = /^\s*(?:\$\(|`|<\()\s*(?:curl|wget)\b/
+const URL_IN = /https?:\/\/[^\s'"|;)]+/
 
 /** A command line cut into its commands (at `;`, `&&`, `||`, `|`, a new line), each cut into words; quotes keep a word whole. */
 /** Một dòng lệnh cắt thành từng lệnh (ở `;`, `&&`, `||`, `|`, xuống dòng), mỗi lệnh cắt thành từng từ; dấu nháy giữ nguyên một từ. */
@@ -95,8 +106,33 @@ function inOne(words: string[]): Danger | undefined {
   // sh -c "…": the command to look at is the quoted one
   // sh -c "…": lệnh cần xem là lệnh nằm trong dấu nháy
   if (SHELLS.has(program)) {
+    // bash -c "$(curl …)" and bash <(curl …): a downloaded script run as it arrives
+    // bash -c "$(curl …)" và bash <(curl …): một script tải về được chạy ngay khi tới
+    const fetched = rest.find(w => FETCHED.test(w))
+    if (fetched) return { kind: 'pipe-to-shell', target: URL_IN.exec(rest.join(' '))?.[0] ?? '' }
     const c = rest.indexOf('-c')
     return c >= 0 && rest[c + 1] ? destructiveCommand(rest[c + 1]!) : undefined
+  }
+  if (program === 'xattr') {
+    // removing com.apple.quarantine, or clearing every attribute (-c), lets a downloaded app skip macOS's check
+    // gỡ com.apple.quarantine, hoặc xoá mọi thuộc tính (-c), cho app tải về bỏ qua bước kiểm của macOS
+    const flags = rest.filter(w => /^-[A-Za-z]+$/.test(w)).join('')
+    const targets = rest.filter(w => !w.startsWith('-') && w !== 'com.apple.quarantine')
+    if ((flags.includes('d') && rest.includes('com.apple.quarantine')) || flags.includes('c')) return { kind: 'quarantine-off', target: targets.join(' ') }
+    return undefined
+  }
+  if (program === 'spctl') return rest.some(w => /^--(master|global)-disable$/.test(w)) ? { kind: 'quarantine-off', target: 'Gatekeeper' } : undefined
+  if (program === 'dd') {
+    const out = rest.find(w => /^of=\/dev\//.test(w))
+    return out ? { kind: 'disk-write', target: out.slice(3) } : undefined
+  }
+  if (/^mkfs(\.|$)/.test(program)) return { kind: 'disk-write', target: rest.filter(w => !w.startsWith('-')).pop() ?? '' }
+  if (program === 'diskutil') return DISK_ERASERS.has((rest[0] ?? '').toLowerCase()) ? { kind: 'disk-write', target: rest.slice(1).join(' ') } : undefined
+  if (program === 'chmod') {
+    // 777 or 666, or write for "others" or "all": every user and program on the computer may change the file
+    // 777 hay 666, hoặc quyền ghi cho "others" hay "all": mọi người dùng và chương trình trên máy đổi được file
+    const open = rest.find(w => /^0?[0-7]?[67][67][67]$/.test(w) && /[2367]$/.test(w) || /^[ugo]*[ao][ugo]*[+=][rwxXst]*w/.test(w))
+    return open ? { kind: 'open-permissions', target: rest.filter(w => !w.startsWith('-') && w !== open).join(' ') } : undefined
   }
   // find … -exec rm -rf {} +, and the like: the deleting program sits further along
   // find … -exec rm -rf {} +, và tương tự: chương trình xoá nằm ở phía sau
@@ -123,6 +159,12 @@ function inOne(words: string[]): Danger | undefined {
 /** The first thing in a command line that destroys work, or undefined when there is none. */
 /** Thứ đầu tiên trong một dòng lệnh phá huỷ công việc, hoặc undefined khi không có. */
 export function destructiveCommand(command: string): Danger | undefined {
+  // a pipe joins two commands, so it is read on the line itself, with what is inside quotes left out (a commit message
+  // that mentions curl | sh runs nothing); bash -c "…" is read again below, on its own
+  // ống nối hai lệnh, nên được đọc trên chính dòng lệnh, bỏ qua phần trong dấu nháy (lời commit nhắc tới curl | sh
+  // thì không chạy gì); bash -c "…" được đọc lại riêng ở dưới
+  const bare = command.replace(/'[^']*'|"[^"]*"/g, '""')
+  if (PIPE_TO_SHELL.test(bare) || RUN_DOWNLOAD.test(bare)) return { kind: 'pipe-to-shell', target: URL_IN.exec(command)?.[0] ?? '' }
   for (const words of shellWords(command)) {
     const found = inOne(words)
     if (found) return found
@@ -156,5 +198,13 @@ export function dangerQuestion(d: Danger): string {
       return `${tx('This overwrites what is on the shared git server with what is on this computer (git push --force). Work that others put there can be lost.')} ${only}`
     case 'clean':
       return `${tx('This deletes every file in this project that git does not track (git clean). They cannot be brought back.')} ${only}`
+    case 'pipe-to-shell':
+      return `${d.target ? tx('This downloads a script and runs it at once, without anyone reading it first: {target}. A changed script can do anything this computer allows.', { target: d.target }) : tx('This downloads a script and runs it at once, without anyone reading it first. A changed script can do anything this computer allows.')} ${only}`
+    case 'quarantine-off':
+      return `${d.target ? tx('This turns off macOS\'s check on a downloaded app (Gatekeeper), so it runs without Apple\'s warning: {target}.', { target: d.target }) : tx('This turns off macOS\'s check on downloaded apps (Gatekeeper), so they run without Apple\'s warning.')} ${only}`
+    case 'disk-write':
+      return `${tx('This writes straight to a disk or erases it: {target}. Everything on it can be lost.', { target: d.target || '?' })} ${only}`
+    case 'open-permissions':
+      return `${d.target ? tx('This lets every user and program on this computer change {target}.', { target: d.target }) : tx('This lets every user and program on this computer change these files.')} ${only}`
   }
 }

@@ -89,4 +89,16 @@ What remains:
 - **Telegram's networks may change.** The allow-list is Telegram's published list as read on 2026-11-16. If Telegram moves, the bot stops reaching it until you update `TELEGRAM_NETS`. `any` removes the limit, and that protection with it.
 - **Used on one production server so far,** since 2026-11-17, with a chat that reads totals only. A chat that reads each person was tried there once, on 2026-11-17: the cost answer named the person with the highest cost and gave each office its own line. The waiting and quota answers with names in them were not seen, because nobody was waiting and nobody was near a quota.
 
+### The window inside Telegram and the alerts
+
+Both come on top of asking from Telegram, and both are off until turned on: the window with `TELEGRAM_APP=1` and an admin allowing each chat, the alerts by each chat itself (`/alerts`).
+
+- **The window is a page of the board, under `/tg/`.** The person's phone or computer reaches the server itself over HTTPS; Telegram does not carry the numbers. With the template's Caddy block only the office networks get in. Letting `/tg/` in from anywhere is a separate decision that this project does not make for you.
+- **What Telegram signs is checked before anything else.** Telegram puts a few signed fields after the `#` of the address, so they reach no log. The webhook checks them with a key the installer derives from the bot token: it checks a signature and cannot drive the bot. Fields older than 5 minutes are refused, and a wrong signature counts as probing.
+- **Sessions live in memory only:** a random string kept as a hash, 1 hour after last use and 12 hours at most, 3 per chat, no cookie. The chat is found again on every call, so revoking it, `/stop`, or **Stop the window** ends every open window at once.
+- **Only a chat that reads each person, allowed one by one,** with the OTP code entered again. It sees what a wall screen sees.
+- **No script from another site runs in the window.** It does not load Telegram's script from telegram.org, and the page's `script-src 'self'` stays as it is.
+- **The alerts are the bot writing without being asked.** Names and minutes in them go through Telegram and stay in the chat, like the answers. The first line names nobody, a chat that reads totals only gets the count alone, and a chat gets at most one message every 5 minutes, 6 an hour and 30 a day, none at night. Each is logged with how many people, never who.
+- **Tried on one production server,** on 2026-11-18: the window on Android and Telegram Desktop, on the office network. Not yet on an iPhone, and the alerts not yet on a real chat.
+
 More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

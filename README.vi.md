@@ -40,9 +40,10 @@ AI Worker dành cho người phải triển khai Claude cho cả văn phòng r�
 - **Chi phí và hạn mức:** chi phí hôm nay và 7 ngày, hạn mức còn lại, theo từng người và từng văn phòng.
 - **Hỏi Claude về team:** quản lý ghép Claude của mình với bảng một lần, rồi cứ hỏi tự nhiên, ví dụ "ai đang chờ lâu nhất?". Hỏi bằng tiếng Việt cũng được, gõ hoặc nói đều được; Claude trả lời từ số liệu của bảng.
 - **Hỏi từ công cụ AI khác, hoặc từ Telegram:** máy chủ có một cổng MCP chỉ đọc, nên công cụ AI nào hỗ trợ MCP cũng trả lời được các câu hỏi đó bằng một khoá do quản trị viên duyệt. Quản lý không viết code thì bấm nút trong một chat Telegram, hoặc mở khung thanh menu ngay trong Telegram từ menu của bot: tuỳ chọn, mặc định tắt, và không mô hình AI nào đọc câu hỏi. Cách bật từng thứ có trong [hướng dẫn cài đặt](docs/INSTALL.vi.md).
+- **Bảng ngay trong Telegram, trên điện thoại:** quản lý có chat Telegram được quản trị cho phép thì mở khung thanh menu ngay trong Telegram, từ nút **AI Worker** của bot: người đang chờ, biểu đồ chi phí 7 ngày, hạn mức và chi phí. Bot còn tự nhắn khi có người chờ quá lâu (`/baocho 10`), kèm nút mở khung. Cả hai đều tuỳ chọn và mặc định tắt; khung mở được ở mạng văn phòng. Xem [khung bên trong Telegram](docs/INSTALL.vi.md#khung-của-bảng-bên-trong-telegram-tuỳ-chọn) và [tin báo khi có người chờ quá lâu](docs/INSTALL.vi.md#tin-báo-khi-có-người-chờ-quá-lâu-tuỳ-chọn-theo-từng-chat).
 - **Mức dùng theo tuần và tháng:** bảng chi tiết so tuần này, tháng này với tuần trước, tháng trước, cho cả đội, từng văn phòng và từng người.
 - **Biến quy trình thành skill:** đưa cho `/ai-worker:make-skill` một SOP hoặc mô tả cách làm một việc. Nó viết bản nháp skill, dừng lại khi thấy mật khẩu hay khoá, bỏ dữ liệu cá nhân, và chỉ bật skill sau khi bạn đồng ý.
-- **Hỏi lại trước khi xoá hay gửi ra ngoài:** lệnh xoá cả thư mục, `git reset --hard`, `git push --force` và `git clean` phải được bạn xác nhận; gửi nội dung sang AI của hãng khác cũng vậy, trừ khi bạn đã tự cho phép.
+- **Hỏi lại trước khi xoá hay gửi ra ngoài:** lệnh xoá cả thư mục, `git reset --hard`, `git push --force`, `git clean`, chạy ngay một script vừa tải về (`curl … | sh`), tắt Gatekeeper của macOS, ghi thẳng ra ổ đĩa hay `chmod 777` phải được bạn xác nhận; gửi nội dung sang AI của hãng khác cũng vậy, trừ khi bạn đã tự cho phép. Chữ có thứ trông như khoá, token hay mật khẩu thì hoàn toàn không được gửi sang AI đó.
 - **Phân quyền và nhật ký:** quản trị viên, quản lý và màn hình treo tường được xem những phần dữ liệu khác nhau; đăng nhập bằng mã OTP 6 số hoặc bằng Telegram (Telegram cần cài thêm bot, xem [hướng dẫn cài đặt](docs/INSTALL.vi.md)); nhật ký mọi thay đổi được lưu 12 tháng.
 
 ## Có hợp với bạn không?
@@ -55,8 +56,10 @@ AI Worker dành cho người phải triển khai Claude cho cả văn phòng r�
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/architecture-dark.vi.svg">
-  <img alt="Máy nhân viên gửi số liệu lên máy chủ bảng tổng (tên người dùng, tài khoản Claude, vài thông tin về máy, và số phiên, token, chi phí, việc giao; không bao giờ gửi chat, câu hỏi hay tên file) và nhận lại bản cập nhật có chữ ký. Máy chủ đứng sau Caddy có HTTPS và danh sách IP văn phòng, lưu dữ liệu trong SQLite, phục vụ bảng trên trình duyệt, màn hình TV, biểu tượng thanh menu, tiện ích trình duyệt, công cụ AI qua một cổng MCP chỉ đọc, và một chat Telegram tuỳ chọn." src="assets/architecture-light.vi.svg" width="860">
+  <img alt="Máy nhân viên gửi số liệu lên máy chủ bảng tổng (tên người dùng, tài khoản Claude, vài thông tin về máy, và số phiên, token, chi phí, việc giao; không bao giờ gửi chat, câu hỏi hay tên file) và nhận lại bản cập nhật có chữ ký. Máy chủ đứng sau Caddy có HTTPS và danh sách IP văn phòng, lưu dữ liệu trong SQLite, phục vụ bảng trên trình duyệt, màn hình TV, biểu tượng thanh menu, tiện ích trình duyệt, công cụ AI qua một cổng MCP chỉ đọc, và một bot Telegram tuỳ chọn: trả lời trong chat, tự nhắn khi có người chờ quá lâu, và mở khung thanh menu ngay trong Telegram." src="assets/architecture-light.vi.svg" width="860">
 </picture>
+
+Hình chưa vẽ: khung bên trong Telegram, điện thoại hay máy tính tự tới máy chủ qua HTTPS bằng đường riêng `/tg/`; xem [docs/ARCHITECTURE.vi.md](docs/ARCHITECTURE.vi.md#khung-bảng-bên-trong-telegram-tuỳ-chọn).
 
 Không có máy chủ thì plugin vẫn chạy trên từng máy với trang văn phòng riêng, nhưng không có bảng cả công ty và không tự cập nhật. Thiết kế xem [docs/ARCHITECTURE.vi.md](docs/ARCHITECTURE.vi.md).
 
@@ -108,6 +111,7 @@ Cách dùng từng màn hình: [docs/USER-GUIDE.vi.md](docs/USER-GUIDE.vi.md).
 | Máy chủ bảng tổng | Linux có systemd | Python 3.8 trở lên, Caddy hoặc nginx; không thư viện nào khác |
 | Bộ nối cho Codex, Cursor, Gemini CLI | macOS, Linux, Windows | Chính công cụ đó, và curl hoặc wget; không cần Claude Code |
 | Biểu tượng thanh menu | macOS, Windows 10/11, Ubuntu (X11 và Wayland) | Tải ở trang Quản trị của máy chủ |
+| Bot Telegram, tin báo và khung của nó (tuỳ chọn) | Telegram trên điện thoại hoặc máy tính | Một bot tạo bằng @BotFather; `TELEGRAM_ASK=1` trên máy chủ, thêm `TELEGRAM_APP=1` cho khung, khung mở được ở các mạng mà máy chủ cho vào. Khung đã thử trên Android và Telegram Desktop, chưa thử trên iPhone |
 | Tiện ích trình duyệt | Chrome, Edge | Tải ở trang Quản trị, ghép bằng mã |
 
 ### Những gì không được đếm

@@ -23,6 +23,7 @@ import type { BoardPairing } from './board'
 import { buildHelp, skillLine } from './help'
 import { voiceSettingsCommand, voiceSteps } from './voice'
 import { dangerNote, dangerQuestion, destructiveCommand } from './guard'
+import { findSecrets, secretRefusal } from './secrets'
 import { handoffSection, newestNotes, noteName } from './handoff'
 import type { HandoffNote } from './handoff'
 import type { VoiceSystem } from './voice'
@@ -71,6 +72,9 @@ const OPS: Record<string, Op> = {
 }
 const WORKER_TOOL = /^mcp__(?:ai-workers|ask-gemini|ai-worker)__([a-z_]+)$/
 const OWN_TOOL = /^mcp__ai-worker__(ask_local|ask_chatgpt|ask_gemini|generate_image)$/
+// helpers whose text leaves this computer, served by the plugin or by a separate ai-workers server
+// các trợ lý mà chữ gửi cho chúng rời khỏi máy này, do plugin phục vụ hoặc do một server ai-workers riêng
+const OUTSIDE_HELPER = /^mcp__ai-workers?__(ask_chatgpt|ask_gemini|generate_image)$/
 const PENDING = /job_id:\s*([A-Za-z0-9_-]+)/
 
 /** A label for a Gemini task from keywords only; the prompt itself is not kept. */
@@ -945,6 +949,10 @@ async function refuseToSend($: EngineInterface, name: string, args: Record<strin
   const tool = `mcp__ai-worker__${name}`
   const verdict = await $.tool.check({ tool, input: toolInput(args) }).catch(() => ({ decision: 'ask' as const }))
   const worker = name === 'ask_chatgpt' ? 'ChatGPT' : name === 'ask_gemini' || name === 'generate_image' ? 'Gemini' : undefined
+  // a key, a token or a password in the text stops it here, before anyone is asked: it never leaves, whatever the mode
+  // khoá, token hay mật khẩu trong chữ thì dừng ở đây, trước khi hỏi ai: nó không bao giờ rời máy, ở mọi chế độ
+  const secrets = worker ? findSecrets(prompt) : []
+  if (worker && secrets.length) return secretRefusal(secrets, worker)
   const answer = sendingNeedsAsking(verdict.decision, worker, !!(verdict as { rule?: unknown }).rule)
     ? await $.ui.ask(tx('Send this text to {worker}?\n\n{preview}', { worker: worker ?? '', preview: prompt.slice(0, 600) }), {
         options: [tx('Send'), tx('Do not send')],
@@ -1826,7 +1834,15 @@ export const register: Register = on => {
   // một lệnh shell phá huỷ công việc (cả thư mục, thay đổi chưa lưu, máy chủ git dùng chung, file chưa theo dõi) được
   // đưa cho một người trả lời, bằng lời thường, ở mọi chế độ quyền. "ask" của một hook là của người dùng: không có
   // bước tự duyệt nào trả lời thay, và ở nơi không hỏi được ai thì lệnh bị từ chối. Một lệnh đã bị cấm vẫn bị cấm.
+  // A key, a token or a password in text for ChatGPT or Gemini, through the plugin's own tools or a separate ai-workers
+  // server the person runs (mcp__ai-workers__ask_chatgpt and the like), is refused here, before the call, whatever the mode.
+  // Khoá, token hay mật khẩu trong chữ gửi cho ChatGPT hay Gemini, qua công cụ của chính plugin hay một server ai-workers
+  // riêng mà người dùng chạy (mcp__ai-workers__ask_chatgpt và tương tự), bị từ chối ở đây, trước lệnh gọi, ở mọi chế độ.
   on('tool.check', async ($, e, next) => {
+    const outside = OUTSIDE_HELPER.exec(e.tool)
+    const prompt = (e.input as Record<string, unknown> | undefined)?.prompt
+    const found = outside && typeof prompt === 'string' ? findSecrets(prompt) : []
+    if (outside && found.length) return { decision: 'deny' as const, reason: secretRefusal(found, outside[1] === 'ask_chatgpt' ? 'ChatGPT' : 'Gemini') }
     const verdict = await next(e)
     if (!askBeforeDestructive || !SHELL_TOOL.test(e.tool) || verdict.decision === 'deny') return verdict
     const command = (e.input as Record<string, unknown> | undefined)?.command
