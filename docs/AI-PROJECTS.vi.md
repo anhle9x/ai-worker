@@ -38,6 +38,7 @@ Cách nhanh nhất: mở Claude Code trong thư mục code của dự án, gõ `
   | TypeScript | `ai-meter.cjs` và `ai-meter.d.cts`, nằm cạnh nhau | Node 18+ (đã thử với TypeScript 5.9) | có | có |
   | C# | `AiMeter.cs` | .NET 6+ | có | có |
   | Go | `aimeter.go`, trong thư mục `aimeter/` | Go 1.21+ | có | có |
+  | Java, Kotlin và ngôn ngữ JVM khác | `AiMeter.java`, trong thư mục `aimeter/` | Java 11+ | có | có |
   | Rust | `ai_meter.rs`, trong `src/` | Rust 1.63+ | không: bạn đưa số token vào | không: chỉ ghi file |
   | C hay C++ | `ai_meter.h` | C99 hoặc C++11 | không: bạn đưa số token vào | không: chỉ ghi file |
 
@@ -62,22 +63,25 @@ Cách nhanh nhất: mở Claude Code trong thư mục code của dự án, gõ `
     mkdir -p <thư mục dự án>/aimeter && cp "$M/aimeter.go" <thư mục dự án>/aimeter/
     ```
     ```bash
+    mkdir -p <thư mục dự án>/src/main/java/aimeter && cp "$M/AiMeter.java" <thư mục dự án>/src/main/java/aimeter/
+    ```
+    ```bash
     cp "$M/ai_meter.rs" <thư mục dự án>/src/
     ```
     ```bash
     cp "$M/ai_meter.h" <thư mục dự án>/
     ```
-  - Hoặc tải từ repo này, đúng bản bạn đang chạy (ở đây là `v0.46.0`), ngay trong thư mục sẽ chứa file:
+  - Hoặc tải từ repo này, đúng bản bạn đang chạy (ở đây là `v0.47.0`), ngay trong thư mục sẽ chứa file:
     ```bash
-    curl -fLO https://raw.githubusercontent.com/anhle9x/ai-worker/v0.46.0/skills/ai-cost-report/meter/ai_meter.py
+    curl -fLO https://raw.githubusercontent.com/anhle9x/ai-worker/v0.47.0/skills/ai-cost-report/meter/ai_meter.py
     ```
-    Ngôn ngữ khác thì đổi tên file ở cuối: `ai-meter.cjs`, `ai-meter.d.cts`, `AiMeter.cs`, `aimeter.go`, `ai_meter.rs` hay `ai_meter.h`.
-  - Ngôn ngữ khác nữa (Java, PHP, Ruby...): chưa có file chép sẵn, nên code của dự án tự làm việc của bộ đo. Sau mỗi yêu cầu của người dùng, thêm một dòng JSON vào cuối file `ai-meter.jsonl`: yêu cầu đó mất bao lâu, kết thúc ra sao, và với mỗi model đã gọi: tên hãng, tên model, số lần gọi và số token hãng trả về. Một dòng trông như sau:
+    Ngôn ngữ khác thì đổi tên file ở cuối: `ai-meter.cjs`, `ai-meter.d.cts`, `AiMeter.cs`, `aimeter.go`, `AiMeter.java`, `ai_meter.rs` hay `ai_meter.h`.
+  - Ngôn ngữ khác nữa (PHP, Ruby, Swift...): chưa có file chép sẵn, nên code của dự án tự làm việc của bộ đo. Sau mỗi yêu cầu của người dùng, thêm một dòng JSON vào cuối file `ai-meter.jsonl`: yêu cầu đó mất bao lâu, kết thúc ra sao, và với mỗi model đã gọi: tên hãng, tên model, số lần gọi và số token hãng trả về. Một dòng trông như sau:
     ```json
     {"v":1,"turnId":"3f9c0a7d5be14c21","at":"2026-11-20T08:15:02.481Z","durationMs":2140,"outcome":"ok","env":"prod","models":[{"provider":"openai","model":"gpt-6.1-terra","calls":1,"errors":0,"retries":0,"unmeasured":0,"input":1830,"output":412,"cacheRead":0,"cacheWrite":0}]}
     ```
     `turnId` là 16 ký tự hex ngẫu nhiên, mỗi yêu cầu một mã mới; `at` là lúc yêu cầu bắt đầu, theo giờ UTC. Không bao giờ ghi câu hỏi, câu trả lời hay người dùng vào đó. Đủ các trường và chỗ đọc số token của từng hãng: [FORMAT.vi.md](../skills/ai-cost-report/FORMAT.vi.md). Skill và bảng đọc file này giống hệt file mà một bộ đo ghi.
-- **Kết quả đúng:** file của ngôn ngữ bạn dùng nằm cạnh code (Go là `aimeter/aimeter.go`, Rust là `src/ai_meter.rs`), và dự án vẫn dịch được.
+- **Kết quả đúng:** file của ngôn ngữ bạn dùng nằm cạnh code (Go là `aimeter/aimeter.go`, Java là `src/main/java/aimeter/AiMeter.java`, Rust là `src/ai_meter.rs`), và dự án vẫn dịch được.
 
 ## Bước 3. Bọc mỗi yêu cầu của người dùng
 
@@ -186,6 +190,75 @@ t.Record(body)                    // câu trả lời của hãng, dạng byte J
 - Khi SDK trả về một struct chứ không phải JSON, đọc số trong phần usage của nó rồi gọi `t.Count("openai", "gpt-6.1-terra", &aimeter.Counts{Input: 1530, Output: 412, CacheRead: 300})`; truyền `nil` thay cho số đếm nghĩa là không đo được.
 - Địa chỉ bảng và khoá: `aimeter.NewSending(path, env, url, key)`, hoặc các biến ở bước 4.
 
+### Java, Kotlin và các ngôn ngữ JVM khác
+
+Java 11 không có sẵn bộ đọc JSON, nên `AiMeter.java` mang theo một bộ nhỏ: `record` nhận câu trả lời của hãng dạng chữ JSON, đúng như phần lớn HTTP client trả về, hoặc dạng `Map` mà Jackson hay Gson đã đọc. Phần gửi lên bảng dùng `java.net.http`, có sẵn từ Java 11.
+
+```java
+import aimeter.AiMeter;
+
+AiMeter meter = new AiMeter("ai-meter.jsonl");   // một lần, khi chương trình khởi động
+
+// trong đoạn code xử lý mỗi yêu cầu:
+String answer = meter.turn(t -> {
+    HttpResponse<String> res = http.send(request, HttpResponse.BodyHandlers.ofString());   // lời gọi LLM bạn đã có
+    t.record(res.body());                        // câu trả lời của hãng, dạng chữ JSON
+    return res.body();
+});
+```
+
+`meter.turn(t -> ...)` trả về đúng thứ code của bạn trả về và ném lại đúng lỗi nó ném; lỗi có tên chứa timeout (`HttpTimeoutException`, `SocketTimeoutException`...) ghi là `timeout`, lỗi khác ghi là `error`. Chỗ nào không dùng lambda được thì dùng `try (AiMeter.Turn t = meter.turn()) { ... }` và tự gọi `t.setOutcome("error")` trong `catch`.
+
+Spring Boot: tạo bộ đo thành một bean, để nó được đóng (và gửi nốt những gì đang chờ) khi ứng dụng dừng.
+
+```java
+@Configuration
+class AiMeterConfig {
+    @Bean(destroyMethod = "close")
+    AiMeter aiMeter() {
+        return new AiMeter("ai-meter.jsonl");
+    }
+}
+
+@RestController
+class AskController {
+    private final AiMeter meter;
+    private final RestClient llm;
+
+    AskController(AiMeter meter, RestClient llm) {
+        this.meter = meter;
+        this.llm = llm;
+    }
+
+    @PostMapping("/ask")
+    String ask(@RequestBody String question) throws Exception {
+        return meter.turn(t -> {
+            String body = llm.post().uri("/v1/messages").body(question).retrieve().body(String.class);
+            t.record(body);
+            return body;
+        });
+    }
+}
+```
+
+Kotlin (và Scala, Groovy...) gọi đúng lớp đó:
+
+```kotlin
+import aimeter.AiMeter
+
+val meter = AiMeter("ai-meter.jsonl")
+
+meter.turn().use { t ->
+    val body = http.send(request, HttpResponse.BodyHandlers.ofString()).body()
+    t.record(body)
+}
+```
+
+- Hãng ngoài Anthropic, OpenAI và Gemini thì ghi thêm tên: `t.record(body, "deepseek")`. Lần gọi lặp lại một lần đã lỗi: `t.record(body, provider, null, true)`.
+- Đối tượng của SDK: đọc số trong phần usage của nó rồi gọi `t.count("openai", "gpt-6.1-terra", 1530L, 412L)`, hoặc `t.count(provider, model, input, output, cacheRead, cacheWrite, cacheWriteLong, retry)`; `null` cho input hay output nghĩa là không đo được.
+- Lần gọi lỗi: `t.fail(hãng, model)`; streaming: `t.firstToken()`. Địa chỉ bảng và khoá: `new AiMeter(file, env, sendUrl, sendKey)`, hoặc các biến ở bước 4. Gọi `meter.close()` trước khi chương trình kết thúc (Spring tự làm với bean ở trên).
+- Bộ đo nằm trong package `aimeter`: để file trong thư mục `aimeter/` của mã nguồn, hoặc đổi dòng đầu thành package của bạn.
+
 ### Rust
 
 Rust không có sẵn bộ đọc JSON, nên bộ đo nhận số token mà client của bạn đã đọc. Bộ đo chỉ ghi file.
@@ -245,12 +318,42 @@ void handle_request(void) {
 - Mỗi `ai_turn` chỉ dùng trong một luồng. Một lượt giữ tối đa 16 model khác nhau; quá số đó thì bỏ qua.
 - Muốn đưa lên bảng thì gửi các dòng của file bằng HTTP client của bạn như [FORMAT.vi.md](../skills/ai-cost-report/FORMAT.vi.md#gửi-lên-bảng-ai-worker) hướng dẫn, hoặc làm báo cáo từ file bằng skill.
 
+### React, Next.js và các giao diện web khác
+
+Không có bộ đo cho trình duyệt, và đó là cố ý. LLM phải được gọi từ máy chủ của dự án, không bao giờ từ code chạy trên trình duyệt: khoá API của hãng sẽ nằm trong trang cho bất kỳ ai chép ra, khoá của bảng cũng vậy (dù sao bảng cũng từ chối yêu cầu từ trình duyệt). Gắn bộ đo ở chỗ gọi LLM: Route Handler hay API route của Next.js, Server Action, route của Express hay Fastify, hàm chạy trên máy chủ của Remix hay SvelteKit. Ở đó, dùng bộ đo JavaScript hay TypeScript ở trên.
+
+Một Route Handler của Next.js, với `ai-meter.cjs` và `ai-meter.d.cts` chép vào `lib/`:
+
+```ts
+// app/api/ask/route.ts: chạy trên máy chủ, không bao giờ trên trình duyệt
+import { Meter } from '@/lib/ai-meter.cjs'
+
+export const runtime = 'nodejs'   // bộ đo ghi file: cần Node, không phải Edge runtime
+const meter = new Meter({ file: process.env.AI_METER_FILE ?? 'ai-meter.jsonl' })
+
+export async function POST(req: Request) {
+  const { question } = await req.json()
+  const resp = await meter.turn(async (t) => {
+    const r = await client.messages.create({ model: 'claude-sonnet-5-5', max_tokens: 1024, messages: [{ role: 'user', content: question }] })
+    t.record(r)
+    return r
+  })
+  await meter.sender?.flush()      // trên máy chủ serverless, gửi trước khi hàm bị đóng băng
+  return Response.json({ answer: resp.content })
+}
+```
+
+Server Action cũng vậy: bọc lời gọi LLM trong hàm `'use server'` bằng `meter.turn(...)`.
+
+- Trên máy chủ serverless (Vercel, Netlify, AWS Lambda...) ổ đĩa bị xoá giữa các lần chạy: đặt `AI_METER_FILE=/tmp/ai-meter.jsonl`, gửi lên bảng (bước 4), và gọi `await meter.sender?.flush()` trước khi trả lời, như trên.
+- Bộ đo trên máy chủ đo thời gian của máy chủ: từ lúc yêu cầu tới đến lúc câu trả lời đi, và mẩu streaming đầu tiên với `t.firstToken()`. Thời gian người dùng thấy còn cộng thêm mạng và thời gian trang tự vẽ. Muốn đo phần đó thì đo ở trình duyệt (ví dụ `performance.now()` từ lúc bấm tới lúc chữ đầu tiên hiện ra) và chỉ gửi số mili giây về backend của chính dự án, để backend tự lưu vào log của mình. Không bao giờ đặt khoá trong trang để làm việc này; các dòng của bộ đo không chứa con số đó.
+
 ### Cho mọi ngôn ngữ
 
 - Yêu cầu gọi LLM nhiều lần (đọc ảnh rồi trả lời) thì ghi hoặc đếm từng lần gọi.
-- `record` (C# và Go: `Record`) đọc được câu trả lời của Anthropic, OpenAI, Gemini, xAI Grok, mọi API chép theo dạng của OpenAI (DeepSeek, Mistral, Groq, OpenRouter, Azure OpenAI, vLLM, LM Studio...), Bedrock, Cohere, Ollama và Vercel AI SDK. Hãng ngoài ba hãng đầu thì ghi thêm tên: `t.record(resp, provider="deepseek")`.
+- `record` (C# và Go: `Record`, Java: `record`) đọc được câu trả lời của Anthropic, OpenAI, Gemini, xAI Grok, mọi API chép theo dạng của OpenAI (DeepSeek, Mistral, Groq, OpenRouter, Azure OpenAI, vLLM, LM Studio...), Bedrock, Cohere, Ollama và Vercel AI SDK. Hãng ngoài ba hãng đầu thì ghi thêm tên: `t.record(resp, provider="deepseek")`.
 - Hãng khác nữa: đọc số token trong câu trả lời theo tài liệu của hãng, rồi gọi `count` (Python: `t.count("tenhang", "ten-model", input=..., output=...)`).
-- Trả lời kiểu streaming (chữ hiện dần): gọi `first_token()` (Node: `firstToken()`, C# và Go: `FirstToken()`) khi mẩu đầu tiên tới. OpenAI và nhiều API chép theo nó chỉ gửi số token khi streaming nếu có `stream_options={"include_usage": True}`; không có thì lượt đó ghi là "không đo được".
+- Trả lời kiểu streaming (chữ hiện dần): gọi `first_token()` (Node và Java: `firstToken()`, C# và Go: `FirstToken()`) khi mẩu đầu tiên tới. OpenAI và nhiều API chép theo nó chỉ gửi số token khi streaming nếu có `stream_options={"include_usage": True}`; không có thì lượt đó ghi là "không đo được".
 - Lần gọi bị lỗi: `fail(hãng, model)`. Không bao giờ truyền chữ của lỗi.
 - Lỗi của bộ đo không bao giờ làm hỏng dự án.
 - **Kết quả đúng:** sau một câu hỏi, cạnh dự án có file `ai-meter.jsonl`, mỗi lượt một dòng, chỉ có số.

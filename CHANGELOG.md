@@ -2,6 +2,16 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.47.0 - 2026-11-19
+
+### Added
+- A meter for Java 11+ and every JVM language (Kotlin, Scala, Groovy), `skills/ai-cost-report/meter/AiMeter.java`: one file in package `aimeter`, standard library only. Java has no JSON reader of its own, so the file carries a small one: `record` reads the provider's answer as JSON text, or as a `Map` already parsed by Jackson or Gson, like the Python meter, including xAI's reasoning tokens outside `completion_tokens`; `count` takes numbers by hand. `meter.turn(t -> ...)` writes `timeout` or `error` and rethrows; sending to the board goes in batches in the background with `java.net.http`, only over HTTPS or to the same machine.
+- A test for it in `tests/appmeter/test_appmeter.py`, skipped without a working JDK: built with `--release 11 -Xlint:all -Werror`, it reads the same sample answers as Python with the same counts, refuses what is not whole-number JSON, and sends the same lines to a board started by the test.
+
+### Changed
+- The AI projects guide (`docs/AI-PROJECTS.md` and `.vi.md`) has a section for Java, Kotlin and other JVM languages, with a short Spring Boot example, and one for React, Next.js and other web front ends: no meter in the browser, the meter goes where the server calls the LLM (Route Handlers, API routes, Server Actions, Express), with what to do on a serverless host and how to measure the time the user sees without a key in the page. The download links point to `v0.47.0`.
+- The `ai-cost-report` skill, README and the skills list name Java and Kotlin, and the skill says how to meter a React or Next.js project.
+
 ## 0.46.0 - 2026-11-19
 
 ### Added

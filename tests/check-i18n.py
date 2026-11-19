@@ -20,7 +20,7 @@ VI_CHARS = "àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềế�
 VI_RE = re.compile("[" + VI_CHARS + VI_CHARS.upper() + "]")
 SKIP = re.compile(r"(^|/)(three\.js|three\.LICENSE|qrcode\.js|.*\.json)$|^skills/(ui-ux-pro-max|security-audit|browser-testing-with-devtools|codebase-design|diagnosing-bugs|domain-modeling|grilling|improve-codebase-architecture|interview-me|tdd)/")
 DICT = re.compile(r"(\.vi\.(js|ts|md|txt|svg)$|webhook_vi\.py$)")
-LINE_COMMENT = {".js": "//", ".cjs": "//", ".mjs": "//", ".go": "//", ".rs": "//", ".h": "//", ".cts": "//", ".ts": "//", ".tsx": "//", ".py": "#", ".sh": "#", ".command": "#", ".ps1": "#", ".caddy": "#", ".yml": "#", ".bat": "::", ".example": "#", ".swift": "//", ".cs": "//", ".toml": "#"}
+LINE_COMMENT = {".js": "//", ".cjs": "//", ".mjs": "//", ".go": "//", ".rs": "//", ".h": "//", ".cts": "//", ".ts": "//", ".tsx": "//", ".py": "#", ".sh": "#", ".command": "#", ".ps1": "#", ".caddy": "#", ".yml": "#", ".bat": "::", ".example": "#", ".swift": "//", ".cs": "//", ".java": "//", ".toml": "#"}
 TEXT_T = re.compile(r"""\btx\(\s*(?:'((?:\\.|[^'\\])*)'|"((?:\\.|[^"\\])*)"|`((?:\\.|[^`\\])*)`)""")
 GROUPS = {
     "server/webhook_vi.py": ["server/webhook.py"] + sorted("server/board/" + f for f in os.listdir(os.path.join(ROOT, "server", "board")) if f.endswith(".py")),

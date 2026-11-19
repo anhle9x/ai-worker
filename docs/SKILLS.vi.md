@@ -22,7 +22,7 @@ Nguồn và giấy phép skill: `skills/SOURCES.md`. Skill do người khác vi�
 | `qa-site` | Viết code, vận hành | Thử cả dự án web, từng luồng một, gộp thành một báo cáo | Dự án này | MIT |
 | `write-spec` | Viết code, vận hành | Viết đặc tả: mục tiêu, phạm vi, vai, yêu cầu có mã | Dự án này | MIT |
 | `draw-flow` | Viết code, vận hành | Vẽ cách hệ thống thật sự chạy bằng sơ đồ Mermaid đã kiểm | Dự án này | MIT |
-| `ai-cost-report` | Viết code, vận hành | Gắn bộ đo nhỏ vào dự án hay ứng dụng AI do nhóm tự làm, với bất kỳ hãng LLM nào (một file cho Python, JavaScript, TypeScript, C#, Go, Rust hay C/C++, định dạng dòng cho ngôn ngữ khác), rồi biến số đo thành báo cáo chi phí và tốc độ, HTML và CSV | Dự án này | MIT |
+| `ai-cost-report` | Viết code, vận hành | Gắn bộ đo nhỏ vào dự án hay ứng dụng AI do nhóm tự làm, với bất kỳ hãng LLM nào (một file cho Python, JavaScript, TypeScript, C#, Go, Java (và Kotlin), Rust hay C/C++, định dạng dòng cho ngôn ngữ khác), rồi biến số đo thành báo cáo chi phí và tốc độ, HTML và CSV | Dự án này | MIT |
 | `browser-testing-with-devtools` | Viết code, vận hành | Thử trang qua Chrome DevTools: DOM, console, mạng | Addy Osmani | MIT |
 | `interview-me` | Viết code, vận hành | Hỏi từng câu một tới khi rõ nhu cầu thật | Addy Osmani | MIT |
 | `ui-ux-pro-max` | Viết code, vận hành | Hướng dẫn giao diện và trải nghiệm, có kho kiểu và bảng màu | Next Level Builder | MIT |

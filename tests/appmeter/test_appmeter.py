@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Tests of the meter for AI projects and applications and its report (skills/ai-cost-report): python3 tests/appmeter/test_appmeter.py
-Everything is written in a temporary folder. The meters for Node, TypeScript, Go, C#, Rust and C/C++ are built and run against
+Everything is written in a temporary folder. The meters for Node, TypeScript, Go, C#, Java, Rust and C/C++ are built and run against
 the same answers when their tools are installed, and skipped when they are not.
   Test bộ đo cho dự án hay ứng dụng AI và báo cáo của nó (skills/ai-cost-report): python3 tests/appmeter/test_appmeter.py
-  Mọi thứ ghi trong một thư mục tạm. Bộ đo cho Node, TypeScript, Go, C#, Rust và C/C++ được dịch và chạy với cùng đáp án khi máy
+  Mọi thứ ghi trong một thư mục tạm. Bộ đo cho Node, TypeScript, Go, C#, Java, Rust và C/C++ được dịch và chạy với cùng đáp án khi máy
   có công cụ của chúng, và được bỏ qua khi không có."""
 import contextlib
 import io
@@ -471,9 +471,9 @@ def run(cmd, cwd, timeout=300, env=None):
 
 
 class SameAsPython(Tmp):
-    """What the Go and C# meters must give for the same program: the same counts as ai_meter.py for every sample, the same three
+    """What the Go, C# and Java meters must give for the same program: the same counts as ai_meter.py for every sample, the same three
     lines in the file, and the same three lines on the board.
-    Điều bộ đo Go và C# phải cho ra với cùng một chương trình: cùng số đếm như ai_meter.py cho mọi mẫu, cùng ba dòng trong file,
+    Điều bộ đo Go, C# và Java phải cho ra với cùng một chương trình: cùng số đếm như ai_meter.py cho mọi mẫu, cùng ba dòng trong file,
     và cùng ba dòng trên bảng."""
 
     def samples_file(self):
@@ -643,6 +643,98 @@ class CSharpMeter(SameAsPython):
             res = run([DOTNET, os.path.join(build, "apptest.dll"), self.samples_file(), self.file, board.url], src, env=env)
             self.assertEqual(res.returncode, 0, res.stderr)
             self.check(json.loads(res.stdout), board)
+
+
+def find_jdk():
+    # a JDK that works: JAVA_HOME, then the usual Homebrew folders, then PATH (on macOS /usr/bin/javac is only a stub)
+    # một JDK chạy được: JAVA_HOME, rồi các thư mục Homebrew hay gặp, rồi PATH (trên macOS /usr/bin/javac chỉ là lối tắt)
+    places = [os.path.join(os.environ.get("JAVA_HOME", ""), "bin")] if os.environ.get("JAVA_HOME") else []
+    for base in ("/opt/homebrew/opt", "/usr/local/opt"):
+        if os.path.isdir(base):
+            places += [os.path.join(base, d, "bin") for d in sorted(os.listdir(base), reverse=True) if d.startswith("openjdk")]
+    places.append(None)
+    for bin_dir in places:
+        javac = os.path.join(bin_dir, "javac") if bin_dir else shutil.which("javac")
+        java = os.path.join(bin_dir, "java") if bin_dir else shutil.which("java")
+        if javac and java and os.path.exists(javac):
+            try:
+                if subprocess.run([javac, "-version"], capture_output=True, timeout=30).returncode == 0:
+                    return javac, java
+            except (OSError, subprocess.SubprocessError):
+                pass
+    return None, None
+
+
+JAVAC, JAVA = find_jdk()
+JAVA_MAIN = r"""import aimeter.AiMeter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.Map;
+
+public class Main {
+    static String reading(AiMeter.Reading r) {
+        return "{\"provider\":" + (r.provider == null ? "null" : "\"" + r.provider + "\"") + ",\"counts\":" + r.counts + "}";
+    }
+
+    public static void main(String[] args) throws Exception {
+        List<String> samples = Files.readAllLines(Paths.get(args[0]), StandardCharsets.UTF_8);
+        StringBuilder out = new StringBuilder("[");
+        for (String s : samples) out.append(out.length() > 1 ? "," : "").append(reading(AiMeter.read(s, null)));
+        // an answer already parsed by Jackson or Gson is a Map with Integer or Long numbers
+        // câu trả lời Jackson hay Gson đã đọc là một Map có số kiểu Integer hay Long
+        Map<String, Object> parsed = Map.of("model", "gpt-6-luna", "usage", Map.of("prompt_tokens", 5, "completion_tokens", 2L));
+        out.append(",").append(reading(AiMeter.read(parsed, null)));
+        for (String bad : new String[] {"not json", "{\"usage\":{\"prompt_tokens\":12.0,\"completion_tokens\":3}}", "[1,2]", "{\"a\":"})
+            out.append(",").append(reading(AiMeter.read(bad, null)));
+        out.append("]");
+        AiMeter meter = new AiMeter(args[1], "prod", args[2], "prj_test");
+        try (AiMeter.Turn t = meter.turn()) {
+            t.firstToken();
+            for (String s : samples) t.record(s);
+            t.fail("anthropic", "claude-sonnet-5-5", true);
+        }
+        AiMeter.Turn t2 = meter.turn();
+        t2.record("{\"model\":\"gpt-6-luna\"}");
+        t2.count("Example-Cloud", "example-model-large", 5L, 2L);
+        t2.count("Bad Name", "x", null, 1L);
+        t2.end();
+        t2.end();
+        try {
+            meter.turn(t -> { throw new java.net.http.HttpTimeoutException("customer-plate-51A"); });
+        } catch (java.net.http.HttpTimeoutException e) {
+            // rethrown as it was
+            // ném lại đúng như cũ
+        }
+        meter.close();
+        System.out.println(out);
+    }
+}
+"""
+
+
+@unittest.skipUnless(JAVAC, "no working JDK (javac)")
+class JavaMeter(SameAsPython):
+    def test_java_reads_writes_and_sends_like_python(self):
+        src = os.path.join(self.dir, "java")
+        os.makedirs(os.path.join(src, "aimeter"))
+        shutil.copy(os.path.join(METER, "AiMeter.java"), os.path.join(src, "aimeter"))
+        with open(os.path.join(src, "Main.java"), "w", encoding="utf-8") as f:
+            f.write(JAVA_MAIN)
+        res = run([JAVAC, "--release", "11", "-Xlint:all", "-Werror", "-d", "out", "aimeter/AiMeter.java", "Main.java"], src)
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        samples = os.path.join(self.dir, "samples.txt")
+        with open(samples, "w", encoding="utf-8") as f:
+            f.write("\n".join(json.dumps(s[1]) for s in SAMPLES) + "\n")
+        with Board() as board:
+            res = run([JAVA, "-cp", "out", "Main", samples, self.file, board.url], src)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            out = json.loads(res.stdout)
+            n = len(SAMPLES)
+            self.assertEqual(out[n], {"provider": "openai", "counts": {"input": 5, "output": 2, "cacheRead": 0, "cacheWrite": 0, "cacheWriteLong": 0}})
+            self.assertEqual([x["counts"] for x in out[n + 1:]], [None] * 4)
+            self.check(out[:n], board)
 
 
 class FileOnly(Tmp):

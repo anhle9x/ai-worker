@@ -38,6 +38,7 @@ The quickest way: open Claude Code in the project's code folder and type `/ai-wo
   | TypeScript | `ai-meter.cjs` and `ai-meter.d.cts`, side by side | Node 18+ (tested with TypeScript 5.9) | yes | yes |
   | C# | `AiMeter.cs` | .NET 6+ | yes | yes |
   | Go | `aimeter.go`, in a folder `aimeter/` | Go 1.21+ | yes | yes |
+  | Java, Kotlin and other JVM languages | `AiMeter.java`, in a folder `aimeter/` | Java 11+ | yes | yes |
   | Rust | `ai_meter.rs`, in `src/` | Rust 1.63+ | no: you pass the token counts | no: file only |
   | C or C++ | `ai_meter.h` | C99 or C++11 | no: you pass the token counts | no: file only |
 
@@ -62,22 +63,25 @@ The quickest way: open Claude Code in the project's code folder and type `/ai-wo
     mkdir -p <project folder>/aimeter && cp "$M/aimeter.go" <project folder>/aimeter/
     ```
     ```bash
+    mkdir -p <project folder>/src/main/java/aimeter && cp "$M/AiMeter.java" <project folder>/src/main/java/aimeter/
+    ```
+    ```bash
     cp "$M/ai_meter.rs" <project folder>/src/
     ```
     ```bash
     cp "$M/ai_meter.h" <project folder>/
     ```
-  - Or download it from this repository, at the version you run (here `v0.46.0`), in the folder where the file goes:
+  - Or download it from this repository, at the version you run (here `v0.47.0`), in the folder where the file goes:
     ```bash
-    curl -fLO https://raw.githubusercontent.com/anhle9x/ai-worker/v0.46.0/skills/ai-cost-report/meter/ai_meter.py
+    curl -fLO https://raw.githubusercontent.com/anhle9x/ai-worker/v0.47.0/skills/ai-cost-report/meter/ai_meter.py
     ```
-    Change the file name at the end for the other languages: `ai-meter.cjs`, `ai-meter.d.cts`, `AiMeter.cs`, `aimeter.go`, `ai_meter.rs` or `ai_meter.h`.
-  - Another language (Java, PHP, Ruby...): there is no file to copy yet, so the project's own code does what the meter does. After each request of a user, append one line of JSON to the file `ai-meter.jsonl`: how long the request took, how it ended, and for each model called, the provider, the model's name, how many calls and the token counts the provider returned. One line looks like this:
+    Change the file name at the end for the other languages: `ai-meter.cjs`, `ai-meter.d.cts`, `AiMeter.cs`, `aimeter.go`, `AiMeter.java`, `ai_meter.rs` or `ai_meter.h`.
+  - Another language (PHP, Ruby, Swift...): there is no file to copy yet, so the project's own code does what the meter does. After each request of a user, append one line of JSON to the file `ai-meter.jsonl`: how long the request took, how it ended, and for each model called, the provider, the model's name, how many calls and the token counts the provider returned. One line looks like this:
     ```json
     {"v":1,"turnId":"3f9c0a7d5be14c21","at":"2026-11-20T08:15:02.481Z","durationMs":2140,"outcome":"ok","env":"prod","models":[{"provider":"openai","model":"gpt-6.1-terra","calls":1,"errors":0,"retries":0,"unmeasured":0,"input":1830,"output":412,"cacheRead":0,"cacheWrite":0}]}
     ```
     `turnId` is 16 random hex characters, new for each request; `at` is when the request started, in UTC. Never put the question, the answer or the user in it. Every field and where to read each token count for each provider: [FORMAT.md](../skills/ai-cost-report/FORMAT.md). The skill and the board read this file the same way as the one a meter writes.
-- **Right result:** the file of your language sits next to the code (for Go, `aimeter/aimeter.go`; for Rust, `src/ai_meter.rs`), and the project still builds.
+- **Right result:** the file of your language sits next to the code (for Go, `aimeter/aimeter.go`; for Java, `src/main/java/aimeter/AiMeter.java`; for Rust, `src/ai_meter.rs`), and the project still builds.
 
 ## Step 3. Wrap each request of a user
 
@@ -186,6 +190,75 @@ t.Record(body)                    // the provider's answer, as JSON bytes
 - When an SDK gives you a struct rather than JSON, read the numbers from its usage and call `t.Count("openai", "gpt-6.1-terra", &aimeter.Counts{Input: 1530, Output: 412, CacheRead: 300})`; `nil` in place of the counts means not measured.
 - The board's address and key: `aimeter.NewSending(path, env, url, key)`, or the variables of step 4.
 
+### Java, Kotlin and other JVM languages
+
+Java 11 has no JSON reader of its own, so `AiMeter.java` carries a small one: `record` takes the provider's answer as JSON text, as most HTTP clients give it, or as a `Map` already parsed by Jackson or Gson. Sending to the board uses `java.net.http`, which comes with Java 11.
+
+```java
+import aimeter.AiMeter;
+
+AiMeter meter = new AiMeter("ai-meter.jsonl");   // once, when the program starts
+
+// in the code that handles each request:
+String answer = meter.turn(t -> {
+    HttpResponse<String> res = http.send(request, HttpResponse.BodyHandlers.ofString());   // the LLM call you already have
+    t.record(res.body());                        // the provider's answer, as JSON text
+    return res.body();
+});
+```
+
+`meter.turn(t -> ...)` returns what your code returns and throws again what it throws; an exception whose name says timeout (`HttpTimeoutException`, `SocketTimeoutException`...) is written as `timeout`, any other as `error`. Where a lambda does not fit, use `try (AiMeter.Turn t = meter.turn()) { ... }` and call `t.setOutcome("error")` in `catch` yourself.
+
+Spring Boot: make the meter a bean, so it is closed (and what waits is sent) when the application stops.
+
+```java
+@Configuration
+class AiMeterConfig {
+    @Bean(destroyMethod = "close")
+    AiMeter aiMeter() {
+        return new AiMeter("ai-meter.jsonl");
+    }
+}
+
+@RestController
+class AskController {
+    private final AiMeter meter;
+    private final RestClient llm;
+
+    AskController(AiMeter meter, RestClient llm) {
+        this.meter = meter;
+        this.llm = llm;
+    }
+
+    @PostMapping("/ask")
+    String ask(@RequestBody String question) throws Exception {
+        return meter.turn(t -> {
+            String body = llm.post().uri("/v1/messages").body(question).retrieve().body(String.class);
+            t.record(body);
+            return body;
+        });
+    }
+}
+```
+
+Kotlin (and Scala, Groovy...) calls the same class:
+
+```kotlin
+import aimeter.AiMeter
+
+val meter = AiMeter("ai-meter.jsonl")
+
+meter.turn().use { t ->
+    val body = http.send(request, HttpResponse.BodyHandlers.ofString()).body()
+    t.record(body)
+}
+```
+
+- For a provider other than Anthropic, OpenAI and Gemini, give its name: `t.record(body, "deepseek")`. A call that repeats a failed one: `t.record(body, provider, null, true)`.
+- An SDK object: read the numbers from its usage and call `t.count("openai", "gpt-6.1-terra", 1530L, 412L)`, or `t.count(provider, model, input, output, cacheRead, cacheWrite, cacheWriteLong, retry)`; `null` for input or output means not measured.
+- A failed call: `t.fail(provider, model)`; streaming: `t.firstToken()`. The board's address and key: `new AiMeter(file, env, sendUrl, sendKey)`, or the variables of step 4. Call `meter.close()` before the program ends (Spring does it for the bean above).
+- The meter's package is `aimeter`: keep the file in a folder `aimeter/` of the source path, or change the first line to your own package.
+
 ### Rust
 
 Rust has no JSON reader of its own, so the meter takes the token counts your client already parsed. It writes the file only.
@@ -245,12 +318,42 @@ void handle_request(void) {
 - One `ai_turn` belongs to one thread. A turn holds at most 16 different models; more are left out.
 - To reach a board, send the file's lines from your own HTTP client as [FORMAT.md](../skills/ai-cost-report/FORMAT.md#sending-to-the-ai-worker-board) says, or make the report from the file with the skill.
 
+### React, Next.js and other web front ends
+
+There is no meter for the browser, on purpose. The LLM must be called from the project's server, never from code that runs in the browser: the provider's API key would be in the page for anyone to copy, and so would the board's key (the board refuses requests from a browser anyway). Put the meter where the LLM is called: a Next.js Route Handler or API route, a Server Action, an Express or Fastify route, a Remix or SvelteKit server function. There, use the JavaScript or TypeScript meter above.
+
+A Next.js Route Handler, with `ai-meter.cjs` and `ai-meter.d.cts` copied into `lib/`:
+
+```ts
+// app/api/ask/route.ts: runs on the server, never in the browser
+import { Meter } from '@/lib/ai-meter.cjs'
+
+export const runtime = 'nodejs'   // the meter writes a file: Node, not the Edge runtime
+const meter = new Meter({ file: process.env.AI_METER_FILE ?? 'ai-meter.jsonl' })
+
+export async function POST(req: Request) {
+  const { question } = await req.json()
+  const resp = await meter.turn(async (t) => {
+    const r = await client.messages.create({ model: 'claude-sonnet-5-5', max_tokens: 1024, messages: [{ role: 'user', content: question }] })
+    t.record(r)
+    return r
+  })
+  await meter.sender?.flush()      // on a serverless host, send before the function is frozen
+  return Response.json({ answer: resp.content })
+}
+```
+
+A Server Action is the same: wrap the LLM call inside the `'use server'` function with `meter.turn(...)`.
+
+- On a serverless host (Vercel, Netlify, AWS Lambda...) the disk is wiped between runs: set `AI_METER_FILE=/tmp/ai-meter.jsonl`, send to a board (step 4), and call `await meter.sender?.flush()` before answering, as above.
+- The meter on the server measures the server's time: from the request arriving to the answer leaving, and the first streamed piece with `t.firstToken()`. What the user sees adds the network and the page's own drawing. To measure that, measure it in the browser (for example `performance.now()` from the click to the first word shown) and send only the number of milliseconds to the project's own backend, which keeps it in its own logs. Never put a key in the page for this; the meter's lines do not hold that number.
+
 ### For every language
 
 - A request that calls an LLM several times (read a photo, then answer) records or counts each call.
-- `record` (`Record` in C# and Go) reads the answers of Anthropic, OpenAI, Gemini, xAI Grok, every API that copies OpenAI's shape (DeepSeek, Mistral, Groq, OpenRouter, Azure OpenAI, vLLM, LM Studio...), Bedrock, Cohere, Ollama and the Vercel AI SDK. For a provider other than the first three, give its name: `t.record(resp, provider="deepseek")`.
+- `record` (`Record` in C# and Go, `record` in Java) reads the answers of Anthropic, OpenAI, Gemini, xAI Grok, every API that copies OpenAI's shape (DeepSeek, Mistral, Groq, OpenRouter, Azure OpenAI, vLLM, LM Studio...), Bedrock, Cohere, Ollama and the Vercel AI SDK. For a provider other than the first three, give its name: `t.record(resp, provider="deepseek")`.
 - Any other provider: read the token counts from its answer as its documentation says, and call `count` (`t.count("provider", "model-name", input=..., output=...)` in Python).
-- Streaming answers: call `first_token()` (`firstToken()` in Node, `FirstToken()` in C# and Go) when the first piece arrives. OpenAI and many APIs that copy it send token counts while streaming only with `stream_options={"include_usage": True}`; without it the turn is written as "not measured".
+- Streaming answers: call `first_token()` (`firstToken()` in Node and Java, `FirstToken()` in C# and Go) when the first piece arrives. OpenAI and many APIs that copy it send token counts while streaming only with `stream_options={"include_usage": True}`; without it the turn is written as "not measured".
 - A failed call: `fail(provider, model)`. Never pass the error text.
 - A problem in the meter never breaks the project.
 - **Right result:** after one question, the file `ai-meter.jsonl` appears next to the project, one line per turn, with numbers only.
