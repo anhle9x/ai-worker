@@ -32,6 +32,8 @@ jobs:
         run: python3 -m unittest test_webhook test_demo test_mcp test_ask test_telegram_bot
       - name: Test the connector for Codex, Cursor and Gemini CLI
         run: python3 tests/connectors/test_connectors.py
+      - name: Test the meter for AI projects and applications, and its report
+        run: python3 tests/appmeter/test_appmeter.py
       - name: Test the Chrome extension against the server
         run: node tests/extension/check-extension.js
       - name: Check where the maps put the office labels

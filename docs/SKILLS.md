@@ -2,7 +2,7 @@
 
 # Skills and rules
 
-**Every skill comes with the plugin.** Four are for everyday work: `meeting-notes`, `lesson-generator`, `handoff`, `make-skill`. The others are for people who write code or run systems: testing, coding, security and UI, `write-spec` for specifications, `draw-flow` for Mermaid diagrams. The plugin also ships the `planner` assistant, the rules for technical work, and the guidance and security rules (on only in the company package). Type `/ai-worker:help` in a session to see the list on your computer.
+**Every skill comes with the plugin.** Four are for everyday work: `meeting-notes`, `lesson-generator`, `handoff`, `make-skill`. The others are for people who write code or run systems: testing, coding, security and UI, `write-spec` for specifications, `draw-flow` for Mermaid diagrams, `ai-cost-report` for the cost and speed of an AI project or application your team built. The plugin also ships the `planner` assistant, the rules for technical work, and the guidance and security rules (on only in the company package). Type `/ai-worker:help` in a session to see the list on your computer.
 
 **The tools some of those skills need are a separate step, for people who write code.** In the unzipped package, open the `setup` folder and double-click `INSTALL-DevTools-Mac.command` or `INSTALL-DevTools-Windows.bat`, after installing the plugin. It installs Node 20.19 or newer, registers Playwright and Chrome DevTools, and asks whether to also download `stageshow` and `video-shotcraft`. Windows uses `winget` to install Python, Chrome and ffmpeg when missing. A Mac can install those three only if Homebrew is writable; otherwise the installer lists at the end what is still missing. Without this step the skills are still there; `qa-test`, `qa-site` and `browser-testing-with-devtools` cannot drive a browser. To test a phone app, `qa-test` also needs a mobile MCP, which this step does not install: the skill names the one line to run when it finds none.
 
@@ -22,6 +22,7 @@ Sources and licenses of the skills: `skills/SOURCES.md`. The skills written by o
 | `qa-site` | Coding and systems | Tests a whole web project, flow by flow, into one report | This project | MIT |
 | `write-spec` | Coding and systems | Writes a specification: goal, scope, roles, numbered requirements | This project | MIT |
 | `draw-flow` | Coding and systems | Draws how a system really works as checked Mermaid diagrams | This project | MIT |
+| `ai-cost-report` | Coding and systems | Adds a small meter to an AI project or application your team built, with any LLM provider (one file for Python or Node, a line format for any other language), and turns what it measured into a cost and speed report, HTML and CSV | This project | MIT |
 | `browser-testing-with-devtools` | Coding and systems | Tests pages through Chrome DevTools: DOM, console, network | Addy Osmani | MIT |
 | `interview-me` | Coding and systems | Asks one question at a time until the real need is clear | Addy Osmani | MIT |
 | `ui-ux-pro-max` | Coding and systems | Interface and UX guidance with searchable styles and palettes | Next Level Builder | MIT |

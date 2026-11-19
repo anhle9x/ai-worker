@@ -163,6 +163,16 @@ Nếu bạn còn làm việc trong Codex, Cursor hoặc Gemini CLI, các phiên 
 
 **Muốn gỡ:** trong Terminal gõ `bash ~/.local/share/ai-worker/connector/install.sh --uninstall`. Cửa sổ báo `Xong. Codex, Cursor và Gemini CLI không còn gửi gì lên bảng.`
 
+### 1.11 Chi phí và tốc độ của dự án hay ứng dụng AI do nhóm tự làm
+
+Nếu nhóm bạn làm một dự án hay ứng dụng AI có gọi LLM và cần báo cáo chi phí và hiệu năng, skill `ai-cost-report` đo giúp. Hãng nào cũng được: Claude, GPT, Gemini, Grok, DeepSeek, Mistral, model qua OpenRouter, hay model chạy ngay trên máy của nhóm (Ollama, vLLM). Số liệu do chính dự án đo: mỗi câu trả lời của LLM kèm số token (`usage`, số mẩu chữ mà hãng tính tiền), và một bộ đo nhỏ cộng chúng lại cho từng yêu cầu của người dùng, kèm thời gian. Bộ đo không bao giờ ghi người dùng hỏi gì, model trả lời gì, người dùng là ai, hay thông báo lỗi. Không gửi gì lên bảng tổng.
+
+1. **Ở đâu:** Claude Code, mở trong thư mục code của dự án. **Làm gì:** gõ `/ai-worker:ai-cost-report` và nói dự án nào cần đo. **Kết quả đúng:** Claude tìm chỗ dự án gọi LLM và đưa ra vài dòng sẽ thêm: chép một file (`ai_meter.py` cho Python, `ai-meter.cjs` cho Node; ngôn ngữ khác tự ghi đúng dòng đó theo `FORMAT.md`). Chưa có gì thay đổi cho tới khi bạn đồng ý.
+2. **Ở đâu:** máy chạy dự án. **Làm gì:** chạy như thường, với người dùng thật, trong khoảng thời gian cần báo cáo. Chạy thử thì khởi động với `AI_METER_ENV=test` để tách riêng. **Kết quả đúng:** file `ai-meter.jsonl` cạnh dự án thêm một dòng cho mỗi yêu cầu.
+3. **Ở đâu:** Claude Code. **Làm gì:** đưa file cho Claude và nhờ làm báo cáo, tiếng Việt hay tiếng Anh, cho những ngày cần. **Kết quả đúng:** `ai-cost-report.html` (mở bằng trình duyệt; **In** để lưu PDF) và `ai-cost-report.csv` (mở bằng Excel hay Google Sheets): số yêu cầu, số lần gọi LLM và token mỗi yêu cầu, tiền mỗi yêu cầu và mỗi 1.000 yêu cầu, thời gian trung bình, p95 (mức thời gian mà 95 trên 100 yêu cầu không vượt quá) và chậm nhất, theo từng model.
+
+**Điều báo cáo không biết:** yêu cầu nào câu trả lời không kèm số token thì ghi "không đo được", model nào chưa có trong file giá thì ghi "chưa có giá"; cả hai đều không tính là 0. Model chạy trên máy của nhóm ghi "chạy trên máy, không tính tiền API": vẫn có token và thời gian, còn chi phí của chính các máy thì không có. File giá là giá niêm yết đọc từ trang giá của Anthropic, OpenAI, Google và xAI vào ngày ghi trong đó; hãng khác, hay giá công ty đã thương lượng, thì nhờ Claude ghi vào một file giá riêng của bạn. Mục "nếu cùng số token đó gửi cho model khác" chỉ là ước tính; muốn so thật thì chạy dự án trên model kia với `AI_METER_ENV=test` rồi làm báo cáo cho các yêu cầu đó.
+
 ---
 
 ## 2. Quản lý

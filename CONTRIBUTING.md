@@ -20,7 +20,7 @@ Thank you for helping. Bug reports, fixes, translations and documents are all we
 
 ## Checks to run
 
-Run all ten from the repository root before sending a change. GitHub Actions runs the same ones.
+Run all eleven from the repository root before sending a change. GitHub Actions runs the same ones.
 
 ```bash
 claude plugin test .
@@ -29,6 +29,7 @@ cd server && python3 -m unittest
 
 ```bash
 python3 tests/connectors/test_connectors.py
+python3 tests/appmeter/test_appmeter.py
 node tests/extension/check-extension.js
 node tests/check-map-layout.js
 python3 tests/check-i18n.py

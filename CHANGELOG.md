@@ -2,6 +2,12 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.44.0 - 2026-11-19
+
+### Added
+- A new skill, `ai-cost-report`, measures the cost and speed of an AI project or application your team built, for a cost and performance report. It works with any LLM provider: it reads the answers of Anthropic, OpenAI, Gemini, xAI Grok, Bedrock, Cohere, Ollama, the Vercel AI SDK and every API that copies OpenAI's shape (DeepSeek, Mistral, Groq, OpenRouter, vLLM...), and takes the numbers by hand for any other. A small meter goes into the project (one file to copy for Python or Node, with no package to install, or a documented line format for any other language) and writes one line per user request to a file on that machine: times, and the token counts the provider returned, per model. It never writes a question, an answer, a user id or an error message, and nothing goes to the board. The skill turns the file into an HTML page that prints to PDF and a CSV: requests, LLM calls and tokens per request, cost per request and per 1,000 requests, average, 95th percentile and slowest time, by model. Prices come from a price file that names each provider's pricing page and the day it was read (Anthropic, OpenAI, Google, xAI), plus a price file of your own for any other provider or a negotiated price. A model with no price says so instead of a guess, a model that runs on your own machines counts no API cost, and tokens the project did not get are shown as not measured, never as zero.
+- The installer for Codex, Cursor and Gemini CLI copies `ai-cost-report` too, so 17 skills in all.
+
 ## 0.43.0 - 2026-11-19
 
 ### Added

@@ -1,0 +1,505 @@
+#!/usr/bin/env python3
+"""Turns the JSON lines an AI project or application wrote (FORMAT.md) into a cost and speed report: one HTML page that prints to PDF, and one CSV.
+  Biến các dòng JSON một dự án hay ứng dụng AI đã ghi (FORMAT.md) thành báo cáo chi phí và tốc độ: một trang HTML in ra PDF được, và một file CSV.
+
+Python 3.8+, standard library only. Usage:
+  Python 3.8+, chỉ thư viện chuẩn. Cách dùng:
+    python3 report.py ai-meter.jsonl [more.jsonl ...] [--out DIR] [--lang en|vi] [--env prod|test|all]
+                      [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--compare MODEL ...] [--prices prices.json] [--add-prices mine.json ...] [--title TEXT]
+"""
+import argparse
+import csv
+import html
+import json
+import os
+import re
+import sys
+from datetime import datetime, timezone
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+PROVIDER_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,31}$")
+# Providers that run on the team's own machines: no API bill, tokens and time still shown. A price file can add more
+# Các hãng chạy trên máy của chính nhóm: không có tiền API, vẫn hiện token và thời gian. File giá có thể thêm
+LOCAL_PROVIDERS = ("local", "ollama", "vllm", "llamacpp", "lmstudio", "localai", "tgi", "sglang")
+MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,78}$")
+TURN_RE = re.compile(r"^[0-9a-f]{16,64}$")
+COUNTS = ("input", "output", "cacheRead", "cacheWrite", "cacheWriteLong")
+TOKENS = ("input", "output", "cacheRead", "cacheWrite")
+TALLIES = ("calls", "errors", "retries", "unmeasured")
+PICO = 10 ** 12
+MAX_LINE = 64 * 1024
+MAX_MODELS = 50
+
+
+def _int(v, allow_none=False):
+    if v is None and allow_none:
+        return True
+    return isinstance(v, int) and not isinstance(v, bool) and 0 <= v < 10 ** 15
+
+
+def parse_time(s):
+    if not isinstance(s, str) or len(s) > 40:
+        return None
+    try:
+        t = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+
+
+def clean_line(raw):
+    """Keeps only the known fields of one line, or returns None when the line breaks FORMAT.md. Unknown fields are dropped unread.
+    Chỉ giữ các trường đã biết của một dòng, hoặc trả None khi dòng sai FORMAT.md. Trường lạ bị bỏ, không đọc."""
+    if not isinstance(raw, dict) or raw.get("v") != 1:
+        return None
+    tid, at = raw.get("turnId"), parse_time(raw.get("at"))
+    dur, ttft = raw.get("durationMs"), raw.get("ttftMs")
+    if not isinstance(tid, str) or not TURN_RE.match(tid) or at is None or not _int(dur):
+        return None
+    if ttft is not None and (not _int(ttft) or ttft > dur):
+        return None
+    if raw.get("outcome") not in ("ok", "error", "timeout") or raw.get("env") not in ("prod", "test"):
+        return None
+    models = raw.get("models")
+    if not isinstance(models, list) or len(models) > MAX_MODELS:
+        return None
+    out = []
+    for m in models:
+        if not isinstance(m, dict) or not isinstance(m.get("provider"), str) or not PROVIDER_RE.match(m["provider"]):
+            return None
+        if not isinstance(m.get("model"), str) or not MODEL_RE.match(m["model"]):
+            return None
+        row = {"provider": m["provider"], "model": m["model"]}
+        for k in TALLIES:
+            v = m.get(k, 0)
+            if not _int(v):
+                return None
+            row[k] = v
+        # input and output are a number or null together; a missing cache field is 0; with null tokens the cache fields mean nothing
+        # input và output cùng là số hoặc cùng null; trường cache vắng là 0; khi token là null thì trường cache không có nghĩa
+        for k in COUNTS:
+            if not _int(m.get(k), allow_none=True):
+                return None
+        if m.get("input") is None and m.get("output") is None:
+            row["measured"] = False
+            for k in COUNTS:
+                row[k] = 0
+        elif m.get("input") is None or m.get("output") is None or any(k in m and m[k] is None for k in COUNTS[2:]):
+            return None
+        else:
+            row["measured"] = row["unmeasured"] == 0
+            for k in COUNTS:
+                row[k] = m.get(k) or 0
+        if row["errors"] > row["calls"] or row["retries"] > row["calls"] or row["unmeasured"] > row["calls"] or row["cacheWriteLong"] > row["cacheWrite"]:
+            return None
+        out.append(row)
+    return {"turnId": tid, "at": at, "durationMs": dur, "ttftMs": ttft, "outcome": raw["outcome"], "env": raw["env"], "models": out}
+
+
+def read_lines(paths):
+    turns, seen, skipped, dupes = [], set(), 0, 0
+    for p in paths:
+        with open(p, encoding="utf-8", errors="replace") as f:
+            for raw in f:
+                if not raw.strip():
+                    continue
+                if len(raw) > MAX_LINE:
+                    skipped += 1
+                    continue
+                try:
+                    t = clean_line(json.loads(raw))
+                except ValueError:
+                    t = None
+                if t is None:
+                    skipped += 1
+                elif t["turnId"] in seen:
+                    dupes += 1
+                else:
+                    seen.add(t["turnId"])
+                    turns.append(t)
+    turns.sort(key=lambda t: t["at"])
+    return turns, skipped, dupes
+
+
+def price_keys(model):
+    # The names a model may be priced under: as written, without a "vendor/" or cloud prefix, without a date or version tail
+    # Các tên mà một model có thể có giá: như đã ghi, bỏ tiền tố "hãng/" hay của cloud, bỏ đuôi ngày hay phiên bản
+    names = [model, model.split("/")[-1]]
+    out = []
+    for n in names:
+        n2 = re.sub(r"^(?:[a-z]{2,6}\.)?(?:anthropic|google|openai)\.", "", n)
+        for cand in (n, n2):
+            c = re.sub(r"(-v\d+(:\d+)?|@\d{8}|-\d{8}|-\d{4}-\d{2}-\d{2}|-\d{3}|-latest)$", "", cand)
+            for x in (cand, c):
+                if x not in out:
+                    out.append(x)
+    return out
+
+
+ZERO = {k: 0 for k in COUNTS}
+
+
+class Prices:
+    """The price file of the skill, with the user's own files on top: their models replace ours, their providers are added.
+    File giá của skill, cùng các file riêng của người dùng đè lên: model của họ thay model của skill, hãng của họ được thêm vào."""
+
+    def __init__(self, path, extra=()):
+        with open(path, encoding="utf-8") as f:
+            self.doc = json.load(f)
+        self.by_model = {}
+        for m in self.doc.get("models", []):
+            for name in [m["model"]] + list(m.get("aliases") or []):
+                self.by_model.setdefault(name, m)
+        self.local = set(LOCAL_PROVIDERS) | set(self.doc.get("localProviders", []))
+        self.yours = []
+        for p in extra:
+            with open(p, encoding="utf-8") as f:
+                doc = json.load(f)
+            name = os.path.basename(p)
+            self.yours.append(name)
+            for prov, info in (doc.get("providers") or {}).items():
+                self.doc["providers"][prov] = dict(info, source=info.get("source") or name, checked=info.get("checked") or "-", yours=name)
+            for m in doc.get("models") or []:
+                if isinstance(m, dict) and isinstance(m.get("model"), str) and isinstance(m.get("prices", []), list):
+                    self.by_model[m["model"]] = dict(m, prices=m.get("prices") or [], yours=name)
+            self.local |= {x for x in doc.get("localProviders") or [] if isinstance(x, str)}
+
+    def entry(self, model):
+        for k in price_keys(model):
+            if k in self.by_model:
+                return self.by_model[k]
+        return None
+
+    def is_local(self, provider, model):
+        # Runs on the team's machine: marked so in a price file, or a local provider with no price of its own
+        # Chạy trên máy của nhóm: file giá ghi như vậy, hoặc là hãng chạy trên máy mà không có giá riêng
+        e = self.entry(model)
+        return bool(e and e.get("local")) or (provider in self.local and e is None)
+
+    def at(self, model, day):
+        # The price row in force on that day (UTC), or None
+        # Dòng giá áp dụng ngày đó (UTC), hoặc None
+        e = self.entry(model)
+        if e is None:
+            return None
+        chosen = None
+        for row in e["prices"]:
+            if row.get("from") is None or row["from"] <= day:
+                chosen = row
+        return chosen
+
+    def cost(self, row, price):
+        """Cost in millionths of a millionth of a dollar (exact integer), or None when a needed price is unknown.
+        Chi phí theo phần triệu của phần triệu đô la (số nguyên chính xác), hoặc None khi thiếu giá cần dùng."""
+        if price is None:
+            return None
+        short = row["cacheWrite"] - row["cacheWriteLong"]
+        parts = ((row["input"], "input"), (row["output"], "output"), (row["cacheRead"], "cacheRead"),
+                 (short, "cacheWrite"), (row["cacheWriteLong"], "cacheWriteLong"))
+        total = 0
+        for n, k in parts:
+            if n == 0:
+                continue
+            p = price.get(k)
+            if p is None:
+                return None
+            total += n * p
+        return total
+
+
+def p95(values):
+    # Nearest-rank on the raw values: the smallest value with at least 95% of the values at or below it
+    # Nearest-rank trên dữ liệu thô: giá trị nhỏ nhất mà ít nhất 95% giá trị nằm ở hoặc dưới nó
+    if not values:
+        return None
+    s = sorted(values)
+    rank = -(-95 * len(s) // 100)
+    return s[max(rank, 1) - 1]
+
+
+def avg(values):
+    return sum(values) / len(values) if values else None
+
+
+def analyse(turns, prices, compare=()):
+    models, days = {}, {}
+    measured, priced = [], []
+    unpriced_models = set()
+    for t in turns:
+        day = t["at"].strftime("%Y-%m-%d")
+        t_ok = all(m["measured"] for m in t["models"])
+        t_cost = 0
+        for m in t["models"]:
+            key = (m["provider"], m["model"])
+            a = models.setdefault(key, dict({k: 0 for k in TALLIES + COUNTS}, turns=0, cost=0, costTurns=0, unpricedTurns=0, unmeasuredTurns=0, entry=prices.entry(m["model"])))
+            a["turns"] += 1
+            for k in TALLIES + COUNTS:
+                a[k] += m[k]
+            if not m["measured"]:
+                a["unmeasuredTurns"] += 1
+                t_cost = None
+                continue
+            if prices.is_local(m["provider"], m["model"]):
+                a["local"] = True
+                a["costTurns"] += 1
+                continue
+            c = prices.cost(m, prices.at(m["model"], day))
+            if c is None:
+                a["unpricedTurns"] += 1
+                unpriced_models.add(m["model"])
+                t_cost = None
+            else:
+                a["cost"] += c
+                a["costTurns"] += 1
+                if t_cost is not None:
+                    t_cost += c
+        d = days.setdefault(day, {"turns": 0, "errors": 0, "cost": 0, "costTurns": 0, "ms": []})
+        d["turns"] += 1
+        d["errors"] += t["outcome"] != "ok"
+        if t["outcome"] == "ok":
+            d["ms"].append(t["durationMs"])
+        if t_ok:
+            measured.append(t)
+            if t_cost is not None:
+                priced.append((t, t_cost))
+                d["cost"] += t_cost
+                d["costTurns"] += 1
+    ok_ms = [t["durationMs"] for t in turns if t["outcome"] == "ok"]
+    ttft = [t["ttftMs"] for t in turns if t["outcome"] == "ok" and t["ttftMs"] is not None]
+    tok = {k: avg([sum(m[k] for m in t["models"]) for t in measured]) for k in TOKENS}
+    cost_turn = avg([c for _, c in priced])
+    alt = []
+    for target in compare:
+        costs = []
+        for t, _ in priced:
+            day = t["at"].strftime("%Y-%m-%d")
+            sumrow = {k: sum(m[k] for m in t["models"]) for k in COUNTS}
+            costs.append(prices.cost(sumrow, prices.at(target, day)))
+        known = [c for c in costs if c is not None]
+        alt.append({"model": target, "known": prices.entry(target) is not None, "costTurn": avg(known) if len(known) == len(costs) else None})
+    return {
+        "turns": len(turns),
+        "first": turns[0]["at"] if turns else None,
+        "last": turns[-1]["at"] if turns else None,
+        "outcomes": {o: sum(1 for t in turns if t["outcome"] == o) for o in ("ok", "error", "timeout")},
+        "callsTurn": avg([sum(m["calls"] for m in t["models"]) for t in turns]),
+        "retries": sum(m["retries"] for t in turns for m in t["models"]),
+        "measured": len(measured),
+        "priced": len(priced),
+        "tokTurn": tok,
+        "costTurn": cost_turn,
+        "costTotal": sum(c for _, c in priced),
+        "ms": {"avg": avg(ok_ms), "p95": p95(ok_ms), "max": max(ok_ms) if ok_ms else None, "n": len(ok_ms)},
+        "ttft": {"avg": avg(ttft), "p95": p95(ttft), "n": len(ttft)},
+        "models": models,
+        "days": days,
+        "unpriced": sorted(unpriced_models),
+        "local": sorted(m for (_, m), a in models.items() if a.get("local")),
+        "long": sorted({"%s (%s)" % (m, "{:,}".format(a["entry"]["higherPriceAbove"])) for (_, m), a in models.items() if a["entry"] and a["entry"].get("higherPriceAbove")}),
+        "alt": alt,
+    }
+
+
+def usd(pico, digits=None):
+    if pico is None:
+        return None
+    v = pico / PICO
+    if digits is None:
+        digits = 2 if abs(v) >= 100 else 4 if abs(v) >= 1 else 6
+    return "$%.*f" % (digits, v)
+
+
+def num(v, digits=0):
+    if v is None:
+        return "-"
+    return "{:,.{d}f}".format(v, d=digits)
+
+
+def load_labels(lang):
+    with open(os.path.join(HERE, "labels.json"), encoding="utf-8") as f:
+        labels = json.load(f)
+    base = labels["en"]
+    base.update(labels.get(lang, {}))
+    return base
+
+
+CSS = """
+:root{--bg:#fff;--fg:#1b1f24;--muted:#5b6470;--line:#dde1e6;--soft:#f4f6f8;--accent:#1f6feb;--warn:#9a6700}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--fg:#e6e9ed;--muted:#9aa4af;--line:#2b313a;--soft:#171a20;--accent:#58a6ff;--warn:#d29922}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 48px}h1{font-size:24px;margin:0 0 4px}h2{font-size:17px;margin:28px 0 8px}
+.sub{color:var(--muted);margin:0 0 16px}.note{border-left:3px solid var(--warn);background:var(--soft);padding:8px 12px;margin:12px 0;font-size:14px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.card{border:1px solid var(--line);border-radius:8px;padding:10px 12px}.card b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.card span{color:var(--muted);font-size:13px}.wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}th,td{padding:6px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}th{background:var(--soft);font-weight:600}tr:last-child td{border-bottom:0}
+footer{margin-top:28px;color:var(--muted);font-size:13px}a{color:var(--accent)}li{overflow-wrap:anywhere}
+@media print{:root{--bg:#fff;--fg:#000;--muted:#444;--line:#bbb;--soft:#f2f2f2}main{max-width:none;padding:0}.wrap{overflow:visible}h2{break-after:avoid}table{break-inside:auto}tr{break-inside:avoid}}
+"""
+
+
+def render_html(r, L, prices, title, env, period):
+    e = html.escape
+    out = ['<!doctype html><html lang="%s"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' % e(L["lang"]),
+           "<title>%s</title><style>%s</style></head><body><main>" % (e(title), CSS)]
+    out.append("<h1>%s</h1>" % e(title))
+    first = r["first"].strftime("%Y-%m-%d %H:%M") if r["first"] else "-"
+    last = r["last"].strftime("%Y-%m-%d %H:%M") if r["last"] else "-"
+    out.append('<p class="sub">%s: %s → %s UTC · %s: %s%s</p>' % (e(L["period"]), first, last, e(L["env"]), e(env), (" · " + e(period)) if period else ""))
+    out.append('<p class="note">%s</p>' % e(L["selfReported"]))
+
+    def card(value, label):
+        return '<div class="card"><b>%s</b><span>%s</span></div>' % (e(value), e(label))
+
+    o = r["outcomes"]
+    cards = [
+        card(num(r["turns"]), L["turns"]),
+        card("%s / %s" % (num(o["error"]), num(o["timeout"])), L["errorsTimeouts"]),
+        card(num(r["callsTurn"], 2), L["callsTurn"]),
+        card(usd(r["costTurn"]) or L["noPrice"], L["costTurn"]),
+        card(usd(r["costTurn"] * 1000 if r["costTurn"] is not None else None, 2) or L["noPrice"], L["cost1000"]),
+        card(num(r["ms"]["avg"]) + " ms", L["avgMs"]),
+        card(num(r["ms"]["p95"]) + " ms", L["p95Ms"]),
+        card(num(r["ms"]["max"]) + " ms", L["maxMs"]),
+    ]
+    if r["ttft"]["n"]:
+        cards.append(card(num(r["ttft"]["avg"]) + " / " + num(r["ttft"]["p95"]) + " ms", L["ttft"]))
+    out.append('<div class="cards">%s</div>' % "".join(cards))
+    notes = [L["msNote"] % {"n": r["ms"]["n"]}]
+    if r["measured"] < r["turns"]:
+        notes.append(L["unmeasuredNote"] % {"n": r["turns"] - r["measured"]})
+    if r["priced"] < r["measured"]:
+        notes.append(L["unpricedNote"] % {"n": r["measured"] - r["priced"], "models": ", ".join(r["unpriced"])})
+    if r["local"]:
+        notes.append(L["localNote"] % {"models": ", ".join(r["local"])})
+    if r["long"]:
+        notes.append(L["longNote"] % {"models": ", ".join(r["long"])})
+    if r["retries"]:
+        notes.append(L["retriesNote"] % {"n": r["retries"]})
+    for n in notes:
+        out.append('<p class="note">%s</p>' % e(n))
+
+    out.append("<h2>%s</h2>" % e(L["tokensTurn"]))
+    out.append('<div class="wrap"><table><tr><th>%s</th><th>%s</th><th>%s</th><th>%s</th></tr><tr>%s</tr></table></div>' % (
+        e(L["input"]), e(L["output"]), e(L["cacheRead"]), e(L["cacheWrite"]),
+        "".join("<td>%s</td>" % num(r["tokTurn"][k]) for k in TOKENS)))
+
+    out.append("<h2>%s</h2>" % e(L["byModel"]))
+    rows = ["<tr><th>%s</th>%s</tr>" % (e(L["model"]), "".join("<th>%s</th>" % e(L[k]) for k in ("provider", "turns", "calls", "errors", "retries", "input", "output", "cacheRead", "cacheWrite", "cost", "priceDate")))]
+    for (prov, model), a in sorted(r["models"].items(), key=lambda kv: -kv[1]["calls"]):
+        ent = a["entry"]
+        if a.get("local"):
+            pdate = "-"
+        elif ent and ent.get("yours"):
+            pdate = ent["yours"]
+        else:
+            pdate = prices.doc["providers"].get(ent["provider"], {}).get("checked", "-") if ent else L["noPrice"]
+        if a["unmeasuredTurns"] == a["turns"]:
+            toks = ["<td>%s</td>" % e(L["notMeasured"])] * 4
+        else:
+            toks = ["<td>%s</td>" % num(a[k]) for k in TOKENS]
+        cost = L["localCost"] if a.get("local") else usd(a["cost"]) if a["costTurns"] else L["noPrice"] if a["unpricedTurns"] else "-"
+        if a["costTurns"] and a["unpricedTurns"]:
+            cost += " *"
+        rows.append("<tr><td>%s</td><td>%s</td>%s%s<td>%s</td><td>%s</td></tr>" % (
+            e(model), e(prov), "".join("<td>%s</td>" % num(a[k]) for k in ("turns", "calls", "errors", "retries")), "".join(toks), e(cost), e(pdate)))
+    out.append('<div class="wrap"><table>%s</table></div>' % "".join(rows))
+
+    if r["alt"]:
+        out.append("<h2>%s</h2>" % e(L["altTitle"]))
+        out.append('<p class="note">%s</p>' % e(L["altNote"]))
+        rows = ["<tr><th>%s</th><th>%s</th><th>%s</th></tr>" % (e(L["model"]), e(L["costTurn"]), e(L["cost1000"]))]
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td></tr>" % (e(L["current"]), e(usd(r["costTurn"]) or L["noPrice"]), e(usd(r["costTurn"] * 1000, 2) if r["costTurn"] is not None else L["noPrice"])))
+        for a in r["alt"]:
+            c = a["costTurn"]
+            rows.append("<tr><td>%s</td><td>%s</td><td>%s</td></tr>" % (e(a["model"]), e(usd(c) if c is not None else L["noPrice"]), e(usd(c * 1000, 2) if c is not None else L["noPrice"])))
+        out.append('<div class="wrap"><table>%s</table></div>' % "".join(rows))
+
+    out.append("<h2>%s</h2>" % e(L["byDay"]))
+    rows = ["<tr><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th></tr>" % tuple(e(L[k]) for k in ("day", "turns", "errorsTimeouts", "avgMs", "p95Ms", "cost"))]
+    for day, d in sorted(r["days"].items()):
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+            day, num(d["turns"]), num(d["errors"]), num(avg(d["ms"])), num(p95(d["ms"])), e(usd(d["cost"]) if d["costTurns"] else "-")))
+    out.append('<div class="wrap"><table>%s</table></div>' % "".join(rows))
+
+    out.append("<h2>%s</h2><ul>" % e(L["sources"]))
+    for prov, p in sorted(prices.doc.get("providers", {}).items()):
+        if p.get("yours") or not str(p.get("source", "")).startswith("https://"):
+            continue
+        out.append('<li>%s: <a href="%s">%s</a> (%s %s)</li>' % (e(prov), e(p["source"]), e(p["source"]), e(L["checked"]), e(p["checked"])))
+    for name in prices.yours:
+        out.append("<li>%s</li>" % e(L["yourPrices"] % {"file": name}))
+    out.append("</ul>")
+    out.append("<footer>%s</footer></main></body></html>" % e(L["footer"] % {"made": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}))
+    return "".join(out)
+
+
+def _blank(v):
+    return "" if v is None else v
+
+
+def write_csv(path, r):
+    fields = ["scope", "name", "provider", "turns", "calls", "errors", "retries", "input", "output", "cacheRead", "cacheWrite", "costUSD", "avgMs", "p95Ms", "maxMs", "priceNote"]
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(fields)
+
+        def money(p):
+            return "" if p is None else "%.9f" % (p / PICO)
+        tok = r["tokTurn"]
+        w.writerow(["perTurnAverage", "all", "", r["turns"], "%.3f" % (r["callsTurn"] or 0), "", "", *("" if tok[k] is None else "%.1f" % tok[k] for k in TOKENS),
+                    money(r["costTurn"]), "" if r["ms"]["avg"] is None else "%.1f" % r["ms"]["avg"], _blank(r["ms"]["p95"]), _blank(r["ms"]["max"])])
+        w.writerow(["per1000Turns", "all", "", 1000, "", "", "", "", "", "", "", money(r["costTurn"] * 1000 if r["costTurn"] is not None else None), "", "", ""])
+        for (prov, model), a in sorted(r["models"].items()):
+            none = a["unmeasuredTurns"] == a["turns"]
+            w.writerow(["modelTotal", model, prov, a["turns"], a["calls"], a["errors"], a["retries"],
+                        *("" if none else a[k] for k in TOKENS), money(a["cost"]) if a["costTurns"] else "", "", "", "",
+                        "local" if a.get("local") else "noPrice" if a["unpricedTurns"] else ""])
+        for day, d in sorted(r["days"].items()):
+            w.writerow(["dayTotal", day, "", d["turns"], "", d["errors"], "", "", "", "", "", money(d["cost"]) if d["costTurns"] else "",
+                        "" if not d["ms"] else "%.1f" % avg(d["ms"]), _blank(p95(d["ms"])), max(d["ms"]) if d["ms"] else ""])
+        for a in r["alt"]:
+            w.writerow(["estimateSameTokens", a["model"], "", "", "", "", "", "", "", "", "", money(a["costTurn"]), "", "", ""])
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="Cost and speed report from ai-meter JSON lines")
+    ap.add_argument("files", nargs="+")
+    ap.add_argument("--out", default=".")
+    ap.add_argument("--lang", default="en", choices=("en", "vi"))
+    ap.add_argument("--env", default="prod", choices=("prod", "test", "all"))
+    ap.add_argument("--from", dest="since")
+    ap.add_argument("--to", dest="until")
+    ap.add_argument("--compare", nargs="*", default=[])
+    ap.add_argument("--prices", default=os.path.join(HERE, "prices.json"))
+    ap.add_argument("--add-prices", action="append", default=[], help="your own price file, on top of --prices; can be given more than once")
+    ap.add_argument("--title")
+    a = ap.parse_args(argv)
+    L = load_labels(a.lang)
+    prices = Prices(a.prices, a.add_prices)
+    turns, skipped, dupes = read_lines(a.files)
+    if a.env != "all":
+        turns = [t for t in turns if t["env"] == a.env]
+    if a.since:
+        turns = [t for t in turns if t["at"].strftime("%Y-%m-%d") >= a.since]
+    if a.until:
+        turns = [t for t in turns if t["at"].strftime("%Y-%m-%d") <= a.until]
+    r = analyse(turns, prices, a.compare)
+    os.makedirs(a.out, exist_ok=True)
+    period = ""
+    if a.since or a.until:
+        period = "%s %s → %s" % (L["filter"], a.since or "…", a.until or "…")
+    title = a.title or L["title"]
+    with open(os.path.join(a.out, "ai-cost-report.html"), "w", encoding="utf-8") as f:
+        f.write(render_html(r, L, prices, title, a.env, period))
+    write_csv(os.path.join(a.out, "ai-cost-report.csv"), r)
+    summary = {"turns": r["turns"], "measured": r["measured"], "priced": r["priced"], "skippedLines": skipped, "duplicateLines": dupes,
+               "unpricedModels": r["unpriced"], "costPerTurnUSD": None if r["costTurn"] is None else r["costTurn"] / PICO,
+               "p95Ms": r["ms"]["p95"], "html": os.path.join(a.out, "ai-cost-report.html"), "csv": os.path.join(a.out, "ai-cost-report.csv")}
+    print(json.dumps(summary, indent=1))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

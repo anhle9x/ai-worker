@@ -20,7 +20,7 @@ Cảm ơn bạn đã giúp. Báo lỗi, sửa lỗi, dịch và viết tài li�
 
 ## Các bước kiểm
 
-Chạy đủ mười bước từ thư mục gốc repo trước khi gửi thay đổi. GitHub Actions chạy đúng các bước này.
+Chạy đủ mười một bước từ thư mục gốc repo trước khi gửi thay đổi. GitHub Actions chạy đúng các bước này.
 
 ```bash
 claude plugin test .
@@ -29,6 +29,7 @@ cd server && python3 -m unittest
 
 ```bash
 python3 tests/connectors/test_connectors.py
+python3 tests/appmeter/test_appmeter.py
 node tests/extension/check-extension.js
 node tests/check-map-layout.js
 python3 tests/check-i18n.py

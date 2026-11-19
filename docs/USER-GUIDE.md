@@ -163,6 +163,16 @@ If you also work in Codex, Cursor or Gemini CLI, those sessions can show on the 
 
 **To remove it:** in Terminal type `bash ~/.local/share/ai-worker/connector/install.sh --uninstall`. The window says `Done. Codex, Cursor and Gemini CLI no longer send anything to the board.`
 
+### 1.11 Cost and speed of an AI project or application your team built
+
+If your team built an AI project or application that calls an LLM and needs a cost and performance report, the `ai-cost-report` skill measures it. Any provider works: Claude, GPT, Gemini, Grok, DeepSeek, Mistral, a model through OpenRouter, or one that runs on your own machine (Ollama, vLLM). The numbers come from the project itself: each LLM answer carries its token counts (`usage`, the number of pieces of text the provider bills), and a small meter adds them up for each request of a user, with the time it took. It never writes what the user asked, what the model answered, who the user is, or an error message. Nothing is sent to the board.
+
+1. **Where:** Claude Code, opened in the project's code folder. **Do:** type `/ai-worker:ai-cost-report` and say which project to measure. **Right result:** Claude finds where the project calls an LLM and shows the few lines it would add: one copied file (`ai_meter.py` for Python, `ai-meter.cjs` for Node; another language writes the same line by hand from `FORMAT.md`). Nothing changes until you say yes.
+2. **Where:** the machine that runs the project. **Do:** run it as usual, with real users, for the period you report on. Trial runs: start it with `AI_METER_ENV=test` so they stay apart. **Right result:** a file `ai-meter.jsonl` next to it grows by one line per request.
+3. **Where:** Claude Code. **Do:** give Claude the file and ask for the report, in Vietnamese or English, for the days you want. **Right result:** `ai-cost-report.html` (open it in a browser; **Print** saves it as PDF) and `ai-cost-report.csv` (opens in Excel or Google Sheets): number of requests, LLM calls and tokens per request, cost per request and per 1,000 requests, average, 95th percentile (the time 95 requests in 100 stay under) and slowest time, by model.
+
+**What it cannot tell:** a request whose answer carried no token counts shows as "not measured", and a model with no price in the price file shows "no price"; neither is counted as zero. A model that runs on your own machines shows "runs on own machine, no API cost": its tokens and times are there, the machines' own cost is not. The price file holds list prices read from the pricing pages of Anthropic, OpenAI, Google and xAI on the day it says; for any other provider, or a price your company negotiated, ask Claude to put it in a price file of your own. "If the same tokens went to another model" is only an estimate; for a real comparison, run the project on the other model with `AI_METER_ENV=test` and make a report of those requests.
+
 ---
 
 ## 2. Managers

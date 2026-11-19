@@ -42,6 +42,7 @@ GitHub Actions runs `.github/workflows/test-install.yml` on every push. In a pri
 | `/ai-worker:voice`: the right settings page and steps for a Mac, Windows and Linux; steps by hand when the page does not open; nothing else is run | `tests/voice.test.ts` |
 | The demo with sample people: starts, opens with the code it prints, ignores a real board's settings, deletes its data when stopped | `test_demo.py` |
 | Cost by hour, no double count after reopening a session | `tests/cost.test.ts` |
+| The meter for AI projects and applications and its report: Anthropic, OpenAI, Gemini, APIs that copy OpenAI (DeepSeek), Bedrock, Ollama and Cohere token counts, counts by hand for any other provider, provider names checked, each token counted once; no usage is written as null, never 0; streaming, retries, failures; no user text; unknown fields dropped; nearest-rank p95; a model with no price; a model on the team's own machines; the user's own price file; prices by day; the Node meter gives the same numbers | `tests/appmeter/test_appmeter.py` |
 | No prompt, chat or secret file content leaves the machine | `tests/activity.test.ts`, `tests/edits.test.ts`, `tests/team.test.ts`, `tests/office.test.tsx` |
 | Helper assistants: Gemma model choice, safe arguments for Codex | `tests/workers.test.ts` |
 | SQLite storage: moving the old JSON files in, schema version, file modes, many threads at once, backup, export back to JSON; an older database is copied before it is upgraded, the copy opens and the older program runs on it, and no copy means no upgrade | `test_webhook.py` (`DatabaseStorage`), `tests/linux/test-server.sh` |
@@ -51,7 +52,7 @@ GitHub Actions runs `.github/workflows/test-install.yml` on every push. In a pri
 
 ## 2. Run locally
 
-Run all ten before calling a change done. CI runs the same ones. Run each at the repository root.
+Run all eleven before calling a change done. CI runs the same ones. Run each at the repository root.
 
 ```bash
 claude plugin test .
@@ -67,6 +68,10 @@ Correct result: `OK`. Go back to the repository root afterwards.
 
 ```bash
 python3 tests/connectors/test_connectors.py
+```
+
+```bash
+python3 tests/appmeter/test_appmeter.py
 ```
 
 ```bash

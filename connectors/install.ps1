@@ -34,7 +34,7 @@ $Hook = Join-Path $Dir 'ai-worker-hook.ps1'
 $SkillsDir = Join-Path $UserHome '.agents\skills'
 # skills that work in any of these tools; two more lean on Claude Code and stay out
 # các skill chạy được trong mọi công cụ này; còn hai skill dựa vào Claude Code nên không chép
-$PortableSkills = 'browser-testing-with-devtools codebase-design diagnosing-bugs domain-modeling draw-flow grilling handoff interview-me lesson-generator meeting-notes qa-site qa-test security-audit tdd ui-ux-pro-max write-spec'
+$PortableSkills = 'ai-cost-report browser-testing-with-devtools codebase-design diagnosing-bugs domain-modeling draw-flow grilling handoff interview-me lesson-generator meeting-notes qa-site qa-test security-audit tdd ui-ux-pro-max write-spec'
 $Mark = 'ai-worker-hook'
 $TomlBegin = '# >>> ai-worker connector: added by connectors/install.ps1, removed by install.ps1 -Uninstall >>>'
 $TomlEnd = '# <<< ai-worker connector <<<'

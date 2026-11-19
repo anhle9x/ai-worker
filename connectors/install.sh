@@ -34,7 +34,7 @@ HOOK="$DIR/ai-worker-hook.sh"
 SKILLS_DIR="$HOME/.agents/skills"
 # skills that work in any of these tools; make-skill and improve-codebase-architecture lean on Claude Code and stay out
 # các skill chạy được trong mọi công cụ này; make-skill và improve-codebase-architecture dựa vào Claude Code nên không chép
-PORTABLE_SKILLS="browser-testing-with-devtools codebase-design diagnosing-bugs domain-modeling draw-flow grilling handoff interview-me lesson-generator meeting-notes qa-site qa-test security-audit tdd ui-ux-pro-max write-spec"
+PORTABLE_SKILLS="ai-cost-report browser-testing-with-devtools codebase-design diagnosing-bugs domain-modeling draw-flow grilling handoff interview-me lesson-generator meeting-notes qa-site qa-test security-audit tdd ui-ux-pro-max write-spec"
 MARK="ai-worker-hook"
 TOML_BEGIN="# >>> ai-worker connector: added by connectors/install.sh, removed by install.sh --uninstall >>>"
 TOML_END="# <<< ai-worker connector <<<"

@@ -22,7 +22,7 @@ A Claude Code plugin (`.claude-plugin/`, `hooks/`, `skills/`, `web/`) on each em
 
 ## Checks
 
-Run all ten before calling a change done. CI runs the same ones.
+Run all eleven before calling a change done. CI runs the same ones.
 
 ```bash
 claude plugin test .
@@ -34,6 +34,10 @@ cd server && python3 -m unittest
 
 ```bash
 python3 tests/connectors/test_connectors.py
+```
+
+```bash
+python3 tests/appmeter/test_appmeter.py
 ```
 
 ```bash

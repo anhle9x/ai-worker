@@ -42,6 +42,7 @@ GitHub Actions chạy `.github/workflows/test-install.yml` mỗi lần đẩy co
 | `/ai-worker:voice`: đúng trang cài đặt và đúng các bước cho Mac, Windows và Linux; có bước làm tay khi trang không mở được; không chạy gì khác | `tests/voice.test.ts` |
 | Bản thử với dữ liệu giả lập: bật được, vào được bằng mã nó in ra, bỏ qua cấu hình của bảng thật, xoá dữ liệu khi dừng | `test_demo.py` |
 | Chi phí theo giờ, không tính trùng khi mở lại phiên | `tests/cost.test.ts` |
+| Bộ đo cho dự án hay ứng dụng AI và báo cáo: đọc token của Anthropic, OpenAI, Gemini, API chép theo OpenAI (DeepSeek), Bedrock, Ollama, Cohere, ghi tay cho hãng khác, kiểm tên hãng, mỗi token chỉ đếm một lần; thiếu usage ghi null chứ không ghi 0; streaming, gọi lại, lỗi; không có chữ của người dùng; trường lạ bị bỏ; p95 nearest-rank; model chưa có giá; model chạy trên máy của nhóm; file giá riêng của người dùng; giá theo ngày; bộ đo Node cho ra cùng số | `tests/appmeter/test_appmeter.py` |
 | Không có câu hỏi, nội dung chat hay nội dung file bí mật nào rời máy | `tests/activity.test.ts`, `tests/edits.test.ts`, `tests/team.test.ts`, `tests/office.test.tsx` |
 | Trợ lý phụ: chọn model Gemma, truyền tham số an toàn cho Codex | `tests/workers.test.ts` |
 | Lưu trữ SQLite: chuyển file JSON cũ vào, phiên bản lược đồ, quyền file, nhiều luồng cùng ghi, sao lưu, xuất ngược ra JSON; cơ sở dữ liệu cũ được chép ra trước khi nâng, bản sao mở được và chương trình cũ chạy được trên đó, không chép được thì không nâng | `test_webhook.py` (`DatabaseStorage`), `tests/linux/test-server.sh` |
@@ -51,7 +52,7 @@ GitHub Actions chạy `.github/workflows/test-install.yml` mỗi lần đẩy co
 
 ## 2. Chạy trên máy mình
 
-Chạy đủ mười bước trước khi coi một thay đổi là xong. CI chạy đúng các bước này. Mỗi lệnh chạy ở thư mục gốc repo.
+Chạy đủ mười một bước trước khi coi một thay đổi là xong. CI chạy đúng các bước này. Mỗi lệnh chạy ở thư mục gốc repo.
 
 ```bash
 claude plugin test .
@@ -67,6 +68,10 @@ Kết quả đúng: `OK`. Sau đó quay về thư mục gốc repo.
 
 ```bash
 python3 tests/connectors/test_connectors.py
+```
+
+```bash
+python3 tests/appmeter/test_appmeter.py
 ```
 
 ```bash

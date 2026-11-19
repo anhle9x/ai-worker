@@ -1,0 +1,13 @@
+{
+ "providers": {
+  "example-cloud": { "source": "https://example.com/pricing", "checked": "2026-11-20" }
+ },
+ "localProviders": ["my-gpu-box"],
+ "models": [
+  { "provider": "example-cloud", "model": "example-model-large",
+    "prices": [ { "from": null, "input": 500000, "output": 1500000, "cacheRead": 50000, "cacheWrite": null, "cacheWriteLong": null } ] },
+  { "provider": "openai", "model": "gpt-6.1-terra",
+    "prices": [ { "from": null, "input": 900000, "output": 4500000, "cacheRead": 45000, "cacheWrite": 1125000, "cacheWriteLong": null } ] },
+  { "provider": "vllm", "model": "Qwen/Qwen3-32B", "local": true, "prices": [] }
+ ]
+}
