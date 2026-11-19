@@ -45,7 +45,8 @@
   "longNote": "These models cost more when one prompt is longer than the number shown: %(models)s. This report uses the lower price, so a turn with a very long prompt costs more than shown.",
   "localNote": "These models run on your own machines: %(models)s. They have no API bill, so they add nothing to the cost; their tokens and times are shown. The cost of the machines themselves is not in this report.",
   "localCost": "runs on own machine, no API cost",
-  "yourPrices": "Your own prices: %(file)s"
+  "yourPrices": "Your own prices: %(file)s",
+  "noTurns": "No turn was measured in these days for this environment."
  },
  "vi": {
   "lang": "vi",
@@ -93,6 +94,7 @@
   "longNote": "Các model này tính giá cao hơn khi một câu hỏi dài hơn số ghi kèm: %(models)s. Báo cáo dùng giá thấp, nên lượt có câu hỏi rất dài sẽ tốn hơn số hiện ở đây.",
   "localNote": "Các model này chạy trên máy của chính nhóm: %(models)s. Không có tiền API nên không cộng vào chi phí; vẫn hiện token và thời gian. Chi phí của chính các máy đó không nằm trong báo cáo này.",
   "localCost": "chạy trên máy, không tính tiền API",
-  "yourPrices": "Giá riêng của bạn: %(file)s"
+  "yourPrices": "Giá riêng của bạn: %(file)s",
+  "noTurns": "Chưa có lượt nào được đo trong những ngày này, ở môi trường này."
  }
 }

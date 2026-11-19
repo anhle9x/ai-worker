@@ -1268,10 +1268,16 @@ def page_projects(known: dict, project: str, first: str, last: str, env: str, no
     from urllib.parse import urlencode
     lang = current_lang() if current_lang() in ("en", "vi") else "en"
     e = lambda text: html.escape(str(text), quote=True)
-    style = ('<style>.pick{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:end;margin:0 0 14px}.pick label{display:flex;flex-direction:column;font-size:13px;color:var(--muted);gap:2px}'
-             '.pick select,.pick input,.pick button{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);min-height:36px}'
-             '.pick button{background:var(--accent);border-color:var(--accent);color:#fff;cursor:pointer}.links{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0 0 6px}'
-             '.top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin-bottom:10px;font-size:14px}@media print{.pick,.links,.top{display:none}}</style>')
+    style = ('<style>.top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin-bottom:14px;font-size:14px}'
+             '.pick{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:end;margin:0 0 12px;padding:14px;background:var(--card);border:1px solid var(--line);border-radius:12px}'
+             '.pick label{display:flex;flex-direction:column;flex:1 1 150px;font-size:13px;color:var(--muted);gap:4px;min-width:0}'
+             '.pick select,.pick input,.pick button{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);min-height:40px;width:100%}'
+             '.pick select:focus-visible,.pick input:focus-visible,.pick button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}'
+             '.pick button{flex:0 0 auto;width:auto;padding:8px 22px;background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600;cursor:pointer}'
+             '.pick button:hover{filter:brightness(1.08)}.links{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}'
+             '.links a{display:inline-flex;align-items:center;min-height:36px;padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-size:14px}'
+             '.links a:hover{border-color:var(--accent);text-decoration:none}'
+             '@media (max-width:560px){.pick button{width:100%}}@media print{.pick,.links,.top{display:none}}</style>')
     # people come here from the home page's button or from /board: offer the way back to both
     # người xem tới đây từ nút trên trang chủ hoặc từ /board: có đường về cả hai
     top = '<div class="top"><a href="/">%s</a><a href="/board">%s</a></div>' % (e(tx("◂ Dashboard")), e(tx("Detail board")))

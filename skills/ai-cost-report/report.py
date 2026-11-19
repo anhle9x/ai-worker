@@ -330,18 +330,30 @@ def load_labels(lang):
 
 
 CSS = """
-:root{--bg:#fff;--fg:#1b1f24;--muted:#5b6470;--line:#dde1e6;--soft:#f4f6f8;--accent:#1f6feb;--warn:#9a6700}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--fg:#e6e9ed;--muted:#9aa4af;--line:#2b313a;--soft:#171a20;--accent:#58a6ff;--warn:#d29922}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-main{max-width:980px;margin:0 auto;padding:24px 16px 48px}h1{font-size:24px;margin:0 0 4px}h2{font-size:17px;margin:28px 0 8px}
-.sub{color:var(--muted);margin:0 0 16px}.note{border-left:3px solid var(--warn);background:var(--soft);padding:8px 12px;margin:12px 0;font-size:14px}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
-.card{border:1px solid var(--line);border-radius:8px;padding:10px 12px}.card b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
-.card span{color:var(--muted);font-size:13px}.wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
-table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}th,td{padding:6px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
-th:first-child,td:first-child{text-align:left}th{background:var(--soft);font-weight:600}tr:last-child td{border-bottom:0}
-footer{margin-top:28px;color:var(--muted);font-size:13px}a{color:var(--accent)}li{overflow-wrap:anywhere}
-@media print{:root{--bg:#fff;--fg:#000;--muted:#444;--line:#bbb;--soft:#f2f2f2}main{max-width:none;padding:0}.wrap{overflow:visible}h2{break-after:avoid}table{break-inside:auto}tr{break-inside:avoid}}
+:root{color-scheme:light dark;--bg:#f4f7f8;--glow:none;--card:#fff;--fg:#14232b;--muted:#566a73;--line:#d8e2e6;--soft:#edf3f5;
+--accent:#0b7a83;--on-accent:#fff;--info:rgba(11,122,131,.08);--warn:#9a5b00;--warn-bg:#fff5e3}
+@media (prefers-color-scheme:dark){:root{--bg:#060e14;--glow:radial-gradient(ellipse at 50% -10%,#0d2230 0,rgba(6,14,20,0) 60%);--card:#0b1922;
+--fg:#d6eef2;--muted:#82a0ab;--line:#17303b;--soft:#0e2029;--accent:#5ee6f0;--on-accent:#04232a;--info:rgba(94,230,240,.06);--warn:#ffc24b;--warn-bg:rgba(255,194,75,.08)}}
+*{box-sizing:border-box}body{margin:0;background:var(--glow) no-repeat,var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1040px;margin:0 auto;padding:28px 16px 56px}h1{font-size:24px;line-height:1.3;margin:0 0 6px;letter-spacing:-.01em}
+h2{font-size:16px;margin:32px 0 10px;color:var(--fg)}h2::before{content:"";display:inline-block;width:4px;height:14px;margin-right:8px;border-radius:2px;background:var(--accent);vertical-align:-1px}
+.sub{color:var(--muted);margin:0 0 16px;font-size:14px}
+.note{border:1px solid var(--line);border-left:3px solid var(--accent);background:var(--info);border-radius:8px;padding:9px 14px;margin:10px 0;font-size:14px}
+.note.warn{border-left-color:var(--warn);background:var(--warn-bg)}
+.empty{border:1px dashed var(--line);border-radius:12px;padding:28px 20px;margin:16px 0;text-align:center;color:var(--muted);background:var(--card)}
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
+.card b{display:block;font-size:22px;line-height:1.25;font-weight:650;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.card span{display:block;margin-top:4px;color:var(--muted);font-size:13px;line-height:1.35}
+.wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}th,td{padding:9px 14px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}th{background:var(--soft);color:var(--muted);font-size:13px;font-weight:600}tr:last-child td{border-bottom:0}
+tr:hover td{background:var(--info)}ul{padding-left:20px}li{overflow-wrap:anywhere;margin:2px 0}
+footer{margin-top:32px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+@media (max-width:760px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (max-width:560px){h1{font-size:20px}.cards{gap:8px}.card{padding:12px}.card b{font-size:18px}}
+@media print{:root{--bg:#fff;--glow:none;--card:#fff;--fg:#000;--muted:#444;--line:#bbb;--soft:#f2f2f2;--info:#fff;--warn-bg:#fff}
+body{background:#fff}main{max-width:none;padding:0}.wrap{overflow:visible}h2{break-after:avoid}table{break-inside:auto}tr{break-inside:avoid}}
 """
 
 
@@ -352,8 +364,14 @@ def render_html(r, L, prices, title, env, period):
     out.append("<h1>%s</h1>" % e(title))
     first = r["first"].strftime("%Y-%m-%d %H:%M") if r["first"] else "-"
     last = r["last"].strftime("%Y-%m-%d %H:%M") if r["last"] else "-"
-    out.append('<p class="sub">%s: %s → %s UTC · %s: %s%s</p>' % (e(L["period"]), first, last, e(L["env"]), e(env), (" · " + e(period)) if period else ""))
+    span = "%s: %s → %s UTC · " % (e(L["period"]), first, last) if r["first"] else ""
+    out.append('<p class="sub">%s%s: %s%s</p>' % (span, e(L["env"]), e(env), (" · " + e(period)) if period else ""))
     out.append('<p class="note">%s</p>' % e(L["selfReported"]))
+    if not r["turns"]:
+        # nothing measured: one plain line instead of cards and tables full of dashes
+        # chưa đo được gì: một dòng rõ ràng thay cho các ô và bảng toàn dấu gạch
+        out.append('<p class="empty">%s</p>' % e(L["noTurns"]))
+        return "".join(out + sources(prices, L, e))
 
     def card(value, label):
         return '<div class="card"><b>%s</b><span>%s</span></div>' % (e(value), e(label))
@@ -372,19 +390,21 @@ def render_html(r, L, prices, title, env, period):
     if r["ttft"]["n"]:
         cards.append(card(num(r["ttft"]["avg"]) + " / " + num(r["ttft"]["p95"]) + " ms", L["ttft"]))
     out.append('<div class="cards">%s</div>' % "".join(cards))
-    notes = [L["msNote"] % {"n": r["ms"]["n"]}]
+    # what leaves numbers out of the report stands out; what only explains it does not
+    # điều làm báo cáo thiếu số thì nổi bật; điều chỉ giải thích thì không
+    notes = [("", L["msNote"] % {"n": r["ms"]["n"]})]
     if r["measured"] < r["turns"]:
-        notes.append(L["unmeasuredNote"] % {"n": r["turns"] - r["measured"]})
+        notes.append((" warn", L["unmeasuredNote"] % {"n": r["turns"] - r["measured"]}))
     if r["priced"] < r["measured"]:
-        notes.append(L["unpricedNote"] % {"n": r["measured"] - r["priced"], "models": ", ".join(r["unpriced"])})
+        notes.append((" warn", L["unpricedNote"] % {"n": r["measured"] - r["priced"], "models": ", ".join(r["unpriced"])}))
     if r["local"]:
-        notes.append(L["localNote"] % {"models": ", ".join(r["local"])})
+        notes.append(("", L["localNote"] % {"models": ", ".join(r["local"])}))
     if r["long"]:
-        notes.append(L["longNote"] % {"models": ", ".join(r["long"])})
+        notes.append((" warn", L["longNote"] % {"models": ", ".join(r["long"])}))
     if r["retries"]:
-        notes.append(L["retriesNote"] % {"n": r["retries"]})
-    for n in notes:
-        out.append('<p class="note">%s</p>' % e(n))
+        notes.append(("", L["retriesNote"] % {"n": r["retries"]}))
+    for kind, n in notes:
+        out.append('<p class="note%s">%s</p>' % (kind, e(n)))
 
     out.append("<h2>%s</h2>" % e(L["tokensTurn"]))
     out.append('<div class="wrap"><table><tr><th>%s</th><th>%s</th><th>%s</th><th>%s</th></tr><tr>%s</tr></table></div>' % (
@@ -429,7 +449,13 @@ def render_html(r, L, prices, title, env, period):
             day, num(d["turns"]), num(d["errors"]), num(avg(d["ms"])), num(p95(d["ms"])), e(usd(d["cost"]) if d["costTurns"] else "-")))
     out.append('<div class="wrap"><table>%s</table></div>' % "".join(rows))
 
-    out.append("<h2>%s</h2><ul>" % e(L["sources"]))
+    return "".join(out + sources(prices, L, e))
+
+
+def sources(prices, L, e):
+    """The end of the report: where each price comes from, and when the report was made.
+    Phần cuối báo cáo: mỗi giá lấy từ đâu, và báo cáo làm lúc nào."""
+    out = ["<h2>%s</h2><ul>" % e(L["sources"])]
     for prov, p in sorted(prices.doc.get("providers", {}).items()):
         if p.get("yours") or not str(p.get("source", "")).startswith("https://"):
             continue
@@ -438,7 +464,7 @@ def render_html(r, L, prices, title, env, period):
         out.append("<li>%s</li>" % e(L["yourPrices"] % {"file": name}))
     out.append("</ul>")
     out.append("<footer>%s</footer></main></body></html>" % e(L["footer"] % {"made": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}))
-    return "".join(out)
+    return out
 
 
 def _blank(v):

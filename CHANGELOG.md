@@ -2,6 +2,12 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.47.1 - 2026-11-19
+
+### Changed
+- The cost and speed report of an AI project or application (on the board's `/projects` and in the file the skill makes) takes AI Worker's own colours: dark blue with a cyan accent in dark mode, teal on light, cards and tables on panels, the totals in four even columns (two on a phone), and the picker as one panel with a clear button. Notes that leave numbers out (not measured, no price, longer prompts cost more) stand out in amber; notes that only explain do not.
+- When no turn was measured in the chosen days and environment, the report says so in one line instead of cards and tables full of dashes.
+
 ## 0.47.0 - 2026-11-19
 
 ### Added
