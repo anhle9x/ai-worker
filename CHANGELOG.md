@@ -2,6 +2,16 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.46.0 - 2026-11-19
+
+### Added
+- Meters for more languages in `skills/ai-cost-report/meter/`, each one file to copy with nothing to install: `AiMeter.cs` (C#, .NET 6+) and `aimeter.go` (Go 1.21+) read the providers' answers and can send to the board like the Python and Node meters; `ai_meter.rs` (Rust) and `ai_meter.h` (C99 and C++) write the file from token counts the project passes in. `ai-meter.d.cts` gives TypeScript the types of `ai-meter.cjs`. On Linux, `ai_meter.h` turns on POSIX itself when it is included first, so `-std=c99` builds with glibc.
+- Tests for each new meter in `tests/appmeter/test_appmeter.py`, skipped on a machine without the language's tools: the Go and C# meters read the same sample answers as Python with the same counts and send the same lines to a board started by the test; the Rust, C99 and C++11 meters (built with every warning an error) write lines the report reads, with `null` when a call is not measured and `other` for a bad provider name; the TypeScript types accept the guide's code under `--strict`, it runs, and wrong calls are refused.
+
+### Changed
+- The AI projects guide (`docs/AI-PROJECTS.md` and `.vi.md`) has a table of the meters by language, the copy and download command for each, and a section for each of JavaScript, TypeScript, C#, Go, Rust and C/C++ in step 3, with the code to add and what each one cannot do (Rust and C/C++ take token counts by hand and only write the file). A project in another language (Java, PHP, Ruby...) is told plainly what to write instead, with one whole line as an example.
+- The `ai-cost-report` skill lists every meter file and how to use each one; README and the skills list name the languages.
+
 ## 0.45.4 - 2026-11-19
 
 ### Changed

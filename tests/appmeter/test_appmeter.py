@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Tests of the meter for AI projects and applications and its report (skills/ai-cost-report): python3 tests/appmeter/test_appmeter.py
-Everything is written in a temporary folder. The Node meter is checked against the same answers when node is installed.
+Everything is written in a temporary folder. The meters for Node, TypeScript, Go, C#, Rust and C/C++ are built and run against
+the same answers when their tools are installed, and skipped when they are not.
   Test bộ đo cho dự án hay ứng dụng AI và báo cáo của nó (skills/ai-cost-report): python3 tests/appmeter/test_appmeter.py
-  Mọi thứ ghi trong một thư mục tạm. Bộ đo Node được kiểm với cùng đáp án khi máy có node."""
+  Mọi thứ ghi trong một thư mục tạm. Bộ đo cho Node, TypeScript, Go, C#, Rust và C/C++ được dịch và chạy với cùng đáp án khi máy
+  có công cụ của chúng, và được bỏ qua khi không có."""
 import contextlib
 import io
 import json
@@ -11,7 +13,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SKILL = os.path.join(ROOT, "skills", "ai-cost-report")
@@ -413,6 +417,457 @@ class NodeMeter(Tmp):
         raw = self.raw()
         for word in PRIVATE:
             self.assertNotIn(word, raw)
+
+
+METER = os.path.join(SKILL, "meter")
+COUNT_FIELDS = ("input", "output", "cacheRead", "cacheWrite", "cacheWriteLong")
+
+
+def lower_keys(counts):
+    # Go and C# write their Counts with capital letters (Input, CacheRead): compare them under the line's own names
+    # Go và C# ghi Counts bằng chữ hoa đầu (Input, CacheRead): so sánh theo đúng tên trong dòng
+    return None if counts is None else {k[0].lower() + k[1:]: v for k, v in counts.items()}
+
+
+class Board:
+    """A board on this machine that only keeps what each send carried.
+    Một bảng chạy trên máy này, chỉ giữ lại những gì mỗi lần gửi mang tới."""
+
+    def __enter__(self):
+        sent = self.sent = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                sent.append({"path": self.path, "auth": self.headers.get("Authorization"),
+                             "type": self.headers.get("Content-Type", ""), "body": json.loads(body.decode("utf-8"))})
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"ok":true}')
+
+            def log_message(self, *args):
+                pass
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.url = "http://127.0.0.1:%d/projects/ingest" % self.server.server_address[1]
+        return self
+
+    def __exit__(self, *exc):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def turns(self):
+        return [t for s in self.sent for t in s["body"]["turns"]]
+
+
+def run(cmd, cwd, timeout=300, env=None):
+    full = dict(os.environ, **(env or {}))
+    for k in ("AI_METER_FILE", "AI_METER_ENV", "AI_METER_OFF", "AI_METER_URL", "AI_METER_KEY"):
+        if k not in (env or {}):
+            full.pop(k, None)
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=full)
+
+
+class SameAsPython(Tmp):
+    """What the Go and C# meters must give for the same program: the same counts as ai_meter.py for every sample, the same three
+    lines in the file, and the same three lines on the board.
+    Điều bộ đo Go và C# phải cho ra với cùng một chương trình: cùng số đếm như ai_meter.py cho mọi mẫu, cùng ba dòng trong file,
+    và cùng ba dòng trên bảng."""
+
+    def samples_file(self):
+        path = os.path.join(self.dir, "samples.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump([s[1] for s in SAMPLES], f)
+        return path
+
+    def check(self, out, board):
+        self.assertEqual(len(out), len(SAMPLES))
+        for (provider, _, want), got in zip(SAMPLES, out):
+            self.assertEqual((got["provider"], lower_keys(got["counts"])), (provider, want), got.get("model"))
+        lines = self.lines()
+        self.assertEqual([x["outcome"] for x in lines], ["ok", "ok", "timeout"])
+        for x in lines:
+            self.assertIsNotNone(report.clean_line(x), x)
+            self.assertEqual(x["env"], "prod")
+        self.assertIn("ttftMs", lines[0])
+        son = [r for r in lines[0]["models"] if r["model"] == "claude-sonnet-5-5"][0]
+        self.assertEqual((son["calls"], son["errors"], son["retries"], son["input"]), (2, 1, 1, 100))
+        grok = [r for r in lines[0]["models"] if r["model"] == "grok-4.7"][0]
+        self.assertEqual((grok["input"], grok["output"], grok["cacheRead"]), (24, 119, 8))
+        luna = lines[1]["models"][0]
+        self.assertEqual((luna["model"], luna["calls"], luna["unmeasured"]), ("gpt-6-luna", 1, 1))
+        self.assertEqual([luna[k] for k in COUNT_FIELDS], [None] * 5)
+        by = {r["provider"]: r for r in lines[1]["models"]}
+        self.assertEqual((by["example-cloud"]["input"], by["example-cloud"]["output"]), (5, 2))
+        self.assertEqual((by["other"]["unmeasured"], by["other"]["input"]), (1, None))
+        self.assertEqual(lines[2]["models"], [])
+        raw = self.raw()
+        for word in PRIVATE:
+            self.assertNotIn(word, raw)
+        # the board got every line of the file, with the key, as one JSON body
+        # bảng nhận đủ mọi dòng của file, kèm khoá, trong một thân JSON
+        self.assertTrue(board.sent, "nothing was sent to the board")
+        for s in board.sent:
+            self.assertEqual((s["path"], s["auth"]), ("/projects/ingest", "Bearer prj_test"))
+            self.assertTrue(s["type"].startswith("application/json"), s["type"])
+        self.assertEqual(board.turns(), lines)
+
+
+GO = shutil.which("go")
+GO_MAIN = r"""package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+
+	"apptest/aimeter"
+)
+
+func main() {
+	var samples []json.RawMessage
+	b, _ := os.ReadFile(os.Args[1])
+	if json.Unmarshal(b, &samples) != nil {
+		os.Exit(2)
+	}
+	out := []any{}
+	for _, s := range samples {
+		p, m, c := aimeter.Read(s, "")
+		out = append(out, map[string]any{"provider": p, "model": m, "counts": c})
+	}
+	m := aimeter.NewSending(os.Args[2], "prod", os.Args[3], "prj_test")
+	t := m.Turn()
+	t.FirstToken()
+	for _, s := range samples {
+		t.Record(s)
+	}
+	t.Fail("anthropic", "claude-sonnet-5-5", true)
+	t.End()
+	t2 := m.Turn()
+	t2.Record([]byte(`{"model":"gpt-6-luna"}`))
+	t2.Count("Example-Cloud", "example-model-large", &aimeter.Counts{Input: 5, Output: 2})
+	t2.Count("Bad Name", "x", nil)
+	t2.End()
+	t2.End()
+	t3 := m.Turn()
+	t3.SetOutcome("timeout")
+	t3.End()
+	m.Close()
+	e, _ := json.Marshal(out)
+	fmt.Println(string(e))
+}
+"""
+
+
+@unittest.skipUnless(GO, "go is not installed")
+class GoMeter(SameAsPython):
+    def test_go_reads_writes_and_sends_like_python(self):
+        src = os.path.join(self.dir, "go")
+        os.makedirs(os.path.join(src, "aimeter"))
+        shutil.copy(os.path.join(METER, "aimeter.go"), os.path.join(src, "aimeter"))
+        with open(os.path.join(src, "go.mod"), "w", encoding="utf-8") as f:
+            f.write("module apptest\n\ngo 1.21\n")
+        with open(os.path.join(src, "main.go"), "w", encoding="utf-8") as f:
+            f.write(GO_MAIN)
+        env = {"GOTOOLCHAIN": "local", "GOFLAGS": "-mod=mod"}
+        res = run([GO, "vet", "./..."], src, env=env)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        with Board() as board:
+            res = run([GO, "run", ".", self.samples_file(), self.file, board.url], src, env=env)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.check(json.loads(res.stdout), board)
+
+
+DOTNET = shutil.which("dotnet")
+CS_PROJECT = """<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net$(BundledNETCoreAppTargetFrameworkVersion)</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+</Project>
+"""
+CS_MAIN = r"""using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
+
+var samples = JsonDocument.Parse(File.ReadAllText(args[0])).RootElement;
+var output = new List<object?>();
+foreach (var s in samples.EnumerateArray())
+{
+    var (p, m, c) = AiMeter.Usage.Read(s);
+    output.Add(new Dictionary<string, object?> { ["provider"] = p, ["model"] = m, ["counts"] = c });
+}
+var meter = new AiMeter.Meter(args[1], "prod", args[2], "prj_test");
+using (var t = meter.Turn())
+{
+    t.FirstToken();
+    foreach (var s in samples.EnumerateArray()) t.Record(s);
+    t.Fail("anthropic", "claude-sonnet-5-5", retry: true);
+}
+var t2 = meter.Turn();
+t2.Record("{\"model\":\"gpt-6-luna\"}");
+t2.Count("Example-Cloud", "example-model-large", input: 5, output: 2);
+t2.Count("Bad Name", "x", output: 1);
+t2.End();
+t2.End();
+var t3 = meter.Turn();
+t3.Outcome = "timeout";
+t3.Dispose();
+await meter.FlushAsync();
+Console.WriteLine(JsonSerializer.Serialize(output));
+"""
+
+
+@unittest.skipUnless(DOTNET, "dotnet is not installed")
+class CSharpMeter(SameAsPython):
+    def test_csharp_reads_writes_and_sends_like_python(self):
+        src = os.path.join(self.dir, "cs")
+        os.makedirs(src)
+        shutil.copy(os.path.join(METER, "AiMeter.cs"), src)
+        with open(os.path.join(src, "apptest.csproj"), "w", encoding="utf-8") as f:
+            f.write(CS_PROJECT)
+        with open(os.path.join(src, "Program.cs"), "w", encoding="utf-8") as f:
+            f.write(CS_MAIN)
+        env = {"DOTNET_CLI_TELEMETRY_OPTOUT": "1", "DOTNET_NOLOGO": "1", "DOTNET_SKIP_FIRST_TIME_EXPERIENCE": "1"}
+        build = os.path.join(src, "build")
+        res = run([DOTNET, "build", "-c", "Release", "-o", build, "-nologo", "-v", "q"], src, env=env)
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        with Board() as board:
+            res = run([DOTNET, os.path.join(build, "apptest.dll"), self.samples_file(), self.file, board.url], src, env=env)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.check(json.loads(res.stdout), board)
+
+
+class FileOnly(Tmp):
+    """The Rust and C/C++ meters only take counts by hand and only write the file. The same program in each must give these lines.
+    Bộ đo Rust và C/C++ chỉ nhận số đếm tay và chỉ ghi file. Cùng một chương trình ở mỗi ngôn ngữ phải cho ra các dòng này."""
+
+    def check(self, env="test"):
+        lines = self.lines()
+        self.assertEqual([x["outcome"] for x in lines], ["ok", "ok", "timeout", "ok"])
+        for x in lines:
+            self.assertIsNotNone(report.clean_line(x), x)
+            self.assertEqual(x["env"], env)
+            self.assertRegex(x["turnId"], r"^[0-9a-f]{16}$")
+            self.assertRegex(x["at"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        self.assertEqual(len({x["turnId"] for x in lines}), 4)
+        self.assertIn("ttftMs", lines[0])
+        self.assertLessEqual(lines[0]["ttftMs"], lines[0]["durationMs"])
+        first = lines[0]["models"]
+        self.assertEqual([(r["provider"], r["model"]) for r in first],
+                         [("anthropic", "claude-sonnet-5-5"), ("example-cloud", "example-model-large")])
+        son, ex = first
+        self.assertEqual((son["calls"], son["errors"], son["retries"], son["unmeasured"]), (3, 1, 1, 0))
+        self.assertEqual([son[k] for k in COUNT_FIELDS], [1100, 135, 900, 300, 100])
+        self.assertEqual([ex[k] for k in COUNT_FIELDS], [812, 95, 40, 0, 0])
+        # a call without counts is "not measured": null, never zero; a bad provider name is written as "other"
+        # một lần gọi không có số đếm là "không đo được": null, không bao giờ là 0; tên hãng sai ghi thành "other"
+        luna, other = lines[1]["models"]
+        self.assertEqual((luna["provider"], luna["model"], luna["calls"], luna["unmeasured"]), ("openai", "gpt-6-luna", 1, 1))
+        self.assertEqual([luna[k] for k in COUNT_FIELDS], [None] * 5)
+        self.assertEqual((other["provider"], other["model"], other["input"], other["output"]), ("other", "unknown", 7, 3))
+        self.assertNotIn("ttftMs", lines[1])
+        self.assertEqual(lines[2]["models"], [])
+        # a call with one measured answer and one without keeps the measured tokens
+        # một model có một lần đo được và một lần không thì giữ số token đã đo
+        mixed = lines[3]["models"][0]
+        self.assertEqual((mixed["calls"], mixed["unmeasured"], mixed["input"], mixed["output"]), (2, 1, 10, 1))
+        raw = self.raw()
+        for word in PRIVATE:
+            self.assertNotIn(word, raw)
+        self.assertTrue(raw.endswith("}\n") and "\n\n" not in raw)
+
+
+RUSTC = shutil.which("rustc")
+RUST_MAIN = r"""mod ai_meter;
+use ai_meter::{Counts, Meter};
+
+fn main() {
+    let meter = Meter::new("ignored.jsonl", "prod");
+    {
+        let mut t = meter.turn();
+        t.first_token();
+        t.count("anthropic", "claude-sonnet-5-5", Some(Counts { input: 100, output: 40, cache_read: 900, cache_write: 300, cache_write_long: 100 }));
+        t.count_with("anthropic", "claude-sonnet-5-5", Some(Counts { input: 1000, output: 95, ..Default::default() }), true);
+        t.fail("anthropic", "claude-sonnet-5-5", false);
+        t.count("Example-Cloud", "example-model-large", Some(Counts { input: 812, output: 95, cache_read: 40, ..Default::default() }));
+        t.end();
+    }
+    {
+        let mut t = meter.turn();
+        t.count("openai", "gpt-6-luna", None);
+        t.count("Bad Name", "customer-plate-51A with spaces", Some(Counts { input: 7, output: 3, ..Default::default() }));
+    }
+    {
+        let mut t = meter.turn();
+        t.set_outcome("timeout");
+        t.end();
+        t.end();
+    }
+    let mut t = meter.turn();
+    t.count("openai", "gpt-6-luna", Some(Counts { input: 10, output: 1, ..Default::default() }));
+    t.count("openai", "gpt-6-luna", Some(Counts { cache_write_long: 5, ..Default::default() }));
+}
+"""
+
+
+@unittest.skipUnless(RUSTC, "rustc is not installed")
+class RustMeter(FileOnly):
+    def test_rust_writes_lines_the_report_reads(self):
+        src = os.path.join(self.dir, "rs")
+        os.makedirs(src)
+        shutil.copy(os.path.join(METER, "ai_meter.rs"), src)
+        with open(os.path.join(src, "main.rs"), "w", encoding="utf-8") as f:
+            f.write(RUST_MAIN)
+        res = run([RUSTC, "--edition", "2021", "-D", "warnings", "-O", "main.rs", "-o", "apptest"], src)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        res = run([os.path.join(src, "apptest")], src, env={"AI_METER_FILE": self.file, "AI_METER_ENV": "test"})
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.check()
+        res = run([os.path.join(src, "apptest")], src, env={"AI_METER_FILE": self.file, "AI_METER_OFF": "1"})
+        self.assertEqual((res.returncode, len(self.lines())), (0, 4))
+
+
+CC = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+CXX = shutil.which("c++") or shutil.which("g++") or shutil.which("clang++")
+C_MAIN = r"""#include "ai_meter.h"
+
+int main(void) {
+    ai_meter m;
+    ai_turn t;
+    ai_meter_init(&m, "ignored.jsonl", "prod");
+
+    ai_turn_begin(&t, &m);
+    ai_turn_first_token(&t);
+    ai_turn_count(&t, "anthropic", "claude-sonnet-5-5", 100, 40, 900, 300, 100);
+    ai_turn_count_retry(&t, "anthropic", "claude-sonnet-5-5", 1000, 95, 0, 0, 0, 1);
+    ai_turn_fail(&t, "anthropic", "claude-sonnet-5-5", 0);
+    ai_turn_count(&t, "Example-Cloud", "example-model-large", 812, 95, 40, 0, 0);
+    ai_turn_end(&t);
+
+    ai_turn_begin(&t, &m);
+    ai_turn_count(&t, "openai", "gpt-6-luna", -1, -1, 0, 0, 0);
+    ai_turn_count(&t, "Bad Name", "customer-plate-51A with spaces", 7, 3, 0, 0, 0);
+    ai_turn_end(&t);
+
+    ai_turn_begin(&t, &m);
+    ai_turn_set_outcome(&t, "timeout");
+    ai_turn_end(&t);
+    ai_turn_end(&t);
+
+    ai_turn_begin(&t, &m);
+    ai_turn_count(&t, "openai", "gpt-6-luna", 10, 1, 0, 0, 0);
+    ai_turn_count(&t, "openai", "gpt-6-luna", 0, 0, 0, 0, 5);
+    ai_turn_end(&t);
+    return 0;
+}
+"""
+
+
+class CMeter(FileOnly):
+    def build_and_check(self, compiler, *flags):
+        src = os.path.join(self.dir, "c")
+        os.makedirs(src, exist_ok=True)
+        shutil.copy(os.path.join(METER, "ai_meter.h"), src)
+        with open(os.path.join(src, "main.c"), "w", encoding="utf-8") as f:
+            f.write(C_MAIN)
+        res = run([compiler, *flags, "-Wall", "-Wextra", "-Werror", "main.c", "-o", "apptest"], src)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        res = run([os.path.join(src, "apptest")], src, env={"AI_METER_FILE": self.file, "AI_METER_ENV": "test"})
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.check()
+
+    @unittest.skipUnless(CC, "no C compiler")
+    def test_c99_writes_lines_the_report_reads(self):
+        self.build_and_check(CC, "-std=c99", "-pedantic")
+
+    @unittest.skipUnless(CXX, "no C++ compiler")
+    def test_cpp11_writes_lines_the_report_reads(self):
+        self.build_and_check(CXX, "-x", "c++", "-std=c++11", "-pedantic")
+
+
+NPX = shutil.which("npx")
+TS_GOOD = """import { Meter, readUsage, type Counts } from './ai-meter.cjs'
+
+const meter = new Meter({ file: process.argv[2], env: 'test', sync: true })
+const main = async (): Promise<void> => {
+  const answer = await meter.turn(async (t) => {
+    t.firstToken()
+    t.record({ model: 'claude-sonnet-5-5', usage: { input_tokens: 100, output_tokens: 40, cache_read_input_tokens: 900 } })
+    t.count('Example-Cloud', 'example-model-large', { input: 812, output: 95 })
+    t.count('openai', 'gpt-6-luna', {})
+    t.fail('anthropic', 'claude-sonnet-5-5', { retry: true })
+    return 'done'
+  })
+  const read: Counts | null = readUsage({ usage: { prompt_tokens: 5, completion_tokens: 2 } }).counts
+  const t = meter.start()
+  t.end('timeout')
+  console.log(JSON.stringify({ answer, input: read === null ? null : read.input }))
+}
+void main()
+"""
+# each line is a call TypeScript must refuse
+# mỗi dòng là một lần gọi TypeScript phải từ chối
+TS_BAD = """import { Meter } from './ai-meter.cjs'
+const meter = new Meter({ env: 'staging' })
+meter.start().count('openai', 'gpt-6-luna', { input: '12' })
+meter.start().end('failed')
+meter.start().record()
+"""
+TS_FLAGS = ["--strict", "--module", "nodenext", "--moduleResolution", "nodenext", "--target", "es2022", "--lib", "es2022", "--types", "node"]
+
+
+@unittest.skipUnless(NPX and NODE, "npx or node is not installed")
+class TypeScriptTypes(Tmp):
+    def tsc(self, *args):
+        cmd = [NPX, "-y", "-p", "typescript@5.9.3", "tsc", *args]
+        return run(cmd, self.src, env={"npm_config_update_notifier": "false", "npm_config_fund": "false"})
+
+    def setUp(self):
+        super().setUp()
+        self.src = os.path.join(self.dir, "ts")
+        os.makedirs(self.src)
+        for name in ("ai-meter.cjs", "ai-meter.d.cts"):
+            shutil.copy(os.path.join(METER, name), self.src)
+        # the only Node names the example uses, so the test needs no @types/node
+        # các tên Node duy nhất ví dụ dùng, để test không cần @types/node
+        os.makedirs(os.path.join(self.src, "node_modules", "@types", "node"))
+        with open(os.path.join(self.src, "node_modules", "@types", "node", "index.d.ts"), "w", encoding="utf-8") as f:
+            f.write("declare const process: { argv: string[] }\ndeclare const console: { log(...a: unknown[]): void }\n")
+
+    def test_types_accept_the_guide_and_run(self):
+        with open(os.path.join(self.src, "use.ts"), "w", encoding="utf-8") as f:
+            f.write(TS_GOOD)
+        res = self.tsc(*TS_FLAGS, "use.ts")
+        if res.returncode != 0 and "error TS" not in res.stdout:
+            self.skipTest("typescript@5.9.3 could not be fetched: " + (res.stderr or res.stdout)[-300:])
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        res = run([NODE, "use.js", self.file], self.src)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(json.loads(res.stdout), {"answer": "done", "input": 5})
+        lines = self.lines()
+        self.assertEqual([x["outcome"] for x in lines], ["ok", "timeout"])
+        for x in lines:
+            self.assertIsNotNone(report.clean_line(x), x)
+        by = {r["model"]: r for r in lines[0]["models"]}
+        self.assertEqual((by["claude-sonnet-5-5"]["calls"], by["claude-sonnet-5-5"]["errors"]), (2, 1))
+        self.assertEqual(by["gpt-6-luna"]["input"], None)
+
+    def test_types_refuse_wrong_calls(self):
+        with open(os.path.join(self.src, "bad.ts"), "w", encoding="utf-8") as f:
+            f.write(TS_BAD)
+        res = self.tsc(*TS_FLAGS, "--noEmit", "bad.ts")
+        if res.returncode != 0 and "error TS" not in res.stdout:
+            self.skipTest("typescript@5.9.3 could not be fetched: " + (res.stderr or res.stdout)[-300:])
+        refused = {int(line.split("(")[1].split(",")[0]) for line in res.stdout.splitlines() if line.startswith("bad.ts(")}
+        self.assertEqual(refused, {2, 3, 4, 5}, res.stdout)
 
 
 if __name__ == "__main__":

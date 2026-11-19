@@ -22,7 +22,7 @@ Sources and licenses of the skills: `skills/SOURCES.md`. The skills written by o
 | `qa-site` | Coding and systems | Tests a whole web project, flow by flow, into one report | This project | MIT |
 | `write-spec` | Coding and systems | Writes a specification: goal, scope, roles, numbered requirements | This project | MIT |
 | `draw-flow` | Coding and systems | Draws how a system really works as checked Mermaid diagrams | This project | MIT |
-| `ai-cost-report` | Coding and systems | Adds a small meter to an AI project or application your team built, with any LLM provider (one file for Python or Node, a line format for any other language), and turns what it measured into a cost and speed report, HTML and CSV | This project | MIT |
+| `ai-cost-report` | Coding and systems | Adds a small meter to an AI project or application your team built, with any LLM provider (one file for Python, JavaScript, TypeScript, C#, Go, Rust or C/C++, a line format for any other language), and turns what it measured into a cost and speed report, HTML and CSV | This project | MIT |
 | `browser-testing-with-devtools` | Coding and systems | Tests pages through Chrome DevTools: DOM, console, network | Addy Osmani | MIT |
 | `interview-me` | Coding and systems | Asks one question at a time until the real need is clear | Addy Osmani | MIT |
 | `ui-ux-pro-max` | Coding and systems | Interface and UX guidance with searchable styles and palettes | Next Level Builder | MIT |

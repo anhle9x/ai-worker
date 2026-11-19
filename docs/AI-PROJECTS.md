@@ -29,58 +29,230 @@ The quickest way: open Claude Code in the project's code folder and type `/ai-wo
 ## Step 2. Copy the meter into the project
 
 - **Where:** a terminal on the computer that has the project's code.
-- **Do:** copy one file into the code folder.
-  - From the plugin installed by the package (Mac, Linux; on Windows the folder is `%USERPROFILE%\claude-plugins-ai-worker`):
+- **Do:** pick the project's language and copy its file into the code folder. Each one is a single file with nothing to install, and writes the same line as the others.
+
+  | Language | File to copy | Needs | Reads the provider's answer itself | Sends to the board |
+  |---|---|---|---|---|
+  | Python | `ai_meter.py` | Python 3.8+ | yes | yes |
+  | JavaScript (Node) | `ai-meter.cjs` | Node 18+ | yes | yes |
+  | TypeScript | `ai-meter.cjs` and `ai-meter.d.cts`, side by side | Node 18+ (tested with TypeScript 5.9) | yes | yes |
+  | C# | `AiMeter.cs` | .NET 6+ | yes | yes |
+  | Go | `aimeter.go`, in a folder `aimeter/` | Go 1.21+ | yes | yes |
+  | Rust | `ai_meter.rs`, in `src/` | Rust 1.63+ | no: you pass the token counts | no: file only |
+  | C or C++ | `ai_meter.h` | C99 or C++11 | no: you pass the token counts | no: file only |
+
+  - From the plugin installed by the package (Mac, Linux; on Windows the folder is `%USERPROFILE%\claude-plugins-ai-worker`). First name the folder that holds the meters:
     ```bash
-    cp ~/claude-plugins-ai-worker/ai-worker/skills/ai-cost-report/meter/ai_meter.py <project folder>/
+    M=~/claude-plugins-ai-worker/ai-worker/skills/ai-cost-report/meter
     ```
-    For Node or TypeScript, the file is `ai-meter.cjs` in the same folder.
-  - Or download it from this repository, at the version you run (here `v0.45.2`):
+    Then the line for your language, with `<project folder>` being the folder of the project's code:
     ```bash
-    curl -fLO https://raw.githubusercontent.com/anhle9x/ai-worker/v0.45.2/skills/ai-cost-report/meter/ai_meter.py
+    cp "$M/ai_meter.py" <project folder>/
     ```
     ```bash
-    curl -fLO https://raw.githubusercontent.com/anhle9x/ai-worker/v0.45.2/skills/ai-cost-report/meter/ai-meter.cjs
+    cp "$M/ai-meter.cjs" <project folder>/
     ```
-  - Another language (Go, Java, C#, PHP...): write one line per turn as [FORMAT.md](../skills/ai-cost-report/FORMAT.md) says.
-- **Right result:** `ai_meter.py` (Python 3.8+, standard library only) or `ai-meter.cjs` (Node 18+, no package) sits next to the code.
+    ```bash
+    cp "$M/ai-meter.cjs" "$M/ai-meter.d.cts" <project folder>/src/
+    ```
+    ```bash
+    cp "$M/AiMeter.cs" <project folder>/
+    ```
+    ```bash
+    mkdir -p <project folder>/aimeter && cp "$M/aimeter.go" <project folder>/aimeter/
+    ```
+    ```bash
+    cp "$M/ai_meter.rs" <project folder>/src/
+    ```
+    ```bash
+    cp "$M/ai_meter.h" <project folder>/
+    ```
+  - Or download it from this repository, at the version you run (here `v0.46.0`), in the folder where the file goes:
+    ```bash
+    curl -fLO https://raw.githubusercontent.com/anhle9x/ai-worker/v0.46.0/skills/ai-cost-report/meter/ai_meter.py
+    ```
+    Change the file name at the end for the other languages: `ai-meter.cjs`, `ai-meter.d.cts`, `AiMeter.cs`, `aimeter.go`, `ai_meter.rs` or `ai_meter.h`.
+  - Another language (Java, PHP, Ruby...): there is no file to copy yet, so the project's own code does what the meter does. After each request of a user, append one line of JSON to the file `ai-meter.jsonl`: how long the request took, how it ended, and for each model called, the provider, the model's name, how many calls and the token counts the provider returned. One line looks like this:
+    ```json
+    {"v":1,"turnId":"3f9c0a7d5be14c21","at":"2026-11-20T08:15:02.481Z","durationMs":2140,"outcome":"ok","env":"prod","models":[{"provider":"openai","model":"gpt-6.1-terra","calls":1,"errors":0,"retries":0,"unmeasured":0,"input":1830,"output":412,"cacheRead":0,"cacheWrite":0}]}
+    ```
+    `turnId` is 16 random hex characters, new for each request; `at` is when the request started, in UTC. Never put the question, the answer or the user in it. Every field and where to read each token count for each provider: [FORMAT.md](../skills/ai-cost-report/FORMAT.md). The skill and the board read this file the same way as the one a meter writes.
+- **Right result:** the file of your language sits next to the code (for Go, `aimeter/aimeter.go`; for Rust, `src/ai_meter.rs`), and the project still builds.
 
 ## Step 3. Wrap each request of a user
 
 - **Where:** the code that handles one request: where the user's question comes in and the LLM is called.
-- **Do:** make the meter once when the program starts, then wrap the work of each request.
+- **Do:** make the meter once when the program starts, then wrap the work of each request. Find your language below.
 
-  Python:
-  ```python
-  from ai_meter import Meter
-  meter = Meter("ai-meter.jsonl")          # once, at the top of the file
+### Python
 
-  # in the function that handles each request:
-  with meter.turn() as t:
-      resp = client.messages.create(...)   # the LLM call you already have
-      t.record(resp)                       # add this after EACH LLM call
-  ```
+```python
+from ai_meter import Meter
+meter = Meter("ai-meter.jsonl")          # once, at the top of the file
 
-  Node:
-  ```js
-  const { Meter } = require('./ai-meter.cjs')
-  const meter = new Meter({ file: 'ai-meter.jsonl' })
+# in the function that handles each request:
+with meter.turn() as t:                  # or: async with meter.turn() as t:
+    resp = client.messages.create(...)   # the LLM call you already have
+    t.record(resp)                       # add this after EACH LLM call
+```
 
-  // in the function that handles each request:
-  const answer = await meter.turn(async (t) => {
-    const resp = await client.chat.completions.create(...)
-    t.record(resp)
-    return resp
-  })
-  ```
+An error inside `with` is written as `error` (or `timeout`) and raised again as it was.
 
-- **Good to know:**
-  - A request that calls an LLM several times (read a photo, then answer) calls `t.record(...)` after each one.
-  - `record` reads the answers of Anthropic, OpenAI, Gemini, xAI Grok, every API that copies OpenAI's shape (DeepSeek, Mistral, Groq, OpenRouter, Azure OpenAI, vLLM, LM Studio...), Bedrock, Cohere, Ollama and the Vercel AI SDK. For a provider other than the first three, give its name: `t.record(resp, provider="deepseek")`.
-  - Any other provider: read the token counts from its answer as its documentation says, and call `t.count("provider", "model-name", input=..., output=...)`.
-  - Streaming answers: call `t.first_token()` (`t.firstToken()` in Node) when the first piece arrives. OpenAI and many APIs that copy it send token counts while streaming only with `stream_options={"include_usage": True}`; without it the turn is written as "not measured".
-  - A failed call: `t.fail(provider, model)`. Never pass the error text.
-  - A problem in the meter never breaks the project.
+### JavaScript (Node)
+
+```js
+const { Meter } = require('./ai-meter.cjs')   // or, in an ES module: import { Meter } from './ai-meter.cjs'
+const meter = new Meter({ file: 'ai-meter.jsonl' })
+
+// in the function that handles each request:
+const answer = await meter.turn(async (t) => {
+  const resp = await client.chat.completions.create(...)
+  t.record(resp)
+  return resp
+})
+```
+
+`meter.turn` returns what your function returns, and throws again what it throws. When the work does not fit in one function, use `const t = meter.start()` and call `t.end()` (or `t.end('error')`) yourself.
+
+### TypeScript
+
+Keep the two files side by side with these names: TypeScript finds the types of `ai-meter.cjs` in `ai-meter.d.cts`.
+
+```ts
+import { Meter } from './ai-meter.cjs'
+const meter = new Meter({ file: 'ai-meter.jsonl' })
+
+const answer = await meter.turn(async (t) => {
+  const resp = await client.messages.create(...)
+  t.record(resp)
+  return resp
+})
+```
+
+The same calls as JavaScript, now checked: `env` can only be `'prod'` or `'test'`, token counts must be numbers. It works whatever the project's `module` setting (`commonjs`, `node16`, `nodenext`, `bundler`, `preserve`) and in a project with `"type": "module"`.
+
+### C#
+
+```csharp
+// once, when the program starts; in ASP.NET Core: builder.Services.AddSingleton(new AiMeter.Meter("ai-meter.jsonl"));
+var meter = new AiMeter.Meter("ai-meter.jsonl");
+
+// in the code that handles each request:
+using (var t = meter.Turn())
+{
+    try
+    {
+        var res = await http.PostAsync(url, content);           // the LLM call you already have
+        var body = await res.Content.ReadAsStringAsync();
+        t.Record(body);                                         // the provider's answer, as JSON text
+    }
+    catch (TaskCanceledException) { t.Outcome = "timeout"; throw; }
+    catch { t.Outcome = "error"; throw; }
+}                                                               // the line is written here
+
+await meter.FlushAsync();                                       // before the program ends, when it sends to a board
+```
+
+- `t.Record(...)` takes the answer as JSON text or as a `JsonElement` already read. For a provider other than Anthropic, OpenAI and Gemini, give its name: `t.Record(body, provider: "deepseek")`.
+- When an SDK gives you an object rather than JSON, read the numbers from its usage and call `t.Count("openai", "gpt-6.1-terra", input: 1530, output: 412, cacheRead: 300)`.
+- Unlike Python, an exception does not set the outcome by itself: set `t.Outcome` in `catch` as above.
+
+### Go
+
+```go
+import "example.com/yourproject/aimeter"   // the module name in your go.mod, then /aimeter
+
+var meter = aimeter.New("ai-meter.jsonl", "prod")   // once
+
+func main() {
+	defer meter.Close()   // sends what is still waiting, when it sends to a board
+	// ...
+}
+
+// in the handler of each request:
+t := meter.Turn()
+defer t.End()                     // the line is written when the handler returns
+res, err := http.DefaultClient.Do(req)   // the LLM call you already have
+if err != nil {
+	t.Fail("openai", "gpt-6.1-terra", false)
+	t.SetOutcome("error")
+	return
+}
+body, _ := io.ReadAll(res.Body)
+t.Record(body)                    // the provider's answer, as JSON bytes
+```
+
+- For a provider other than Anthropic, OpenAI and Gemini, give its name: `t.RecordWith(body, aimeter.Opt{Provider: "deepseek"})`. A call that repeats a failed one: `aimeter.Opt{Retry: true}`.
+- When an SDK gives you a struct rather than JSON, read the numbers from its usage and call `t.Count("openai", "gpt-6.1-terra", &aimeter.Counts{Input: 1530, Output: 412, CacheRead: 300})`; `nil` in place of the counts means not measured.
+- The board's address and key: `aimeter.NewSending(path, env, url, key)`, or the variables of step 4.
+
+### Rust
+
+Rust has no JSON reader of its own, so the meter takes the token counts your client already parsed. It writes the file only.
+
+```rust
+mod ai_meter;   // in main.rs or lib.rs
+use ai_meter::{Counts, Meter};
+use std::sync::OnceLock;
+
+static METER: OnceLock<Meter> = OnceLock::new();
+
+// in the handler of each request:
+let meter = METER.get_or_init(|| Meter::new("ai-meter.jsonl", "prod"));
+let mut t = meter.turn();
+// after each LLM call, from the usage in its answer (Anthropic here: input_tokens has no cache in it)
+t.count("anthropic", "claude-sonnet-5-5", Some(Counts {
+    input: u.input_tokens,
+    output: u.output_tokens,
+    cache_read: u.cache_read_input_tokens,
+    ..Default::default()
+}));
+// an answer with no token counts: t.count("anthropic", "claude-sonnet-5-5", None);
+t.end();   // or let t go out of scope; a panic writes "error"
+```
+
+- `input` is the input billed at the normal price, without cache reads and writes. For OpenAI and the APIs that copy it, that is `prompt_tokens - cached_tokens`. The table in [FORMAT.md](../skills/ai-cost-report/FORMAT.md#reading-token-counts) gives each provider's fields.
+- A failed call: `t.fail(provider, model, false)`; a retry: `t.count_with(..., true)`; streaming: `t.first_token()`; a timeout: `t.set_outcome("timeout")`.
+- To reach a board, send the file's lines from your own HTTP client as [FORMAT.md](../skills/ai-cost-report/FORMAT.md#sending-to-the-ai-worker-board) says, or make the report from the file with the skill.
+
+### C or C++
+
+C and C++ have no JSON reader of their own, so the meter takes the token counts your JSON library already read. It writes the file only.
+
+```c
+#include "ai_meter.h"   /* on Linux, before the other headers (or compile with -D_POSIX_C_SOURCE=200809L) */
+
+static ai_meter meter;
+
+int main(void) {
+    ai_meter_init(&meter, "ai-meter.jsonl", "prod");   /* once */
+    /* ... */
+}
+
+/* in the code that handles each request: */
+void handle_request(void) {
+    ai_turn t;
+    ai_turn_begin(&t, &meter);
+    /* after each LLM call: provider, model, input, output, cache read, cache write, longer cache write */
+    ai_turn_count(&t, "openai", "gpt-6.1-terra", prompt_tokens - cached_tokens, completion_tokens, cached_tokens, 0, 0);
+    /* an answer with no token counts: -1 for input and output */
+    ai_turn_end(&t);
+}
+```
+
+- The same functions work from C++ (C++11 or newer); the header compiles with `-Wall -Wextra -Werror`.
+- A failed call: `ai_turn_fail(&t, provider, model, 0)`; a retry: `ai_turn_count_retry(..., 1)`; streaming: `ai_turn_first_token(&t)`; a timeout: `ai_turn_set_outcome(&t, "timeout")`.
+- One `ai_turn` belongs to one thread. A turn holds at most 16 different models; more are left out.
+- To reach a board, send the file's lines from your own HTTP client as [FORMAT.md](../skills/ai-cost-report/FORMAT.md#sending-to-the-ai-worker-board) says, or make the report from the file with the skill.
+
+### For every language
+
+- A request that calls an LLM several times (read a photo, then answer) records or counts each call.
+- `record` (`Record` in C# and Go) reads the answers of Anthropic, OpenAI, Gemini, xAI Grok, every API that copies OpenAI's shape (DeepSeek, Mistral, Groq, OpenRouter, Azure OpenAI, vLLM, LM Studio...), Bedrock, Cohere, Ollama and the Vercel AI SDK. For a provider other than the first three, give its name: `t.record(resp, provider="deepseek")`.
+- Any other provider: read the token counts from its answer as its documentation says, and call `count` (`t.count("provider", "model-name", input=..., output=...)` in Python).
+- Streaming answers: call `first_token()` (`firstToken()` in Node, `FirstToken()` in C# and Go) when the first piece arrives. OpenAI and many APIs that copy it send token counts while streaming only with `stream_options={"include_usage": True}`; without it the turn is written as "not measured".
+- A failed call: `fail(provider, model)`. Never pass the error text.
+- A problem in the meter never breaks the project.
 - **Right result:** after one question, the file `ai-meter.jsonl` appears next to the project, one line per turn, with numbers only.
 
 ## Step 4. Set the key so turns go to the board (only with a board)
