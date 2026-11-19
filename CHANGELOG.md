@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.45.1 - 2026-11-19
+
+### Fixed
+- The steps that turn on AI projects and applications in INSTALL named the wrong service: restart `ai-worker-webhook` after adding `AI_PROJECTS=1`.
+
 ## 0.45.0 - 2026-11-19
 
 ### Added

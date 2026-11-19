@@ -128,7 +128,7 @@ Before you open it:
 
 A project or application your team built can send what its `ai-cost-report` meter measures (times and tokens per turn, never a question or an answer) to the board, where admins and viewers read and download the report. Off until you turn it on.
 
-1. **Where:** the server, as root. **Do:** add `AI_PROJECTS=1` to `/etc/ai-worker.env`, then `sudo systemctl restart ai-worker`. **Right result:** the Admin page has a section **AI projects and applications**, and `/board` a link to `/projects`.
+1. **Where:** the server, as root. **Do:** add `AI_PROJECTS=1` to `/etc/ai-worker.env`, then `sudo systemctl restart ai-worker-webhook`. **Right result:** the Admin page has a section **AI projects and applications**, and `/board` a link to `/projects`.
 2. **Where:** the Admin page. **Do:** type the project's name, click **Make a key**, enter your OTP code. **Right result:** two lines, `AI_METER_URL=…/projects/ingest` and `AI_METER_KEY=prj_…`, shown once.
 3. **Where:** the project's own server (never a web page or a phone app). **Do:** put those two lines in its environment, next to the meter from `skills/ai-cost-report/meter/`. **Right result:** after a few requests, the project shows on `/projects`.
 4. **A project on a cloud server:** its requests come from outside your networks, so the proxy refuses them. In `aiworker.caddy`, use the commented block that lets one IP reach `/projects/ingest` only, put the project's IP in it, and run `sudo systemctl reload caddy`.

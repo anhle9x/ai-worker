@@ -128,7 +128,7 @@ Trước khi mở:
 
 Một dự án hay ứng dụng nhóm tự làm có thể gửi những gì bộ đo `ai-cost-report` của nó đo được (thời gian và token mỗi lượt, không bao giờ có câu hỏi hay câu trả lời) lên bảng, nơi quản trị và người xem đọc và tải báo cáo. Tắt cho tới khi bạn bật.
 
-1. **Ở đâu:** máy chủ, quyền root. **Làm gì:** thêm `AI_PROJECTS=1` vào `/etc/ai-worker.env`, rồi `sudo systemctl restart ai-worker`. **Kết quả đúng:** trang Quản trị có mục **Dự án và ứng dụng AI**, và `/board` có liên kết tới `/projects`.
+1. **Ở đâu:** máy chủ, quyền root. **Làm gì:** thêm `AI_PROJECTS=1` vào `/etc/ai-worker.env`, rồi `sudo systemctl restart ai-worker-webhook`. **Kết quả đúng:** trang Quản trị có mục **Dự án và ứng dụng AI**, và `/board` có liên kết tới `/projects`.
 2. **Ở đâu:** trang Quản trị. **Làm gì:** gõ tên dự án, bấm **Tạo khoá**, nhập mã OTP. **Kết quả đúng:** hiện hai dòng `AI_METER_URL=…/projects/ingest` và `AI_METER_KEY=prj_…`, chỉ một lần.
 3. **Ở đâu:** máy chủ của chính dự án (không bao giờ trong trang web hay app điện thoại). **Làm gì:** đặt hai dòng đó vào biến môi trường, cạnh bộ đo lấy từ `skills/ai-cost-report/meter/`. **Kết quả đúng:** sau vài yêu cầu, dự án hiện trên `/projects`.
 4. **Dự án chạy trên cloud:** yêu cầu của nó đến từ ngoài mạng của bạn, nên proxy từ chối. Trong `aiworker.caddy`, dùng khối đang để ở dạng ghi chú cho đúng một IP tới `/projects/ingest`, điền IP của dự án, rồi chạy `sudo systemctl reload caddy`.
