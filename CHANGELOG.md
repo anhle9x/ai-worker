@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.47.4 - 2026-11-19
+
+### Changed
+- The architecture drawing in the README (light and dark, English and Vietnamese) shows your team's AI project or application sending its own counts to the server with a key of its own, the server keeping its turns, and the AI projects page with the report, the PDF and the CSV. Its text for screen readers says the same.
+
 ## 0.47.3 - 2026-11-19
 
 ### Added
