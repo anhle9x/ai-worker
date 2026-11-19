@@ -2,6 +2,15 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.43.0 - 2026-11-19
+
+### Added
+- On the office page, the cost chart's time range menu has a date range: pick the first and the last day, like the dates of a return flight, and **Show** draws just those days; **Last 7 days** goes back to the usual view. Only days this computer has cost for can be picked.
+
+### Fixed
+- On the office page, the cost chart drew nothing when **Columns** was chosen: a name left over from renaming the code stopped it at the first column.
+- On a phone, the dates under the cost chart ran into each other. The chart now writes only as many as fit side by side.
+
 ## 0.42.0 - 2026-11-19
 
 ### Added

@@ -73,7 +73,7 @@ It shows only the sessions on **your** computer:
 - **Click a session** to see its plan, how full its context is, and its cost.
 - **When a conversation gets long,** a note warns you at 60% and at 80% of the context. Past 80%, Claude is told too: it finishes what you asked, then writes a handoff note and suggests a new session in one line. If Claude then summarizes the older part by itself to make room, the plugin asks that summary to keep your instructions, the decisions, what failed and what is still open, and a note tells you so: carry on in the same conversation, no new session is needed.
 - **Carrying on in a new session.** When you have written handoff notes with `/ai-worker:handoff`, each new session is told the names and dates of the newest five. Say "continue the monthly report" and Claude reads that note first; say only "continue" and it asks which one. The plugin gives names and dates only: a note is opened when you ask to carry on with it.
-- **Cost:** today, the last 7 days, and a chart you can change (line, bars, candles; by hour or by day).
+- **Cost:** today, the last 7 days, and a chart you can change (line, bars, candles; by hour or by day). In the time range menu, **Date range** shows just the days you pick, from one day to another; **Last 7 days** goes back.
 - **Activity:** what was done in the open sessions, with a filter.
 - **Models & quota:** how much of your Claude account's 5-hour and 7-day limits are used. From 80% it turns red, and a bar appears above the chat box. Click **Hide** to hide that bar until the level rises again.
 
