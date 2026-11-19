@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.45.2 - 2026-11-19
+
+### Added
+- The home page has an **AI projects** button next to **Detail board**, for admins and viewers when the server has `AI_PROJECTS=1`; it opens `/projects`. The wall display does not show it.
+
 ## 0.45.1 - 2026-11-19
 
 ### Fixed

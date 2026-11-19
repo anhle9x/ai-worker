@@ -68,6 +68,7 @@ window.I18n.add({
   '{n} sessions': '{n} phiên',
   'Explain': 'Giải thích',
   'Detail board': 'Bảng chi tiết',
+  'AI projects': 'Dự án AI',
   'Sign out': 'Đăng xuất',
   '⛶ Full screen': '⛶ Toàn màn hình',
   '⛶ Exit full screen': '⛶ Thu nhỏ',

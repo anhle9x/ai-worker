@@ -264,7 +264,7 @@ Quản lý có thể hỏi Claude về cả đội bằng lời của mình, gõ
 
 ### 2.6 Dự án và ứng dụng AI
 
-Khi máy chủ đã bật tính năng này, liên kết **Dự án và ứng dụng AI** ở đầu `/board` mở `/projects`: số đo của từng dự án nhóm tự làm, nếu dự án đó gửi lên bảng.
+Khi máy chủ đã bật tính năng này, nút **Dự án AI** trên trang chủ, hoặc liên kết **Dự án và ứng dụng AI** ở đầu `/board`, mở `/projects`: số đo của từng dự án nhóm tự làm, nếu dự án đó gửi lên bảng.
 
 1. **Ở đâu:** `/projects`. **Làm gì:** chọn dự án, ngày đầu và ngày cuối (UTC) và **Người dùng thật**, rồi bấm **Xem**. **Kết quả đúng:** số lượt, tiền mỗi lượt và mỗi 1.000 lượt, thời gian trung bình, p95 và chậm nhất, theo model và theo ngày.
 2. **Làm gì:** bấm **Tải báo cáo** (HTML; mở ra rồi **In** để lưu PDF) hoặc **Tải CSV**.

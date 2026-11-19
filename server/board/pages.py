@@ -840,11 +840,14 @@ def page_3d(viewer_name: str, role: str) -> bytes:
     Bảng điều khiển vận hành cả team (vẽ bằng static/ops.js); không có file thì quay về bảng chữ."""
     return ('<!doctype html><html lang="' + current_lang() + '" data-lang="' + current_lang() + '"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Worker · Operations</title>'
-            '<link rel="stylesheet" href="/static/ops.css?v=%s"></head><body class="ops-mode" data-user="%s" data-role="%s" data-ui="%s">'
+            '<link rel="stylesheet" href="/static/ops.css?v=%s"></head><body class="ops-mode" data-user="%s" data-role="%s" data-ui="%s"%s>'
             '<div id="ops"></div>'
             '<script src="/static/i18n.js?v=%s"></script><script src="/static/ops.vi.js?v=%s"></script>'
             '<script src="/static/ops.js?v=%s"></script><script src="/static/page.js?v=%s"></script>'
-            '</body></html>' % (asset_version("ops.css"), html.escape(viewer_name), role, UI_VERSION, asset_version("i18n.js"), asset_version("ops.vi.js"), asset_version("ops.js"), asset_version("page.js"))).encode()
+            '</body></html>' % (asset_version("ops.css"), html.escape(viewer_name), role, UI_VERSION,
+                                     # the button to AI projects and applications: only when they are on, and never for the wall display
+                                     # nút tới dự án hay ứng dụng AI: chỉ khi tính năng đang bật, và không bao giờ cho màn treo tường
+                                     ' data-projects="1"' if settings.PROJECTS_ENABLED and role in ("admin", "viewer") else "", asset_version("i18n.js"), asset_version("ops.vi.js"), asset_version("ops.js"), asset_version("page.js"))).encode()
 
 
 def page_admin(viewer_name: str) -> bytes:

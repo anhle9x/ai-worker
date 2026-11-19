@@ -264,7 +264,7 @@ A manager can ask Claude about the team in their own words, typed or dictated, i
 
 ### 2.6 AI projects and applications
 
-When the server has it turned on, **AI projects and applications** at the top of `/board` opens `/projects`: what each project your team built measured, if it sends to the board.
+When the server has it turned on, the **AI projects** button on the home page, or **AI projects and applications** at the top of `/board`, opens `/projects`: what each project your team built measured, if it sends to the board.
 
 1. **Where:** `/projects`. **Do:** pick the project, the first and last day (UTC) and **Real users**, then **Show**. **Right result:** turns, cost per turn and per 1,000 turns, average, 95th percentile and slowest time, by model and by day.
 2. **Do:** **Download the report** (HTML; open it and **Print** to save a PDF) or **Download CSV**.

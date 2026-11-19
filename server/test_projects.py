@@ -208,6 +208,19 @@ class Projects(unittest.TestCase):
                     if cookie in (None, "tok-wall"):
                         self.assertNotIn(b"Car price", body)
 
+    def test_the_home_page_offers_the_way_in(self):
+        # the home page of an admin or a viewer carries the flag that shows the button; the wall display and a board with the feature off do not
+        # trang chủ của quản trị hay người xem mang cờ hiện nút; màn treo tường và bảng đang tắt tính năng thì không
+        from board import pages
+        self.assertIn('data-projects="1"', pages.page_3d("adm", "admin").decode())
+        self.assertIn('data-projects="1"', pages.page_3d("viewer", "viewer").decode())
+        self.assertNotIn("data-projects", pages.page_3d("wall", "wall").decode())
+        settings.PROJECTS_ENABLED = False
+        try:
+            self.assertNotIn("data-projects", pages.page_3d("adm", "admin").decode())
+        finally:
+            settings.PROJECTS_ENABLED = True
+
     def test_the_report_matches_the_skill_and_its_p95(self):
         self.send([turn(i, ms=i * 10) for i in range(1, 41)])
         status, csv_text, headers = self.call("GET", "/projects/report.csv?project=" + self.key_id, cookie="tok-viewer")

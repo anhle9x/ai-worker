@@ -353,7 +353,11 @@
       wallLink.rel = 'noopener'
       const adminButton = o('a', 'o-btn', tx('Admin'))
       adminButton.href = '/admin'
-      right.append(nodes, statusEl, helpButton('top'), clock, I18n.switcher(), wallLink, boardLink, ...(document.body.dataset.role === 'admin' ? [adminButton] : []), form)
+      // the server sets data-projects only for an admin or a viewer, and only when AI projects and applications are on
+      // máy chủ chỉ đặt data-projects cho quản trị hay người xem, và chỉ khi dự án hay ứng dụng AI đang bật
+      const projectsLink = o('a', 'o-btn', tx('AI projects'))
+      projectsLink.href = '/projects'
+      right.append(nodes, statusEl, helpButton('top'), clock, I18n.switcher(), wallLink, boardLink, ...(document.body.dataset.projects === '1' ? [projectsLink] : []), ...(document.body.dataset.role === 'admin' ? [adminButton] : []), form)
     }
     top.append(dots, live, title, right)
 
