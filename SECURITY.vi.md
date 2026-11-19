@@ -78,6 +78,18 @@ Phần còn lại:
 - **claude.ai và tab Chat của Claude Desktop tắt mặc định.** Chúng kết nối từ máy chủ của Anthropic, nên danh sách cho phép từ chối chúng. [docs/INSTALL.vi.md](docs/INSTALL.vi.md) chỉ cách cho địa chỉ của Anthropic vào được `/mcp` và không gì khác. Khi đã mở, `/mcp` trả lời bất kỳ ai đi qua claude.ai, và khoá là thứ duy nhất chắn đường. Đã thử một lần, từ tab Chat của app Claude trên máy tính: chạy được, và Claude gọi công cụ mà không hỏi người dùng trước, nên phạm vi của khoá là thứ quyết định cái gì đi ra ngoài.
 - **Mới thử ở ba nơi, đều trên macOS:** Claude Code 2.1.318, Codex CLI 0.164.0, và tab Chat của app Claude trên máy tính qua một kết nối của claude.ai. Cursor, Gemini CLI, và mọi công cụ trên Windows và Linux chưa được thử.
 
+### Dự án hay ứng dụng AI
+
+Tắt trừ khi `AI_PROJECTS=1`. Một dự án nhóm tự làm gửi các số mà bộ đo `ai-cost-report` của nó đã đo tới `/projects/ingest`. Cần biết trước khi bật:
+
+- **Chỉ có số đếm và thời gian:** mỗi lượt mất bao lâu, kết thúc ra sao, và theo từng model: hãng, tên model, số lần gọi, lỗi và token. Không bao giờ có câu hỏi, câu trả lời, người dùng hay thông báo lỗi: bộ đo không có chúng, và máy chủ chỉ giữ các trường đã biết của mỗi lượt, bỏ phần còn lại.
+- **Mỗi dự án có khoá riêng,** do quản trị tạo trên trang Quản trị, nhập lại mã OTP, chỉ hiện một lần. Máy chủ lưu bản băm và vài ký tự đầu. Khoá chỉ mở `/projects/ingest`, chỉ ghi, và không khoá nào khác mở được đường đó.
+- **Đặt khoá trên máy chủ của chính dự án, không bao giờ trong trang web hay app điện thoại.** Yêu cầu có header `Origin`, thứ mọi trình duyệt đều gửi, bị từ chối dù cầm khoá nào; khoá nằm trong app điện thoại vẫn có thể bị lấy ra.
+- **Giới hạn:** mỗi khoá 120 lần gửi trong 10 phút, mỗi lần 256 KB và 500 lượt, 100.000 lượt một ngày, tối đa 20 khoá. Lượt gửi hai lần chỉ giữ một lần. Khoá sai bị tính là dò. Khoá hết hạn sau 30 ngày không dùng và tối đa 1 năm; thu hồi thì dừng ngay và giữ lại số đã gửi.
+- **Số liệu là điều dự án tự khai.** Ai cầm khoá cũng gửi được lượt bịa cho dự án đó. Đây là báo cáo, không phải hoá đơn: đối chiếu với trang thanh toán của hãng.
+- **Danh sách IP vẫn áp dụng.** Dự án chạy trên cloud nằm ngoài mạng của bạn: `aiworker.caddy` có sẵn một khối cho đúng một IP tới `/projects/ingest` và không tới đâu khác. Bộ đo chỉ gửi khoá qua HTTPS, hoặc tới chính máy đó.
+- **Ai đọc được:** quản trị và người xem, ở `/projects`. Màn treo tường, cổng MCP và Telegram thì không.
+
 ### Hỏi bảng qua Telegram
 
 Tắt trừ khi chủ máy chủ đặt `TELEGRAM_ASK=1`. Khi bật, một dịch vụ thứ hai là tiến trình bot hỏi Telegram xem có tin không, và người ở trong một chat được quản trị duyệt nhận câu trả lời từ bảng. Cần biết trước khi bật:

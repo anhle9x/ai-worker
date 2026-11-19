@@ -70,6 +70,10 @@ Streaming: Anthropic gửi usage trong `message_start` và `message_delta` cuố
 
 Cuối mỗi lượt, nối thêm một dòng vào file trên máy chạy dự án. Mỗi tiến trình ghi trọn dòng (một lệnh ghi cho một dòng) hoặc ghi file riêng. Ghi lỗi không bao giờ được làm hỏng dự án.
 
+## Gửi lên bảng AI Worker
+
+`POST <bảng>/projects/ingest` kèm `Authorization: Bearer <khoá>` và `Content-Type: application/json`, thân là `{"turns": [dòng, dòng, ...]}`: tối đa 500 lượt và 256 KB. Gửi từ máy chủ của dự án, không bao giờ từ trình duyệt (yêu cầu có header `Origin` bị từ chối). Câu trả lời là `{"accepted": n, "duplicates": n, "refused": n, "overDailyLimit": n}`; lượt đã gửi rồi được đếm là trùng, nên gửi lại sau khi quá giờ vẫn an toàn. 429 nghĩa là chờ (`Retry-After`), 401 nghĩa là khoá sai hoặc đã bị thu hồi. Vẫn tiếp tục ghi file.
+
 ## Ánh xạ sang OpenTelemetry
 
 Mỗi trường có tên tương ứng trong OpenTelemetry GenAI, để sau này chuyển dữ liệu sang đó được; bản này chưa gửi OTLP. Tên đã kiểm ngày 2026-11-19 ở [open-telemetry/semantic-conventions-genai](https://github.com/open-telemetry/semantic-conventions-genai), nơi chúng vẫn ở mức Development.

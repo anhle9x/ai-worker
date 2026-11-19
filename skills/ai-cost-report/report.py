@@ -10,6 +10,7 @@ Python 3.8+, standard library only. Usage:
 import argparse
 import csv
 import html
+import io
 import json
 import os
 import re
@@ -153,9 +154,14 @@ class Prices:
         self.local = set(LOCAL_PROVIDERS) | set(self.doc.get("localProviders", []))
         self.yours = []
         for p in extra:
-            with open(p, encoding="utf-8") as f:
-                doc = json.load(f)
-            name = os.path.basename(p)
+            # a file of the user's own, or the same shape already read (the board keeps the prices an admin pasted)
+            # một file riêng của người dùng, hoặc cùng dạng đó đã đọc sẵn (bảng giữ giá mà quản trị đã dán)
+            if isinstance(p, dict):
+                doc, name = p, str(p.get("name") or "prices")
+            else:
+                with open(p, encoding="utf-8") as f:
+                    doc = json.load(f)
+                name = os.path.basename(p)
             self.yours.append(name)
             for prov, info in (doc.get("providers") or {}).items():
                 self.doc["providers"][prov] = dict(info, source=info.get("source") or name, checked=info.get("checked") or "-", yours=name)
@@ -440,27 +446,35 @@ def _blank(v):
 
 
 def write_csv(path, r):
-    fields = ["scope", "name", "provider", "turns", "calls", "errors", "retries", "input", "output", "cacheRead", "cacheWrite", "costUSD", "avgMs", "p95Ms", "maxMs", "priceNote"]
     with open(path, "w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        w.writerow(fields)
+        f.write(csv_text(r))
 
-        def money(p):
-            return "" if p is None else "%.9f" % (p / PICO)
-        tok = r["tokTurn"]
-        w.writerow(["perTurnAverage", "all", "", r["turns"], "%.3f" % (r["callsTurn"] or 0), "", "", *("" if tok[k] is None else "%.1f" % tok[k] for k in TOKENS),
-                    money(r["costTurn"]), "" if r["ms"]["avg"] is None else "%.1f" % r["ms"]["avg"], _blank(r["ms"]["p95"]), _blank(r["ms"]["max"])])
-        w.writerow(["per1000Turns", "all", "", 1000, "", "", "", "", "", "", "", money(r["costTurn"] * 1000 if r["costTurn"] is not None else None), "", "", ""])
-        for (prov, model), a in sorted(r["models"].items()):
-            none = a["unmeasuredTurns"] == a["turns"]
-            w.writerow(["modelTotal", model, prov, a["turns"], a["calls"], a["errors"], a["retries"],
-                        *("" if none else a[k] for k in TOKENS), money(a["cost"]) if a["costTurns"] else "", "", "", "",
-                        "local" if a.get("local") else "noPrice" if a["unpricedTurns"] else ""])
-        for day, d in sorted(r["days"].items()):
-            w.writerow(["dayTotal", day, "", d["turns"], "", d["errors"], "", "", "", "", "", money(d["cost"]) if d["costTurns"] else "",
-                        "" if not d["ms"] else "%.1f" % avg(d["ms"]), _blank(p95(d["ms"])), max(d["ms"]) if d["ms"] else ""])
-        for a in r["alt"]:
-            w.writerow(["estimateSameTokens", a["model"], "", "", "", "", "", "", "", "", "", money(a["costTurn"]), "", "", ""])
+
+def csv_text(r):
+    """The CSV of the report, as text.
+    CSV của báo cáo, dạng chữ."""
+    f = io.StringIO()
+    fields = ["scope", "name", "provider", "turns", "calls", "errors", "retries", "input", "output", "cacheRead", "cacheWrite", "costUSD", "avgMs", "p95Ms", "maxMs", "priceNote"]
+    w = csv.writer(f, lineterminator="\n")
+    w.writerow(fields)
+
+    def money(p):
+        return "" if p is None else "%.9f" % (p / PICO)
+    tok = r["tokTurn"]
+    w.writerow(["perTurnAverage", "all", "", r["turns"], "%.3f" % (r["callsTurn"] or 0), "", "", *("" if tok[k] is None else "%.1f" % tok[k] for k in TOKENS),
+                money(r["costTurn"]), "" if r["ms"]["avg"] is None else "%.1f" % r["ms"]["avg"], _blank(r["ms"]["p95"]), _blank(r["ms"]["max"])])
+    w.writerow(["per1000Turns", "all", "", 1000, "", "", "", "", "", "", "", money(r["costTurn"] * 1000 if r["costTurn"] is not None else None), "", "", ""])
+    for (prov, model), a in sorted(r["models"].items()):
+        none = a["unmeasuredTurns"] == a["turns"]
+        w.writerow(["modelTotal", model, prov, a["turns"], a["calls"], a["errors"], a["retries"],
+                    *("" if none else a[k] for k in TOKENS), money(a["cost"]) if a["costTurns"] else "", "", "", "",
+                    "local" if a.get("local") else "noPrice" if a["unpricedTurns"] else ""])
+    for day, d in sorted(r["days"].items()):
+        w.writerow(["dayTotal", day, "", d["turns"], "", d["errors"], "", "", "", "", "", money(d["cost"]) if d["costTurns"] else "",
+                    "" if not d["ms"] else "%.1f" % avg(d["ms"]), _blank(p95(d["ms"])), max(d["ms"]) if d["ms"] else ""])
+    for a in r["alt"]:
+        w.writerow(["estimateSameTokens", a["model"], "", "", "", "", "", "", "", "", "", money(a["costTurn"]), "", "", ""])
+    return f.getvalue()
 
 
 def main(argv=None):

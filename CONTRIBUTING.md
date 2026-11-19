@@ -43,7 +43,7 @@ The first block ends inside `server/`, so go back to the repository root before 
 
 `bash packaging/check-clean.sh` is not in this list: it looks for private data in the folder it runs in, so it belongs on what gets published. In a checkout that holds your own `packaging/company.json` it reports that file, and that is expected.
 
-`web/ops.js`, `ops.css`, `ops3d.js` (and `i18n.js`, `ops.vi.js`) must be identical to the copies in `server/static/`; the packaging script checks this. After editing `web/`, type `/reload-plugins` and then `/office` so the on-computer page picks up the new version.
+`web/ops.js`, `ops.css`, `ops3d.js` (and `i18n.js`, `ops.vi.js`) must be identical to the copies in `server/static/`; the packaging script checks this. `server/board/costreport.py`, `labels.json` and `prices.json` must be identical to `skills/ai-cost-report/report.py`, `labels.json` and `prices.json`; `server/test_projects.py` checks this. After editing `web/`, type `/reload-plugins` and then `/office` so the on-computer page picks up the new version.
 
 How it is designed, with its specification, flow diagrams and the languages each part uses: see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 

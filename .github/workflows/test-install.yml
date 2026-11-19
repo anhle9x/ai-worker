@@ -1,11 +1,15 @@
 # Try the installer on a clean machine on every push: build on Ubuntu, test-install on Ubuntu and on Windows.
 # Thử file cài trên máy sạch mỗi lần đẩy code: đóng gói trên Ubuntu, cài thử trên Ubuntu và trên Windows.
-# The two Windows jobs cost the most minutes. In a private repository, where minutes are limited, they run only when a push
-# changes something they test (see "Decide whether the Windows jobs run"), or when the workflow is started by hand.
-# In a public repository, where the minutes are free, they run on every push.
-# Hai việc trên Windows tốn nhiều phút nhất. Ở repo riêng tư, nơi số phút có hạn, chúng chỉ chạy khi lần đẩy
-# đổi thứ mà chúng kiểm (xem "Decide whether the Windows jobs run"), hoặc khi workflow được bấm chạy tay.
-# Ở repo công khai, nơi số phút miễn phí, chúng chạy ở mọi lần đẩy.
+# GitHub counts minutes in a private repository against the account's spending, and free in a public one. So on a push the
+# jobs run only in a public repository (the published one, and public forks); a private one, such as the development copy,
+# skips them at once and spends nothing: its tests run on the developer's computer before each release. Started by hand
+# (workflow_dispatch), they run anywhere. When they run, the two Windows jobs, which cost the most minutes, run only when a
+# push changes something they test (see "Decide whether the Windows jobs run") or when the workflow is started by hand.
+# GitHub tính số phút ở repo riêng tư vào mức chi của tài khoản, còn ở repo công khai thì miễn phí. Nên khi đẩy code, các việc
+# chỉ chạy ở repo công khai (repo phát hành và các bản fork công khai); repo riêng tư, như bản phát triển, bỏ qua ngay và không
+# tốn gì: bài kiểm của nó chạy trên máy người phát triển trước mỗi lần phát hành. Bấm chạy tay (workflow_dispatch) thì chạy ở
+# mọi nơi. Khi chạy, hai việc trên Windows, tốn nhiều phút nhất, chỉ chạy khi lần đẩy đổi thứ mà chúng kiểm (xem
+# "Decide whether the Windows jobs run") hoặc khi workflow được bấm chạy tay.
 # Only the normal package is used (no packaging/company.json, no company send code).
 # Chỉ dùng gói thường (không có packaging/company.json, không có mã gửi của công ty).
 name: Test install
@@ -16,6 +20,7 @@ on:
 
 jobs:
   code-check:
+    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +34,7 @@ jobs:
         run: npx -y @anthropic-ai/claude-code@2.1.319 plugin test .
       - name: Test the server
         working-directory: server
-        run: python3 -m unittest test_webhook test_demo test_mcp test_ask test_telegram_bot
+        run: python3 -m unittest test_webhook test_demo test_mcp test_ask test_telegram_bot test_projects
       - name: Test the connector for Codex, Cursor and Gemini CLI
         run: python3 tests/connectors/test_connectors.py
       - name: Test the meter for AI projects and applications, and its report
@@ -39,6 +44,7 @@ jobs:
       - name: Check where the maps put the office labels
         run: node tests/check-map-layout.js
   build:
+    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     outputs:
       windows: ${{ steps.scope.outputs.windows }}

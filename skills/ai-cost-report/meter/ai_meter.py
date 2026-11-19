@@ -14,12 +14,15 @@ The line format is in FORMAT.md next to this folder; any language can write it.
         t.record(resp)                                   # any provider whose answer has a usage shape below
         t.count("myprovider", "my-model", input=812, output=95)   # any other provider, counts by hand
 """
+import atexit
+import collections
 import json
 import os
 import re
 import secrets
 import threading
 import time
+import urllib.request
 from datetime import datetime, timezone
 
 VERSION = 1
@@ -312,15 +315,92 @@ class Turn:
         return self.__exit__(kind, value, tb)
 
 
+# Sending to the board (optional): batches go from a background thread; a full queue drops the oldest turn, a failed send is tried once more,
+# and nothing here ever waits on the network in the project's own thread
+# Gửi lên bảng (tuỳ chọn): các lô đi từ một luồng nền; hàng đợi đầy thì bỏ lượt cũ nhất, gửi lỗi thì thử lại một lần,
+# và không chỗ nào ở đây bắt luồng của chính dự án chờ mạng
+SEND_QUEUE_MAX = 1000
+SEND_EVERY_SECONDS = 10
+SEND_BATCH_TURNS = 100
+SEND_BATCH_BYTES = 200 * 1024
+SEND_TIMEOUT_SECONDS = 5
+
+
+def _send_allowed(url):
+    # the key goes only over HTTPS, or to this machine itself
+    # khoá chỉ đi qua HTTPS, hoặc tới chính máy này
+    return url.startswith("https://") or re.match(r"^http://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/", url) is not None
+
+
+class _Sender:
+    def __init__(self, url, key):
+        self.url, self.key = url, key
+        self.queue = collections.deque(maxlen=SEND_QUEUE_MAX)
+        self.retry = []
+        self.wake = threading.Event()
+        self.thread = threading.Thread(target=self._run, name="ai-meter-send", daemon=True)
+        self.thread.start()
+        self.lock = threading.Lock()
+        atexit.register(self.flush)
+
+    def add(self, line):
+        self.queue.append(line)
+        if len(self.queue) >= SEND_BATCH_TURNS:
+            self.wake.set()
+
+    def _run(self):
+        while True:
+            self.wake.wait(SEND_EVERY_SECONDS)
+            self.wake.clear()
+            try:
+                self.flush()
+            except Exception:
+                pass
+
+    def flush(self):
+        with self.lock:
+            self._flush()
+
+    def _flush(self):
+        while self.queue or self.retry:
+            batch, size, again = self.retry, 0, bool(self.retry)
+            self.retry = []
+            while self.queue and len(batch) < SEND_BATCH_TURNS and size < SEND_BATCH_BYTES:
+                line = self.queue.popleft()
+                size += len(json.dumps(line))
+                batch.append(line)
+            body = json.dumps({"turns": batch}, separators=(",", ":")).encode()
+            req = urllib.request.Request(self.url, data=body, method="POST", headers={
+                "Authorization": "Bearer " + self.key, "Content-Type": "application/json", "User-Agent": "ai-meter/1"})
+            try:
+                with urllib.request.urlopen(req, timeout=SEND_TIMEOUT_SECONDS) as r:
+                    r.read()
+            except Exception:
+                # tried once more at the next send, then let go; the file still has every turn
+                # thử lại một lần ở lần gửi sau, rồi bỏ; file vẫn còn đủ mọi lượt
+                if not again:
+                    self.retry = batch
+                return
+
+
 class Meter:
     """Where the lines go. env is "prod" or "test". AI_METER_FILE and AI_METER_ENV override; AI_METER_OFF=1 turns it off.
     Nơi ghi các dòng. env là "prod" hay "test". AI_METER_FILE và AI_METER_ENV ghi đè; AI_METER_OFF=1 thì tắt."""
 
-    def __init__(self, path="ai-meter.jsonl", env="prod"):
+    def __init__(self, path="ai-meter.jsonl", env="prod", send_url=None, send_key=None):
+        """send_url and send_key (or AI_METER_URL and AI_METER_KEY) also send each turn to the board, in the background; the file is still written.
+        send_url và send_key (hoặc AI_METER_URL và AI_METER_KEY) gửi thêm từng lượt lên bảng, ở nền; file vẫn được ghi."""
         self.path = os.environ.get("AI_METER_FILE") or path
         e = os.environ.get("AI_METER_ENV") or env
         self.env = e if e in ("prod", "test") else "prod"
         self.off = os.environ.get("AI_METER_OFF") == "1"
+        self.sender = None
+        url, key = os.environ.get("AI_METER_URL") or send_url or "", os.environ.get("AI_METER_KEY") or send_key or ""
+        try:
+            if url and key and not self.off and _send_allowed(url):
+                self.sender = _Sender(url, key)
+        except Exception:
+            self.sender = None
 
     def turn(self):
         return Turn(self)
@@ -328,6 +408,11 @@ class Meter:
     def _write(self, line):
         if self.off:
             return
+        if self.sender:
+            try:
+                self.sender.add(line)
+            except Exception:
+                pass
         try:
             data = json.dumps(line, separators=(",", ":")) + "\n"
             with _lock:

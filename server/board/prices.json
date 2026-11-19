@@ -1,0 +1,1039 @@
+{
+ "version": 1,
+ "currency": "USD",
+ "unit": "millionths of a US dollar per 1,000,000 tokens",
+ "fields": "input = tokens not read from or written to the cache; cacheRead = cache hits; cacheWrite = tokens written to the cache at the short lifetime (Anthropic 5 minutes, OpenAI 30 minutes); cacheWriteLong = the part of cacheWrite kept longer (Anthropic 1 hour, OpenAI 12 hours). A price applies from its 'from' day (UTC); null means not known.",
+ "providers": {
+  "anthropic": {
+   "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+   "checked": "2026-11-19",
+   "tier": "Claude API, standard (not batch)"
+  },
+  "openai": {
+   "source": "https://developers.openai.com/api/docs/pricing",
+   "checked": "2026-11-19",
+   "tier": "Standard",
+   "note": "Models before GPT-5.6 have no extra cache-write charge (https://developers.openai.com/api/docs/guides/prompt-caching), so a write costs the input price"
+  },
+  "google": {
+   "source": "https://aistudio.google.com/docs/pricing",
+   "checked": "2026-11-19",
+   "tier": "Gemini API paid tier, Standard, text input"
+  },
+  "xai": {
+   "source": "https://docs.x.ai/docs/models",
+   "checked": "2026-11-19",
+   "tier": "Standard (clusters us-east-1 and us-west-2)",
+   "note": "Some regional clusters cost more (for example us-central-1 lists Grok 4.6 and 4.7 at 10% more); this file uses the standard price"
+  }
+ },
+ "models": [
+  {
+   "provider": "anthropic",
+   "model": "claude-fable-5-2",
+   "prices": [
+    {
+     "from": null,
+     "input": 8000000,
+     "output": 40000000,
+     "cacheRead": 200000,
+     "cacheWrite": 10000000,
+     "cacheWriteLong": 16000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-mythos-5-2",
+   "prices": [
+    {
+     "from": null,
+     "input": 8000000,
+     "output": 40000000,
+     "cacheRead": 200000,
+     "cacheWrite": 10000000,
+     "cacheWriteLong": 16000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-fable-5-1",
+   "prices": [
+    {
+     "from": null,
+     "input": 10000000,
+     "output": 50000000,
+     "cacheRead": 250000,
+     "cacheWrite": 12500000,
+     "cacheWriteLong": 20000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-mythos-5-1",
+   "prices": [
+    {
+     "from": null,
+     "input": 10000000,
+     "output": 50000000,
+     "cacheRead": 250000,
+     "cacheWrite": 12500000,
+     "cacheWriteLong": 20000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-fable-5",
+   "prices": [
+    {
+     "from": null,
+     "input": 10000000,
+     "output": 50000000,
+     "cacheRead": 1000000,
+     "cacheWrite": 12500000,
+     "cacheWriteLong": 20000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-mythos-5",
+   "prices": [
+    {
+     "from": null,
+     "input": 10000000,
+     "output": 50000000,
+     "cacheRead": 1000000,
+     "cacheWrite": 12500000,
+     "cacheWriteLong": 20000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-opus-5-5",
+   "prices": [
+    {
+     "from": null,
+     "input": 4000000,
+     "output": 20000000,
+     "cacheRead": 200000,
+     "cacheWrite": 5000000,
+     "cacheWriteLong": 8000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-opus-5",
+   "prices": [
+    {
+     "from": null,
+     "input": 5000000,
+     "output": 25000000,
+     "cacheRead": 500000,
+     "cacheWrite": 6250000,
+     "cacheWriteLong": 10000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-opus-4-8",
+   "prices": [
+    {
+     "from": null,
+     "input": 5000000,
+     "output": 25000000,
+     "cacheRead": 500000,
+     "cacheWrite": 6250000,
+     "cacheWriteLong": 10000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-opus-4-7",
+   "prices": [
+    {
+     "from": null,
+     "input": 5000000,
+     "output": 25000000,
+     "cacheRead": 500000,
+     "cacheWrite": 6250000,
+     "cacheWriteLong": 10000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-opus-4-6",
+   "prices": [
+    {
+     "from": null,
+     "input": 5000000,
+     "output": 25000000,
+     "cacheRead": 500000,
+     "cacheWrite": 6250000,
+     "cacheWriteLong": 10000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-opus-4-5",
+   "prices": [
+    {
+     "from": null,
+     "input": 5000000,
+     "output": 25000000,
+     "cacheRead": 500000,
+     "cacheWrite": 6250000,
+     "cacheWriteLong": 10000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-sonnet-5-5",
+   "prices": [
+    {
+     "from": null,
+     "input": 2000000,
+     "output": 10000000,
+     "cacheRead": 100000,
+     "cacheWrite": 2500000,
+     "cacheWriteLong": 4000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-sonnet-5",
+   "prices": [
+    {
+     "from": null,
+     "input": 2000000,
+     "output": 10000000,
+     "cacheRead": 200000,
+     "cacheWrite": 2500000,
+     "cacheWriteLong": 4000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-sonnet-4-6",
+   "prices": [
+    {
+     "from": null,
+     "input": 3000000,
+     "output": 15000000,
+     "cacheRead": 300000,
+     "cacheWrite": 3750000,
+     "cacheWriteLong": 6000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-sonnet-4-5",
+   "prices": [
+    {
+     "from": null,
+     "input": 3000000,
+     "output": 15000000,
+     "cacheRead": 300000,
+     "cacheWrite": 3750000,
+     "cacheWriteLong": 6000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-haiku-4-5",
+   "prices": [
+    {
+     "from": null,
+     "input": 1000000,
+     "output": 5000000,
+     "cacheRead": 100000,
+     "cacheWrite": 1250000,
+     "cacheWriteLong": 2000000
+    }
+   ]
+  },
+  {
+   "provider": "anthropic",
+   "model": "claude-haiku-5-5",
+   "prices": [
+    {
+     "from": null,
+     "input": 100000,
+     "output": 500000,
+     "cacheRead": 10000,
+     "cacheWrite": 125000,
+     "cacheWriteLong": 200000
+    }
+   ],
+   "higherPriceAbove": 100000,
+   "note": "Prompts over 100,000 tokens cost $0.50 in / $2.50 out per MTok; this file uses the lower price"
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-6.2-astra",
+   "prices": [
+    {
+     "from": null,
+     "input": 8000000,
+     "output": 40000000,
+     "cacheRead": 400000,
+     "cacheWrite": 10000000,
+     "cacheWriteLong": 20000000
+    }
+   ],
+   "higherPriceAbove": 272000
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-6.2-sol",
+   "prices": [
+    {
+     "from": null,
+     "input": 2000000,
+     "output": 10000000,
+     "cacheRead": 100000,
+     "cacheWrite": 2500000,
+     "cacheWriteLong": 5000000
+    }
+   ],
+   "higherPriceAbove": 272000
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-6-astra",
+   "prices": [
+    {
+     "from": null,
+     "input": 10000000,
+     "output": 50000000,
+     "cacheRead": 1000000,
+     "cacheWrite": 12500000,
+     "cacheWriteLong": 25000000
+    }
+   ],
+   "higherPriceAbove": 272000
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-6.1-sol",
+   "prices": [
+    {
+     "from": null,
+     "input": 2000000,
+     "output": 10000000,
+     "cacheRead": 100000,
+     "cacheWrite": 2500000,
+     "cacheWriteLong": 5000000
+    }
+   ],
+   "higherPriceAbove": 272000
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-6.1-terra",
+   "prices": [
+    {
+     "from": null,
+     "input": 1000000,
+     "output": 5000000,
+     "cacheRead": 50000,
+     "cacheWrite": 1250000,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 272000
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-6-luna",
+   "prices": [
+    {
+     "from": null,
+     "input": 100000,
+     "output": 500000,
+     "cacheRead": 10000,
+     "cacheWrite": 125000,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 272000
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-6-sol",
+   "prices": [
+    {
+     "from": null,
+     "input": 2000000,
+     "output": 10000000,
+     "cacheRead": 200000,
+     "cacheWrite": 2500000,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 272000
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-5.6-terra",
+   "prices": [
+    {
+     "from": null,
+     "input": 2000000,
+     "output": 12000000,
+     "cacheRead": 200000,
+     "cacheWrite": 2500000,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 272000
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-5.6-luna",
+   "prices": [
+    {
+     "from": null,
+     "input": 200000,
+     "output": 1200000,
+     "cacheRead": 20000,
+     "cacheWrite": 250000,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 272000
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-5.6-sol",
+   "prices": [
+    {
+     "from": null,
+     "input": 4000000,
+     "output": 20000000,
+     "cacheRead": 400000,
+     "cacheWrite": 5000000,
+     "cacheWriteLong": null
+    },
+    {
+     "from": "2026-12-01",
+     "input": null,
+     "output": null,
+     "cacheRead": null,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 272000,
+   "note": "Promotional price until 2026-11-30; the price after is not on the page, so it is left empty"
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-5.5",
+   "prices": [
+    {
+     "from": null,
+     "input": 5000000,
+     "output": 30000000,
+     "cacheRead": 500000,
+     "cacheWrite": 5000000,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 272000
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-5.4",
+   "prices": [
+    {
+     "from": null,
+     "input": 2500000,
+     "output": 15000000,
+     "cacheRead": 250000,
+     "cacheWrite": 2500000,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 272000
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-5.4-mini",
+   "prices": [
+    {
+     "from": null,
+     "input": 750000,
+     "output": 4500000,
+     "cacheRead": 75000,
+     "cacheWrite": 750000,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-5.4-nano",
+   "prices": [
+    {
+     "from": null,
+     "input": 200000,
+     "output": 1250000,
+     "cacheRead": 20000,
+     "cacheWrite": 200000,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-5.2",
+   "prices": [
+    {
+     "from": null,
+     "input": 1750000,
+     "output": 14000000,
+     "cacheRead": 175000,
+     "cacheWrite": 1750000,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-5.1",
+   "prices": [
+    {
+     "from": null,
+     "input": 1250000,
+     "output": 10000000,
+     "cacheRead": 125000,
+     "cacheWrite": 1250000,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-5",
+   "prices": [
+    {
+     "from": null,
+     "input": 1250000,
+     "output": 10000000,
+     "cacheRead": 125000,
+     "cacheWrite": 1250000,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-5-mini",
+   "prices": [
+    {
+     "from": null,
+     "input": 250000,
+     "output": 2000000,
+     "cacheRead": 25000,
+     "cacheWrite": 250000,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-5-nano",
+   "prices": [
+    {
+     "from": null,
+     "input": 50000,
+     "output": 400000,
+     "cacheRead": 5000,
+     "cacheWrite": 50000,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-4.1",
+   "prices": [
+    {
+     "from": null,
+     "input": 2000000,
+     "output": 8000000,
+     "cacheRead": 500000,
+     "cacheWrite": 2000000,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-4.1-mini",
+   "prices": [
+    {
+     "from": null,
+     "input": 400000,
+     "output": 1600000,
+     "cacheRead": 100000,
+     "cacheWrite": 400000,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-4o",
+   "prices": [
+    {
+     "from": null,
+     "input": 2500000,
+     "output": 10000000,
+     "cacheRead": 1250000,
+     "cacheWrite": 2500000,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "openai",
+   "model": "gpt-4o-mini",
+   "prices": [
+    {
+     "from": null,
+     "input": 150000,
+     "output": 600000,
+     "cacheRead": 75000,
+     "cacheWrite": 150000,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "openai",
+   "model": "o3",
+   "prices": [
+    {
+     "from": null,
+     "input": 2000000,
+     "output": 8000000,
+     "cacheRead": 500000,
+     "cacheWrite": 2000000,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "google",
+   "model": "gemini-4-carbon",
+   "prices": [
+    {
+     "from": null,
+     "input": 2000000,
+     "output": 10000000,
+     "cacheRead": 100000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    },
+    {
+     "from": "2026-12-01",
+     "input": 4000000,
+     "output": 20000000,
+     "cacheRead": 200000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "google",
+   "model": "gemini-4-argon",
+   "prices": [
+    {
+     "from": null,
+     "input": 2000000,
+     "output": 10000000,
+     "cacheRead": 100000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    },
+    {
+     "from": "2026-12-01",
+     "input": 4000000,
+     "output": 20000000,
+     "cacheRead": 200000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "google",
+   "model": "gemini-4-neon",
+   "prices": [
+    {
+     "from": null,
+     "input": 3000000,
+     "output": 15000000,
+     "cacheRead": 150000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "google",
+   "model": "gemini-4-hydrogen",
+   "prices": [
+    {
+     "from": null,
+     "input": 1500000,
+     "output": 7500000,
+     "cacheRead": 75000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "google",
+   "model": "gemini-3.8-flash",
+   "prices": [
+    {
+     "from": null,
+     "input": 750000,
+     "output": 3750000,
+     "cacheRead": 75000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    },
+    {
+     "from": "2027-01-01",
+     "input": 1500000,
+     "output": 7500000,
+     "cacheRead": 150000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "note": "Explicit cache storage is billed per hour and is not in this report"
+  },
+  {
+   "provider": "google",
+   "model": "gemini-3.6-flash",
+   "prices": [
+    {
+     "from": null,
+     "input": 750000,
+     "output": 3750000,
+     "cacheRead": 75000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    },
+    {
+     "from": "2027-01-01",
+     "input": 1500000,
+     "output": 7500000,
+     "cacheRead": 150000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "google",
+   "model": "gemini-3.5-flash-lite",
+   "prices": [
+    {
+     "from": null,
+     "input": 300000,
+     "output": 2500000,
+     "cacheRead": 30000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ]
+  },
+  {
+   "provider": "google",
+   "model": "gemini-3.1-flash-lite",
+   "prices": [
+    {
+     "from": null,
+     "input": 250000,
+     "output": 1500000,
+     "cacheRead": 25000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "note": "Text, image and video input; audio input costs more"
+  },
+  {
+   "provider": "google",
+   "model": "gemini-3.1-pro-preview",
+   "prices": [
+    {
+     "from": null,
+     "input": 2000000,
+     "output": 12000000,
+     "cacheRead": 200000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 200000
+  },
+  {
+   "provider": "google",
+   "model": "gemini-3-flash-preview",
+   "prices": [
+    {
+     "from": null,
+     "input": 500000,
+     "output": 3000000,
+     "cacheRead": 50000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "note": "Text, image and video input; audio input costs more"
+  },
+  {
+   "provider": "google",
+   "model": "gemini-2.5-pro",
+   "prices": [
+    {
+     "from": null,
+     "input": 1250000,
+     "output": 10000000,
+     "cacheRead": 125000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 200000
+  },
+  {
+   "provider": "google",
+   "model": "gemini-2.5-flash",
+   "prices": [
+    {
+     "from": null,
+     "input": 300000,
+     "output": 2500000,
+     "cacheRead": 30000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "note": "Text, image and video input; audio input costs more"
+  },
+  {
+   "provider": "google",
+   "model": "gemini-2.5-flash-lite",
+   "prices": [
+    {
+     "from": null,
+     "input": 100000,
+     "output": 400000,
+     "cacheRead": 10000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "note": "Text, image and video input; audio input costs more"
+  },
+  {
+   "provider": "xai",
+   "model": "grok-4.20-0309-non-reasoning",
+   "prices": [
+    {
+     "from": null,
+     "input": 1250000,
+     "output": 2500000,
+     "cacheRead": 200000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 200000,
+   "note": "A prompt of 200,000 tokens or more costs twice as much, for all its tokens; this file uses the lower price",
+   "aliases": [
+    "grok-4.20-non-reasoning",
+    "grok-4.20-non-reasoning-latest",
+    "grok-4.20-beta-non-reasoning",
+    "grok-4.20-beta-latest-non-reasoning",
+    "grok-4.20-experimental-beta-0304-non-reasoning",
+    "grok-4.20-experimental-beta-non-reasoning-latest",
+    "grok-4.20-beta-0309-non-reasoning",
+    "grok-4.20-non-reasoning-gv2"
+   ]
+  },
+  {
+   "provider": "xai",
+   "model": "grok-4.20-0309-reasoning",
+   "prices": [
+    {
+     "from": null,
+     "input": 1250000,
+     "output": 2500000,
+     "cacheRead": 200000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 200000,
+   "note": "A prompt of 200,000 tokens or more costs twice as much, for all its tokens; this file uses the lower price",
+   "aliases": [
+    "grok-4.20-reasoning-latest",
+    "grok-4.20",
+    "grok-4.20-reasoning",
+    "grok-4.20-0309",
+    "grok-4.20-beta-0309-reasoning",
+    "grok-4.20-beta",
+    "grok-4.20-beta-0309",
+    "grok-4.20-beta-latest",
+    "grok-4.20-beta-latest-reasoning",
+    "grok-4.20-beta-reasoning",
+    "grok-4.20-experimental-beta-0304-reasoning",
+    "grok-4.20-experimental-beta-0304",
+    "grok-4.20-experimental-beta-reasoning-latest",
+    "grok-4.20-experimental-beta-latest",
+    "grok-4.20-reasoning-gv2"
+   ]
+  },
+  {
+   "provider": "xai",
+   "model": "grok-4.20-multi-agent-0309",
+   "prices": [
+    {
+     "from": null,
+     "input": 1250000,
+     "output": 2500000,
+     "cacheRead": 200000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 200000,
+   "note": "A prompt of 200,000 tokens or more costs twice as much, for all its tokens; this file uses the lower price",
+   "aliases": [
+    "grok-4.20-multi-agent",
+    "grok-4.20-multi-agent-latest",
+    "grok-4.20-multi-agent-beta-latest",
+    "grok-4.20-multi-agent-experimental-beta-0304",
+    "grok-4.20-multi-agent-experimental-beta-latest",
+    "grok-4.20-multi-agent-beta-0309"
+   ]
+  },
+  {
+   "provider": "xai",
+   "model": "grok-4.3",
+   "prices": [
+    {
+     "from": null,
+     "input": 1250000,
+     "output": 2500000,
+     "cacheRead": 200000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 200000,
+   "note": "A prompt of 200,000 tokens or more costs twice as much, for all its tokens; this file uses the lower price",
+   "aliases": [
+    "grok-4.3-latest"
+   ]
+  },
+  {
+   "provider": "xai",
+   "model": "grok-4.5",
+   "prices": [
+    {
+     "from": null,
+     "input": 2000000,
+     "output": 6000000,
+     "cacheRead": 300000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 200000,
+   "note": "A prompt of 200,000 tokens or more costs twice as much, for all its tokens; this file uses the lower price",
+   "aliases": [
+    "grok-4.5-latest",
+    "grok-build-latest"
+   ]
+  },
+  {
+   "provider": "xai",
+   "model": "grok-4.6",
+   "prices": [
+    {
+     "from": null,
+     "input": 2000000,
+     "output": 6000000,
+     "cacheRead": 500000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 200000,
+   "note": "A prompt of 200,000 tokens or more costs twice as much, for all its tokens; this file uses the lower price"
+  },
+  {
+   "provider": "xai",
+   "model": "grok-4.7",
+   "prices": [
+    {
+     "from": null,
+     "input": 2000000,
+     "output": 6000000,
+     "cacheRead": 500000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 200000,
+   "note": "A prompt of 200,000 tokens or more costs twice as much, for all its tokens; this file uses the lower price"
+  },
+  {
+   "provider": "xai",
+   "model": "grok-build-0.1",
+   "prices": [
+    {
+     "from": null,
+     "input": 1000000,
+     "output": 2000000,
+     "cacheRead": 200000,
+     "cacheWrite": null,
+     "cacheWriteLong": null
+    }
+   ],
+   "higherPriceAbove": 200000,
+   "note": "A prompt of 200,000 tokens or more costs twice as much, for all its tokens; this file uses the lower price",
+   "aliases": [
+    "grok-code-fast-1",
+    "grok-code-fast",
+    "grok-code-fast-1-0825"
+   ]
+  }
+ ]
+}

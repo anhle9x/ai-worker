@@ -44,6 +44,9 @@ Which call to use for each LLM call:
 - The file stays on the machine that runs the project. `AI_METER_FILE` moves it; `AI_METER_OFF=1` turns the meter off. The meter never stops the project: its own errors are swallowed.
 - On a server with several processes, give each process its own file (for example with the process id in the name); the report reads many files and drops a turn it has already seen.
 
+### Sending to the AI Worker board (optional)
+When the company's AI Worker board has AI projects and applications turned on (`AI_PROJECTS=1`), an admin makes a key for the project on the board's Admin page. Set `AI_METER_URL` (`https://<board>/projects/ingest`) and `AI_METER_KEY` (the `prj_…` key) in the environment of the project's own server, or pass `send_url`/`send_key` (`sendUrl`/`sendKey` in Node). The meter then also sends each turn in the background, in batches; the file is still written. Never put the key in code that runs in a browser or a phone app: the board refuses requests from a browser, and a key in an app can be copied out. The meter sends the key only over HTTPS, or to the same machine. A project on a cloud server needs the board's admin to let its IP through to `/projects/ingest`. Admins and viewers then read and download the report on `/projects` of the board.
+
 ## 3. Make the report
 When the project has run with real users for the period to report, get the JSONL file(s) and run:
 ```bash

@@ -226,6 +226,71 @@ class Turn {
   }
 }
 
+// Sending to the board (optional): batches go in the background; a full queue drops the oldest turn, a failed send is tried once more,
+// and the project never waits on it. The key goes only over HTTPS, or to this machine itself
+// Gửi lên bảng (tuỳ chọn): các lô đi ở nền; hàng đợi đầy thì bỏ lượt cũ nhất, gửi lỗi thì thử lại một lần,
+// và dự án không bao giờ phải chờ. Khoá chỉ đi qua HTTPS, hoặc tới chính máy này
+const SEND = { queueMax: 1000, everyMs: 10000, batchTurns: 100, batchBytes: 200 * 1024, timeoutMs: 5000 }
+
+function sendAllowed(url) {
+  return url.startsWith('https://') || /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?\//.test(url)
+}
+
+class Sender {
+  constructor(url, key) {
+    this.url = url
+    this.key = key
+    this.queue = []
+    this.retry = []
+    this.busy = false
+    this.timer = setInterval(() => this.flush(), SEND.everyMs)
+    if (this.timer.unref) this.timer.unref()
+    process.once('beforeExit', () => this.flush())
+  }
+
+  add(line) {
+    this.queue.push(line)
+    if (this.queue.length > SEND.queueMax) this.queue.shift()
+    if (this.queue.length >= SEND.batchTurns) this.flush()
+  }
+
+  async flush() {
+    if (this.busy || typeof fetch !== 'function') return
+    this.busy = true
+    try {
+      while (this.queue.length || this.retry.length) {
+        const again = this.retry.length > 0
+        const batch = this.retry
+        this.retry = []
+        let size = 0
+        while (this.queue.length && batch.length < SEND.batchTurns && size < SEND.batchBytes) {
+          const line = this.queue.shift()
+          size += JSON.stringify(line).length
+          batch.push(line)
+        }
+        try {
+          const r = await fetch(this.url, {
+            method: 'POST',
+            headers: { Authorization: 'Bearer ' + this.key, 'Content-Type': 'application/json', 'User-Agent': 'ai-meter/1' },
+            body: JSON.stringify({ turns: batch }),
+            signal: AbortSignal.timeout(SEND.timeoutMs),
+          })
+          await r.arrayBuffer().catch(() => {})
+          if (r.status >= 500 || r.status === 429) throw new Error('later')
+        } catch {
+          // tried once more at the next send, then let go; the file still has every turn
+          // thử lại một lần ở lần gửi sau, rồi bỏ; file vẫn còn đủ mọi lượt
+          if (!again) this.retry = batch
+          return
+        }
+      }
+    } catch {
+    } finally {
+      this.busy = false
+    }
+  }
+}
+
 // Where the lines go. env is "prod" or "test". AI_METER_FILE and AI_METER_ENV override; AI_METER_OFF=1 turns it off.
 // Nơi ghi các dòng. env là "prod" hay "test". AI_METER_FILE và AI_METER_ENV ghi đè; AI_METER_OFF=1 thì tắt.
 class Meter {
@@ -235,6 +300,13 @@ class Meter {
     this.env = e === 'test' ? 'test' : 'prod'
     this.off = process.env.AI_METER_OFF === '1'
     this.sync = !!opts.sync
+    // opts.sendUrl and opts.sendKey (or AI_METER_URL and AI_METER_KEY) also send each turn to the board, in the background; the file is still written
+    // opts.sendUrl và opts.sendKey (hoặc AI_METER_URL và AI_METER_KEY) gửi thêm từng lượt lên bảng, ở nền; file vẫn được ghi
+    this.sender = null
+    try {
+      const url = process.env.AI_METER_URL || opts.sendUrl || '', key = process.env.AI_METER_KEY || opts.sendKey || ''
+      if (url && key && !this.off && sendAllowed(url)) this.sender = new Sender(url, key)
+    } catch {}
   }
 
   start() {
@@ -258,6 +330,9 @@ class Meter {
 
   _write(line) {
     if (this.off) return
+    try {
+      if (this.sender) this.sender.add(line)
+    } catch {}
     try {
       const data = JSON.stringify(line) + '\n'
       if (this.sync) fs.appendFileSync(this.file, data)

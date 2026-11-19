@@ -28,6 +28,18 @@ board.example.com {
 	# 	not path /ingest
 	# }
 	# respond @outside "Forbidden" 403
+	# Only for an AI project or application that runs on a cloud server (AI_PROJECTS=1): let its IP reach /projects/ingest and nothing else.
+	# Replace the two lines at the top with the block below and put the project's IP in place of 192.0.2.10. The path still needs the project's key.
+	# Chỉ cho dự án hay ứng dụng AI chạy trên cloud (AI_PROJECTS=1): cho IP của nó tới /projects/ingest và không tới đâu khác.
+	# Thay hai dòng ở trên cùng bằng khối dưới và đặt IP của dự án vào chỗ 192.0.2.10. Đường này vẫn cần khoá của dự án.
+	# @outside {
+	# 	not remote_ip 203.0.113.0/24 198.51.100.0/24
+	# 	not {
+	# 		remote_ip 192.0.2.10
+	# 		path /projects/ingest
+	# 	}
+	# }
+	# respond @outside "Forbidden" 403
 	# The Telegram bot's path is for a program on this server alone, which calls the webhook directly: nothing that comes through here reaches it.
 	# The webhook refuses such a request by itself; this line stops it one step earlier.
 	# Đường của bot Telegram chỉ dành cho một chương trình trên chính máy chủ này, nó gọi thẳng webhook: không gì đi qua đây tới được đường đó.

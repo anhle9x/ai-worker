@@ -37,6 +37,7 @@ from board.settings import (
     DAILY_RECOUNT_SECONDS,
     KIND_EXTENSION,
     KIND_MCP,
+    KIND_PROJECT,
     KIND_PLUGIN,
     KIND_TELEGRAM,
     MCP_KEYS_MAX,
@@ -448,11 +449,11 @@ def admin_data(now: float, cookie: str, month: str) -> dict:
     tv = []
     for x in TV.list_screens(now):
         seen_state = None if x["exitedAt"] else TV_STATUS.read(x["id"])
-        tv.append(dict(x, branch=branch_name_for_ip(x["lastIp"]), device=device_label(x["device"]), upToDate=None if x.get("owner") or x["kind"] in (KIND_EXTENSION, KIND_PLUGIN, KIND_MCP, KIND_TELEGRAM) or re.search(r"menu ?bar", x["device"], re.I) else (seen_state["ui"] == UI_VERSION) if seen_state else None,
+        tv.append(dict(x, branch=branch_name_for_ip(x["lastIp"]), device=device_label(x["device"]), upToDate=None if x.get("owner") or x["kind"] in (KIND_EXTENSION, KIND_PLUGIN, KIND_MCP, KIND_TELEGRAM, KIND_PROJECT) or re.search(r"menu ?bar", x["device"], re.I) else (seen_state["ui"] == UI_VERSION) if seen_state else None,
                        lastSeenAt=int(seen_state["seenAt"] * 1000) if seen_state else None, running=bool(seen_state) and now - seen_state["seenAt"] < TV_ABSENT_SECONDS,
                        # a key for an AI tool: whole days since it was last used (or made), so a key nobody uses any more stands out
                        # khoá cho công cụ AI: số ngày tròn từ lần dùng cuối (hoặc lúc tạo), để khoá không ai dùng nữa nổi lên
-                       idleDays=idle_days(x, now) if x["kind"] == KIND_MCP else None))
+                       idleDays=idle_days(x, now) if x["kind"] in (KIND_MCP, KIND_PROJECT) else None))
     return {"accounts": ACCOUNTS.list_accounts(), "screens": tv, "sessions": SESSIONS.list_sessions(cookie, now), "unnamedGroups": d["unnamedGroups"], "branches": d["branches"], "team": d["team"], "blocked7d": d.get("blocked7d"),
             "usdRate": USD_RATE, "month": month, "auditLog": AUDIT_LOG.read(month), "auditChain": AUDIT_LOG.check(now), "mcpCalls": AUDIT_LOG.read_calls(month, 100),
             # work handed to ChatGPT, Gemini or Gemma this month: totals and the newest records, never the text
@@ -464,7 +465,15 @@ def admin_data(now: float, cookie: str, month: str) -> dict:
             "telegramAsk": dict(TELEGRAM_BOT.read(), on=settings.TELEGRAM_ASK_ENABLED, app=settings.TELEGRAM_APP_ENABLED),
             # whether /mcp/connect exists, so the page points to it only when it does (MCP=0 turns it off)
             # /mcp/connect có tồn tại không, để trang chỉ trỏ tới khi có (MCP=0 tắt nó)
-            "mcpOn": settings.MCP_ENABLED, "mcpIdleDays": settings.MCP_IDLE_DAYS}
+            "mcpOn": settings.MCP_ENABLED, "mcpIdleDays": settings.MCP_IDLE_DAYS,
+            # AI projects and applications: whether AI_PROJECTS=1, and the prices an admin pasted
+            # dự án hay ứng dụng AI: có AI_PROJECTS=1 không, và giá quản trị đã dán
+            "projectsOn": settings.PROJECTS_ENABLED, "projectPrices": project_prices() if settings.PROJECTS_ENABLED else {}}
+
+
+def project_prices() -> dict:
+    from board.projects import PRICES
+    return PRICES.read()
 
 
 def idle_days(row: dict, now: float) -> int:
@@ -661,7 +670,20 @@ def daily_loop() -> None:
     Giữ tổng theo ngày luôn mới: lúc khởi động, rồi mỗi DAILY_RECOUNT_SECONDS."""
     while True:
         record_daily()
+        sweep_projects()
         time.sleep(DAILY_RECOUNT_SECONDS)
+
+
+def sweep_projects() -> None:
+    """Drop the turns and daily totals of AI projects and applications past the days they are kept.
+    Bỏ các lượt và tổng theo ngày của dự án hay ứng dụng AI đã quá số ngày được giữ."""
+    try:
+        from board.projects import PROJECTS
+        PROJECTS.sweep(time.time())
+    # a side table: if it breaks, ignore it, do not crash the webhook
+    # bảng phụ: hỏng thì bỏ qua, không làm sập webhook
+    except Exception as e:
+        sys.stderr.write("projects: %s\n" % e)
 
 
 def record_history() -> None:

@@ -39,6 +39,9 @@ install -m 0644 webhook_vi.py "$APP_DIR/webhook_vi.py"
 rm -rf "$APP_DIR/board"
 install -d -m 0755 "$APP_DIR/board"
 install -m 0644 board/*.py "$APP_DIR/board/"
+# the price file and the report's words for AI projects and applications (copies of skills/ai-cost-report)
+# bảng giá và chữ của báo cáo cho dự án hay ứng dụng AI (bản sao từ skills/ai-cost-report)
+install -m 0644 board/*.json "$APP_DIR/board/"
 # the 3D office page (three.js + scene + page); without it the webhook falls back to the text board
 # signed plugin updates (made by packaging/release.sh): the server only keeps and serves them, the signing key is not here
 # trang văn phòng 3D (three.js + cảnh + trang); thiếu thì webhook quay về bảng chữ

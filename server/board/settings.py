@@ -136,6 +136,25 @@ KIND_MCP = "mcp"
 # MCP=0 gỡ cổng MCP và các đường ghép của nó: chúng trả 404. Mặc định bật; không đọc được gì cho tới khi quản trị duyệt một khoá
 MCP_ENABLED = os.environ.get("MCP", "1").strip() != "0"
 MCP_KEYS_MAX = 50
+# the kind of a key an AI project or application sends its own measurements with (skills/ai-cost-report): made by an admin on the
+# Admin page, shown once, kept apart like an MCP key. It works on /projects/ingest only, writes only, and no other key works there
+# loại của khoá mà một dự án hay ứng dụng AI dùng để gửi số đo của chính nó (skills/ai-cost-report): quản trị tạo trên trang
+# Quản trị, hiện một lần, tách riêng như khoá MCP. Nó chỉ dùng được ở /projects/ingest, chỉ ghi, và không khoá nào khác dùng được ở đó
+KIND_PROJECT = "project"
+# AI_PROJECTS=1 turns on the paths for AI projects and applications. Off by default: updating the server opens no new path by itself
+# AI_PROJECTS=1 bật các đường cho dự án hay ứng dụng AI. Mặc định tắt: cập nhật máy chủ không tự mở thêm đường nào
+PROJECTS_ENABLED = os.environ.get("AI_PROJECTS", "0").strip() == "1"
+PROJECT_KEYS_MAX = 20
+# one send: its size, how many turns it may hold; how often one key may send, and how many turns it may add in a day
+# một lần gửi: dung lượng, số lượt tối đa; một khoá được gửi bao nhiêu lần, và thêm được bao nhiêu lượt trong một ngày
+PROJECT_SEND_MAX_BYTES = 256 * 1024
+PROJECT_SEND_MAX_TURNS = 500
+PROJECT_SENDS_PER_KEY = 120
+PROJECT_SENDS_WINDOW_SECONDS = 600
+PROJECT_TURNS_PER_DAY = 100000
+# each turn is kept this many days; the totals per day for the current month and the 12 before it, like the people's totals
+# mỗi lượt giữ ngần này ngày; tổng theo ngày giữ cho tháng hiện tại và 12 tháng trước, như tổng của từng người
+PROJECT_TURN_KEEP_DAYS = 30
 # requests one key may make in the window; a person asking questions through an AI tool stays far below it
 # số yêu cầu một khoá được gửi trong khoảng thời gian; một người hỏi qua công cụ AI còn cách rất xa mức này
 MCP_CALLS_PER_KEY = 120

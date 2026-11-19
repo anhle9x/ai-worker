@@ -262,6 +262,15 @@ Quản lý có thể hỏi Claude về cả đội bằng lời của mình, gõ
 - **Bảng ngay trong Telegram** (khi quản trị đã cho phép chat của bạn): bấm **AI Worker** cạnh ô nhập tin để mở khung nhỏ của biểu tượng thanh menu ngay trong Telegram: ai đang chờ, ai đang làm, biểu đồ chi phí 7 ngày, hạn mức và chi phí. Khung mở được ở mạng văn phòng. Các bước: [INSTALL.vi.md](INSTALL.vi.md), mục "Khung của bảng bên trong Telegram".
 - **Tin nhắn khi có người chờ quá lâu:** gửi `/baocho 10` cho bot (hoặc 5, 15, 30, 60 phút), hoặc đánh dấu ô trong **Cài đặt** của khung. Bot sẽ nhắn khi có người chờ lâu như vậy, tối đa một tin mỗi 5 phút và không nhắn ban đêm; `/baocho tat` để tắt. Các bước: [INSTALL.vi.md](INSTALL.vi.md), mục "Tin báo khi có người chờ quá lâu".
 
+### 2.6 Dự án và ứng dụng AI
+
+Khi máy chủ đã bật tính năng này, liên kết **Dự án và ứng dụng AI** ở đầu `/board` mở `/projects`: số đo của từng dự án nhóm tự làm, nếu dự án đó gửi lên bảng.
+
+1. **Ở đâu:** `/projects`. **Làm gì:** chọn dự án, ngày đầu và ngày cuối (UTC) và **Người dùng thật**, rồi bấm **Xem**. **Kết quả đúng:** số lượt, tiền mỗi lượt và mỗi 1.000 lượt, thời gian trung bình, p95 và chậm nhất, theo model và theo ngày.
+2. **Làm gì:** bấm **Tải báo cáo** (HTML; mở ra rồi **In** để lưu PDF) hoặc **Tải CSV**.
+
+Mỗi lượt chỉ giữ 30 ngày; với những ngày cũ hơn, bảng ở cuối trang có tổng theo ngày, giữ 13 tháng. Đây là số do dự án tự đo, không phải hoá đơn.
+
 ---
 
 ## 3. Quản trị
@@ -331,6 +340,10 @@ Gói cá nhân (Pro, Max) không có trong báo cáo này.
 ### 3.7 File cài biểu tượng thanh menu
 
 Mục **Biểu tượng thanh menu** có các file cài cho quản lý (xem 2.3). Máy chủ tự điền địa chỉ của mình vào từng file, nên quản lý chỉ việc cài và ghép.
+
+### 3.8 Dự án và ứng dụng AI
+
+Khi máy chủ có `AI_PROJECTS=1` (xem INSTALL), mục **Dự án và ứng dụng AI** tạo khoá cho từng dự án: gõ tên, bấm **Tạo khoá**, nhập OTP. Hai dòng hiện ra một lần đó đặt vào biến môi trường trên máy chủ của chính dự án, không bao giờ vào trang web hay app điện thoại. Các khoá được liệt kê, đổi tên và thu hồi ở mục **Màn hình TV**; thu hồi vẫn giữ số dự án đã gửi. **Giá riêng** nhận file giá theo dạng `skills/ai-cost-report/my-prices.example.json`, cho hãng mà bảng giá chưa có, giá đã thương lượng, hay model chạy trên máy của nhóm.
 
 ---
 

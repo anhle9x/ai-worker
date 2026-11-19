@@ -43,7 +43,7 @@ Khối lệnh đầu kết thúc ở trong `server/`, nên quay về thư mục 
 
 `bash packaging/check-clean.sh` không nằm trong danh sách này: nó tìm dữ liệu riêng trong thư mục đang chạy, nên dùng cho phần sẽ được công bố. Ở bản checkout có file `packaging/company.json` của riêng bạn, nó sẽ báo file đó, và như vậy là đúng.
 
-`web/ops.js`, `ops.css`, `ops3d.js` (và `i18n.js`, `ops.vi.js`) phải giống hệt bản trong `server/static/`; script đóng gói sẽ kiểm. Sửa `web/` thì gõ `/reload-plugins` rồi `/office` để trang trên máy nhận bản mới.
+`web/ops.js`, `ops.css`, `ops3d.js` (và `i18n.js`, `ops.vi.js`) phải giống hệt bản trong `server/static/`; script đóng gói sẽ kiểm. `server/board/costreport.py`, `labels.json` và `prices.json` phải giống hệt `skills/ai-cost-report/report.py`, `labels.json` và `prices.json`; `server/test_projects.py` sẽ kiểm. Sửa `web/` thì gõ `/reload-plugins` rồi `/office` để trang trên máy nhận bản mới.
 
 Thiết kế, đặc tả, sơ đồ luồng và ngôn ngữ lập trình từng phần dùng: xem [docs/ARCHITECTURE.vi.md](docs/ARCHITECTURE.vi.md).
 

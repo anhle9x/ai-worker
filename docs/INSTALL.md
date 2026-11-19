@@ -124,6 +124,17 @@ Before you open it:
 - **The log shows Anthropic's address, not the person's,** and the key's row gets a line saying it was used from a new IP.
 - **Tried once, on 2026-11-17, from the Chat tab of the Claude desktop app,** against a board behind Caddy 2.6.2 with the block above and a key that reads totals only: the connector was added, and Claude answered from the board's numbers. Three things were seen. The first attempt to add the connector said the address could not be reached and the second went through; the reason was not found. Claude also asked three `/.well-known/oauth-...` paths, which this block keeps closed (403), and that did not stop it. Request headers were offered on the account used. claude.ai in a browser and the mobile app use the same connector and were not tried.
 
+## AI projects and applications (optional)
+
+A project or application your team built can send what its `ai-cost-report` meter measures (times and tokens per turn, never a question or an answer) to the board, where admins and viewers read and download the report. Off until you turn it on.
+
+1. **Where:** the server, as root. **Do:** add `AI_PROJECTS=1` to `/etc/ai-worker.env`, then `sudo systemctl restart ai-worker`. **Right result:** the Admin page has a section **AI projects and applications**, and `/board` a link to `/projects`.
+2. **Where:** the Admin page. **Do:** type the project's name, click **Make a key**, enter your OTP code. **Right result:** two lines, `AI_METER_URL=…/projects/ingest` and `AI_METER_KEY=prj_…`, shown once.
+3. **Where:** the project's own server (never a web page or a phone app). **Do:** put those two lines in its environment, next to the meter from `skills/ai-cost-report/meter/`. **Right result:** after a few requests, the project shows on `/projects`.
+4. **A project on a cloud server:** its requests come from outside your networks, so the proxy refuses them. In `aiworker.caddy`, use the commented block that lets one IP reach `/projects/ingest` only, put the project's IP in it, and run `sudo systemctl reload caddy`.
+
+Prices come from `server/board/prices.json`, a copy of the skill's price file that ships with each release. For a provider it does not have, a negotiated price, or a model on your own machine, paste a price file of your own under **Prices of your own** on the Admin page.
+
 ## Menu bar icon for managers
 
 Managers see in the menu bar how many people are waiting for an answer, without opening the board: a native app on macOS, an app next to the clock on Windows (installed from an .msi, no admin rights), a top bar icon on Ubuntu (a .deb package). A click opens a small window with Waiting, Working, Quota, Cost today and Settings. Details: [docs/menu-bar-spec.md](menu-bar-spec.md).

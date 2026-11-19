@@ -23,6 +23,7 @@ from board.mcp import SCOPE_TOTALS as MCP_SCOPE_TOTALS
 from board.security import ADMIN, VIEWER, WALL, parse_names, parse_otp
 from board.settings import (
     KIND_MCP,
+    KIND_PROJECT,
     KIND_TELEGRAM,
     LOCAL_TZ,
     MAX_ACCOUNTS,
@@ -32,6 +33,7 @@ from board.settings import (
     MINI_HANDOFF_MAX,
     MINI_HANDOFF_PER_TOKEN,
     MINI_HANDOFF_SECONDS,
+    PROJECT_KEYS_MAX,
     TELEGRAM_CHATS_MAX,
     TELEGRAM_PENDING_MAX,
     TV_APPROVE_SECONDS,
@@ -328,7 +330,7 @@ def side_of(kind) -> str:
     screens, menu bar computers, extensions and plugins. A row is found, counted and replaced only on its own side.
     Các dòng đã ghép nằm ở ba phía của một bức tường: khoá cho cổng MCP, chat Telegram, và mọi thứ còn lại (""), tức
     màn hình, máy thanh menu, tiện ích và plugin. Một dòng chỉ được tìm, đếm và thay ở đúng phía của nó."""
-    return kind if kind in (KIND_MCP, KIND_TELEGRAM) else ""
+    return kind if kind in (KIND_MCP, KIND_TELEGRAM, KIND_PROJECT) else ""
 
 
 def chat_key(telegram_id: str) -> str:
@@ -509,8 +511,8 @@ class TvStore(Store):
 
     def create(self, r: dict, now: float) -> tuple:
         side = side_of(r.get("kind"))
-        mcp, chat = side == KIND_MCP, side == KIND_TELEGRAM
-        token = chat_key(r["telegramId"]) if chat else ("mcp_" if mcp else "tv_") + secrets.token_urlsafe(32)
+        mcp, chat, project = side == KIND_MCP, side == KIND_TELEGRAM, side == KIND_PROJECT
+        token = chat_key(r["telegramId"]) if chat else ("mcp_" if mcp else "prj_" if project else "tv_") + secrets.token_urlsafe(32)
         tv_id = secrets.token_hex(6)
 
         def change(d):
@@ -527,6 +529,8 @@ class TvStore(Store):
             same_side = sum(1 for v in d.values() if side_of(v.get("kind")) == side)
             if mcp and same_side >= MCP_KEYS_MAX:
                 raise ValueError(tx("Limit of {n} MCP keys reached, revoke some first", n=MCP_KEYS_MAX))
+            if project and same_side >= PROJECT_KEYS_MAX:
+                raise ValueError(tx("Limit of {n} keys for AI projects and applications reached, revoke some first", n=PROJECT_KEYS_MAX))
             if chat and same_side >= TELEGRAM_CHATS_MAX:
                 raise ValueError(tx("Limit of {n} Telegram chats reached, revoke some first", n=TELEGRAM_CHATS_MAX))
             if not side and same_side >= TV_MAX:
@@ -540,8 +544,8 @@ class TvStore(Store):
                      **({"owner": r["owner"]} if r.get("owner") else {}), **({"kind": r["kind"]} if r.get("kind") else {}),
                      # an MCP key: what it may read, and its first characters so an admin can tell which key a row is. The rest is never stored
                      # khoá MCP: nó được đọc gì, và vài ký tự đầu để quản trị biết dòng nào là khoá nào. Phần còn lại không bao giờ được lưu
-                     **({"scope": MCP_SCOPE_PEOPLE if r.get("scope") == MCP_SCOPE_PEOPLE else MCP_SCOPE_TOTALS} if side else {}),
-                     **({"keyStart": token[:12]} if mcp else {}),
+                     **({"scope": MCP_SCOPE_PEOPLE if r.get("scope") == MCP_SCOPE_PEOPLE else MCP_SCOPE_TOTALS} if side in (KIND_MCP, KIND_TELEGRAM) else {}),
+                     **({"keyStart": token[:12]} if mcp or project else {}),
                      # a Telegram chat: whose it is, for the admin to read. The number is no secret, and it is all there is to store
                      # chat Telegram: của ai, để quản trị đọc. Con số này không bí mật, và cũng không còn gì khác để lưu
                      **({"telegramId": r["telegramId"], "telegramUser": r.get("telegramUser", "")} if chat else {})}

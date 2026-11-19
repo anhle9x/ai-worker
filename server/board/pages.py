@@ -1236,6 +1236,9 @@ def page_board(viewer_name: str, now: float, role: str = WALL) -> bytes:
         # the page where a person asks for a key for their AI tool; only when the MCP gate is on (MCP=0 removes the page)
         # trang để một người xin khoá cho công cụ AI của mình; chỉ khi cổng MCP đang bật (MCP=0 bỏ trang đó)
         ('<a href="/mcp/connect">' + lit(tx("Connect an AI tool")) + '</a>' if settings.MCP_ENABLED and role != WALL else '') +
+        # what AI projects and applications measured; only with AI_PROJECTS=1, never for the wall display
+        # số đo của dự án hay ứng dụng AI; chỉ khi có AI_PROJECTS=1, không bao giờ cho màn hình treo tường
+        ('<a href="/projects">' + lit(tx("AI projects and applications")) + '</a>' if settings.PROJECTS_ENABLED and role != WALL else '') +
         '<form method="post" action="/logout" style="margin:0"><button>%s</button></form></div></div>'
         '<div class="card"><table><thead><tr><th>' + lit(tx("Person · account · internal IP")) + '</th><th>' + lit(tx("Status")) + '</th><th>' + lit(tx("Model")) + '</th>'
         '<th title="' + lit(tx("Share used of the 5-hour and 7-day windows of the Claude account (subscription plan); at 100% you wait for the reset")) + '">' + lit(tx("Quota")) + '</th>'
@@ -1251,3 +1254,57 @@ def page_board(viewer_name: str, now: float, role: str = WALL) -> bytes:
             html.escape(tx("Whole team ({n} people)", n=len(rows))), html.escape(tx("{n} open sessions", n=total["openSessions"])), format_money(total["usdToday"]),
             html.escape(tx("7 days {amount}", amount=format_money(total["usd7d"]))), compact(total["tokensIn"]), compact(total["tokensOut"]), *total["tasks"]))
     return render_page(tx("AI Worker dashboard"), body, auto_refresh=True)
+
+
+def page_projects(known: dict, project: str, first: str, last: str, env: str, now: float) -> bytes:
+    """What the AI projects and applications measured: the report of one project for some days, the same page the ai-cost-report skill makes,
+    with a form above it to pick the project, the days and the environment, links to download it, and the totals per day kept 13 months below it.
+    Số đo của các dự án hay ứng dụng AI: báo cáo của một dự án trong vài ngày, đúng trang mà skill ai-cost-report làm ra, có biểu mẫu
+    phía trên để chọn dự án, ngày và môi trường, liên kết để tải về, và các tổng theo ngày giữ 13 tháng phía dưới."""
+    from board import projects
+    from urllib.parse import urlencode
+    lang = current_lang() if current_lang() in ("en", "vi") else "en"
+    e = lambda text: html.escape(str(text), quote=True)
+    style = ('<style>.pick{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:end;margin:0 0 14px}.pick label{display:flex;flex-direction:column;font-size:13px;color:var(--muted);gap:2px}'
+             '.pick select,.pick input,.pick button{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);min-height:36px}'
+             '.pick button{background:var(--accent);border-color:var(--accent);color:#fff;cursor:pointer}.links{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0 0 6px}'
+             '.top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin-bottom:10px;font-size:14px}@media print{.pick,.links,.top{display:none}}</style>')
+    top = '<div class="top"><a href="/board">%s</a></div>' % e(tx("◂ Detail board"))
+    if not project:
+        body = ('<!doctype html><html lang="%s"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>%s</title>'
+                '<style>%s</style>%s</head><body><main>%s<h1>%s</h1><p class="note">%s</p></main></body></html>') % (
+                    lang, e(tx("AI projects and applications")), projects.costreport.CSS, style, top, e(tx("AI projects and applications")),
+                    e(tx("No AI project or application has a key yet. An admin makes one on the Admin page, in AI projects and applications; the project then sends what it measures with the ai-cost-report meter.")))
+        return body.encode()
+    options = "".join('<option value="%s"%s>%s</option>' % (e(k), " selected" if k == project else "", e(v)) for k, v in sorted(known.items(), key=lambda kv: kv[1].lower()))
+    envs = "".join('<option value="%s"%s>%s</option>' % (k, " selected" if k == env else "", e(label)) for k, label in (("prod", tx("Real users (prod)")), ("test", tx("Trial runs (test)")), ("all", tx("Both"))))
+    query = urlencode({"project": project, "from": first, "to": last, "env": env})
+    form = ('<form class="pick" method="get" action="/projects"><label>%s<select name="project">%s</select></label>'
+            '<label>%s<input type="date" name="from" value="%s"></label><label>%s<input type="date" name="to" value="%s"></label>'
+            '<label>%s<select name="env">%s</select></label><button type="submit">%s</button></form>'
+            '<p class="links"><a href="/projects/report.html?%s">%s</a><a href="/projects/report.csv?%s">%s</a></p>') % (
+                e(tx("Project or application")), options, e(tx("From (UTC)")), first, e(tx("To (UTC)")), last, e(tx("Environment")), envs, e(tx("Show")),
+                e(query), e(tx("Download the report (HTML, prints to PDF)")), e(query), e(tx("Download CSV")))
+    page = projects.report_html(project, known[project], first, last, env, lang, now)
+    oldest = projects.utc_day(now - settings.PROJECT_TURN_KEEP_DAYS * 86400)
+    notes = ""
+    if first < oldest:
+        notes = '<p class="note">%s</p>' % e(tx("Each turn is kept {days} days, so the report above covers {oldest} onwards and its 95th percentile only those days. The table at the bottom has the totals per day, kept 13 months.",
+                                                days=settings.PROJECT_TURN_KEEP_DAYS, oldest=oldest))
+    rows = projects.daily_rows(project, first, last, env)
+    money = lambda pico: "$%.4f" % (pico / projects.costreport.PICO)
+    table = ""
+    if rows:
+        head = "".join("<th>%s</th>" % e(x) for x in (tx("Day"), tx("Turns"), tx("LLM calls"), tx("Errors"), tx("Tokens in"), tx("Tokens out"), tx("Cost")))
+        body_rows = "".join("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+            r["day"], "{:,}".format(r["turns"]), "{:,}".format(r["calls"]), "{:,}".format(r["errors"]), "{:,}".format(r["input"]), "{:,}".format(r["output"]),
+            e((money(r["cost"]) + " *" if r["cost"] else tx("no price")) if r["noPrice"] else money(r["cost"]))) for r in rows)
+        table = ('<h2>%s</h2><p class="note">%s</p><div class="wrap"><table><tr>%s</tr>%s</table></div>') % (
+            e(tx("Totals per day, kept 13 months")), e(tx("Tokens in include cache reads and writes. * means part of that day used a model with no price, left out of the cost.")), head, body_rows)
+    page = page.replace("</head>", style + "</head>", 1)
+    page = page.replace("<main>", "<main>" + top + form + notes, 1)
+    # the totals per day go just above the price sources, the last heading of the report
+    # tổng theo ngày nằm ngay trên phần nguồn giá, đề mục cuối cùng của báo cáo
+    at = page.rfind("<h2>")
+    return (page[:at] + table + page[at:]).encode()
+

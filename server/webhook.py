@@ -81,7 +81,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable, NamedTuple, Optional
 from urllib.parse import parse_qs, quote, urlparse
 
-from board import assets, chat, db, mcp, packages, settings, tgapp
+from board import assets, chat, db, mcp, packages, projects, settings, tgapp
 from board.assets import RELEASE_NAME_RE, STATIC_DIR, STATIC_FILES, has_3d_page
 from board.devices import clean_delegations, clean_payload, key_matches, refuse_constant, save_ingest
 from board.lang import REQUEST, lang_from, tx
@@ -115,6 +115,7 @@ from board.pages import (
     page_mcp_connect,
     page_mini,
     page_mini_pair,
+    page_projects,
     page_tv,
 )
 from board.security import (
@@ -133,6 +134,7 @@ from board.settings import (
     DATA_DIR,
     KIND_EXTENSION,
     KIND_MCP,
+    KIND_PROJECT,
     KIND_TELEGRAM,
     KIND_PLUGIN,
     MAX_BODY_BYTES,
@@ -143,6 +145,9 @@ from board.settings import (
     MINI_HANDOFF_SECONDS,
     MINI_NOTIFY_MINUTES,
     PORT,
+    PROJECT_SEND_MAX_BYTES,
+    PROJECT_SENDS_PER_KEY,
+    PROJECT_SENDS_WINDOW_SECONDS,
     TV_CODE_SECONDS,
     TV_SESSION_SECONDS,
 )
@@ -159,6 +164,7 @@ from board.stores import (
     TV_STATUS,
     MenubarLimit,
     chat_key,
+    clean_tv_name,
     device_label,
     is_menubar_client,
     is_plugin_client,
@@ -206,6 +212,10 @@ class Handler(BaseHTTPRequestHandler):
         # an AI tool with a live MCP key is not probing either; how often it may ask is counted per key, in mcp_post
         # công cụ AI có khoá MCP còn hạn cũng không phải đang dò; nó được hỏi bao nhiêu lần thì đếm theo khoá, trong mcp_post
         if bearer.startswith("mcp_") and self.path == "/mcp" and settings.MCP_ENABLED and TV.find(bearer, now, side=KIND_MCP):
+            return False
+        # nor is an AI project or application sending with a live key of its own; how often it may send is counted per key, in project_ingest
+        # dự án hay ứng dụng AI gửi bằng khoá còn hạn của chính nó cũng vậy; nó được gửi bao nhiêu lần thì đếm theo khoá, trong project_ingest
+        if bearer.startswith("prj_") and self.path == "/projects/ingest" and settings.PROJECTS_ENABLED and TV.find(bearer, now, side=KIND_PROJECT):
             return False
         # nor is the board's window inside Telegram holding a live session; /tg/session counts its own tries per IP and per chat
         # khung bảng bên trong Telegram đang giữ phiên còn sống cũng vậy; /tg/session tự đếm số lần thử theo IP và theo chat
@@ -335,6 +345,10 @@ class Handler(BaseHTTPRequestHandler):
         # và cho khung bên trong Telegram, chỉ có mặt khi cũng có TELEGRAM_APP=1
         if d and d.telegram_app and not settings.TELEGRAM_APP_ENABLED:
             d = None
+        # and for AI projects and applications, which are there only with AI_PROJECTS=1
+        # và cho dự án hay ứng dụng AI, chỉ có mặt khi có AI_PROJECTS=1
+        if d and d.projects and not settings.PROJECTS_ENABLED:
+            d = None
         if not d:
             return self.reply(404, {"error": tx("Not found")})
         y = self.gate(d)
@@ -394,6 +408,21 @@ class Handler(BaseHTTPRequestHandler):
             if telegram_id:
                 tgapp.SESSIONS.end_chat(telegram_id)
             self.reply(401, {"error": tx("Close this window and open it again from the chat.")}, quiet=True)
+            return None
+        if d.permission == PERM_PROJECT_KEY:
+            # an AI project or application sending what it measured: its key is in the Authorization header, cookies are ignored. It sends
+            # from its own server, never from a browser: a request with an Origin is refused whatever key it holds, so a key put in a web page is useless
+            # dự án hay ứng dụng AI gửi số nó đã đo: khoá nằm trong header Authorization, bỏ qua cookie. Nó gửi từ máy chủ của chính nó,
+            # không bao giờ từ trình duyệt: yêu cầu có Origin bị từ chối dù cầm khoá nào, nên khoá đặt trong trang web là vô dụng
+            if self.headers.get("Origin"):
+                self.reply(403, {"error": tx("Wrong origin")})
+                return None
+            token = self.bearer()
+            key = TV.find(token, now, side=KIND_PROJECT) if token.startswith("prj_") else None
+            if key:
+                return RequestCtx("project:" + key["name"], None, "", now)
+            self.note_revoked_key(token, now)
+            self.reply(401, {"error": tx("This path needs a key for an AI project or application, sent as Authorization: Bearer. An admin makes one on the Admin page.")})
             return None
         if d.permission == PERM_MCP_KEY:
             # an AI tool on the MCP endpoint: its key is in the Authorization header and cookies are ignored. A tool sends no Origin;
@@ -940,6 +969,77 @@ class Handler(BaseHTTPRequestHandler):
         return self.reply_page(200, b, cookie="session=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Strict" % (token, TV_SESSION_SECONDS),
                               content_type="application/json; charset=utf-8")
 
+    def project_ingest(self, y: "RequestCtx") -> None:
+        """Turns an AI project or application measured, in the meter's line format: {"turns": [...]}. Each is cleaned like the report cleans it,
+        an unknown field dropped and a bad turn refused; a turn sent again is kept once. Write-only: the answer is three counts.
+        Các lượt mà một dự án hay ứng dụng AI đã đo, theo định dạng dòng của bộ đo: {"turns": [...]}. Mỗi lượt được làm sạch như báo cáo làm,
+        trường lạ bị bỏ và lượt sai bị từ chối; lượt gửi lại chỉ giữ một lần. Chỉ ghi: câu trả lời là ba con số."""
+        token, ip = self.bearer(), self.client_ip()
+        key, key_id = TV.find(token, y.now, side=KIND_PROJECT), TV.id_of(token)
+        if not key:
+            return self.reply(401, {"error": tx("Not paired")}, quiet=True)
+        if not PROJECT_LIMIT.allow(key_id, y.now):
+            if PROJECT_LIMIT.first_refusal(key_id, y.now):
+                AUDIT_LOG.write(action="project-rate-limited", tv=key["name"], id=key_id, clientIp=ip)
+            return self.reply(429, {"error": tx("This key has sent too often. Try again in a few minutes.")},
+                              headers=(("Retry-After", str(PROJECT_LIMIT.retry_after(key_id, y.now))),))
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = 0
+        if n <= 0 or n > PROJECT_SEND_MAX_BYTES:
+            return self.reply(413, {"error": tx("Too large")})
+        try:
+            body = json.loads(self.rfile.read(n))
+        except ValueError:
+            return self.reply(400, {"error": tx("Not JSON")})
+        turns, refused = projects.clean_batch(body, y.now)
+        if turns is None:
+            return self.reply(400, {"error": tx("Send a JSON object whose turns field is a list of at most {n} turns", n=settings.PROJECT_SEND_MAX_TURNS)})
+        TV.touch(token, ip, y.now, side=KIND_PROJECT)
+        TV_STATUS.mark_seen(key_id, "", y.now)
+        counts = projects.PROJECTS.add(key_id, key["name"], turns, y.now)
+        self.reply(200, dict(counts, refused=refused), quiet=True)
+
+    def project_choice(self, y: "RequestCtx") -> tuple:
+        """The project, days and environment asked for in the query; the project must be one the board knows.
+        Dự án, các ngày và môi trường hỏi trong query; dự án phải là dự án bảng đã biết."""
+        q = parse_qs(urlparse(self.path).query)
+        one = lambda k: (q.get(k) or [""])[0][:40]
+        known = projects.known(y.now)
+        project = one("project") if one("project") in known else (next(iter(known)) if known else "")
+        first, last = projects.span(one("from"), one("to"), y.now)
+        env = one("env") if one("env") in ("prod", "test", "all") else "prod"
+        return known, project, first, last, env
+
+    def get_projects(self, y: "RequestCtx") -> None:
+        known, project, first, last, env = self.project_choice(y)
+        self.reply_page(200, page_projects(known, project, first, last, env, y.now))
+
+    def get_projects_report(self, y: "RequestCtx") -> None:
+        known, project, first, last, env = self.project_choice(y)
+        if not project:
+            return self.reply(404, {"error": tx("Not found")})
+        lang = REQUEST.lang if REQUEST.lang in ("en", "vi") else "en"
+        name = known[project]
+        stem = "ai-cost-report-%s-%s" % (re.sub(r"[^A-Za-z0-9_-]+", "-", name)[:40].strip("-") or project, last)
+        if self.path.startswith("/projects/report.csv"):
+            body, kind, ext = projects.report_csv(project, name, first, last, env, lang, y.now).encode("utf-8"), "text/csv; charset=utf-8", "csv"
+        else:
+            body, kind, ext = projects.report_html(project, name, first, last, env, lang, y.now).encode("utf-8"), "text/html; charset=utf-8", "html"
+        self.send_response(200)
+        self.send_header("Content-Type", kind)
+        self.send_header("Content-Disposition", 'attachment; filename="%s.%s"' % (stem, ext))
+        # a downloaded report runs no script and loads nothing: names in it came from people
+        # báo cáo tải về không chạy script và không tải gì thêm: tên trong đó do người nhập
+        self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Robots-Tag", "noindex, nofollow")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def mcp_post(self, y: "RequestCtx") -> None:
         """One MCP message from an AI tool that holds a key an admin approved. Read-only: the tool gets the wall view as text, cut down to what
         its key may read. board/mcp.py speaks the protocol; this method counts, logs and sends. The gate has already checked the key and the origin.
@@ -1028,7 +1128,7 @@ class Handler(BaseHTTPRequestHandler):
             n = int(self.headers.get("Content-Length") or 0)
         except ValueError:
             n = 0
-        if n <= 0 or n > (TEAM_CSV_MAX_BYTES if self.path == "/team-csv" else 4096):
+        if n <= 0 or n > (TEAM_CSV_MAX_BYTES if self.path == "/team-csv" else projects.PRICES_MAX_BYTES if self.path == "/admin/project-prices" else 4096):
             return self.reply(413, {"error": tx("Too large")})
         try:
             body = json.loads(self.rfile.read(n))
@@ -1072,6 +1172,23 @@ class Handler(BaseHTTPRequestHandler):
                     d["salesTeam"] = sorted(rest | {email}) if body.get("isSales") is True else sorted(rest)
                 LOCATIONS.mutate(set_sales)
                 details = {"action": "set-sales", "email": email, "isSales": body.get("isSales") is True}
+            elif self.path == "/admin/project-key":
+                name = clean_tv_name(body.get("name"))
+                if not name:
+                    raise ValueError(tx("Give the project a name"))
+                TV.check_name(name, "", time.time())
+                key_id, token = TV.create({"name": name, "approvedBy": user, "ip": self.client_ip(), "device": "AI project", "kind": KIND_PROJECT}, time.time())
+                # the key goes back to this admin once; only its hash and first characters are kept
+                # khoá được trả cho quản trị này một lần; chỉ giữ băm và vài ký tự đầu
+                details, extra = {"action": "project-key-created", "tv": name, "id": key_id, "kind": KIND_PROJECT}, {"token": token, "id": key_id}
+            elif self.path == "/admin/project-prices":
+                doc = body.get("prices")
+                try:
+                    cleaned = projects.clean_prices(doc) if doc else {}
+                except ValueError:
+                    raise ValueError(tx("The price file is not in the shape of my-prices.example.json")) from None
+                projects.PRICES.mutate(lambda d: (d.clear(), d.update(cleaned)))
+                details = {"action": "project-prices", "modelCount": len(cleaned.get("models", [])), "byte": n}
             elif self.path == "/team-csv":
                 people = parse_team_csv(str(body.get("csv") or ""))
                 date_from, date_to = (str(body.get(k) or "") for k in ("dateFrom", "dateTo"))
@@ -1306,6 +1423,10 @@ PERM_DEVICE_KEY = "device-key"
 # a key for the MCP endpoint in the Authorization header: only that kind of key, and it opens nothing else
 # khoá cho cổng MCP trong header Authorization: chỉ loại khoá đó, và nó không mở được gì khác
 PERM_MCP_KEY = "mcp-key"
+# a key of an AI project or application in the Authorization header: it may only send measurements to /projects/ingest
+# khoá của dự án hay ứng dụng AI trong header Authorization: chỉ được gửi số đo tới /projects/ingest
+PERM_PROJECT_KEY = "project-key"
+PROJECT_LIMIT = CallLimit(PROJECT_SENDS_PER_KEY, PROJECT_SENDS_WINDOW_SECONDS)
 # the key of the Telegram bot process, from this machine only: see Handler.from_this_machine
 # khoá của tiến trình bot Telegram, chỉ từ chính máy này: xem Handler.from_this_machine
 PERM_BOT_KEY = "bot-key"
@@ -1359,6 +1480,9 @@ class Route(NamedTuple):
     # part of the board's window inside Telegram: gone (404) unless TELEGRAM_APP=1
     # thuộc khung bảng bên trong Telegram: biến mất (404) trừ khi TELEGRAM_APP=1
     telegram_app: bool = False
+    # part of AI projects and applications: gone (404) unless AI_PROJECTS=1
+    # thuộc dự án hay ứng dụng AI: biến mất (404) trừ khi AI_PROJECTS=1
+    projects: bool = False
 
 
 # Every path of the server is listed here; one that is not here is 404. Add a new path to the permission table in test_webhook.py too.
@@ -1400,6 +1524,11 @@ GET_ROUTES = {
     "/telegram": Route(Handler.get_telegram, PERM_NOT_WALL, is_page=True, allow_query=True),
     "/telegram/link": Route(Handler.telegram_link, PERM_NOT_WALL, is_page=True, allow_query=True),
     "/admin/data": Route(Handler.get_admin_data, PERM_ADMIN, allow_query=True),
+    # what AI projects and applications measured: the page, and the report to download. Admins and viewers; never the wall display
+    # số đo của dự án hay ứng dụng AI: trang xem, và báo cáo để tải. Quản trị và người xem; không bao giờ cho màn hình treo tường
+    "/projects": Route(Handler.get_projects, PERM_NOT_WALL, is_page=True, allow_query=True, projects=True),
+    "/projects/report.html": Route(Handler.get_projects_report, PERM_NOT_WALL, allow_query=True, projects=True),
+    "/projects/report.csv": Route(Handler.get_projects_report, PERM_NOT_WALL, allow_query=True, projects=True),
     # the board's window inside Telegram: a page with no numbers and its files, all under /tg/ so a proxy can let just that part through;
     # the numbers come only with a session that /tg/session gives for Telegram's signed fields
     # khung bảng bên trong Telegram: một trang không có số liệu và các file của nó, đều nằm dưới /tg/ để proxy có thể chỉ cho riêng phần đó đi qua;
@@ -1436,6 +1565,13 @@ POST_ROUTES = {
     # khoá của chính tiện ích trong header Authorization chỉ thu hồi khoá đó
     "/ext/unpair": Route(Handler.ext_unpair, PERM_DEVICE_KEY, origin_policy=ORIGIN_EXTENSION),
     "/ingest": Route(Handler.ingest, PERM_INGEST_KEY),
+    # an AI project or application sends the turns it measured, with a key an admin made; write-only
+    # dự án hay ứng dụng AI gửi các lượt nó đã đo, bằng khoá quản trị đã tạo; chỉ ghi
+    "/projects/ingest": Route(Handler.project_ingest, PERM_PROJECT_KEY, projects=True),
+    # an admin makes a key for a project (shown once), or pastes prices that go on top of the price file
+    # quản trị tạo khoá cho một dự án (hiện một lần), hoặc dán giá đè lên bảng giá
+    "/admin/project-key": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True, projects=True),
+    "/admin/project-prices": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True, projects=True),
     # an AI tool with a key an admin approved asks the board's numbers; read-only
     # công cụ AI có khoá đã được quản trị duyệt hỏi số liệu của bảng; chỉ đọc
     "/mcp": Route(Handler.mcp_post, PERM_MCP_KEY, mcp=True),

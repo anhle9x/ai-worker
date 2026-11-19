@@ -26,6 +26,7 @@ import sys
 import tempfile
 import threading
 import time
+from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ACCOUNT = "demo"
@@ -230,6 +231,41 @@ def close_databases() -> None:
         database.conn.close()
 
 
+def sample_projects(now: float) -> str:
+    """Two AI projects with three weeks of turns, through the same code that keeps a real board's turns. Returns the key of the first.
+    Hai dự án AI với ba tuần các lượt, qua đúng đoạn mã giữ lượt của bảng thật. Trả về khoá của dự án đầu."""
+    from board import projects, settings, stores
+    rnd = random.Random(7)
+    first_key = ""
+    for name, models, per_day in (("Car price check", (("anthropic", "claude-sonnet-5-5"), ("ollama", "llama3.2:3b")), 60),
+                                  ("Support chat", (("xai", "grok-4.7"), ("deepseek", "deepseek-chat")), 25)):
+        key_id, key = stores.TV.create({"name": name, "approvedBy": ACCOUNT, "ip": "127.0.0.1", "device": "AI project", "kind": settings.KIND_PROJECT}, now)
+        first_key = first_key or key
+        turns = []
+        for day in range(21, -1, -1):
+            for _ in range(int(per_day * rnd.uniform(0.6, 1.3))):
+                at = now - day * 86400 - rnd.uniform(0, 80000)
+                if at > now:
+                    continue
+                rows = []
+                for i, (provider, model) in enumerate(models):
+                    if i and rnd.random() < 0.6:
+                        continue
+                    measured = not (provider == "deepseek" and rnd.random() < 0.1)
+                    rows.append({"provider": provider, "model": model, "calls": 1 + (rnd.random() < 0.15), "errors": 0, "retries": int(rnd.random() < 0.05),
+                                 "unmeasured": 0 if measured else 1, "input": rnd.randint(600, 2400) if measured else None,
+                                 "output": rnd.randint(80, 600) if measured else None, "cacheRead": rnd.choice((0, 0, 1500, 3000)) if measured else None,
+                                 "cacheWrite": 0 if measured else None, "cacheWriteLong": 0 if measured else None})
+                ms = int(rnd.lognormvariate(7.2, 0.45))
+                turns.append({"v": 1, "turnId": "%016x" % rnd.getrandbits(64), "at": datetime.fromtimestamp(at, timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                              "durationMs": ms, "outcome": "timeout" if rnd.random() < 0.01 else "ok",
+                              "env": "test" if rnd.random() < 0.1 else "prod", "models": rows, **({"ttftMs": min(ms, rnd.randint(300, 900))} if name == "Support chat" else {})})
+        for i in range(0, len(turns), 400):
+            kept, _ = projects.clean_batch({"turns": turns[i:i + 400]}, now)
+            projects.PROJECTS.add(key_id, name, kept, now)
+    return first_key
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Try the AI Worker board on this computer with sample people. Nothing is sent out.")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="port on 127.0.0.1 (default %d; 0 picks a free one)" % DEFAULT_PORT)
@@ -258,7 +294,7 @@ def main(argv=None) -> int:
         os.environ.update(
             BIND_ADDR="127.0.0.1", PORT=str(args.port), DATA_DIR=os.path.join(folder, "data"), KEYS_DIR=os.path.join(folder, "keys"),
             RELEASES_DIR=os.path.join(folder, "releases"), BRANCHES_FILE=branches_file, INGEST_KEY=base64.b32encode(os.urandom(20)).decode(),
-            OTP="%s:%s" % (ACCOUNT, base64.b32encode(secret).decode()), OTP_ADMINS=ACCOUNT)
+            OTP="%s:%s" % (ACCOUNT, base64.b32encode(secret).decode()), OTP_ADMINS=ACCOUNT, AI_PROJECTS="1")
         for name in ("DATA_DIR", "KEYS_DIR", "RELEASES_DIR"):
             os.makedirs(os.environ[name])
         sys.path.insert(0, HERE)
@@ -290,6 +326,7 @@ def main(argv=None) -> int:
         # the people who start out waiting have already waited a while, so the board has waiting times to show
         # những người lúc đầu đang chờ đã chờ sẵn một lúc, để bảng có thời gian chờ mà hiện
         stores.WAIT_TRACKER.since.update(waiting_since)
+        project_key = sample_projects(now)
 
         def keep_alive() -> None:
             rnd = random.Random(11)
@@ -307,6 +344,9 @@ def main(argv=None) -> int:
         # for trying a connector (connectors/) against this demo: the key is made new at every start and opens nothing else
         # để thử một bộ nối (connectors/) với bản thử này: khoá được tạo mới mỗi lần chạy và không mở được gì khác
         print("Send key  %s" % os.environ["INGEST_KEY"])
+        # for trying the ai-cost-report meter against this demo: AI_METER_URL=http://127.0.0.1:<port>/projects/ingest AI_METER_KEY=<this>
+        # để thử bộ đo ai-cost-report với bản thử này: AI_METER_URL=http://127.0.0.1:<cổng>/projects/ingest AI_METER_KEY=<khoá này>
+        print("Project   %s" % project_key)
         print("Stop      Ctrl+C (the sample data is deleted)", flush=True)
         for target in (w.history_loop, w.daily_loop, keep_alive, lambda: show_codes(secret, security.totp_code, stop)):
             threading.Thread(target=target, daemon=True).start()

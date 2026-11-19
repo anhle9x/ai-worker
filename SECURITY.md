@@ -78,6 +78,18 @@ What remains:
 - **claude.ai and the Chat tab of Claude Desktop are off by default.** They connect from Anthropic's servers, so the allow-list refuses them. [docs/INSTALL.md](docs/INSTALL.md) shows how to let Anthropic's addresses reach `/mcp` and nothing else. Once you do, `/mcp` answers anyone who comes through claude.ai, and the key is the only thing in the way. Tried once, from the Chat tab of the Claude desktop app: it worked, and Claude called the tool without asking the person first, so the key's scope is what decides what goes out.
 - **Tried in three places, all on macOS:** Claude Code 2.1.318, Codex CLI 0.164.0, and the Chat tab of the Claude desktop app through a claude.ai connector. Cursor, Gemini CLI, and every tool on Windows and Linux have not been tried yet.
 
+### AI projects and applications
+
+Off unless `AI_PROJECTS=1`. A project your team built sends the counts its `ai-cost-report` meter measured to `/projects/ingest`. What to know before turning it on:
+
+- **It holds counts and times only:** per turn, how long it took, how it ended, and per model the provider, the model's name, calls, errors and tokens. Never a question, an answer, a user or an error message: the meter does not have them, and the server keeps only the known fields of each turn and drops the rest.
+- **Each project has its own key,** made by an admin on the Admin page with the OTP code entered again, shown once. The server stores a hash and its first characters. The key opens `/projects/ingest` only, writes only, and no other key opens that path.
+- **Put the key on the project's own server, never in a web page or a phone app.** A request that carries an `Origin` header, which every browser sends, is refused whatever key it holds; a key in an app on a phone can still be copied out of it.
+- **Limits:** 120 sends per key in 10 minutes, 256 KB and 500 turns per send, 100,000 turns per key a day, 20 keys. A turn sent twice is kept once. Wrong keys count as probing. A key lapses after 30 days without use and after 1 year at most; revoking stops it at once and keeps what it sent.
+- **The numbers are what the project says.** Anyone who holds a key can send made-up turns for that project. They are a report, not a bill: compare with the provider's billing page.
+- **The IP allow-list covers it.** A project on a cloud server is outside your networks: `aiworker.caddy` has a block that lets one IP reach `/projects/ingest` and nothing else. The meter sends the key only over HTTPS, or to the same machine.
+- **Who reads it:** admins and viewers, on `/projects`. Not the wall display, the MCP endpoint or Telegram.
+
 ### Asking the board from Telegram
 
 Off unless the server's owner sets `TELEGRAM_ASK=1`. Then a second service, the bot process, asks Telegram for messages, and a person in a chat an admin approved gets answers from the board. What to know before turning it on:

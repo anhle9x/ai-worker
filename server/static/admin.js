@@ -318,6 +318,57 @@
     return box
   }
 
+  // AI projects and applications: an admin makes the key a project sends its measurements with, and may paste prices of their own.
+  // Dự án hay ứng dụng AI: quản trị tạo khoá mà dự án dùng để gửi số đo, và có thể dán giá riêng.
+  let newProjectKey = null
+  function projectsSection() {
+    const p = section(tx('AI projects and applications'), tx('A project your team built measures each turn with the ai-cost-report meter and sends the counts here. Never a question, an answer or a user. Keys are listed and revoked in TV screens above.'))
+    if (newProjectKey) {
+      const box = o('div', 'qt-secret')
+      box.append(o('b', '', tx('Key for {name}', { name: newProjectKey.name })))
+      box.append(o('small', '', tx('Put these two lines in the environment of the project\'s own server, never in a web page or a phone app:')))
+      box.append(o('code', '', 'AI_METER_URL=' + location.origin + '/projects/ingest'))
+      box.append(o('code', '', 'AI_METER_KEY=' + newProjectKey.token))
+      box.append(o('small', '', tx('The key is shown only this once. Do not take a photo or send it by chat. A project on a cloud server also needs its IP let through to /projects/ingest by the proxy.')))
+      box.append(button(tx('Copied, hide'), () => {
+        newProjectKey = null
+        render()
+      }, 'qt-button primary'))
+      p.append(box)
+    }
+    const row = o('div', 'qt-row')
+    const name = o('input')
+    name.placeholder = tx('Project or application name')
+    name.setAttribute('aria-label', tx('Project or application name'))
+    name.maxLength = 40
+    row.append(name, button(tx('Make a key'), () => {
+      const n = name.value.trim()
+      if (!n) return toast(tx('Give the project a name'), true)
+      post('/admin/project-key', { name: n }, d => { newProjectKey = { name: n, token: d.token } })
+    }, 'qt-button primary'))
+    p.append(row)
+    const link = o('a', '', tx('See what the projects measured'))
+    link.href = '/projects'
+    p.append(o('p', '', '').appendChild(link).parentNode)
+    const prices = o('details')
+    prices.append(o('summary', '', tx('Prices of your own ({n} models)', { n: ((snapshot.projectPrices || {}).models || []).length })))
+    prices.append(o('small', '', tx('For a provider the price file does not have, a negotiated price, or a model on your own machine. The shape of skills/ai-cost-report/my-prices.example.json; prices in millionths of a dollar per million tokens. Empty removes them.')))
+    const area = o('textarea')
+    area.rows = 8
+    area.spellcheck = false
+    area.setAttribute('aria-label', tx('Prices of your own'))
+    area.value = snapshot.projectPrices && Object.keys(snapshot.projectPrices).length ? JSON.stringify(snapshot.projectPrices, null, 1) : ''
+    prices.append(area, button(tx('Save prices'), () => {
+      let doc = null
+      if (area.value.trim()) {
+        try { doc = JSON.parse(area.value) } catch (e) { return toast(tx('Not JSON'), true) }
+      }
+      post('/admin/project-prices', { prices: doc }, () => toast(tx('Prices saved')))
+    }, 'qt-button'))
+    p.append(prices)
+    return p
+  }
+
   function tvSection() {
     const p = section(tx('TV screens'), tx('Every 8-digit code is approved here: TV screens, menu bar icons, browser extensions, Telegram chats and AI tools. A TV also shows a QR code to scan with a phone.'))
     const row = o('div', 'qt-row')
@@ -394,7 +445,7 @@
       }
       // a key replaces only a key, a screen only a screen. A chat replaces its own earlier row by itself, and nothing else takes a chat's row
       // khoá chỉ thay cho khoá, màn hình chỉ thay cho màn hình. Chat tự thay dòng cũ của chính nó, và không thứ gì khác lấy được dòng của chat
-      const replaceable = isChat ? [] : snapshot.screens.filter(t => t.kind !== 'telegram' && (t.kind === 'mcp') === isMcp)
+      const replaceable = isChat ? [] : snapshot.screens.filter(t => t.kind !== 'telegram' && t.kind !== 'project' && (t.kind === 'mcp') === isMcp)
       if (similar.size) addOption('', tx('Choose: new screen or old screen…'))
       addOption('new', isMcp ? tx('Add a new key') : tx('Add a new screen'))
       for (const t of replaceable) addOption(t.id, tx('Replace {name}', { name: t.name }) + (t.exitedAt ? ' ' + tx('(exited)') : '') + (similar.has(t.id) ? ' ' + tx('(same network, same device type)') : ''))
@@ -436,7 +487,7 @@
         // Đã thoát thì không còn trang nào để tải lại; dòng chỉ còn để ghép lại giữ tên, không cần nữa thì xoá.
         // a Claude plugin shows no page, so there is nothing to reload
         // plugin Claude không hiện trang nào, nên không có gì để tải lại
-        if (!t.exitedAt && t.kind !== 'plugin' && t.kind !== 'mcp' && t.kind !== 'telegram') actions.append(button(tx('Reload'), () => post('/admin/tv-reload', { id: t.id }, () => countdown(t.name, 10))))
+        if (!t.exitedAt && t.kind !== 'plugin' && t.kind !== 'mcp' && t.kind !== 'telegram' && t.kind !== 'project') actions.append(button(tx('Reload'), () => post('/admin/tv-reload', { id: t.id }, () => countdown(t.name, 10))))
         // the board's window inside Telegram, allowed chat by chat; a chat that reads totals only gets a window of totals
         // khung bảng bên trong Telegram, cho phép từng chat; chat chỉ được đọc tổng thì nhận khung chỉ có số tổng
         if (t.kind === 'telegram' && snapshot.telegramAsk && snapshot.telegramAsk.app) {
@@ -454,14 +505,14 @@
         }), t.exitedAt ? button(tx('Delete'), () => {
           if (confirm(tx('Remove {name} from the list? This name will no longer be available to choose when pairing again.', { name: t.name }))) post('/admin/tv-revoke', { id: t.id }, () => toast(tx('Deleted {name}', { name: t.name })))
         }, 'qt-button critical') : button(tx('Revoke'), () => {
-          const question = t.kind === 'telegram' ? tx('Revoke {name}? That chat can no longer read the board.', { name: t.name }) : t.kind === 'mcp' ? tx('Revoke {name}? The AI tool that holds this key can no longer read the board.', { name: t.name }) : t.kind === 'plugin' ? tx('Revoke {name}? Claude on that computer can no longer read the board.', { name: t.name }) : t.kind === 'extension' ? tx('Revoke {name}? Within a minute that browser shows it is not paired.', { name: t.name }) : tx('Revoke {name}? That screen goes back to the pairing page at once.', { name: t.name })
+          const question = t.kind === 'project' ? tx('Revoke {name}? That AI project or application can no longer send what it measures; what it sent stays.', { name: t.name }) : t.kind === 'telegram' ? tx('Revoke {name}? That chat can no longer read the board.', { name: t.name }) : t.kind === 'mcp' ? tx('Revoke {name}? The AI tool that holds this key can no longer read the board.', { name: t.name }) : t.kind === 'plugin' ? tx('Revoke {name}? Claude on that computer can no longer read the board.', { name: t.name }) : t.kind === 'extension' ? tx('Revoke {name}? Within a minute that browser shows it is not paired.', { name: t.name }) : tx('Revoke {name}? That screen goes back to the pairing page at once.', { name: t.name })
           if (confirm(question)) post('/admin/tv-revoke', { id: t.id }, () => toast(tx('Revoked {name}', { name: t.name })))
         }, 'qt-button critical'))
         const idleKey = t.kind === 'mcp' && t.idleDays >= idleLimit
-        const statusText = idleKey ? tx('Not used for {n} days', { n: t.idleDays }) : t.kind === 'mcp' || t.kind === 'telegram' ? (t.running ? tx('Used just now') : t.lastSeenAt ? tx('Last used {time}', { time: dateTime(t.lastSeenAt) }) : tx('Not used since the server started')) : t.exitedAt ? tx('Exited at {time}', { time: dateTime(t.exitedAt * 1000) }) : t.running ? tx('Running') : t.lastSeenAt ? tx('Not seen for a while, last seen {time}', { time: dateTime(t.lastSeenAt) }) : tx('Not seen since the server started')
+        const statusText = idleKey ? tx('Not used for {n} days', { n: t.idleDays }) : t.kind === 'mcp' || t.kind === 'telegram' || t.kind === 'project' ? (t.running ? tx('Used just now') : t.lastSeenAt ? tx('Last used {time}', { time: dateTime(t.lastSeenAt) }) : tx('Not used since the server started')) : t.exitedAt ? tx('Exited at {time}', { time: dateTime(t.exitedAt * 1000) }) : t.running ? tx('Running') : t.lastSeenAt ? tx('Not seen for a while, last seen {time}', { time: dateTime(t.lastSeenAt) }) : tx('Not seen since the server started')
         const statusCell = o('td', idleKey ? 'qt-old' : t.running ? '' : 'qt-muted', statusText)
         const versionCell = o('td', t.upToDate === false ? 'qt-old' : '', t.upToDate === null ? '—' : t.upToDate ? tx('Latest') : tx('Old version'))
-        h.append(o('td', '', t.name), statusCell, versionCell, o('td', '', t.kind === 'telegram' ? tx('Telegram chat, {who}, {scope}', { who: t.telegramUser ? '@' + t.telegramUser : t.telegramId, scope: t.scope === 'people' ? tx('reads each person') : tx('reads totals only') }) + (t.app ? ', ' + tx('opens the window') : '') : t.kind === 'mcp' ? tx('Key for an AI tool, {start}…, {scope}', { start: t.keyStart, scope: t.scope === 'people' ? tx('reads each person') : tx('reads totals only') }) : t.kind === 'plugin' ? t.device : t.kind === 'extension' ? tx('Browser extension · {device}', { device: t.device }) : t.device), o('td', '', t.branch || '—'), o('td', '', t.lastIp || '—'), o('td', '', t.owner ? tx('{name} (paired by themselves)', { name: t.owner }) : t.approvedBy), actions)
+        h.append(o('td', '', t.name), statusCell, versionCell, o('td', '', t.kind === 'telegram' ? tx('Telegram chat, {who}, {scope}', { who: t.telegramUser ? '@' + t.telegramUser : t.telegramId, scope: t.scope === 'people' ? tx('reads each person') : tx('reads totals only') }) + (t.app ? ', ' + tx('opens the window') : '') : t.kind === 'mcp' ? tx('Key for an AI tool, {start}…, {scope}', { start: t.keyStart, scope: t.scope === 'people' ? tx('reads each person') : tx('reads totals only') }) : t.kind === 'project' ? tx('Key for an AI project or application, {start}…, sends only', { start: t.keyStart }) : t.kind === 'plugin' ? t.device : t.kind === 'extension' ? tx('Browser extension · {device}', { device: t.device }) : t.device), o('td', '', t.branch || '—'), o('td', '', t.lastIp || '—'), o('td', '', t.owner ? tx('{name} (paired by themselves)', { name: t.owner }) : t.approvedBy), actions)
         board.append(h)
       }
       p.append(addLabel(board))
@@ -801,7 +852,7 @@
     backLink.href = '/'
     head.append(o('h1', '', tx('Admin')), o('span', '', viewerName), I18n.switcher(), backLink)
     const column = o('div', 'qt-column')
-    column.append(accountsSection(), tvSection(), ...(snapshot.mcpCalls.length ? [mcpCallsSection()] : []), menubarSection(), locationsSection(), teamSection(), sessionsSection(), ...(snapshot.blocked7d ? [blockedSection()] : []), ...((snapshot.delegations || []).length ? [delegationsSection()] : []), auditSection())
+    column.append(accountsSection(), tvSection(), ...(snapshot.projectsOn ? [projectsSection()] : []), ...(snapshot.mcpCalls.length ? [mcpCallsSection()] : []), menubarSection(), locationsSection(), teamSection(), sessionsSection(), ...(snapshot.blocked7d ? [blockedSection()] : []), ...((snapshot.delegations || []).length ? [delegationsSection()] : []), auditSection())
     root.replaceChildren(head, notice, column)
   }
 

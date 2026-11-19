@@ -58,6 +58,22 @@ DATA_STEPS = [
         "CREATE TABLE delegations_seen (key TEXT PRIMARY KEY, seen_at INTEGER NOT NULL)",
         "CREATE INDEX delegations_seen_at ON delegations_seen (seen_at)",
     ],
+    # version 4: what AI projects and applications measured themselves (skills/ai-cost-report). Each turn as the meter wrote it, cleaned,
+    # kept PROJECT_TURN_KEEP_DAYS; and one row per project, day, environment and model, kept like the people's daily totals. The project is
+    # the id of its key, so a turn sent twice is kept once. Never a prompt or an answer: the meter does not have them
+    # phiên bản 4: những gì dự án hay ứng dụng AI tự đo (skills/ai-cost-report). Từng lượt như bộ đo đã ghi, đã làm sạch, giữ
+    # PROJECT_TURN_KEEP_DAYS ngày; và mỗi dự án, ngày, môi trường và model một dòng, giữ như tổng theo ngày của từng người. Dự án là id
+    # của khoá, nên lượt gửi hai lần chỉ được giữ một lần. Không bao giờ có câu hỏi hay câu trả lời: bộ đo không có chúng
+    [
+        "CREATE TABLE project_turns (project TEXT NOT NULL, turn_id TEXT NOT NULL, at INTEGER NOT NULL, day TEXT NOT NULL, env TEXT NOT NULL, "
+        "body TEXT NOT NULL, PRIMARY KEY (project, turn_id))",
+        "CREATE INDEX project_turns_at ON project_turns (project, at)",
+        "CREATE TABLE project_daily (project TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', day TEXT NOT NULL, env TEXT NOT NULL, provider TEXT NOT NULL, "
+        "model TEXT NOT NULL, turns INTEGER NOT NULL DEFAULT 0, calls INTEGER NOT NULL DEFAULT 0, errors INTEGER NOT NULL DEFAULT 0, "
+        "retries INTEGER NOT NULL DEFAULT 0, unmeasured INTEGER NOT NULL DEFAULT 0, input INTEGER NOT NULL DEFAULT 0, output INTEGER NOT NULL DEFAULT 0, "
+        "cache_read INTEGER NOT NULL DEFAULT 0, cache_write INTEGER NOT NULL DEFAULT 0, cache_write_long INTEGER NOT NULL DEFAULT 0, "
+        "PRIMARY KEY (project, day, env, provider, model))",
+    ],
 ]
 KEYS_STEPS = [
     [

@@ -61,6 +61,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | F22 | Each piece of work handed to ChatGPT, Gemini or Gemma becomes one line of the chained audit log, once: helper, lengths, what stopped it, what the check of the answer found and a salted fingerprint of the prompt, never the text; admins see the month's lines | `hooks/delegations.ts`; `clean_delegations` in `server/board/devices.py`; `AuditLog.write_delegations` in `server/board/stores.py` |
 | F23 | A helper's answer is checked before Claude uses it for secrets, text aimed at an AI and commands that cannot be undone; Claude gets a note beside the answer, the person a notice, and the stop is counted | `hooks/answers.ts`; the `tool.call` handler in `hooks/register.tsx` |
 | F24 | An AI project or application a team built measures its own cost and speed, with any LLM provider: one line per user turn with times and the token counts the provider returned, per model, never a prompt, an answer, a user id or an error message; tokens it did not get are written as unknown, never as zero. The report prices them from a price file that names its source and day, plus the user's own price file; a model with no price says "no price" rather than guess, and a model on the team's own machines adds no API cost. Nothing is sent to the server | `skills/ai-cost-report/meter/ai_meter.py`, `skills/ai-cost-report/meter/ai-meter.cjs`, `skills/ai-cost-report/FORMAT.md`, `skills/ai-cost-report/report.py`, `skills/ai-cost-report/prices.json` |
+| F25 | An AI project or application sends what it measured to the board with a key of its own that an admin made: write-only, refused from a browser, each turn cleaned by the report's own code and kept once; only with `AI_PROJECTS=1`. Admins and viewers read the report by project and days and download it as HTML or CSV; the wall display, the MCP endpoint and Telegram do not | `server/board/projects.py`, `server/board/costreport.py` (a copy of `skills/ai-cost-report/report.py`); `project_ingest`, `PERM_PROJECT_KEY` in `server/webhook.py`; `page_projects` in `server/board/pages.py`; the sending part of the meters in `skills/ai-cost-report/meter/` |
 
 ### Limits the server enforces
 
@@ -74,6 +75,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | Probing | 20 errors (401/404) in 10 minutes blocks an IP that is not logged in for 15 minutes |
 | TV screens | 20 joined, 3 waiting per IP, 30 waiting in total |
 | Keys for AI tools (MCP) | 50 keys; 120 requests per key in 10 minutes; a message of 16 KB |
+| Keys for AI projects and applications | 20 keys; 120 sends per key in 10 minutes; a send of at most 256 KB and 500 turns; 100,000 turns per key a day |
 | Telegram chats | 50 chats; 10 waiting for approval; 20 messages per chat in 10 minutes; a chat that is not approved is answered once an hour |
 | The window inside Telegram | 10 sessions per IP a minute, 20 per chat in 10 minutes, 3 open per chat; 60 reads per session in 10 minutes; Telegram's signed fields at most 5 minutes old and 4 KB |
 | Alerts to Telegram chats | Each wait told once; one message every 5 minutes, 6 an hour and 30 a day per chat; none from 19:00 to 07:00; a wait over 4 hours is not told |
@@ -93,6 +95,8 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | Login sessions | 8 hours, wall accounts 7 days; lost when the webhook restarts |
 | TV sessions | 30 days, renewed while in use; 1 year at most; survive restarts |
 | Keys for AI tools (MCP) | 30 days without use; 1 year at most; survive restarts |
+| Turns of an AI project or application | 30 days; the totals per project, day and model for the current month and the 12 before it |
+| Keys for AI projects and applications | 30 days without use; 1 year at most; survive restarts |
 | Telegram chats | 30 days without use; 1 year at most; survive restarts |
 | Sessions of the window inside Telegram | 1 hour after last use, 12 hours at most; in memory only, lost when the webhook restarts |
 | What the bot has told a chat, for its alerts | In memory only; after a restart a wait still going may be told once more |

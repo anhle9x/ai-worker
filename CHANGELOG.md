@@ -2,6 +2,16 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.45.0 - 2026-11-19
+
+### Added
+- AI projects and applications on the board, off unless the server has `AI_PROJECTS=1`. An admin makes a key for each project on the Admin page (with the OTP code, shown once); the project's own server sends what its `ai-cost-report` meter measured to `/projects/ingest`. Admins and viewers open **AI projects and applications** from `/board`, pick a project and days, and read or download the same report as the skill makes, as HTML (prints to PDF) or CSV. The key only sends, is refused from a browser, and opens nothing else; each turn is cleaned by the report's own code, an unknown field dropped and a turn sent twice kept once; 120 sends per key in 10 minutes, 100,000 turns a day. Turns are kept 30 days, totals per day 13 months; cost is worked out when someone looks, from the price file and prices an admin may paste for providers it does not have. The wall display, the MCP endpoint and Telegram do not get these numbers.
+- The meters in `skills/ai-cost-report/meter/` can also send to the board: set `AI_METER_URL` and `AI_METER_KEY` on the project's server. They send in batches in the background, drop the oldest turn when 1,000 are waiting, give up after one more try, never make the project wait, and send the key only over HTTPS or to the same machine. The file is still written.
+- `aiworker.caddy` has a commented block that lets one outside IP, such as a project on a cloud server, reach `/projects/ingest` and nothing else.
+
+### Changed
+- The server's database moves to schema version 4 (two tables for AI projects and applications). The server copies the database before upgrading, as for every schema change. The server installer also copies `server/board/*.json` (the price file and the report's words).
+
 ## 0.44.0 - 2026-11-19
 
 ### Added

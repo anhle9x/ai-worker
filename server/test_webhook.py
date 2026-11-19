@@ -514,6 +514,13 @@ class RoutePermissions(unittest.TestCase):
         # the page that asks for a key is open like the TV pairing page: it gives nothing out until an admin approves its code
         # trang xin khoá mở như trang ghép TV: không cấp gì cho tới khi quản trị duyệt mã của nó
         "/mcp/connect": (200, 200, 200, 200, 200),
+        # AI projects and applications are off in these tests (AI_PROJECTS is not 1): their paths answer as if they were not there.
+        # test_projects.py turns them on and pins who may open them
+        # dự án hay ứng dụng AI tắt trong các test này (AI_PROJECTS không phải 1): các đường của nó trả lời như không có.
+        # test_projects.py bật chúng lên và chốt ai được mở
+        "/projects": (404, 404, 404, 404, 404),
+        "/projects/report.html": (404, 404, 404, 404, 404),
+        "/projects/report.csv": (404, 404, 404, 404, 404),
         "/mcp-connect.js": (200, 200, 200, 200, 200),
         # the board's window inside Telegram is off in the tests: its paths answer as if they were not there
         # khung bảng bên trong Telegram tắt khi chạy thử: các đường của nó trả lời như không có
@@ -1090,7 +1097,8 @@ class RoutePermissions(unittest.TestCase):
         self.assertEqual(set(w.POST_ROUTES), set(self.POST_ADMIN) | {"/ingest", "/login", "/logout", "/tv/request-code", "/tv/poll",
                                                                        "/mini/handoff", "/mini/settings", "/mini/unpair", "/mini/pair",
                                                                        "/ext/request-code", "/ext/poll", "/ext/unpair", "/telegram/start", "/telegram/unlink",
-                                                                       "/mcp", "/mcp/request-code", "/mcp/poll", "/bot/telegram", "/tg/session", "/tg/unpair", "/tg/settings"})
+                                                                       "/mcp", "/mcp/request-code", "/mcp/poll", "/bot/telegram", "/tg/session", "/tg/unpair", "/tg/settings",
+                                                                       "/projects/ingest", "/admin/project-key", "/admin/project-prices"})
 
     def test_the_telegram_bots_path_is_not_there_until_it_is_turned_on(self):
         self.assertFalse(settings.TELEGRAM_ASK_ENABLED)
@@ -3847,6 +3855,8 @@ class PageMatchesServer(unittest.TestCase):
             "/locations": body_reads(inspect.getsource(views.edit_location)),
             "/team-csv": body_reads(branch("/team-csv")),
             "/team-sale": body_reads(branch("/team-sale")),
+            "/admin/project-key": body_reads(branch("/admin/project-key")),
+            "/admin/project-prices": body_reads(branch("/admin/project-prices")),
         }
         seen = set()
         for m in re.finditer(r"(?:post|submit)\('(/[\w/-]+)',\s*(\{|\w+)", self.admin_js):

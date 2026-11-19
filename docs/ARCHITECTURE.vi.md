@@ -61,6 +61,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | F22 | Mỗi việc giao cho ChatGPT, Gemini hay Gemma thành một dòng của nhật ký có dấu vân tay, chỉ một lần: trợ lý nào, độ dài, đã chặn gì, bước kiểm câu trả lời thấy gì và dấu vân tay có muối của đề bài, không bao giờ có chữ; quản trị xem được các dòng của tháng | `hooks/delegations.ts`; `clean_delegations` trong `server/board/devices.py`; `AuditLog.write_delegations` trong `server/board/stores.py` |
 | F23 | Câu trả lời của trợ lý được kiểm trước khi Claude dùng: bí mật, chữ nhắm vào AI và lệnh không hoàn tác được; Claude nhận lời nhắc kèm câu trả lời, người dùng nhận thông báo, và lần chặn được đếm | `hooks/answers.ts`; phần xử lý `tool.call` trong `hooks/register.tsx` |
 | F24 | Một dự án hay ứng dụng AI do nhóm tự làm tự đo chi phí và tốc độ của nó, với bất kỳ hãng LLM nào: mỗi lượt người dùng một dòng gồm thời gian và số token hãng trả về, theo từng model, không bao giờ có câu hỏi, câu trả lời, mã người dùng hay thông báo lỗi; token không lấy được ghi là chưa biết, không ghi 0. Báo cáo tính tiền theo bảng giá có ghi nguồn và ngày lấy, cộng file giá riêng của người dùng; model chưa có giá ghi "chưa có giá" thay vì đoán, model chạy trên máy của nhóm không cộng tiền API. Không gửi gì lên máy chủ | `skills/ai-cost-report/meter/ai_meter.py`, `skills/ai-cost-report/meter/ai-meter.cjs`, `skills/ai-cost-report/FORMAT.md`, `skills/ai-cost-report/report.py`, `skills/ai-cost-report/prices.json` |
+| F25 | Dự án hay ứng dụng AI gửi số nó đã đo lên bảng bằng khoá riêng do quản trị tạo: chỉ ghi, từ chối khi gửi từ trình duyệt, mỗi lượt được làm sạch bằng chính code của báo cáo và chỉ giữ một lần; chỉ khi có `AI_PROJECTS=1`. Quản trị và người xem đọc báo cáo theo dự án và khoảng ngày, tải về dạng HTML hay CSV; màn treo tường, cổng MCP và Telegram không xem được | `server/board/projects.py`, `server/board/costreport.py` (bản sao của `skills/ai-cost-report/report.py`); `project_ingest`, `PERM_PROJECT_KEY` trong `server/webhook.py`; `page_projects` trong `server/board/pages.py`; phần gửi của bộ đo trong `skills/ai-cost-report/meter/` |
 
 ### Giới hạn máy chủ áp dụng
 
@@ -74,6 +75,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | Dò quét | 20 lỗi (401/404) trong 10 phút thì chặn IP chưa đăng nhập 15 phút |
 | Màn hình TV | 20 đã ghép, 3 đang chờ mỗi IP, tổng 30 đang chờ |
 | Khoá cho công cụ AI (MCP) | 50 khoá; mỗi khoá 120 yêu cầu trong 10 phút; mỗi thông điệp 16 KB |
+| Khoá cho dự án hay ứng dụng AI | 20 khoá; mỗi khoá 120 lần gửi trong 10 phút; mỗi lần gửi tối đa 256 KB và 500 lượt; mỗi khoá 100.000 lượt một ngày |
 | Chat Telegram | 50 chat; 10 chat chờ duyệt; mỗi chat 20 tin trong 10 phút; chat chưa được duyệt được trả lời mỗi giờ một lần |
 | Khung bên trong Telegram | 10 phiên mỗi IP mỗi phút, 20 phiên mỗi chat trong 10 phút, 3 phiên mở mỗi chat; 60 lần đọc mỗi phiên trong 10 phút; các trường Telegram ký cũ tối đa 5 phút và tối đa 4 KB |
 | Tin báo tới chat Telegram | Mỗi lần chờ báo một lần; mỗi chat tối đa một tin mỗi 5 phút, 6 tin mỗi giờ, 30 tin mỗi ngày; không gửi từ 19:00 tới 07:00; lần chờ quá 4 giờ không báo |
@@ -93,6 +95,8 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | Phiên đăng nhập | 8 giờ, tài khoản treo tường 7 ngày; mất khi webhook khởi động lại |
 | Phiên TV | 30 ngày, tự gia hạn khi đang dùng; tối đa 1 năm; không mất khi khởi động lại |
 | Khoá cho công cụ AI (MCP) | 30 ngày không dùng; tối đa 1 năm; không mất khi khởi động lại |
+| Các lượt của dự án hay ứng dụng AI | 30 ngày; tổng theo dự án, ngày và model giữ cho tháng hiện tại và 12 tháng trước |
+| Khoá cho dự án hay ứng dụng AI | 30 ngày không dùng; tối đa 1 năm; còn sau khi khởi động lại |
 | Chat Telegram | 30 ngày không dùng; tối đa 1 năm; không mất khi khởi động lại |
 | Phiên của khung bên trong Telegram | 1 giờ sau lần dùng cuối, tối đa 12 giờ; chỉ trong bộ nhớ, mất khi webhook khởi động lại |
 | Những gì bot đã báo cho chat, cho tin báo | Chỉ trong bộ nhớ; sau khi khởi động lại, một lần chờ còn diễn ra có thể được báo thêm một lần |
