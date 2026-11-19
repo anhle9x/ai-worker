@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.47.6 - 2026-11-20
+
+### Changed
+- The README opens with what AI Worker does in one line (cost and speed of AI from the whole team to the AI products you build, passwords and API keys kept from leaking, all on your own server), then the points that set it apart: the live board, the cost and speed report for your own AI projects, the skills that work out of the box, nothing of the work read, and free for the whole team. The title is now just "AI Worker". In English and Vietnamese.
+
 ## 0.47.5 - 2026-11-19
 
 ### Fixed
