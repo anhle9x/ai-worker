@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.47.5 - 2026-11-19
+
+### Fixed
+- The C/C++ meter (`ai_meter.h`) did not build with gcc on Linux when warnings are errors: gcc warned that the turn's time might not fit its buffer. The buffer now has room for every field at its widest. The project's own CI (`tests/appmeter`) had failed on this since 0.46.0; the other meters passed.
+
 ## 0.47.4 - 2026-11-19
 
 ### Changed

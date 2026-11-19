@@ -225,7 +225,9 @@ static inline void ai_meter_turn_id(const ai_turn *t, char out[17]) {
 // Writes the line, once, in one write to the end of the file; a failure never reaches the project
 // Ghi dòng, một lần, bằng một lệnh ghi vào cuối file; ghi lỗi không bao giờ tới được dự án
 static inline void ai_turn_end(ai_turn *t) {
-    char line[AI_METER_MAX_MODELS * 320 + 400], id[17], at[32];
+    // "at" has room for every field at its widest, so gcc's -Wformat-truncation has nothing to warn about
+    // "at" đủ chỗ cho mọi trường ở độ dài lớn nhất, để -Wformat-truncation của gcc không có gì phải cảnh báo
+    char line[AI_METER_MAX_MODELS * 320 + 400], id[17], at[96];
     size_t n;
     int i, fd;
     time_t secs;
