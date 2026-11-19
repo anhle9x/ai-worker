@@ -133,6 +133,8 @@ Một dự án hay ứng dụng nhóm tự làm có thể gửi những gì bộ
 3. **Ở đâu:** máy chủ của chính dự án (không bao giờ trong trang web hay app điện thoại). **Làm gì:** đặt hai dòng đó vào biến môi trường, cạnh bộ đo lấy từ `skills/ai-cost-report/meter/`. **Kết quả đúng:** sau vài yêu cầu, dự án hiện trên `/projects`.
 4. **Dự án chạy trên cloud:** yêu cầu của nó đến từ ngoài mạng của bạn, nên proxy từ chối. Trong `aiworker.caddy`, dùng khối đang để ở dạng ghi chú cho đúng một IP tới `/projects/ingest`, điền IP của dự án, rồi chạy `sudo systemctl reload caddy`.
 
+Phần người làm dự án tự làm: [AI-PROJECTS.vi.md](AI-PROJECTS.vi.md).
+
 Giá lấy từ `server/board/prices.json`, bản sao bảng giá của skill, đi theo mỗi bản phát hành. Hãng chưa có trong đó, giá đã thương lượng, hay model chạy trên máy của nhóm thì dán file giá riêng ở mục **Giá riêng** trên trang Quản trị.
 
 ## Biểu tượng thanh menu cho quản lý

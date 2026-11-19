@@ -376,5 +376,6 @@ VI = {
     "Trial runs (test)": "Chạy thử (test)",
     "Turns": "Lượt",
     "no price": "chưa có giá",
-    "◂ Detail board": "◂ Bảng chi tiết",
+    "◂ Dashboard": "◂ Bảng điều khiển",
+    "Detail board": "Bảng chi tiết",
 }

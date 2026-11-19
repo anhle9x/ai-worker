@@ -1272,7 +1272,9 @@ def page_projects(known: dict, project: str, first: str, last: str, env: str, no
              '.pick select,.pick input,.pick button{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);min-height:36px}'
              '.pick button{background:var(--accent);border-color:var(--accent);color:#fff;cursor:pointer}.links{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0 0 6px}'
              '.top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin-bottom:10px;font-size:14px}@media print{.pick,.links,.top{display:none}}</style>')
-    top = '<div class="top"><a href="/board">%s</a></div>' % e(tx("◂ Detail board"))
+    # people come here from the home page's button or from /board: offer the way back to both
+    # người xem tới đây từ nút trên trang chủ hoặc từ /board: có đường về cả hai
+    top = '<div class="top"><a href="/">%s</a><a href="/board">%s</a></div>' % (e(tx("◂ Dashboard")), e(tx("Detail board")))
     if not project:
         body = ('<!doctype html><html lang="%s"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>%s</title>'
                 '<style>%s</style>%s</head><body><main>%s<h1>%s</h1><p class="note">%s</p></main></body></html>') % (

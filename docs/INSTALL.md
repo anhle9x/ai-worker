@@ -133,6 +133,8 @@ A project or application your team built can send what its `ai-cost-report` mete
 3. **Where:** the project's own server (never a web page or a phone app). **Do:** put those two lines in its environment, next to the meter from `skills/ai-cost-report/meter/`. **Right result:** after a few requests, the project shows on `/projects`.
 4. **A project on a cloud server:** its requests come from outside your networks, so the proxy refuses them. In `aiworker.caddy`, use the commented block that lets one IP reach `/projects/ingest` only, put the project's IP in it, and run `sudo systemctl reload caddy`.
 
+What the project's developers do: [AI-PROJECTS.md](AI-PROJECTS.md).
+
 Prices come from `server/board/prices.json`, a copy of the skill's price file that ships with each release. For a provider it does not have, a negotiated price, or a model on your own machine, paste a price file of your own under **Prices of your own** on the Admin page.
 
 ## Menu bar icon for managers

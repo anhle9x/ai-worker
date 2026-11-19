@@ -176,6 +176,7 @@ Rolling back the plugin: release the old code again under a new version number, 
 | Caddy access log | Every request: IP, path, status | 10 files of 20 MB | Root on the server |
 | Rewind history, table `history` in `board.db` | State changes per person | 24 hours | Everyone logged in, through the rewind button |
 | Totals per day, table `daily` in `board.db` | One row per person per day: cost, tokens, tasks delegated, office, with name and account email | The current month and the 12 before it, older rows deleted by the server | Admin and viewer, on `/board` |
+| AI projects and applications, tables `project_turns` and `project_daily` in `board.db` (only with `AI_PROJECTS=1`) | Each turn a project sent: times, outcome, and per model calls, errors and tokens; never a question, an answer or a user. Totals per project, day and model | Turns 30 days, totals the current month and the 12 before it, older rows deleted by the server | Admin and viewer, on `/projects` |
 
 Never logged: chat content, questions, file names, OTP codes, keys.
 

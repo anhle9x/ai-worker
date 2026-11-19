@@ -18,6 +18,7 @@ Toàn bộ tài liệu AI Worker, xếp theo mục đích. Mỗi tài liệu có
 | | [THIRD-PARTY.md](../THIRD-PARTY.md): code bên ngoài và giấy phép (tiếng Anh) | Quản trị, pháp chế |
 | **IV. Hướng dẫn sử dụng** | [USER-GUIDE.vi.md](USER-GUIDE.vi.md): nhân viên, quản lý, quản trị | Mọi người |
 | | [SKILLS.vi.md](SKILLS.vi.md): skill và quy tắc trên mọi máy | Nhân viên, quản trị |
+| | [AI-PROJECTS.vi.md](AI-PROJECTS.vi.md): đo chi phí và tốc độ của dự án hay ứng dụng AI do nhóm tự làm | Người làm các dự án đó |
 | | [employee-notice.vi.md](employee-notice.vi.md): thông báo cho nhân viên về dữ liệu được thu | Nhân sự, quản lý |
 | | [chat-preferences.vi.md](chat-preferences.vi.md): gợi ý thiết lập chat Claude | Nhân viên |
 | **V. Kiểm thử** | [TEST-PLAN.vi.md](TEST-PLAN.vi.md): test tự động, kiểm tay, danh sách kiểm trước khi phát hành | Lập trình viên, quản trị |

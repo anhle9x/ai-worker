@@ -42,6 +42,7 @@ AI Worker dành cho người phải triển khai Claude cho cả văn phòng r�
 - **Hỏi từ công cụ AI khác, hoặc từ Telegram:** máy chủ có một cổng MCP chỉ đọc, nên công cụ AI nào hỗ trợ MCP cũng trả lời được các câu hỏi đó bằng một khoá do quản trị viên duyệt. Quản lý không viết code thì bấm nút trong một chat Telegram, hoặc mở khung thanh menu ngay trong Telegram từ menu của bot: tuỳ chọn, mặc định tắt, và không mô hình AI nào đọc câu hỏi. Cách bật từng thứ có trong [hướng dẫn cài đặt](docs/INSTALL.vi.md).
 - **Bảng ngay trong Telegram, trên điện thoại:** quản lý có chat Telegram được quản trị cho phép thì mở khung thanh menu ngay trong Telegram, từ nút **AI Worker** của bot: người đang chờ, biểu đồ chi phí 7 ngày, hạn mức và chi phí. Bot còn tự nhắn khi có người chờ quá lâu (`/baocho 10`), kèm nút mở khung. Cả hai đều tuỳ chọn và mặc định tắt; khung mở được ở mạng văn phòng. Xem [khung bên trong Telegram](docs/INSTALL.vi.md#khung-của-bảng-bên-trong-telegram-tuỳ-chọn) và [tin báo khi có người chờ quá lâu](docs/INSTALL.vi.md#tin-báo-khi-có-người-chờ-quá-lâu-tuỳ-chọn-theo-từng-chat).
 - **Mức dùng theo tuần và tháng:** bảng chi tiết so tuần này, tháng này với tuần trước, tháng trước, cho cả đội, từng văn phòng và từng người.
+- **Chi phí và tốc độ của dự án hay ứng dụng AI do nhóm tự làm:** một bộ đo nhỏ, chép một file vào dự án Python hay Node (hoặc theo định dạng dòng cho ngôn ngữ khác), đếm từng yêu cầu của người dùng: thời gian, số lần gọi LLM và token theo từng model, với bất kỳ hãng nào, không bao giờ có câu hỏi hay câu trả lời. Skill `ai-cost-report` biến số đó thành báo cáo có tiền mỗi yêu cầu và mỗi 1.000 yêu cầu, thời gian trung bình, p95 và chậm nhất, dạng HTML (in ra PDF được) và CSV. Khi máy chủ có `AI_PROJECTS=1`, dự án gửi số lên bảng, nơi quản trị và người xem đọc và tải báo cáo. Xem [đo một dự án hay ứng dụng AI](docs/AI-PROJECTS.vi.md).
 - **Biến quy trình thành skill:** đưa cho `/ai-worker:make-skill` một SOP hoặc mô tả cách làm một việc. Nó viết bản nháp skill, dừng lại khi thấy mật khẩu hay khoá, bỏ dữ liệu cá nhân, và chỉ bật skill sau khi bạn đồng ý.
 - **Hỏi lại trước khi xoá hay gửi ra ngoài:** lệnh xoá cả thư mục, `git reset --hard`, `git push --force`, `git clean`, chạy ngay một script vừa tải về (`curl … | sh`), tắt Gatekeeper của macOS, ghi thẳng ra ổ đĩa hay `chmod 777` phải được bạn xác nhận; gửi nội dung sang AI của hãng khác cũng vậy, trừ khi bạn đã tự cho phép. Chữ có thứ trông như khoá, token hay mật khẩu thì hoàn toàn không được gửi sang AI đó, và commit sẽ đưa thứ đó vào git thì được đưa bạn xem trước. Trang web tìm cách ra lệnh cho Claude thì bị đánh dấu, cho cả Claude lẫn bạn.
 - **Phân quyền và nhật ký:** quản trị viên, quản lý và màn hình treo tường được xem những phần dữ liệu khác nhau; đăng nhập bằng mã OTP 6 số hoặc bằng Telegram (Telegram cần cài thêm bot, xem [hướng dẫn cài đặt](docs/INSTALL.vi.md)); nhật ký mọi thay đổi được lưu 12 tháng.
@@ -141,6 +142,8 @@ Hướng đi của dự án. Không ghi ngày: mục nào kiểm xong thì phát
 - [x] Khung trong Telegram cho chat chỉ đọc số gộp (0.41.0): máy chủ chỉ gửi số tổng, không có người nào
 - [ ] Khung trong Telegram mở được từ ngoài mạng văn phòng
 - [x] Tin nhắn Telegram khi có người chờ quá lâu, do từng chat tự bật (`/baocho`), kèm nút mở khung
+- [x] Chi phí và tốc độ của dự án hay ứng dụng AI do nhóm tự làm (0.44.0), với bất kỳ hãng LLM nào; gửi lên bảng và xem ở đó (0.45.0). Đã thử trên bảng thật với lượt thử
+- [ ] Đo một dự án thật trọn một kỳ và lấy báo cáo từ bảng
 
 ## Tài liệu
 
@@ -151,6 +154,7 @@ Hướng đi của dự án. Không ghi ngày: mục nào kiểm xong thì phát
 | [Vận hành](docs/OPERATIONS.vi.md) | Kiểm tra hằng ngày, sự cố, sao lưu, quay về bản cũ, nhật ký |
 | [Kiến trúc](docs/ARCHITECTURE.vi.md), [dữ liệu](docs/DATA-MODEL.vi.md), [phân quyền](docs/PERMISSIONS.vi.md) | Cách hệ thống được làm |
 | [Skill và quy tắc](docs/SKILLS.vi.md) | Mỗi máy nhận được gì |
+| [Đo một dự án hay ứng dụng AI](docs/AI-PROJECTS.vi.md) | Nhóm làm dự án có gọi LLM |
 | [Kế hoạch kiểm thử](docs/TEST-PLAN.vi.md) | Kiểm tự động gì, kiểm tay gì |
 | [Toàn bộ tài liệu](docs/README.vi.md) | Xếp theo mục đích |
 

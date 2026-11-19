@@ -18,6 +18,7 @@ All AI Worker documents, grouped by purpose. Each one has an English file and a 
 | | [THIRD-PARTY.md](../THIRD-PARTY.md): outside code and licenses | Admins, legal |
 | **IV. User guide** | [USER-GUIDE.md](USER-GUIDE.md): staff, managers, admins | Everyone |
 | | [SKILLS.md](SKILLS.md): skills and rules on every computer | Staff, admins |
+| | [AI-PROJECTS.md](AI-PROJECTS.md): measure the cost and speed of an AI project or application your team built | Developers of those projects |
 | | [employee-notice.md](employee-notice.md): notice to staff about the data collected | HR, managers |
 | | [chat-preferences.md](chat-preferences.md): suggested Claude chat settings | Staff |
 | **V. Testing** | [TEST-PLAN.md](TEST-PLAN.md): automatic tests, manual checks, release checklist | Developers, admins |

@@ -8,13 +8,15 @@ Mọi phần của AI Worker: chạy ở đâu, cần gì, phiên bản nào đ�
 
 | Phần | Chạy trên | Ngôn ngữ | Phiên bản |
 |---|---|---|---|
-| Plugin (hook, `/office`, skill) | Máy nhân viên, bên trong Claude Code | TypeScript | `version` trong `.claude-plugin/plugin.json` (hiện 0.45.2) |
+| Plugin (hook, `/office`, skill) | Máy nhân viên, bên trong Claude Code | TypeScript | `version` trong `.claude-plugin/plugin.json` (hiện 0.45.3) |
 | Máy chủ bảng tổng (webhook) | Máy chủ Linux | Python, chỉ thư viện chuẩn; dữ liệu trong SQLite | Theo bản phát hành của plugin |
 | Trang văn phòng 3D | Trình duyệt | JavaScript, three.js | Theo bản phát hành của plugin |
 | Biểu tượng thanh menu | macOS, Windows, Ubuntu | Python (SwiftBar trên Mac, Ubuntu), app Swift (`macos-app/`), PowerShell và C# (Windows) | Máy chủ dựng cho mỗi lần tải |
 | Tiện ích trình duyệt cho quản lý | Chrome | JavaScript | `version` trong `extensions/manager/manifest.json` (hiện 0.1.0) |
 | Bot Telegram (`server/telegram_bot.py`), tuỳ chọn | Máy chủ Linux, là một dịch vụ riêng | Python, chỉ thư viện chuẩn | Theo bản phát hành của plugin |
 | Khung bảng bên trong Telegram (`/tg/app`, `server/static/tg-app.js`), tuỳ chọn | Trình duyệt có sẵn của Telegram trên điện thoại hoặc máy tính | JavaScript, dùng chính `mini.js` của khung thanh menu; không có script của Telegram | Theo bản phát hành của plugin |
+| Bộ đo cho dự án hay ứng dụng AI (`skills/ai-cost-report/meter/`), tuỳ chọn | Bên trong dự án nhóm tự làm, trên máy chạy dự án | Python 3.8+ (chỉ thư viện chuẩn) và Node 18+ (không cần gói); ngôn ngữ khác theo định dạng dòng | Theo bản phát hành của plugin; chép tay vào dự án |
+| Bảng giá cho các báo cáo đó (`skills/ai-cost-report/prices.json`, chép sang `server/board/prices.json`) | Skill và máy chủ đọc | JSON, giá đọc từ trang giá của từng hãng kèm ngày | Theo bản phát hành của plugin |
 | Bộ nối cho Codex, Cursor và Gemini CLI (`connectors/`) | Máy nhân viên, dưới dạng hook trong từng công cụ | sh và PowerShell; bộ cài của nó còn dùng `osascript` hoặc Node để gộp JSON | Nằm trong gói cài; cập nhật bằng cách chạy lại bộ cài của nó |
 | File cài | macOS, Windows, Linux | Bash, PowerShell | Nằm trong gói cài |
 

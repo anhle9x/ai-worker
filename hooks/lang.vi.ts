@@ -146,6 +146,7 @@ export const VI: Record<string, string> = {
   'build a small course with lessons, flashcards and quizzes': 'dựng một khoá học nhỏ có bài học, thẻ ghi nhớ và câu hỏi',
   'write a specification: goal, scope, roles, numbered requirements': 'viết bản đặc tả: mục tiêu, phạm vi, vai trò, yêu cầu đánh số',
   'draw how a system really works, as diagrams': 'vẽ sơ đồ cách một hệ thống thật sự chạy',
+  'measure the cost and speed of an AI project your team built, and report it': 'đo chi phí và tốc độ của dự án AI nhóm tự làm, rồi làm báo cáo',
   'ask you one question at a time until the real need is clear': 'hỏi bạn từng câu một cho tới khi rõ nhu cầu thật',
   'question your plan hard to find its weak points': 'chất vấn kỹ kế hoạch của bạn để tìm chỗ yếu',
   'build a feature or fix a bug by writing the test first': 'làm tính năng hoặc sửa lỗi bằng cách viết bài test trước',

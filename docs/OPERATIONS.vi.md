@@ -176,6 +176,7 @@ Quay về bản cũ: phát hành lại code cũ với số phiên bản mới, c
 | Nhật ký truy cập Caddy | Mọi yêu cầu: IP, đường dẫn, mã trả về | 10 file mỗi file 20 MB | Root trên máy chủ |
 | Diễn biến tua lại, bảng `history` trong `board.db` | Trạng thái từng người khi đổi | 24 giờ | Mọi người đã đăng nhập, qua nút tua lại |
 | Tổng theo ngày, bảng `daily` trong `board.db` | Mỗi người mỗi ngày một dòng: chi phí, token, số việc giao, văn phòng, kèm tên và email tài khoản | Tháng hiện tại và 12 tháng trước đó, dòng cũ hơn máy chủ tự xoá | Quản trị và người xem, trên `/board` |
+| Dự án hay ứng dụng AI, bảng `project_turns` và `project_daily` trong `board.db` (chỉ khi `AI_PROJECTS=1`) | Từng lượt dự án đã gửi: thời gian, kết quả, và theo từng model: số lần gọi, lỗi, token; không bao giờ có câu hỏi, câu trả lời hay người dùng. Tổng theo dự án, ngày và model | Lượt giữ 30 ngày, tổng giữ tháng hiện tại và 12 tháng trước, dòng cũ hơn máy chủ tự xoá | Quản trị và người xem, trên `/projects` |
 
 Không bao giờ ghi: nội dung chat, câu hỏi, tên file, mã OTP, khoá.
 

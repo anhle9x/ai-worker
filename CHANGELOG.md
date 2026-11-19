@@ -2,6 +2,16 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.45.3 - 2026-11-19
+
+### Added
+- A guide for the people who build an AI project or application, `docs/AI-PROJECTS.md` (and `.vi.md`): every step to measure it, by Claude or by hand, with or without a board, for Python, Node or any other language. README, the documents index, the user guide, the install guide, the components list, the operations guide and the server's README point to it or now mention AI projects and applications.
+- `/ai-worker:help` says in plain words what `ai-cost-report` does.
+
+### Fixed
+- On `/projects`, the link at the top went back to the detail board even when you came from the home page's **AI projects** button. It now offers both: **◂ Dashboard** (the home page) and **Detail board**.
+- The user guide said the meter sends nothing to the board; since 0.45.0 it does when the project's server is given a key.
+
 ## 0.45.2 - 2026-11-19
 
 ### Added

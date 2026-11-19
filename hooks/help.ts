@@ -32,6 +32,7 @@ function plainAbout(name: string): string | undefined {
   if (name === 'make-skill') return tx("turn a document or your team's procedure into a new skill, as a draft you review first")
   if (name === 'write-spec') return tx('write a specification: goal, scope, roles, numbered requirements')
   if (name === 'draw-flow') return tx('draw how a system really works, as diagrams')
+  if (name === 'ai-cost-report') return tx('measure the cost and speed of an AI project your team built, and report it')
   if (name === 'interview-me') return tx('ask you one question at a time until the real need is clear')
   if (name === 'grilling') return tx('question your plan hard to find its weak points')
   if (name === 'tdd') return tx('build a feature or fix a bug by writing the test first')

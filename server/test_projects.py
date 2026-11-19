@@ -233,6 +233,10 @@ class Projects(unittest.TestCase):
         page = self.call("GET", "/projects?project=" + self.key_id, cookie="tok-viewer")[1].decode()
         self.assertIn("Totals per day", page)
         self.assertIn('name="from"', page)
+        # the way back goes to the home page, where the button is, and to /board
+        # đường về dẫn tới trang chủ, nơi có nút, và tới /board
+        self.assertIn('<a href="/">', page)
+        self.assertIn('<a href="/board">', page)
 
     def test_an_unknown_project_in_the_query_falls_back(self):
         self.send([turn(1)])
