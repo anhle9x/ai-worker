@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.45.4 - 2026-11-19
+
+### Changed
+- Wherever the guides asked for the board's address (the AI projects guide, the meter's format, the server's README, the settings template, the install and user guides), they now say it is the domain you open the board with and give an example; the SSH command in the Telegram setup names the SSH user and the server's IP or name.
+
 ## 0.45.3 - 2026-11-19
 
 ### Added

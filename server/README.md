@@ -64,15 +64,15 @@ Three roles; the server checks them itself, it does not just hide buttons:
 
 TV screens: open the dashboard page on the TV (a smart TV shows the code by itself; for a computer plugged into a TV, click "Wall screen" on the login page), then scan the QR code on the TV with a phone camera that is on the company network, or enter the code in the TV screens section of `/admin`; check the device and IP, give it a name, approve it. The TV gets the wall role, is not logged out when the webhook restarts, renews itself for 30 days while in use, and after one year at most must be paired again. Revoke it right on the page. After a new version is installed, an open screen reloads by itself within about 10 seconds; the Admin page shows which screens are running, which version, and has a remote reload button. At most 20 screens. To pair an old screen again, choose "Replace" so no extra row is made; a screen unused for over 30 days drops out of the list by itself. Sessions are stored only as hashes in `data/tv.json`; delete this file and restart to revoke them all.
 
-Full screen: the browser only allows it when someone acts on that very computer, so a wall display uses the first touch or key press for this. A computer plugged into a TV opens Chrome in kiosk mode so nobody has to touch it; use a separate profile folder, otherwise the command is ignored when Chrome is already open:
+Full screen: the browser only allows it when someone acts on that very computer, so a wall display uses the first touch or key press for this. A computer plugged into a TV opens Chrome in kiosk mode so nobody has to touch it; use a separate profile folder, otherwise the command is ignored when Chrome is already open. Put your board's domain in place of `<board domain>`, for example `https://board.example.com/`:
 
 ```bash
 # Windows (cmd): put this shortcut in the shell:startup folder so it comes up when the computer starts
-"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk --user-data-dir=C:\ai-worker-tv https://<board-address>/
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk --user-data-dir=C:\ai-worker-tv https://<board domain>/
 # macOS
-open -na "Google Chrome" --args --kiosk --user-data-dir="$HOME/ai-worker-tv" https://<board-address>/
+open -na "Google Chrome" --args --kiosk --user-data-dir="$HOME/ai-worker-tv" https://<board domain>/
 # Linux
-google-chrome --kiosk --user-data-dir="$HOME/ai-worker-tv" https://<board-address>/
+google-chrome --kiosk --user-data-dir="$HOME/ai-worker-tv" https://<board domain>/
 ```
 
 An easier way: on that computer open `/tv`, download the file at the bottom of the page and double-click it; choose 1 to open by itself at startup, 2 to remove. Windows may show SmartScreen; macOS needs right-click > Open the first time.
@@ -100,7 +100,7 @@ Action log: the `audit` table in `data/board.db` records logins, changes and ref
 - Log in with Telegram (optional): set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_NAME` in `/etc/ai-worker.env`, then restart the service. Steps in [docs/INSTALL.md](../docs/INSTALL.md), section "Log in with Telegram".
 - Ask the board from an AI tool (MCP): the path `/mcp` is on, and gives nothing out until an admin approves a key asked for on the page `/mcp/connect`. `MCP=0` in `/etc/ai-worker.env`, then a restart of the service, takes it away. Steps in [docs/INSTALL.md](../docs/INSTALL.md), section "Ask the board from an AI tool (MCP)".
 - Ask the board from Telegram (optional): add `TELEGRAM_ASK=1` to `/etc/ai-worker.env` and run `install.sh`, put the token of a bot made for this into `/etc/ai-worker-telegram.env`, run `install.sh` again. A second service, `ai-worker-telegram`, then talks to Telegram; the webhook itself never connects out. Steps and what it means for people's data in [docs/INSTALL.md](../docs/INSTALL.md), section "Ask the board from Telegram".
-- The board's window inside Telegram (optional, needs asking from Telegram): add `TELEGRAM_APP=1` and `TELEGRAM_APP_URL=https://<your board>/tg/app` to `/etc/ai-worker.env` and run `install.sh`; it writes `TELEGRAM_APP_KEY` from the bot's token. Then allow each chat on `/admin`. Each chat can also turn on messages when someone waits too long (`/alerts`), with nothing to set on the server. Steps in [docs/INSTALL.md](../docs/INSTALL.md).
+- The board's window inside Telegram (optional, needs asking from Telegram): add `TELEGRAM_APP=1` and `TELEGRAM_APP_URL=https://<board domain>/tg/app` (the domain you open the board with, for example `https://board.example.com/tg/app`) to `/etc/ai-worker.env` and run `install.sh`; it writes `TELEGRAM_APP_KEY` from the bot's token. Then allow each chat on `/admin`. Each chat can also turn on messages when someone waits too long (`/alerts`), with nothing to set on the server. Steps in [docs/INSTALL.md](../docs/INSTALL.md).
 - An HTTP connection is not encrypted: open this page only inside the company network. To view it from outside you need HTTPS first.
 
 ## Operation

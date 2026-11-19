@@ -33,7 +33,7 @@ Muốn xem bảng trước khi triển khai, chạy `python3 server/demo.py` (tr
    ```
    Được `dist/AI-Worker-<phiên bản>-company.zip`.
 5. **Nhân viên cài.** Giải nén, bấm đúp `INSTALL-Mac.command` hoặc `INSTALL-Windows.bat`, nhập họ tên. Gói có mã gửi nên chỉ phát trong công ty.
-6. **Xem bảng.** Mở địa chỉ webhook, đăng nhập bằng mã OTP. Trang `/board` có cột Plugin cho biết máy nào chưa lên bản mới nhất.
+6. **Xem bảng.** Mở bảng trên trình duyệt: `https://<domain của bảng>` sau proxy HTTPS (ví dụ `https://board.example.com`), hoặc `http://<IP-máy-chủ>:8788` từ trong mạng khi chưa dựng proxy. Đăng nhập bằng mã OTP. Trang `/board` có cột Plugin cho biết máy nào chưa lên bản mới nhất.
 
 ## Lệnh trên máy nhân viên
 
@@ -158,7 +158,7 @@ Tiện ích cho Chrome hoặc Edge hiện trên biểu tượng số người đ
 
 1. **Đóng gói** trên máy giữ repo: `bash packaging/build-extension.sh` tạo `server/menubar/AI-Worker-extension.zip`; chép `server/` lên máy chủ và chạy `install.sh`, trang Quản trị hiện nút **Tiện ích Chrome, Edge** ở mục "Biểu tượng thanh menu". Sửa tiện ích thì chạy lại lệnh này.
 2. **Cài tay** trên máy quản lý: giải nén file đó (hoặc chép thư mục `extensions/manager/`), mở `chrome://extensions` (Edge: `edge://extensions`), bật Developer mode, bấm "Load unpacked" rồi chọn thư mục đó.
-3. **Ghép:** bấm biểu tượng, nhập địa chỉ bảng, cho phép truy cập đúng trang đó khi trình duyệt hỏi, rồi đọc mã 8 số cho quản trị.
+3. **Ghép:** bấm biểu tượng, nhập địa chỉ dùng để mở bảng (ví dụ `https://board.example.com`), cho phép truy cập đúng trang đó khi trình duyệt hỏi, rồi đọc mã 8 số cho quản trị.
 4. **Quản trị duyệt** ở trang Quản trị, mục Màn hình TV, như với màn hình; dòng đó được ghi "Tiện ích trình duyệt". Thu hồi ở đó thì trong vòng một phút tiện ích báo "chưa ghép".
 
 Đã ghép thì cửa sổ nhỏ chính là khung nhỏ của các app thanh menu (năm thẻ, Cài đặt có thông báo, ngôn ngữ và bỏ ghép). Cửa sổ chạy bản chép của `server/static/mini.js`, `mini.css` và logo, để trong `extensions/manager/mini/`: sửa các file đó thì chép lại (`cp server/static/mini.js server/static/mini.css extensions/manager/mini/`, và chép `server/menubar/icons/generic-black.png`, `generic-white.png` thành `extensions/manager/mini/logo-black.png`, `logo-white.png`), rồi phát lại thư mục.
@@ -178,7 +178,7 @@ Ai dùng Telegram hằng ngày có thể đăng nhập bảng tổng bằng nút
 2. **Gắn bot với địa chỉ bảng tổng** (vẫn trong @BotFather): gửi `/setdomain`, chọn bot, rồi gửi tên miền bảng tổng, không có `https://`, ví dụ `board.company.com`. Đúng là: "Success! Domain updated."
 3. **Khai token và username cho máy chủ.** Trên máy tính của bạn, chạy lệnh sau; lệnh hỏi token mà không hiện token lên màn hình:
    ```bash
-   ssh -t <tài-khoản-quản-trị>@<máy-chủ> 'read -rsp "Bot token: " T; echo; read -rp "Bot username (no @): " N; printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_BOT_NAME=%s\n" "$T" "$N" | sudo tee -a /etc/ai-worker.env >/dev/null && sudo systemctl restart ai-worker-webhook && echo DONE'
+   ssh -t <tài-khoản-ssh>@<IP-hoặc-tên-máy-chủ> 'read -rsp "Bot token: " T; echo; read -rp "Bot username (no @): " N; printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_BOT_NAME=%s\n" "$T" "$N" | sudo tee -a /etc/ai-worker.env >/dev/null && sudo systemctl restart ai-worker-webhook && echo DONE'
    ```
    Ở dòng `Bot token:` dán token ở bước 1.4 rồi Enter (màn hình không hiện gì là đúng). Ở dòng `Bot username (no @):` gõ username ở bước 1.3, ví dụ `congtyban_aiworker_bot`. Đúng là: hiện `DONE`, và trang đăng nhập có nút **Log in with Telegram** dưới chữ "hoặc".
    Hoặc sửa file bằng tay với `sudo nano /etc/ai-worker.env`, thêm hai dòng dưới đây, lưu lại, rồi chạy `sudo systemctl restart ai-worker-webhook`:
@@ -241,7 +241,7 @@ Chat đã được duyệt còn có thể mở khung nhỏ của biểu tượng
 
 **Bật lên thì có gì thay đổi.** Khung là một trang của bảng, mở bằng trình duyệt có sẵn trong Telegram trên điện thoại hay máy tính của người đó. Số liệu đi thẳng từ bảng tới trình duyệt đó qua HTTPS, không qua máy chủ của Telegram; Telegram chỉ biết là khung đã được mở. Vì vậy điện thoại phải tới được bảng: với khối Caddy mẫu, nghĩa là đang ở một mạng có trong danh sách IP được vào (các văn phòng của bạn). Ở ngoài các mạng đó, khung báo không tới được máy chủ, còn các nút của chat vẫn dùng bình thường.
 
-1. **Bật lên.** Việc hỏi bảng qua Telegram phải đang chạy (mục trên). Thêm hai dòng này vào `/etc/ai-worker.env`, thay bằng địa chỉ bảng của bạn, rồi chạy `sudo bash install.sh` trong thư mục `server/`:
+1. **Bật lên.** Việc hỏi bảng qua Telegram phải đang chạy (mục trên). Thêm hai dòng này vào `/etc/ai-worker.env`, thay `board.example.com` bằng domain bảng của bạn, rồi chạy `sudo bash install.sh` trong thư mục `server/`:
    ```
    TELEGRAM_APP=1
    TELEGRAM_APP_URL=https://board.example.com/tg/app

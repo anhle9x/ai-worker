@@ -72,7 +72,7 @@ Append one line per turn, at the end of the turn, to a file on the machine that 
 
 ## Sending to the AI Worker board
 
-`POST <board>/projects/ingest` with `Authorization: Bearer <key>` and `Content-Type: application/json`, body `{"turns": [line, line, ...]}`: at most 500 turns and 256 KB. Send from the project's server, never from a browser (a request with an `Origin` header is refused). The answer is `{"accepted": n, "duplicates": n, "refused": n, "overDailyLimit": n}`; a turn already sent is counted as a duplicate, so sending again after a timeout is safe. 429 means wait (`Retry-After`), 401 means the key is wrong or revoked. Keep writing the file too.
+`POST https://<board domain>/projects/ingest` with `Authorization: Bearer <key>` and `Content-Type: application/json`, body `{"turns": [line, line, ...]}`: at most 500 turns and 256 KB. Send from the project's server, never from a browser (a request with an `Origin` header is refused). The answer is `{"accepted": n, "duplicates": n, "refused": n, "overDailyLimit": n}`; a turn already sent is counted as a duplicate, so sending again after a timeout is safe. 429 means wait (`Retry-After`), 401 means the key is wrong or revoked. Keep writing the file too.
 
 ## How it maps to OpenTelemetry
 

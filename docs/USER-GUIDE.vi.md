@@ -236,7 +236,7 @@ Cho quản lý thích dùng trình duyệt: tiện ích Chrome hoặc Edge hiệ
 
 1. Xin người quản trị file `AI-Worker-extension.zip` (nút **Tiện ích Chrome, Edge** ở trang Quản trị). Giải nén vào chỗ cố định, ví dụ Documents: xoá thư mục đi thì tiện ích hỏng.
 2. Mở `chrome://extensions` (Edge: `edge://extensions`), bật **Developer mode**, bấm **Load unpacked**, chọn thư mục `AI-Worker-extension`.
-3. Bấm biểu tượng tiện ích, gõ địa chỉ bảng tổng, cho phép truy cập đúng trang đó, rồi đọc mã 8 số cho người quản trị.
+3. Bấm biểu tượng tiện ích, gõ địa chỉ dùng để mở bảng tổng (ví dụ `https://board.company.com`), cho phép truy cập đúng trang đó, rồi đọc mã 8 số cho người quản trị.
 
 **Đúng là:** trong vòng 1 phút sau khi người quản trị duyệt, biểu tượng hiện số người đang chờ.
 
@@ -300,7 +300,7 @@ Tạo, cấp lại, đổi vai và xoá đều hỏi lại mã OTP của bạn, 
 
 ### 3.3 Màn hình TV
 
-1. Trên TV, mở địa chỉ bảng tổng. TV thông minh tự hiện mã 8 số; với máy tính cắm vào TV, bấm **Màn hình treo tường: ghép bằng mã** ở trang đăng nhập.
+1. Trên TV, mở địa chỉ bảng tổng (người quản trị đưa, ví dụ `https://board.company.com`). TV thông minh tự hiện mã 8 số; với máy tính cắm vào TV, bấm **Màn hình treo tường: ghép bằng mã** ở trang đăng nhập.
 2. Quét mã QR trên TV bằng điện thoại đang ở mạng công ty, hoặc gõ mã ở mục **Màn hình TV** trên trang Quản trị.
 3. Kiểm thiết bị và IP, chọn **Thêm màn hình mới** (hoặc thay màn hình cũ để không sinh thêm dòng), đặt tên như "TV phòng họp", bấm **Duyệt**.
 

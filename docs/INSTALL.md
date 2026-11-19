@@ -33,7 +33,7 @@ Real addresses, the `INGEST_KEY` and the keys do not go into git. The repo only 
    ```
    This makes `dist/AI-Worker-<version>-company.zip`.
 5. **Employees install.** Unzip, double-click `INSTALL-Mac.command` or `INSTALL-Windows.bat`, type the full name. The package contains the send code, so give it out inside the company only.
-6. **View the dashboard.** Open the webhook address and sign in with the OTP code. The `/board` page has a Plugin column showing which computers are not on the latest version yet.
+6. **View the dashboard.** Open the board in a browser: `https://<board domain>` behind your HTTPS proxy (for example `https://board.example.com`), or `http://<server-IP>:8788` from inside the network before the proxy is set up. Sign in with the OTP code. The `/board` page has a Plugin column showing which computers are not on the latest version yet.
 
 ## Commands on an employee's computer
 
@@ -158,7 +158,7 @@ A Chrome or Edge extension shows, on its icon, how many people are waiting for a
 
 1. **Package** on the computer with the repository: `bash packaging/build-extension.sh` makes `server/menubar/AI-Worker-extension.zip`; copy `server/` to the server and run `install.sh`, and the Admin page shows an **Extension for Chrome, Edge** button under "Menu bar icon". Run it again after changing the extension.
 2. **Install by hand** on the manager's computer: unzip that file (or copy the `extensions/manager/` folder), open `chrome://extensions` (Edge: `edge://extensions`), turn on Developer mode, click "Load unpacked" and choose the folder.
-3. **Pair:** click the icon, type the board address, allow access to that one site when the browser asks, and read the 8-digit code to an admin.
+3. **Pair:** click the icon, type the address you open the board with (for example `https://board.example.com`), allow access to that one site when the browser asks, and read the 8-digit code to an admin.
 4. **The admin approves** it on the Admin page under TV screens, like a screen; the row is marked "Browser extension". Revoking it there makes the extension show "not paired" within a minute.
 
 Once paired, the popup is the same small window as the menu bar apps (five tabs, Settings with notifications, language and unpair). It runs copies of `server/static/mini.js`, `mini.css` and the logos kept in `extensions/manager/mini/`: after changing those files, copy them again (`cp server/static/mini.js server/static/mini.css extensions/manager/mini/`, and `server/menubar/icons/generic-black.png` and `generic-white.png` to `extensions/manager/mini/logo-black.png` and `logo-white.png`), then hand out the folder again.
@@ -178,7 +178,7 @@ People who use Telegram every day can log in to the board with Telegram's button
 2. **Tie the bot to the board's address** (still in @BotFather): send `/setdomain`, pick the bot, and send the board's domain without `https://`, for example `board.company.com`. Correct result: "Success! Domain updated."
 3. **Give the server the token and the username.** From your computer, run this; it asks for the token without showing it on screen:
    ```bash
-   ssh -t <admin>@<server> 'read -rsp "Bot token: " T; echo; read -rp "Bot username (no @): " N; printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_BOT_NAME=%s\n" "$T" "$N" | sudo tee -a /etc/ai-worker.env >/dev/null && sudo systemctl restart ai-worker-webhook && echo DONE'
+   ssh -t <ssh-user>@<server-IP-or-name> 'read -rsp "Bot token: " T; echo; read -rp "Bot username (no @): " N; printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_BOT_NAME=%s\n" "$T" "$N" | sudo tee -a /etc/ai-worker.env >/dev/null && sudo systemctl restart ai-worker-webhook && echo DONE'
    ```
    At `Bot token:` paste the token from step 1.4 and press Enter (nothing shows, that is expected). At `Bot username (no @):` type the username from step 1.3, for example `yourcompany_aiworker_bot`. Correct result: `DONE`, and the login page shows a **Log in with Telegram** button under "or".
    Or edit the file by hand with `sudo nano /etc/ai-worker.env`, add the two lines below, save, and run `sudo systemctl restart ai-worker-webhook`:
@@ -241,7 +241,7 @@ An approved chat can also open the small window of the menu bar icon inside Tele
 
 **What changes by turning it on.** The window is a page of the board, opened by Telegram's built-in browser on the person's phone or computer. The numbers go straight from the board to that browser over HTTPS, not through Telegram's servers; Telegram knows only that the window was opened. So the phone must reach the board: with the template's Caddy block that means a network on its list of allowed IPs (your offices). Outside them the window says it cannot reach the server, and the chat's buttons still work.
 
-1. **Turn it on.** Asking from Telegram must already work (above). Add these two lines to `/etc/ai-worker.env`, with your board's own address, then run `sudo bash install.sh` in the `server/` folder:
+1. **Turn it on.** Asking from Telegram must already work (above). Add these two lines to `/etc/ai-worker.env`, with your own board domain in place of `board.example.com`, then run `sudo bash install.sh` in the `server/` folder:
    ```
    TELEGRAM_APP=1
    TELEGRAM_APP_URL=https://board.example.com/tg/app

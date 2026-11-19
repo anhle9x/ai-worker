@@ -64,15 +64,15 @@ Ba vai, máy chủ tự kiểm chứ không chỉ ẩn nút:
 
 Màn hình TV: mở trang bảng trên TV (TV thông minh tự hiện mã, máy tính cắm TV thì bấm "Màn hình treo tường" ở trang đăng nhập), rồi quét mã QR trên TV bằng camera điện thoại đang dùng mạng công ty, hoặc nhập mã trong mục Màn hình TV ở `/admin`; kiểm tra thiết bị và IP, đặt tên, duyệt. TV có vai treo tường, không bị văng khi webhook khởi động lại, còn dùng thì tự gia hạn 30 ngày, tối đa một năm rồi ghép lại. Thu hồi ngay trên trang. Sau khi cài bản mới, màn hình đang mở tự tải lại trong khoảng 10 giây; trang Quản trị cho biết màn hình nào đang chạy, bản nào, và có nút tải lại từ xa. Tối đa 20 màn hình. Ghép lại một màn hình cũ thì chọn "Thay cho" để không tạo thêm dòng; màn hình không dùng quá 30 ngày tự mất khỏi danh sách. Phiên chỉ lưu dạng băm ở `data/tv.json`; xoá file này rồi khởi động lại là thu hồi tất cả.
 
-Toàn màn hình: trình duyệt chỉ cho vào khi có người thao tác trên chính máy đó, nên màn treo tường dùng lần chạm hoặc bấm phím đầu tiên cho việc này. Máy tính cắm TV thì mở Chrome ở chế độ kiosk để khỏi phải chạm; dùng thư mục hồ sơ riêng, nếu không lệnh sẽ bị bỏ qua khi Chrome đang mở:
+Toàn màn hình: trình duyệt chỉ cho vào khi có người thao tác trên chính máy đó, nên màn treo tường dùng lần chạm hoặc bấm phím đầu tiên cho việc này. Máy tính cắm TV thì mở Chrome ở chế độ kiosk để khỏi phải chạm; dùng thư mục hồ sơ riêng, nếu không lệnh sẽ bị bỏ qua khi Chrome đang mở. Thay `<domain của bảng>` bằng domain bảng của bạn, ví dụ `https://board.example.com/`:
 
 ```bash
 # Windows (cmd): đặt lối tắt này vào thư mục shell:startup để bật máy là lên
-"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk --user-data-dir=C:\ai-worker-tv https://<địa-chỉ-bảng>/
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk --user-data-dir=C:\ai-worker-tv https://<domain của bảng>/
 # macOS
-open -na "Google Chrome" --args --kiosk --user-data-dir="$HOME/ai-worker-tv" https://<địa-chỉ-bảng>/
+open -na "Google Chrome" --args --kiosk --user-data-dir="$HOME/ai-worker-tv" https://<domain của bảng>/
 # Linux
-google-chrome --kiosk --user-data-dir="$HOME/ai-worker-tv" https://<địa-chỉ-bảng>/
+google-chrome --kiosk --user-data-dir="$HOME/ai-worker-tv" https://<domain của bảng>/
 ```
 
 Cách dễ hơn: trên chính máy đó mở `/tv`, tải file ở cuối trang rồi bấm đúp, chọn 1 để tự mở khi bật máy, chọn 2 để gỡ. Windows có thể hiện SmartScreen; macOS cần chuột phải > Open lần đầu.
@@ -100,7 +100,7 @@ Nhật ký thao tác: bảng `audit` trong `data/board.db`, ghi đăng nhập, t
 - Đăng nhập bằng Telegram (tuỳ chọn): ghi `TELEGRAM_BOT_TOKEN` và `TELEGRAM_BOT_NAME` vào `/etc/ai-worker.env`, rồi khởi động lại dịch vụ. Các bước ở [docs/INSTALL.vi.md](../docs/INSTALL.vi.md), mục "Đăng nhập bằng Telegram".
 - Hỏi bảng từ một công cụ AI (MCP): đường `/mcp` bật sẵn, và không đưa gì ra cho tới khi quản trị duyệt một khoá xin ở trang `/mcp/connect`. Ghi `MCP=0` vào `/etc/ai-worker.env` rồi khởi động lại dịch vụ là gỡ. Các bước ở [docs/INSTALL.vi.md](../docs/INSTALL.vi.md), mục "Hỏi bảng từ một công cụ AI (MCP)".
 - Hỏi bảng qua Telegram (tuỳ chọn): thêm `TELEGRAM_ASK=1` vào `/etc/ai-worker.env` rồi chạy `install.sh`, ghi token của một bot tạo riêng cho việc này vào `/etc/ai-worker-telegram.env`, chạy `install.sh` lần nữa. Khi đó một dịch vụ thứ hai, `ai-worker-telegram`, nói chuyện với Telegram; chính webhook không bao giờ kết nối ra ngoài. Các bước và ý nghĩa với dữ liệu của mọi người có trong [docs/INSTALL.vi.md](../docs/INSTALL.vi.md), mục "Hỏi bảng qua Telegram".
-- Khung bảng bên trong Telegram (tuỳ chọn, cần việc hỏi qua Telegram): thêm `TELEGRAM_APP=1` và `TELEGRAM_APP_URL=https://<bảng của bạn>/tg/app` vào `/etc/ai-worker.env` rồi chạy `install.sh`; nó ghi `TELEGRAM_APP_KEY` từ khoá của bot. Sau đó cho phép từng chat ở `/admin`. Mỗi chat còn tự bật được tin báo khi có người chờ quá lâu (`/baocho`), không cần đặt gì trên máy chủ. Các bước trong [docs/INSTALL.vi.md](../docs/INSTALL.vi.md).
+- Khung bảng bên trong Telegram (tuỳ chọn, cần việc hỏi qua Telegram): thêm `TELEGRAM_APP=1` và `TELEGRAM_APP_URL=https://<domain của bảng>/tg/app` (domain bạn dùng để mở bảng, ví dụ `https://board.example.com/tg/app`) vào `/etc/ai-worker.env` rồi chạy `install.sh`; nó ghi `TELEGRAM_APP_KEY` từ khoá của bot. Sau đó cho phép từng chat ở `/admin`. Mỗi chat còn tự bật được tin báo khi có người chờ quá lâu (`/baocho`), không cần đặt gì trên máy chủ. Các bước trong [docs/INSTALL.vi.md](../docs/INSTALL.vi.md).
 - Kết nối HTTP không mã hoá: chỉ nên mở trang này trong mạng công ty. Muốn xem từ ngoài thì cần HTTPS trước.
 
 ## Vận hành
