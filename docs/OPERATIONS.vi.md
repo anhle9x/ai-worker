@@ -45,6 +45,8 @@ Trên bảng tổng, máy im 12 phút hiện ngoại tuyến, im một ngày th�
 | Dấu hiệu | Nguyên nhân thường gặp | Cách xử lý |
 |---|---|---|
 | Dịch vụ không chạy, nhật ký báo `INGEST_KEY is required` | Thiếu hoặc rỗng file thiết lập | Kiểm `/etc/ai-worker.env`, chạy lại `sudo bash install.sh` |
+| Trang Quản trị báo *Kiểm nhật ký: một dòng … đã bị sửa hay bị xoá* | Có người sửa `board.db` bằng tay, hoặc chép đè một bản cũ lên bản mới hơn | Tìm xem ai có sudo hay quyền đọc ghi file trên máy chủ; so dấu vân tay cuối với dấu đã ghi lại; khôi phục bản sao lưu làm trước khi có chuỗi thì không gây báo này |
+| Trang Quản trị liệt kê khoá cho công cụ AI *không dùng N ngày* | Một công cụ được cài một lần rồi bỏ, hoặc file cấu hình của nó bị chép đi nơi khác | Hỏi khoá đó của ai; **Thu hồi** khoá không ai cần, để khoá bỏ quên trong file cấu hình cũ không đọc được bảng |
 | Mọi máy ngoại tuyến | Caddy dừng, chứng chỉ hết hạn, hoặc IP văn phòng đổi | `systemctl status caddy`; sửa danh sách IP trong file Caddy rồi `systemctl reload caddy` |
 | Thiếu một máy | IP của máy nằm ngoài danh sách, hoặc máy cài gói cũ | Nhờ người đó gõ `/office`; tìm IP của máy trong nhật ký truy cập Caddy |
 | Nhật ký báo `401 wrong ingest key` | Gói cài được đóng với `INGEST_KEY` khác | Đóng lại gói với khoá hiện tại và cài lại cho máy đó |
@@ -169,7 +171,7 @@ Quay về bản cũ: phát hành lại code cũ với số phiên bản mới, c
 
 | Nhật ký | Nội dung | Giữ | Ai đọc |
 |---|---|---|---|
-| Nhật ký quản trị, bảng `audit` trong `board.db` | Đăng nhập, đổi tài khoản và vai, ghép và thu hồi màn hình, địa điểm, nạp CSV gói Team (chỉ khoảng ngày và số người), thao tác bị từ chối: ai, vai, IP, đường dẫn, thời điểm | 12 tháng, file cũ hơn máy chủ tự xoá | Quản trị, trên `/admin` theo tháng |
+| Nhật ký quản trị, bảng `audit` trong `board.db` | Đăng nhập, đổi tài khoản và vai, ghép và thu hồi màn hình, địa điểm, nạp CSV gói Team (chỉ khoảng ngày và số người), thao tác bị từ chối: ai, vai, IP, đường dẫn, thời điểm | 12 tháng, dòng cũ hơn máy chủ tự xoá; mỗi dòng mang dấu vân tay của dòng trước, và `/admin` báo nếu có dòng bị sửa hay bị xoá bằng tay | Quản trị, trên `/admin` theo tháng |
 | Nhật ký dịch vụ (journald) | Khởi động, dòng đăng nhập, từ chối, lỗi. Không ghi từng lần máy gửi | Theo thiết lập journald của máy | Root trên máy chủ |
 | Nhật ký truy cập Caddy | Mọi yêu cầu: IP, đường dẫn, mã trả về | 10 file mỗi file 20 MB | Root trên máy chủ |
 | Diễn biến tua lại, bảng `history` trong `board.db` | Trạng thái từng người khi đổi | 24 giờ | Mọi người đã đăng nhập, qua nút tua lại |
@@ -199,6 +201,7 @@ Mỗi lần cài giữ một hồ sơ trong tài liệu nội bộ của công t
 | Sao lưu đi đâu, bao lâu một lần | |
 | Ai giữ khoá ký và khoá dự phòng | |
 | Ngày nâng cấp gần nhất, ai làm | |
+| Dấu vân tay nhật ký cuối ghi lại từ `/admin`, và lúc nào | |
 
 ## 8. Gỡ bỏ
 

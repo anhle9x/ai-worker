@@ -71,7 +71,7 @@ Trang chỉ hiện các phiên trên **máy của bạn**:
 
 - **Sơ đồ:** mỗi phiên đang mở, nối với Claude và các trợ lý phụ. Phiên màu xanh lá là đang làm, màu vàng là đang chờ bạn trả lời.
 - **Bấm vào một phiên** để xem kế hoạch, mức đầy của ngữ cảnh và chi phí.
-- **Khi cuộc trò chuyện dài,** có dòng nhắc ở mức 60% và 80% ngữ cảnh. Nếu sau đó Claude tự tóm tắt phần cũ để lấy chỗ, plugin dặn bản tóm tắt giữ lại lời dặn của bạn, các quyết định, việc đã hỏng và việc còn bỏ ngỏ, rồi có dòng báo cho bạn biết: cứ làm tiếp trong cùng cuộc trò chuyện, không cần mở phiên mới.
+- **Khi cuộc trò chuyện dài,** có dòng nhắc ở mức 60% và 80% ngữ cảnh. Quá 80% thì Claude cũng được báo: nó làm xong việc bạn nhờ, rồi ghi bàn giao và đề nghị một dòng mở phiên mới. Nếu sau đó Claude tự tóm tắt phần cũ để lấy chỗ, plugin dặn bản tóm tắt giữ lại lời dặn của bạn, các quyết định, việc đã hỏng và việc còn bỏ ngỏ, rồi có dòng báo cho bạn biết: cứ làm tiếp trong cùng cuộc trò chuyện, không cần mở phiên mới.
 - **Làm tiếp trong phiên mới.** Khi bạn đã ghi bàn giao bằng `/ai-worker:handoff`, mỗi phiên mới được báo tên và ngày của năm ghi chú mới nhất. Bạn nói "làm tiếp báo cáo tháng" thì Claude đọc ghi chú đó trước; chỉ nói "làm tiếp" thì nó hỏi việc nào. Plugin chỉ đưa tên và ngày: ghi chú chỉ được mở khi bạn nhờ làm tiếp việc đó.
 - **Chi phí:** hôm nay, 7 ngày qua, và biểu đồ đổi được kiểu (đường, cột, nến; theo giờ hoặc theo ngày).
 - **Hoạt động:** những việc đã làm trong các phiên đang mở, có ô lọc.
@@ -314,7 +314,9 @@ Gói cá nhân (Pro, Max) không có trong báo cáo này.
 ### 3.6 Phiên đang mở và nhật ký
 
 - **Phiên đang mở:** ai đang đăng nhập, từ đâu. Bấm **Kết thúc** một phiên, hoặc **Kết thúc các phiên khác** để đăng xuất mọi người khác.
-- **Nhật ký:** đăng nhập, thay đổi và các lần bị từ chối trong tháng đã chọn. Giữ 12 tháng; trang hiện 300 dòng mới nhất.
+- **Nhật ký:** đăng nhập, thay đổi và các lần bị từ chối trong tháng đã chọn. Giữ 12 tháng; trang hiện 300 dòng mới nhất. Dòng **Kiểm nhật ký** phía trên cho biết có dòng nào bị sửa hay bị xoá khỏi cơ sở dữ liệu bằng tay không, và hiện dấu vân tay cuối: thỉnh thoảng ghi lại để so về sau.
+- **ai-worker đã chặn:** trên cả team trong 7 ngày qua, bao nhiêu lần khoá hay mật khẩu không được gửi sang ChatGPT hay Gemini, bao nhiêu commit hay lệnh rủi ro được hỏi lại, bao nhiêu trang tìm cách lái Claude bị cảnh báo. Chỉ số đếm, không bao giờ có nội dung.
+- **Khoá cho công cụ AI không dùng 30 ngày** được liệt kê phía trên bảng màn hình TV; thu hồi khoá nào không ai cần.
 
 ### 3.7 File cài biểu tượng thanh menu
 

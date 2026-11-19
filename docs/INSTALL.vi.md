@@ -233,7 +233,7 @@ Chat đã được duyệt còn có thể mở khung nhỏ của biểu tượng
    TELEGRAM_APP=1
    TELEGRAM_APP_URL=https://board.example.com/tg/app
    ```
-   Bộ cài ghi thêm `TELEGRAM_APP_KEY` bên cạnh: một khoá nó suy ra từ khoá bot theo quy tắc của Telegram. Webhook dùng khoá này để kiểm phần Telegram ký cho khung, và không dùng được nó để điều khiển bot; bản thân khoá bot vẫn chỉ ở tiến trình bot. Kết quả đúng: không có dòng nào nói về `TELEGRAM_APP_URL`, và ở `/admin`, mục **Màn hình TV**, mỗi chat được đọc từng người có nút **Cho mở khung**.
+   Bộ cài ghi thêm `TELEGRAM_APP_KEY` bên cạnh: một khoá nó suy ra từ khoá bot theo quy tắc của Telegram. Webhook dùng khoá này để kiểm phần Telegram ký cho khung, và không dùng được nó để điều khiển bot; bản thân khoá bot vẫn chỉ ở tiến trình bot. Kết quả đúng: không có dòng nào nói về `TELEGRAM_APP_URL`, và ở `/admin`, mục **Màn hình TV**, mỗi chat Telegram có nút **Cho mở khung**.
 2. **Cho phép một chat.** Bấm **Cho mở khung** ở dòng của chat đó rồi xác nhận. Kết quả đúng: dòng ghi *mở được khung*, và trong vòng một phút nút menu của chat trong Telegram đổi thành **AI Worker**. Nếu Telegram vẫn hiện menu cũ, đóng chat rồi mở lại.
 3. **Mở khung.** Trong chat, bấm **AI Worker** cạnh ô nhập tin. Kết quả đúng: khung hiện cùng các con số như biểu tượng thanh menu.
 
@@ -283,7 +283,7 @@ Máy nhân viên hỏi máy chủ tối đa 4 giờ một lần, thất bại th
 
 Chỉ gói công ty mới gửi; gói thường không gửi gì. Số liệu lên máy chủ của công ty, không gửi cho bên ngoài.
 
-**Có gửi:** họ tên, email tài khoản Claude và email nhập lúc cài, mã máy ngẫu nhiên, dấu máy (mã phần cứng đã băm một chiều, để nhận ra cùng máy khi cài lại plugin, không hiện trên bảng), IP nội bộ, số phiên mở, đang làm, chờ trả lời, mô hình đang dùng, hạn mức tài khoản Claude, token và chi phí theo giờ, số việc giao cho từng trợ lý, tên loại trợ lý phụ đang chạy, trợ lý có trên máy, phiên bản plugin. Máy chủ tự ghi thêm IP công cộng của máy gửi, và nhớ các IP nội bộ mỗi máy đã dùng trong 30 ngày. Máy chủ cộng chi phí, token và số việc thành một con số tổng cho mỗi người mỗi ngày và giữ các tổng đó tối đa 13 tháng.
+**Có gửi:** họ tên, email tài khoản Claude và email nhập lúc cài, mã máy ngẫu nhiên, dấu máy (mã phần cứng đã băm một chiều, để nhận ra cùng máy khi cài lại plugin, không hiện trên bảng), IP nội bộ, số phiên mở, đang làm, chờ trả lời, mô hình đang dùng, hạn mức tài khoản Claude, token và chi phí theo giờ, số việc giao cho từng trợ lý, tên loại trợ lý phụ đang chạy, trợ lý có trên máy, phiên bản plugin, và mỗi giờ plugin đã chặn hay hỏi lại bao nhiêu lần (chỉ số đếm, không có nội dung). Máy chủ tự ghi thêm IP công cộng của máy gửi, và nhớ các IP nội bộ mỗi máy đã dùng trong 30 ngày. Máy chủ cộng chi phí, token và số việc thành một con số tổng cho mỗi người mỗi ngày và giữ các tổng đó tối đa 13 tháng.
 
 **Bộ nối cho Codex, Cursor và Gemini CLI gửi:** họ tên và email gõ lúc cài, một mã máy ngẫu nhiên, thời điểm, và với mỗi công cụ là số phiên đang mở, đang làm và đang chờ. Máy chủ tự ghi IP công cộng của máy gửi. Ngoài ra không gửi gì khác. Trên máy, `~/.local/share/ai-worker/connector/` chứa khoá gửi (file chỉ tài khoản đó đọc được), mỗi phiên đang mở một dòng kèm mã phiên của chính công cụ, và báo cáo gần nhất. Mỗi công cụ đưa cho hook sự kiện của nó, trong đó có câu hỏi hoặc câu trả lời; hook đọc mã phiên và việc câu cuối có kết thúc bằng dấu hỏi hay không, và không giữ lại câu hỏi lẫn câu trả lời.
 

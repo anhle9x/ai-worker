@@ -96,7 +96,50 @@ SESSION_COUNTS = ("openSessions", "working", "waiting")
 # risky: a command that destroys work or weakens the computer, asked first; page: a page tried to steer Claude
 # secret: chữ gửi ChatGPT hay Gemini có bí mật, không gửi; commit: commit thêm bí mật, hỏi trước;
 # risky: lệnh phá huỷ công việc hay làm yếu máy, hỏi trước; page: một trang cố lái Claude
-BLOCK_KINDS = ("secret", "commit", "risky", "page")
+# answer: an answer from ChatGPT, Gemini or Gemma held a secret, text aimed at an AI or a command that cannot be undone
+# answer: câu trả lời của ChatGPT, Gemini hay Gemma có bí mật, chữ nhắm vào AI hay lệnh không hoàn tác được
+BLOCK_KINDS = ("secret", "commit", "risky", "page", "answer")
+
+# The record of one piece of work handed to a helper, as a computer sends it: a fixed list of fields and values.
+# Never the prompt or the answer; the fingerprint is salted on the computer, so it cannot be matched to a guessed text here.
+# Biên bản của một việc giao cho trợ lý, như máy gửi lên: danh sách trường và giá trị cố định.
+# Không bao giờ có đề bài hay câu trả lời; dấu vân tay có muối trên máy, nên ở đây không so được với một câu đoán thử.
+DELEGATION_TOOLS = {"ask_chatgpt": "chatgpt", "ask_gemini": "gemini", "generate_image": "gemini", "ask_local": "gemma"}
+DELEGATION_OUTCOMES = ("ok", "error", "refused", "declined")
+DELEGATION_CHECKS = ("secret", "aimed", "command")
+DELEGATION_VIA = ("plugin", "ai-workers")
+MAX_DELEGATIONS = 100
+DELEGATION_MAX_AGE_MS = 3 * 86_400_000
+
+
+def clean_delegations(v, now_ms: float) -> list:
+    """The records of work handed to helpers, rebuilt from a fixed list; anything else, too old or from the future is dropped.
+    Các biên bản giao việc cho trợ lý, dựng lại từ danh sách cố định; mọi thứ khác, quá cũ hay ở tương lai đều bị bỏ."""
+    out = []
+    for d in v[-MAX_DELEGATIONS:] if isinstance(v, list) else ():
+        if not isinstance(d, dict):
+            continue
+        rid, tool, at = d.get("id"), d.get("tool"), clean_number(d.get("at"))
+        if not (isinstance(rid, str) and re.fullmatch(r"[0-9a-f]{24}", rid) and tool in DELEGATION_TOOLS and at is not None):
+            continue
+        if not now_ms - DELEGATION_MAX_AGE_MS < at < now_ms + 86_400_000:
+            continue
+        digest = d.get("promptHash")
+        found = d.get("found") if isinstance(d.get("found"), list) else []
+        checks = d.get("check") if isinstance(d.get("check"), list) else []
+        out.append({
+            "id": rid, "at": int(at), "tool": tool, "worker": DELEGATION_TOOLS[tool],
+            "via": d.get("via") if d.get("via") in DELEGATION_VIA else "plugin",
+            "promptChars": int(clean_number(d.get("promptChars"), 10_000_000) or 0),
+            "answerChars": int(clean_number(d.get("answerChars"), 100_000_000) or 0),
+            "promptHash": digest if isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{32}", digest) else "",
+            "outcome": d.get("outcome") if d.get("outcome") in DELEGATION_OUTCOMES else "error",
+            "check": [c for c in DELEGATION_CHECKS if c in checks],
+            # the kinds of secret the plugin names, such as "GitHub token": short words only, never a value
+            # các loại bí mật plugin gọi tên, như "GitHub token": chỉ chữ ngắn, không bao giờ có giá trị
+            "found": sorted({f for f in found[:8] if isinstance(f, str) and re.fullmatch(r"[A-Za-z][A-Za-z .]{1,39}", f)}),
+        })
+    return out
 
 
 def blocks_since(devices: list, from_hour: int) -> dict:

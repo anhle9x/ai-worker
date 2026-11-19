@@ -33,6 +33,8 @@ Máy chủ chỉ tin IP ghi trong yêu cầu khi yêu cầu đi qua proxy trên 
 | Chi phí gói Team | Có | Có | Không |
 | Mức dùng theo tuần và theo tháng, theo từng văn phòng và từng người (tổng theo ngày, giữ 13 tháng) | Có | Có | Không |
 | Chi phí của cả team trong từng ngày của 7 ngày gần nhất, mỗi ngày một con số (biểu đồ của khung thanh menu) | Có | Có | Có |
+| Số lần ai-worker đã chặn trên cả team trong 7 ngày qua, chỉ số đếm (`blocked7d`) | Có | Có | Không |
+| Việc giao cho ChatGPT, Gemini hay Gemma: mỗi việc một biên bản, ai, trợ lý nào, độ dài, đã chặn gì, bước kiểm câu trả lời thấy gì, dấu vân tay của đề bài; không bao giờ có chữ | Có | Không | Không |
 | Nhóm máy chưa đặt tên | Có | Không | Không |
 | Bảng chữ `/board` | Có | Có | Không |
 | Trang `/admin` và gói cài | Có | Không | Không |

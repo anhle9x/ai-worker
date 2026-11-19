@@ -8,6 +8,8 @@ export type Job = {
   startedAt: number
   /** The server's job_id while a slow task is still running. */
   jobId?: string
+  /** For the audit record: the tool, who served it, the prompt's length and salted fingerprint. Never the prompt. */
+  brief?: { tool: DelegationTool; via: Delegation['via']; promptChars: number; promptHash: string }
   endedAt?: number
   ok?: boolean
 }
@@ -53,8 +55,30 @@ export type Activity = {
 export type PlanItem = { content: string; status: 'pending' | 'in_progress' | 'completed' }
 
 /** secret: text for ChatGPT or Gemini held a secret and was not sent; commit: a commit that adds a secret was put to the person;
- * risky: a command that destroys work or weakens the computer was put to the person; page: a page Claude read tried to steer it. */
-export type BlockKind = 'secret' | 'commit' | 'risky' | 'page'
+ * risky: a command that destroys work or weakens the computer was put to the person; page: a page Claude read tried to steer it;
+ * answer: an answer from ChatGPT, Gemini or Gemma held a secret, text aimed at an AI or a command that cannot be undone. */
+export type BlockKind = 'secret' | 'commit' | 'risky' | 'page' | 'answer'
+
+export type DelegationTool = 'ask_chatgpt' | 'ask_gemini' | 'ask_local' | 'generate_image'
+/** ok: an answer came back; error: the helper failed; refused: the text held a secret and was not sent; declined: the person or the permission settings said no. */
+export type DelegationOutcome = 'ok' | 'error' | 'refused' | 'declined'
+/** One piece of work handed to a helper, for the server's audit log. Lengths, kinds and a salted fingerprint only: never the prompt or the answer. */
+export type Delegation = {
+  id: string
+  at: number
+  worker: 'chatgpt' | 'gemini' | 'gemma'
+  tool: DelegationTool
+  /** plugin: the plugin's own tools ran it; ai-workers: a separate ai-workers MCP server did. */
+  via: 'plugin' | 'ai-workers'
+  promptChars: number
+  answerChars: number
+  promptHash: string
+  outcome: DelegationOutcome
+  /** What the check of the answer found: a secret, text aimed at an AI, a command that cannot be undone. */
+  check?: ('secret' | 'aimed' | 'command')[]
+  /** The kinds of secret that stopped the text (for example "GitHub token"), never their value. */
+  found?: string[]
+}
 
 export type TeamState = {
   /** A newer signed plugin is on the server; `tuDong` false when this machine cannot check signatures, so it only says so. */
@@ -64,6 +88,8 @@ export type TeamState = {
   jobs: Job[]
   /** What ai-worker stopped or put to the person, newest last: only the kind and the time ever leave this machine. */
   blocks?: { at: number; kind: BlockKind }[]
+  /** Work handed to ChatGPT, Gemini or Gemma, newest last: sent to the server's audit log, without any of the text. */
+  delegations?: Delegation[]
   /** Milliseconds since the epoch at the last tick; drives elapsed times. */
   now: number
   claudeBusySince?: number

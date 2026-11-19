@@ -26,6 +26,8 @@ import { dangerNote, dangerQuestion, destructiveCommand } from './guard'
 import { findSecrets, secretRefusal } from './secrets'
 import { commitIn, commitQuestion, diffCommand, secretsInDiff } from './commitscan'
 import { OUTSIDE_TEXT_TOOL, findInjection, injectionNote, injectionToast } from './injection'
+import { answerFlags, answerNote, answerToast, checkAnswer } from './answers'
+import { addDelegation, delegationTool, makeDelegation, newSalt, promptHash, recentDelegations } from './delegations'
 import { handoffSection, newestNotes, noteName } from './handoff'
 import type { HandoffNote } from './handoff'
 import type { VoiceSystem } from './voice'
@@ -697,7 +699,9 @@ async function shareOnce($: EngineInterface) {
               },
             }
           : {}),
-      })
+      // the records of work handed to helpers go to a server's audit log only, never into a folder others can read
+      // biên bản giao việc chỉ gửi vào nhật ký của máy chủ, không bao giờ ghi vào thư mục người khác đọc được
+      }, viaWeb ? recentDelegations(sessions, now) : [])
       const sig = summarySignature(summary)
       if (sig !== sharedSig || now - sharedAt > SHARE_EVERY_MS) {
         if (viaWeb) {
@@ -975,7 +979,8 @@ function toolInput(args: Record<string, unknown>): Record<string, unknown> {
 
 /** The plugin answers these tools itself, so the engine's permission step must be asked here. Text for ChatGPT or Gemini leaves this computer. */
 /** Plugin tự trả lời các công cụ này, nên phải hỏi bước kiểm quyền của engine ở đây. Chữ gửi cho ChatGPT hay Gemini rời khỏi máy này. */
-async function refuseToSend($: EngineInterface, name: string, args: Record<string, unknown>, prompt: string): Promise<string | undefined> {
+type Refused = { outcome?: 'refused' | 'declined'; found?: string[] }
+async function refuseToSend($: EngineInterface, name: string, args: Record<string, unknown>, prompt: string, why: Refused): Promise<string | undefined> {
   const tool = `mcp__ai-worker__${name}`
   const verdict = await $.tool.check({ tool, input: toolInput(args) }).catch(() => ({ decision: 'ask' as const }))
   const worker = name === 'ask_chatgpt' ? 'ChatGPT' : name === 'ask_gemini' || name === 'generate_image' ? 'Gemini' : undefined
@@ -984,6 +989,8 @@ async function refuseToSend($: EngineInterface, name: string, args: Record<strin
   const secrets = worker ? findSecrets(prompt) : []
   if (worker && secrets.length) {
     await noteBlock($, 'secret', prompt.slice(0, 200))
+    why.outcome = 'refused'
+    why.found = secrets.map(x => x.kind)
     return secretRefusal(secrets, worker)
   }
   const answer = sendingNeedsAsking(verdict.decision, worker, !!(verdict as { rule?: unknown }).rule)
@@ -992,14 +999,16 @@ async function refuseToSend($: EngineInterface, name: string, args: Record<strin
         header: tx('Send out'),
       }).catch(() => '')
     : undefined
-  return sendingRefusal(verdict.decision, answer, tx('Send'))
+  const refusal = sendingRefusal(verdict.decision, answer, tx('Send'))
+  if (refusal) why.outcome = 'declined'
+  return refusal
 }
 
-async function serveOwn($: EngineInterface, name: string, args: Record<string, unknown>): Promise<ToolCallResult> {
+async function serveOwn($: EngineInterface, name: string, args: Record<string, unknown>, why: Refused = {}): Promise<ToolCallResult> {
   const prompt = typeof args.prompt === 'string' ? args.prompt : ''
   const answer = (text: string, isError = false) => ({ result: text, isError }) as unknown as ToolCallResult
   if (!prompt.trim()) return answer(tx('The prompt is missing.'), true)
-  const refusal = await refuseToSend($, name, args, prompt)
+  const refusal = await refuseToSend($, name, args, prompt, why)
   if (refusal) return answer(refusal, true)
   const work = `${await webFolder($)}/viec`
   try {
@@ -1346,6 +1355,34 @@ async function openWeb($: EngineInterface): Promise<boolean> {
     }
   }
   return false
+}
+
+// the salt of the prompts' fingerprints, made once on this computer and never sent
+// muối của dấu vân tay đề bài, tạo một lần trên máy này và không bao giờ gửi đi
+const SALT_KEY = 'delegationSalt'
+let salt: string | undefined
+async function delegationSalt($: EngineInterface): Promise<string> {
+  if (salt) return salt
+  const had = await $.store.get(SALT_KEY).catch(() => undefined)
+  if (typeof had === 'string' && /^[0-9a-f]{32}$/.test(had)) return (salt = had)
+  salt = newSalt()
+  await $.store.set(SALT_KEY, salt).catch(() => undefined)
+  return salt
+}
+
+// a record of work handed to a helper, kept with the session and sent with the machine's numbers; a record that
+// cannot be kept changes nothing about the work itself
+// biên bản của một việc giao cho trợ lý, giữ cùng phiên và gửi kèm số liệu của máy; biên bản không ghi được thì không
+// đổi gì ở chính việc đó
+async function noteDelegation($: EngineInterface, p: Omit<Parameters<typeof makeDelegation>[0], 'promptChars' | 'promptHash' | 'at'> & { prompt: string }): Promise<void> {
+  try {
+    const { prompt, ...rest } = p
+    const record = makeDelegation({ ...rest, promptChars: prompt.length, promptHash: promptHash(await delegationSalt($), prompt), at: await $.clock.now() })
+    await commit($, s => addDelegation(s, record))
+  } catch {
+    // nothing to do
+    // không có gì phải làm
+  }
 }
 
 // one stop or question of ai-worker, for the counts the board shows; the same one seen twice in a moment (the permission
@@ -1917,6 +1954,11 @@ export const register: Register = on => {
     const found = outside && typeof prompt === 'string' ? findSecrets(prompt) : []
     if (outside && found.length) {
       await noteBlock($, 'secret', String(prompt).slice(0, 200))
+      const tool = delegationTool(outside[1])
+      if (tool) {
+        const callId = (e as { tool_use_id?: string }).tool_use_id ?? `check-${e.tool}-${await $.clock.now()}`
+        await noteDelegation($, { callId, tool, via: e.tool.startsWith('mcp__ai-workers__') ? 'ai-workers' : 'plugin', prompt: String(prompt), outcome: 'refused', found: found.map(f => f.kind) })
+      }
       return { decision: 'deny' as const, reason: secretRefusal(found, outside[1] === 'ask_chatgpt' ? 'ChatGPT' : 'Gemini') }
     }
     const verdict = await next(e)
@@ -2014,11 +2056,16 @@ export const register: Register = on => {
     let key: string | undefined
     if (op.isAsk) {
       key = e.tool_use_id ?? `job-${startedAt}`
+      const tool = delegationTool(name)
+      const prompt = typeof args.prompt === 'string' ? args.prompt : ''
       const job: Job = {
         key,
         worker: op.worker,
         kind: op.worker === 'gemini' && op.kind === KIND_GEMINI ? geminiKind(args.prompt) : op.kind(),
         startedAt,
+        ...(tool
+          ? { brief: { tool, via: OWN_TOOL.test(e.tool) ? 'plugin' as const : 'ai-workers' as const, promptChars: prompt.length, promptHash: promptHash(await delegationSalt($), prompt) } }
+          : {}),
       }
       await commit($, s => ({
         ...s,
@@ -2035,8 +2082,10 @@ export const register: Register = on => {
     ensureTicker($)
 
     const own = OWN_TOOL.exec(e.tool)
-    const ran = own ? await serveOwn($, own[1]!, args) : await next(e)
-    if (!key) return ran
+    const why: Refused = {}
+    const ran0 = own ? await serveOwn($, own[1]!, args, why) : await next(e)
+    if (!key) return ran0
+    let ran = ran0
 
     const endedAt = await $.clock.now()
     const raw = ran.text ?? (typeof ran.result === 'string' ? ran.result : JSON.stringify(ran.result ?? ''))
@@ -2047,6 +2096,31 @@ export const register: Register = on => {
       await $.store.set(HELPER_MODELS_KEY, helperModels).catch(() => undefined)
     }
     const pending = ran.deny === undefined && !ran.isError ? PENDING.exec(raw) : null
+    // the answer is read before Claude uses it; the record of the work is written once the work is over
+    // câu trả lời được đọc trước khi Claude dùng; biên bản của việc được ghi khi việc đã xong
+    if (!pending) {
+      const job = (await read($, team)).jobs.find(j => j.key === key)
+      const answered = ran.deny === undefined && !ran.isError && !why.outcome
+      const checked = answered ? checkAnswer(raw) : undefined
+      const flags = checked ? answerFlags(checked) : []
+      if (checked && flags.length) {
+        const worker = WORKER_NAME[op.worker]
+        await noteBlock($, 'answer', `${key}:${flags.join(',')}`)
+        if (!e.agentId) await Promise.resolve($.ui.toast(answerToast(checked, worker))).catch(() => undefined)
+        const note = answerNote(checked, worker)
+        if (note) ran = { ...ran, context: [...(ran.context ?? []), note] }
+      }
+      if (job?.brief) {
+        const outcome = why.outcome ?? (ran.deny !== undefined ? 'declined' : ran.isError ? 'error' : 'ok')
+        try {
+          const record = makeDelegation({ ...job.brief, callId: key, at: endedAt, outcome, answerChars: answered ? raw.length : 0, check: flags, found: why.found })
+          await commit($, s => addDelegation(s, record))
+        } catch {
+          // a record that cannot be kept changes nothing about the work
+          // biên bản không ghi được thì không đổi gì ở chính việc đó
+        }
+      }
+    }
     await commit($, s => ({
       ...s,
       now: endedAt,

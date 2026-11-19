@@ -122,6 +122,6 @@ Gỡ: `sudo systemctl disable --now ai-worker-webhook`, xoá `/opt/ai-worker`, `
 ## Lưu những gì
 
 Tên, email tài khoản Claude, mã máy ngẫu nhiên, **IP máy gửi** (máy chủ tự ghi từ kết nối, máy nhân viên không tự khai được), IP nội bộ máy tự khai (máy chủ nhớ các IP đã dùng trong 30 ngày, tối đa 10), dấu máy (mã phần cứng đã băm một chiều; máy cùng dấu được tính là một máy, dấu không hiện trên trang), số phiên mở / đang làm / chờ trả lời, token và tiền theo từng giờ
-(8 ngày gần nhất), số việc giao cho Gemini/ChatGPT/Gemma theo giờ, và một con số tổng về chi phí, token và số việc cho mỗi người mỗi ngày (tối đa 13 tháng, kèm tên, email và văn phòng). **Không có** nội dung chat, câu hỏi, tên file,
+(8 ngày gần nhất), số việc giao cho Gemini/ChatGPT/Gemma theo giờ, số lần mỗi giờ plugin đã chặn hay hỏi lại (chỉ số đếm), và một con số tổng về chi phí, token và số việc cho mỗi người mỗi ngày (tối đa 13 tháng, kèm tên, email và văn phòng). **Không có** nội dung chat, câu hỏi, tên file,
 tên dự án. Kết nối là HTTP trong mạng nội bộ (không mã hoá); muốn HTTPS thì đặt sau nginx/Caddy sẵn có và dùng
 địa chỉ `https://...` khi đóng gói; khi đó thêm `TRUST_PROXY=1` vào `/etc/ai-worker.env` để ghi đúng IP máy nhân viên thay vì IP của proxy.

@@ -125,6 +125,28 @@ def sample_reports(now: float, plugin_version: str = "1.0.0", seed: int = 7) -> 
     return reports
 
 
+def sample_delegations(now: float, seed: int = 31) -> list:
+    """Work the sample people handed to ChatGPT, Gemini and Gemma today, as the records a real computer sends: (person index, record).
+    A few were stopped before sending or flagged by the check of the answer, so the Admin page has those to show.
+    Việc các nhân viên giả lập giao cho ChatGPT, Gemini và Gemma hôm nay, đúng dạng biên bản máy thật gửi: (số thứ tự người, biên bản).
+    Vài việc bị chặn trước khi gửi hay bị bước kiểm câu trả lời đánh dấu, để trang Quản trị có những thứ đó mà hiện."""
+    rnd = random.Random(seed)
+    tools = ("ask_chatgpt", "ask_gemini", "ask_local", "generate_image", "ask_gemini", "ask_chatgpt")
+    out = []
+    for n in range(14):
+        tool = tools[n % len(tools)]
+        outcome = "refused" if n in (3, 10) else "error" if n == 7 else "ok"
+        record = {"id": "%024x" % rnd.getrandbits(96), "at": int((now - (14 - n) * 1500) * 1000), "tool": tool, "via": "plugin" if n % 3 else "ai-workers",
+                  "promptChars": rnd.randint(80, 6000), "answerChars": rnd.randint(200, 9000) if outcome == "ok" else 0,
+                  "promptHash": "%032x" % rnd.getrandbits(128), "outcome": outcome}
+        if outcome == "refused":
+            record["found"] = ["GitHub token"] if n == 3 else ["password in a .env line"]
+        if n in (5, 12):
+            record["check"] = ["command"] if n == 5 else ["aimed"]
+        out.append((n % len(PEOPLE), record))
+    return out
+
+
 def sample_history(now: float, weeks: int = HISTORY_WEEKS, seed: int = 23) -> list:
     """The weeks before the ones the sample computers still hold: for each week, oldest first, the time it ended and what every computer
     would have reported then. Use grows a little from week to week, so the comparison on the board has something to show.
@@ -257,6 +279,8 @@ def main(argv=None) -> int:
                 devices.save_ingest(devices.clean_payload(r, at), at)
 
         send_all(now)
+        for i, record in sample_delegations(now):
+            stores.AUDIT_LOG.write_delegations("device-demo%02d" % i, PEOPLE[i][0], email_of(i), devices.clean_delegations([record], now * 1000))
         # the weeks before go straight into the daily totals, through the same code that counts a real board's days
         # các tuần trước đó đi thẳng vào tổng theo ngày, qua đúng đoạn mã đếm ngày của bảng thật
         office_names = {key: name for key, name, _lat, _lon in OFFICES}

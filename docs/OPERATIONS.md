@@ -45,6 +45,8 @@ On the dashboard, a computer silent for 12 minutes shows as offline and one sile
 | Sign | Likely cause | What to do |
 |---|---|---|
 | Service will not start, log says `INGEST_KEY is required` | Settings file missing or empty | Check `/etc/ai-worker.env`, run `sudo bash install.sh` again |
+| Admin page says *Log check: a line … was changed or taken out* | Someone edited `board.db` by hand, or restored an old copy over a newer one | Find who has sudo or file access on the server; compare the last fingerprint with the one you noted; restoring a backup made before the chain began does not trigger it |
+| Admin page lists keys for AI tools *not used for N days* | A tool was set up once and dropped, or its config file was copied elsewhere | Ask whose it is; **Revoke** what nobody needs, so a key left in an old config file cannot read the board |
 | Every computer offline | Caddy stopped, certificate expired, or the office IP changed | `systemctl status caddy`; update the IP list in the Caddy file and `systemctl reload caddy` |
 | One computer missing | Its IP is outside the allow-list, or it was installed with an old package | Ask the user to run `/office`; check the Caddy access log for its IP |
 | Log shows `401 wrong ingest key` | The package was built with another `INGEST_KEY` | Rebuild the package with the current key and reinstall on that computer |
@@ -169,7 +171,7 @@ Rolling back the plugin: release the old code again under a new version number, 
 
 | Log | Content | Kept | Who reads it |
 |---|---|---|---|
-| Audit log, table `audit` in `board.db` | Login, account and role changes, pairing and revoking screens, locations, Team CSV loads (date range and count only), refused actions: who, role, IP, path, time | 12 months, older files deleted by the server | Admin, on `/admin` by month |
+| Audit log, table `audit` in `board.db` | Login, account and role changes, pairing and revoking screens, locations, Team CSV loads (date range and count only), refused actions: who, role, IP, path, time | 12 months, older rows deleted by the server; each row carries the fingerprint of the one before, and `/admin` says if one was changed or taken out by hand | Admin, on `/admin` by month |
 | Service log (journald) | Start, login lines, refusals, errors. Not every send | By the system's journald settings | Root on the server |
 | Caddy access log | Every request: IP, path, status | 10 files of 20 MB | Root on the server |
 | Rewind history, table `history` in `board.db` | State changes per person | 24 hours | Everyone logged in, through the rewind button |
@@ -199,6 +201,7 @@ Keep one record per installation in the company's internal documents, **not in t
 | Where backups go, and how often | |
 | Who holds the signing key and the backup key | |
 | Date of last upgrade, and by whom | |
+| Last audit fingerprint noted from `/admin`, and when | |
 
 ## 8. Removing
 

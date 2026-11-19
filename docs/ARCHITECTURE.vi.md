@@ -45,7 +45,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | F6 | Đổi tài khoản, phiên hay màn hình TV phải nhập lại mã OTP, hiệu lực 5 phút | `require_otp`, `LoginGate.confirm` |
 | F7 | TV chỉ vào được sau khi quản trị duyệt mã của nó | `TvPairing`, `TvStore` |
 | F8 | Máy chỉ cài bản cập nhật khi chữ ký và mã kiểm đều đúng | `hooks/update.ts`, `updatePlugin` |
-| F9 | Chữ gửi cho ChatGPT hay Gemini phải được phép; câu hỏi lỗi thì tính là không | `refuseToSend`, `hooks/workers.ts` |
+| F9 | Chữ gửi cho ChatGPT hay Gemini phải được phép, và không bao giờ kèm bí mật (F17); câu hỏi lỗi thì tính là không | `refuseToSend`, `hooks/workers.ts` |
 | F10 | Trang, plugin và file cài có tiếng Anh và tiếng Việt | `i18n.js`, `hooks/lang.ts`, `packaging/lang.sh` |
 | F11 | Người dùng Codex, Cursor hoặc Gemini CLI hiện trên bảng mà không cần Claude Code: số phiên mở, đang làm và đang chờ, theo từng công cụ | `connectors/ai-worker-hook.sh`, `connectors/ai-worker-hook.ps1`; `from_connector`, `is_fresh` trong `server/board/devices.py` |
 | F12 | Công cụ AI nói được MCP đọc bảng bằng khoá của riêng nó, do quản trị duyệt: chỉ đọc, phần treo tường dạng chữ, trong phạm vi khoá được đọc | `server/board/mcp.py`; `mcp_post`, `PERM_MCP_KEY` trong `server/webhook.py`; `TvStore.find` trong `server/board/stores.py` |
@@ -53,6 +53,13 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | F14 | So được mức dùng theo tuần và theo tháng: máy chủ cộng số liệu theo giờ mà các máy vốn đã gửi thành một con số tổng cho mỗi người mỗi ngày và giữ 13 tháng; quản trị và người xem thấy nó trên `/board` | `server/board/daily.py`; `record_daily`, `usage_view` trong `server/board/views.py`; `usage_section`, `usage_chart` trong `server/board/pages.py` |
 | F15 | Một chat được quản trị cho phép mở khung thanh menu bên trong Telegram (một Telegram Mini App). Điện thoại hay máy tính tự tới bảng qua HTTPS; webhook kiểm phần Telegram ký cho khung bằng một khoá suy ra từ khoá bot, và giữ phiên trong bộ nhớ | `server/board/tgapp.py`; `tg_session`, `get_tg_data`, `PERM_TG_SESSION` trong `server/webhook.py`; `server/static/tg-app.js`; `page_mini(telegram=True)` trong `server/board/pages.py`; `sync_menus` trong `server/telegram_bot.py` |
 | F16 | Chat Telegram đã bật tin báo nhận một tin khi có người chờ lâu hơn số phút nó chọn: mỗi lần chờ một lần, gộp lại, tối đa một tin mỗi 5 phút, 6 tin mỗi giờ, 30 tin mỗi ngày, không gửi ban đêm; dòng đầu không nêu tên ai, và chat chỉ đọc số gộp chỉ nhận con số | `server/board/alerts.py`; `alerts_due`, `_alerts` trong `server/board/chat.py`; `sync_menus` trong `server/telegram_bot.py`; `get_tg_state`, `tg_settings` trong `server/webhook.py` |
+| F17 | Chữ có thứ trông như khoá, token hay mật khẩu không bao giờ được gửi sang ChatGPT hay Gemini, qua công cụ của plugin hay một server `ai-workers` riêng, ở mọi chế độ quyền; Claude được báo loại và dòng, không bao giờ kèm giá trị | `hooks/secrets.ts`; `refuseToSend` và `tool.check` trong `hooks/register.tsx` |
+| F18 | Lệnh shell phá huỷ công việc hay làm yếu máy, và `git commit` mà các dòng thêm vào có bí mật, được đưa người dùng xem ở mọi chế độ | `hooks/guard.ts`, `hooks/commitscan.ts`; `tool.check`, `tool.call` |
+| F19 | Chữ từ web, tìm kiếm hay trình duyệt mà ra lệnh cho AI thì được báo cho Claude (kèm kết quả, không bao giờ giấu kết quả) và cho người dùng | `hooks/injection.ts`; `tool.call` |
+| F20 | Một dòng nhật ký bị sửa hay bị xoá bằng tay sẽ lộ ra ở trang Quản trị: mỗi dòng mang dấu vân tay của dòng trước | `AuditLog.write`, `AuditLog.check` trong `server/board/stores.py` |
+| F21 | Quản trị và người xem thấy các lớp bảo vệ trên đã ra tay bao nhiêu lần trên cả team trong 7 ngày, chỉ số đếm; khoá cho công cụ AI không dùng 30 ngày được chỉ ra | `blocks` trong `hooks/team.ts`; `blocks_since` trong `server/board/devices.py`; `idle_days` trong `server/board/views.py` |
+| F22 | Mỗi việc giao cho ChatGPT, Gemini hay Gemma thành một dòng của nhật ký có dấu vân tay, chỉ một lần: trợ lý nào, độ dài, đã chặn gì, bước kiểm câu trả lời thấy gì và dấu vân tay có muối của đề bài, không bao giờ có chữ; quản trị xem được các dòng của tháng | `hooks/delegations.ts`; `clean_delegations` trong `server/board/devices.py`; `AuditLog.write_delegations` trong `server/board/stores.py` |
+| F23 | Câu trả lời của trợ lý được kiểm trước khi Claude dùng: bí mật, chữ nhắm vào AI và lệnh không hoàn tác được; Claude nhận lời nhắc kèm câu trả lời, người dùng nhận thông báo, và lần chặn được đếm | `hooks/answers.ts`; phần xử lý `tool.call` trong `hooks/register.tsx` |
 
 ### Giới hạn máy chủ áp dụng
 
@@ -350,12 +357,12 @@ sequenceDiagram
   W-->>P: Một phiên, chỉ trong bộ nhớ
   P->>W: GET /tg/data mỗi 30 giây, kèm phiên
   W->>W: Tìm lại chat: vẫn được duyệt và cho phép?
-  W-->>P: Phần màn hình treo tường
+  W-->>P: Phần màn hình treo tường, hoặc chỉ số tổng của cả team với chat chỉ đọc số gộp
 ```
 
 `server/board/tgapp.py` chứa phần kiểm, phiên và nút menu. Quy tắc của Telegram ký các trường bằng HMAC-SHA256, khoá là HMAC-SHA256("WebAppData", khoá bot); bộ cài ghi khoá đó thành `TELEGRAM_APP_KEY`, nên webhook kiểm được chữ ký mà không bao giờ cầm khoá bot, và khoá này không điều khiển được bot. Các trường nằm sau dấu `#` của địa chỉ, phần trình duyệt không bao giờ gửi đi, nên chúng không vào nhật ký nào. Phiên là một chuỗi ngẫu nhiên, giữ dạng băm trong bộ nhớ, sống 1 giờ sau lần dùng cuối, tối đa 12 giờ, 3 phiên mỗi chat; mỗi lần gọi đều tìm lại chat, nên **Thôi mở khung**, **Thu hồi** hay `/stop` đều kết thúc phiên ngay. Chữ ký sai bị tính là dò; các trường chỉ quá cũ thì không.
 
-Trang là chính trang của khung thanh menu (`page_mini(telegram=True)`): các file của nó lấy từ `/tg/`, để proxy có thể chỉ cho riêng tiền tố đó đi qua; nó không có liên kết tới bảng, không có cài đặt báo, và nút bỏ ghép thì ngắt chat. `server/static/tg-app.js` chạy trước `mini.js` và đưa cho nó `window.MiniApi`, như tiện ích trình duyệt. Nó không nạp script của Telegram từ telegram.org: nó tự đọc các trường trong địa chỉ và nói với app qua cầu nối Telegram đặt sẵn trong trang, nên không có script từ trang khác chạy ở nơi hiện số liệu của team, và `script-src 'self'` của trang giữ nguyên.
+Trang là chính trang của khung thanh menu (`page_mini(telegram=True)`): các file của nó lấy từ `/tg/`, để proxy có thể chỉ cho riêng tiền tố đó đi qua; nó không có liên kết tới bảng, thẻ cài đặt của nó đặt tin báo của chính chat, và nút bỏ ghép thì ngắt chat. `server/static/tg-app.js` chạy trước `mini.js` và đưa cho nó `window.MiniApi`, như tiện ích trình duyệt. Nó không nạp script của Telegram từ telegram.org: nó tự đọc các trường trong địa chỉ và nói với app qua cầu nối Telegram đặt sẵn trong trang, nên không có script từ trang khác chạy ở nơi hiện số liệu của team, và `script-src 'self'` của trang giữ nguyên.
 
 `MenuSync` trong cùng module so các chat cần có khung với những gì tiến trình bot được báo lần trước, rồi giao phần thay đổi cho nó; sau khi khởi động lại, nó báo lại cho mọi chat còn hạn, nên chat bị bỏ quyền lúc máy chủ tắt cũng được trả lại menu thường. `TELEGRAM_APP=0` làm mọi đường dưới `/tg/` trả 404.
 
@@ -388,12 +395,14 @@ Quay lui là phát hành lại bản cũ với chữ ký mới: phiên bản kh�
 
 ### Gửi chữ cho trợ lý
 
-Áp dụng cho các công cụ riêng của plugin, dùng khi máy không có máy chủ MCP `ai-workers`. Gemma chạy trên máy; ChatGPT và Gemini là công ty bên ngoài.
+Áp dụng cho các công cụ riêng của plugin, dùng khi máy không có máy chủ MCP `ai-workers`; bước kiểm bí mật áp dụng cả cho server `ai-workers` riêng, ở `tool.check`. Gemma chạy trên máy; ChatGPT và Gemini là công ty bên ngoài.
 
 ```mermaid
 %%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
 flowchart TD
-  Call["Claude gọi ask_local, ask_chatgpt hoặc ask_gemini"] --> Check["Hỏi bước kiểm quyền của app"]
+  Call["Claude gọi ask_local, ask_chatgpt hoặc ask_gemini"] --> Secret{"Chữ gửi ChatGPT hay Gemini có khoá hay mật khẩu?"}
+  Secret -- "Có" --> Refuse
+  Secret -- "Không" --> Check["Hỏi bước kiểm quyền của app"]
   Check --> D{"Quyết định"}
   D -- "Từ chối" --> Refuse["Từ chối"]
   D -- "Cho phép" --> Run["Chạy trợ lý"]
@@ -455,6 +464,7 @@ Mỗi lần đẩy code còn chạy `.github/workflows/test-install.yml`: trên 
 - **Mã gửi dùng chung.** Ai có gói cài đều có `INGEST_KEY`, nên nhân viên có thể gửi số sai dưới một tên chưa gắn với máy nào. Gói bị lộ thì đổi mã và cài lại.
 - **HTTP khi không có proxy.** Kết nối chỉ được mã hoá khi đi qua Caddy hoặc nginx.
 - **Người có sudo trên máy chủ** đọc được mọi số liệu và tự cấp được tài khoản. Nên giữ ít người.
+- **Chuỗi của nhật ký** bắt được một dòng bị sửa hay bị xoá bằng tay, không bắt được người viết lại được cả cơ sở dữ liệu lẫn `audit_head`: thỉnh thoảng hãy ghi lại dấu vân tay trang Quản trị hiện. Bước kiểm bí mật và kiểm trang dựa vào hình dạng của khoá và câu chữ của lệnh, nên bí mật không có hình dạng quen, hay lệnh viết kiểu khác, vẫn lọt.
 - **File lớn.** Máy chủ đã tách vào `server/board/` (cấu hình, đăng nhập, máy gửi, tổng theo ngày, kho lưu, quyền xem, trang, gói cài), `server/webhook.py` giữ phần nhận yêu cầu và bảng đường dẫn. `hooks/register.tsx` và `server/static/ops.js` vẫn lớn: các phần trong đó dùng chung biến trong một khối và chưa có test riêng, nên chờ có test rồi mới tách.
 - **Bộ nối biết ít hơn plugin.** Nó chỉ gửi khi có sự kiện, nên công cụ bị đóng mà không có sự kiện kết thúc còn hiện trên bảng tới 2 giờ. Lượt bị lỗi cũng không gửi sự kiện nào: đã thấy với Codex CLI 0.164.0, khi một yêu cầu mô hình bị từ chối để phiên kẹt ở đang làm. (Lượt bị cắt ngang bằng Esc thì gửi `Interrupt` thay cho `Stop`, và sự kiện đó đã được gắn hook.) Vì vậy máy chủ chỉ tin "đang làm" của bộ nối trong 30 phút kể từ lần gửi cuối; trong Cursor, nơi không có hook sau từng bước, một lượt chạy lâu hơn thế sẽ hiện là rảnh cho tới khi lượt đó kết thúc. Nó không biết token, chi phí, hạn mức hay mô hình. Bản sao khoá gửi của nó nằm ở một chỗ thứ hai trên máy. Tên và email của nó phải đúng cặp mà plugin gửi, nếu không một người sẽ hiện thành hai dòng. Cursor, Gemini CLI và Windows chưa được thử trong công cụ thật.
 - **Cổng MCP.** Mới thử trong công cụ thật trên macOS: Claude Code, Codex CLI, và tab Chat của app Claude trên máy tính qua một kết nối của claude.ai. Cursor, Gemini CLI và mọi công cụ trên Windows và Linux chưa được thử. Những gì công cụ đọc sẽ tới hãng làm ra nó. Khoá chỉ đọc số gộp vẫn để lộ một đội hay một nhóm còn lại chỉ một hai người qua số gộp. Các lần gọi được ghi vào bảng nhật ký sẵn có chứ không có bảng riêng, để bản máy chủ cũ hơn vẫn mở được cơ sở dữ liệu. Xem thêm [SECURITY.vi.md](../SECURITY.vi.md).

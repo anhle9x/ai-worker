@@ -42,6 +42,8 @@ AI Worker được thiết kế để chống tám rủi ro web thường gặp 
 - **Bí mật vào git:** trước khi Claude chạy `git commit`, các dòng commit thêm vào được đọc như vậy, và commit có bí mật thì được đưa người dùng xem trước. Commit người dùng tự làm ngoài Claude thì không được kiểm.
 - **Lệnh rủi ro:** xoá cả thư mục, `git reset --hard`, `git push --force`, `git clean`, chạy ngay script vừa tải, tắt Gatekeeper, ghi thẳng ra ổ đĩa và `chmod 777` được đưa người dùng xem ở mọi chế độ.
 - **Trang tìm cách lái Claude:** chữ từ web, tìm kiếm hay trình duyệt mà ra lệnh cho AI thì được báo cho Claude và người dùng. Việc tìm dựa vào câu chữ, nên trang nói cùng ý theo cách khác vẫn lọt; kết quả không bao giờ bị giấu.
+- **Câu trả lời của trợ lý:** những gì ChatGPT, Gemini hay Gemma gửi về được đọc tìm khoá và mật khẩu, chữ nhắm vào AI và lệnh không hoàn tác được trước khi Claude dùng; Claude được báo đã thấy gì, người dùng cũng vậy. Giới hạn như trên: tìm theo hình dạng và câu chữ, và câu trả lời không bao giờ bị giấu.
+- **Biên bản mỗi lần giao việc:** mỗi việc giao cho trợ lý để lại một dòng trong nhật ký có dấu vân tay của máy chủ, gồm trợ lý nào, độ dài, đã chặn gì, bước kiểm thấy gì, và dấu vân tay của đề bài có muối trên máy. Không bao giờ có đề bài hay câu trả lời; chỉ quản trị xem được.
 
 Trên máy chủ, trang Quản trị hiện số lần những việc này xảy ra trên cả team trong 7 ngày qua (chỉ số đếm), chỉ ra các khoá cho công cụ AI không dùng 30 ngày, và kiểm không dòng nào của nhật ký bị sửa hay bị xoá bằng tay. Mỗi dòng mang dấu vân tay của dòng trước; người viết lại được cả cơ sở dữ liệu lẫn dấu vân tay cuối thì không bị phát hiện, nên thỉnh thoảng hãy ghi lại dấu vân tay hiện trên trang.
 

@@ -19,6 +19,8 @@ From [date], [company] will install the AI Worker plugin for Claude Code on [whi
 - Number of open sessions, and whether Claude is working or waiting for you
 - [Only if the connector for Codex, Cursor and Gemini CLI is installed] For each of those tools: how many sessions are open, working or waiting for you
 - Tokens used, estimated cost, number of tasks given to each assistant, and quota used
+- How many times per hour the plugin stopped a key or password from leaving, asked about a commit or a risky command, flagged a web page, or flagged an assistant's answer: counts only, never what it was
+- One record for each task given to ChatGPT, Gemini or Gemma: which assistant, how long the request and the answer were, whether a password stopped it, what the check of the answer found, and a fingerprint of the request that cannot be read back. Admins see these records; never the request or the answer
 - The AI models and assistants in use, which kinds of helper assistants Claude is running and how many, and the plugin version
 
 **What is never sent:** chat content, prompts, file names or file contents.

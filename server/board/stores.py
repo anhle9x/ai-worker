@@ -870,6 +870,13 @@ class AuditLog:
     # Giữ và đọc cùng các lần gọi MCP: cả hai đều là đọc bảng từ bên ngoài các trang của bảng
     ASK_CALL = "telegram-ask"
     READ_ACTIONS = (MCP_CALL, ASK_CALL)
+    # one row per piece of work a computer handed to ChatGPT, Gemini or Gemma: who, which helper, lengths, what was stopped
+    # and what the check of the answer found, never the text. Kept and read apart, like the reads above
+    # mỗi việc một máy giao cho ChatGPT, Gemini hay Gemma một dòng: ai, trợ lý nào, độ dài, đã chặn gì và bước kiểm câu trả
+    # lời thấy gì, không bao giờ có chữ. Giữ và đọc riêng, như các lần đọc ở trên
+    DELEGATION = "ai-delegation"
+    APART = READ_ACTIONS + (DELEGATION,)
+    SEEN_DAYS = 4
 
     def __init__(self, database):
         self.db = database
@@ -889,6 +896,29 @@ class AuditLog:
     def fingerprint(prev: str, row: dict) -> str:
         return hashlib.sha256((prev + "\n" + dumps({k: v for k, v in row.items() if k != "hash"})).encode("utf-8")).hexdigest()
 
+    def write_delegations(self, device: str, name: str, account: str, records: list) -> int:
+        """Write the records a computer sent that are not in the log yet; returns how many were new.
+        Ghi các biên bản một máy gửi mà nhật ký chưa có; trả về số biên bản mới."""
+        if not records:
+            return 0
+        new = []
+        try:
+            now = int(time.time())
+            with self.db.tx() as c:
+                for r in records:
+                    key = "%s|%s" % (device, r["id"])
+                    if c.execute("INSERT OR IGNORE INTO delegations_seen (key, seen_at) VALUES (?, ?)", (key, now)).rowcount:
+                        new.append(r)
+                c.execute("DELETE FROM delegations_seen WHERE seen_at < ?", (now - self.SEEN_DAYS * 86400,))
+        except sqlite3.Error as e:
+            sys.stderr.write("audit log: %s\n" % e)
+            return 0
+        for r in new:
+            done = datetime.fromtimestamp(r["at"] / 1000, LOCAL_TZ).isoformat(timespec="seconds")
+            fields = {k: v for k, v in r.items() if k != "at" and (v or k not in ("check", "found"))}
+            self.write(action=self.DELEGATION, device=device, name=name, account=account, doneAt=done, **fields)
+        return len(new)
+
     def write(self, **fields) -> None:
         now = datetime.now(LOCAL_TZ)
         month = now.strftime("%Y-%m")
@@ -906,7 +936,7 @@ class AuditLog:
                     year, month_index = now.year, now.month - self.KEEP_MONTHS
                     c.execute("DELETE FROM audit WHERE month < ?", ("%04d-%02d" % ((year, month_index) if month_index > 0 else (year - 1, month_index + 12)),))
                     month_index = now.month - MCP_CALL_KEEP_MONTHS
-                    c.execute("DELETE FROM audit WHERE action IN (?, ?) AND month < ?", self.READ_ACTIONS + ("%04d-%02d" % ((year, month_index) if month_index > 0 else (year - 1, month_index + 12)),))
+                    c.execute("DELETE FROM audit WHERE action IN (?, ?, ?) AND month < ?", self.APART + ("%04d-%02d" % ((year, month_index) if month_index > 0 else (year - 1, month_index + 12)),))
         # a broken log is reported, it does not block the action
         # nhật ký hỏng thì báo, không chặn thao tác
         except sqlite3.Error as e:
@@ -915,12 +945,29 @@ class AuditLog:
     def read(self, month: str, limit: int = 300) -> list:
         """Newest rows first; `month` is already checked to be YYYY-MM.
         Dòng mới nhất trước; `month` đã kiểm dạng YYYY-MM."""
-        return self._read("SELECT body FROM audit WHERE month = ? AND action NOT IN (?, ?) ORDER BY id DESC LIMIT ?", (month,) + self.READ_ACTIONS + (limit,))
+        return self._read("SELECT body FROM audit WHERE month = ? AND action NOT IN (?, ?, ?) ORDER BY id DESC LIMIT ?", (month,) + self.APART + (limit,))
 
     def read_calls(self, month: str, limit: int = 300) -> list:
         """The reads of the board from outside its pages in one month, newest first: calls of the MCP tool and answers to Telegram chats.
         Các lần đọc bảng từ bên ngoài các trang của bảng trong một tháng, mới nhất trước: lần gọi công cụ MCP và câu trả lời cho chat Telegram."""
         return self._read("SELECT body FROM audit WHERE month = ? AND action IN (?, ?) ORDER BY id DESC LIMIT ?", (month,) + self.READ_ACTIONS + (limit,))
+
+    def read_delegations(self, month: str, limit: int = 300) -> list:
+        """The work computers handed to ChatGPT, Gemini or Gemma in one month, newest first.
+        Các việc các máy giao cho ChatGPT, Gemini hay Gemma trong một tháng, mới nhất trước."""
+        return self._read("SELECT body FROM audit WHERE month = ? AND action = ? ORDER BY id DESC LIMIT ?", (month, self.DELEGATION, limit))
+
+    def delegation_totals(self, month: str) -> dict:
+        """The month's records added up: all, by helper, stopped before sending, and answers the check flagged.
+        Biên bản của tháng cộng lại: tất cả, theo trợ lý, bị chặn trước khi gửi, và câu trả lời bước kiểm đã đánh dấu."""
+        out = {"all": 0, "chatgpt": 0, "gemini": 0, "gemma": 0, "refused": 0, "flagged": 0}
+        for row in self._read("SELECT body FROM audit WHERE month = ? AND action = ?", (month, self.DELEGATION)):
+            out["all"] += 1
+            if row.get("worker") in ("chatgpt", "gemini", "gemma"):
+                out[row["worker"]] += 1
+            out["refused"] += row.get("outcome") == "refused"
+            out["flagged"] += bool(row.get("check"))
+        return out
 
     def check(self, now: float) -> dict:
         """Walk the chain from the oldest row kept: {"ok", "rows", "since", "brokenAt", "head"}. Rows written before the chain

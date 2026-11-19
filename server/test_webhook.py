@@ -12,6 +12,7 @@ import http.client
 import inspect
 import io
 import json
+import random
 import os
 import re
 import socket
@@ -2704,6 +2705,25 @@ class SecurityLimits(unittest.TestCase):
             self.assertIn(self.ingest(json.dumps(self.report(device="device-t%d" % i, **fields))), (200, 400), fields)
             self.pages_still_work()
 
+    def test_records_of_work_handed_to_helpers_reach_the_audit_log_once_and_not_the_device_file(self):
+        now_ms = int(time.time() * 1000)
+        rid = "%024x" % random.getrandbits(96)
+        record = {"id": rid, "at": now_ms - 1000, "tool": "ask_chatgpt", "via": "plugin", "promptChars": 30, "answerChars": 10,
+                  "promptHash": "c" * 32, "outcome": "ok", "prompt": "never kept"}
+        sent = json.dumps(self.report(device="device-dlg", delegations=[record]))
+        self.assertEqual(self.ingest(sent), 200)
+        self.assertEqual(self.ingest(sent), 200)
+        status, body = self.call("GET", "/admin/data", None, {"Cookie": "session=tok-sec"})
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        mine = [r for r in data["delegations"] if r.get("id") == rid]
+        self.assertEqual(len(mine), 1)
+        self.assertEqual((mine[0]["name"], mine[0]["worker"], mine[0]["outcome"]), ("Sec", "chatgpt", "ok"))
+        self.assertGreaterEqual(data["delegationTotals"]["chatgpt"], 1)
+        self.assertNotIn("never kept", body.decode())
+        self.assertNotIn("delegations", devices.read_device("device-dlg") or {})
+        self.addCleanup(drop_device, "device-dlg")
+
     def test_the_plugin_makes_device_ids_the_server_takes(self):
         # 0.24 plugins made may-... ids and every send got 400: the id the plugin builds must pass the server's rule
         # plugin 0.24 tạo mã may-... và mọi lần gửi bị 400: mã plugin tạo ra phải qua được quy tắc của máy chủ
@@ -4484,7 +4504,7 @@ class BlockCounts(unittest.TestCase):
         self.assertEqual(clean["blocks"][hour], {"secret": 2, "risky": 1})
         other = {"blocks": {hour: {"secret": 1, "commit": 1}}}
         total = devices.blocks_since([clean, other, {"blocks": "no"}], int(now // 3600) - 7 * 24 + 1)
-        self.assertEqual(total, {"secret": 3, "commit": 1, "risky": 1, "page": 0})
+        self.assertEqual(total, {"secret": 3, "commit": 1, "risky": 1, "page": 0, "answer": 0})
 
     def test_only_admin_and_viewer_see_it(self):
         from board import views
@@ -4492,6 +4512,72 @@ class BlockCounts(unittest.TestCase):
         self.assertIn("blocked7d", views.COMMON_FIELDS_BY_ROLE[ADMIN])
         self.assertIn("blocked7d", views.COMMON_FIELDS_BY_ROLE[VIEWER])
         self.assertNotIn("blocked7d", views.COMMON_FIELDS_BY_ROLE[WALL])
+
+
+
+class Delegations(unittest.TestCase):
+    """Each piece of work a computer hands to ChatGPT, Gemini or Gemma becomes one line of the audit log, without its text.
+    Mỗi việc một máy giao cho ChatGPT, Gemini hay Gemma thành một dòng nhật ký, không có chữ của nó."""
+
+    NOW_MS = 1_800_000_000_000
+
+    def record(self, **fields):
+        base = {"id": "a" * 24, "at": self.NOW_MS - 60_000, "tool": "ask_gemini", "via": "ai-workers", "promptChars": 42, "answerChars": 900,
+                "promptHash": "b" * 32, "outcome": "ok", "check": ["command"]}
+        return dict(base, **fields)
+
+    def setUp(self):
+        from board import db as dbm, stores
+        self.tmp = tempfile.mkdtemp()
+        self.db = dbm.Database(os.path.join(self.tmp, "t.db"), dbm.DATA_STEPS, "NORMAL")
+        self.log = stores.AuditLog(self.db)
+
+    def tearDown(self):
+        self.db.conn.close()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_clean_keeps_a_fixed_list_and_drops_text(self):
+        from board.devices import clean_delegations
+        sent = [
+            self.record(prompt="the whole prompt", answer="the whole answer", check=["command", "what"], found=["GitHub token", "ghp_x$1"]),
+            self.record(id="nothex", tool="ask_gemini"),
+            self.record(id="c" * 24, tool="rm_rf"),
+            self.record(id="d" * 24, at=self.NOW_MS - 4 * 86_400_000),
+            self.record(id="e" * 24, outcome="hacked", via="elsewhere", promptHash="short", promptChars="x"),
+            "not a record",
+        ]
+        out = clean_delegations(sent, self.NOW_MS)
+        self.assertEqual([r["id"] for r in out], ["a" * 24, "e" * 24])
+        self.assertEqual(out[0], {"id": "a" * 24, "at": self.NOW_MS - 60_000, "tool": "ask_gemini", "worker": "gemini", "via": "ai-workers", "promptChars": 42,
+                                  "answerChars": 900, "promptHash": "b" * 32, "outcome": "ok", "check": ["command"], "found": ["GitHub token"]})
+        self.assertEqual((out[1]["outcome"], out[1]["via"], out[1]["promptHash"], out[1]["promptChars"]), ("error", "plugin", "", 0))
+        self.assertNotIn("the whole", json.dumps(out))
+        self.assertEqual(clean_delegations("x", self.NOW_MS), [])
+
+    def test_each_record_is_written_once_and_kept_apart_from_the_admin_log(self):
+        from board.devices import clean_delegations
+        records = clean_delegations([self.record(), self.record(id="f" * 24, tool="ask_chatgpt", outcome="refused", check=[], found=["AWS access key"])], self.NOW_MS)
+        self.assertEqual(self.log.write_delegations("device-1", "An", "an@example.com", records), 2)
+        self.assertEqual(self.log.write_delegations("device-1", "An", "an@example.com", records), 0)
+        # the same id from another computer is another piece of work
+        # cùng mã từ một máy khác là một việc khác
+        self.assertEqual(self.log.write_delegations("device-2", "Binh", "binh@example.com", records[:1]), 1)
+        self.log.write(action="login", actor="adm")
+        month = datetime.now(stores_tz()).strftime("%Y-%m")
+        rows = self.log.read_delegations(month)
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(rows[1]["outcome"], "refused")
+        self.assertEqual(rows[1]["found"], ["AWS access key"])
+        self.assertNotIn("check", rows[1])
+        self.assertEqual((rows[2]["name"], rows[2]["device"], rows[2]["worker"]), ("An", "device-1", "gemini"))
+        self.assertEqual([r["action"] for r in self.log.read(month)], ["login"])
+        self.assertEqual(self.log.delegation_totals(month), {"all": 3, "chatgpt": 1, "gemini": 2, "gemma": 0, "refused": 1, "flagged": 2})
+        self.assertTrue(self.log.check(0)["ok"])
+
+
+def stores_tz():
+    from board.settings import LOCAL_TZ
+    return LOCAL_TZ
 
 
 if __name__ == "__main__":

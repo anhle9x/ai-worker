@@ -122,6 +122,6 @@ To remove: `sudo systemctl disable --now ai-worker-webhook`, delete `/opt/ai-wor
 ## What is stored
 
 Name, Claude account email, a random device id, the **sending computer's IP** (the server writes it from the connection, staff computers cannot claim one), the internal IP the computer reports (the server keeps the ones used in the last 30 days, at most 10), a hardware mark (a one-way hash of the computer's own id; devices with the same mark count as one, the mark is never shown on a page), the number of sessions open / working / waiting for a reply, tokens and money per hour
-(last 8 days), the number of tasks delegated to Gemini/ChatGPT/Gemma per hour, and one total of cost, tokens and tasks per person per day (up to 13 months, with name, email and office). **Not stored**: chat content, questions, file names,
+(last 8 days), the number of tasks delegated to Gemini/ChatGPT/Gemma per hour, how many times per hour the plugin stopped or asked about something (counts only), and one total of cost, tokens and tasks per person per day (up to 13 months, with name, email and office). **Not stored**: chat content, questions, file names,
 project names. The connection is HTTP inside the internal network (not encrypted); for HTTPS put it behind your existing nginx/Caddy and use an
 `https://...` address when building the package; then add `TRUST_PROXY=1` to `/etc/ai-worker.env` so the staff computer's real IP is recorded instead of the proxy's IP.

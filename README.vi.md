@@ -138,7 +138,8 @@ Hướng đi của dự án. Không ghi ngày: mục nào kiểm xong thì phát
 - [ ] Thử cổng MCP từ Cursor và Gemini CLI. Hiện đã thử Claude Code, Codex CLI và thẻ Chat của app Claude (qua một kết nối của claude.ai).
 - [x] Biểu đồ mức dùng theo tuần và tháng trên bảng chi tiết: chi phí theo tuần trong 12 tuần và theo tháng trong tối đa 13 tháng, cho cả đội và từng văn phòng
 - [x] Khung thanh menu ngay trong Telegram (0.37.0), cho các chat quản trị cho phép: đã thử trên Telegram Desktop và Android, ở mạng văn phòng
-- [ ] Khung trong Telegram cho chat chỉ đọc số gộp, và mở được từ ngoài mạng văn phòng
+- [x] Khung trong Telegram cho chat chỉ đọc số gộp (0.41.0): máy chủ chỉ gửi số tổng, không có người nào
+- [ ] Khung trong Telegram mở được từ ngoài mạng văn phòng
 - [x] Tin nhắn Telegram khi có người chờ quá lâu, do từng chat tự bật (`/baocho`), kèm nút mở khung
 
 ## Tài liệu

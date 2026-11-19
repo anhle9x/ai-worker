@@ -71,7 +71,7 @@ It shows only the sessions on **your** computer:
 
 - **Diagram:** each open session, linked to Claude and the helper assistants. A green session is working, a yellow one is waiting for you.
 - **Click a session** to see its plan, how full its context is, and its cost.
-- **When a conversation gets long,** a note warns you at 60% and at 80% of the context. If Claude then summarizes the older part by itself to make room, the plugin asks that summary to keep your instructions, the decisions, what failed and what is still open, and a note tells you so: carry on in the same conversation, no new session is needed.
+- **When a conversation gets long,** a note warns you at 60% and at 80% of the context. Past 80%, Claude is told too: it finishes what you asked, then writes a handoff note and suggests a new session in one line. If Claude then summarizes the older part by itself to make room, the plugin asks that summary to keep your instructions, the decisions, what failed and what is still open, and a note tells you so: carry on in the same conversation, no new session is needed.
 - **Carrying on in a new session.** When you have written handoff notes with `/ai-worker:handoff`, each new session is told the names and dates of the newest five. Say "continue the monthly report" and Claude reads that note first; say only "continue" and it asks which one. The plugin gives names and dates only: a note is opened when you ask to carry on with it.
 - **Cost:** today, the last 7 days, and a chart you can change (line, bars, candles; by hour or by day).
 - **Activity:** what was done in the open sessions, with a filter.
@@ -314,7 +314,9 @@ Personal plans (Pro, Max) are not in that report.
 ### 3.6 Open sessions and the audit log
 
 - **Open sessions:** who is logged in, from where. **End** one, or **End the other sessions** to log everyone else out.
-- **Audit log:** logins, changes and refusals for the chosen month. Kept 12 months; the page shows the newest 300 lines.
+- **Audit log:** logins, changes and refusals for the chosen month. Kept 12 months; the page shows the newest 300 lines. **Log check** above it says whether any line was changed or taken out of the database by hand, and shows the last fingerprint: note it down now and then to compare later.
+- **Stopped by ai-worker:** how many times, across the team in the last 7 days, a key or password was kept from ChatGPT or Gemini, a commit or a risky command was asked about, or a page that tried to steer Claude was flagged. Counts only, never what it was.
+- **Keys for AI tools not used for 30 days** are listed above the TV screens table; revoke the ones nobody needs.
 
 ### 3.7 Menu bar downloads
 

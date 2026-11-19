@@ -35,6 +35,7 @@ input:focus-visible,select:focus-visible,.qt-button:focus-visible{outline:2px so
 .qt-table td{padding:6px 8px 6px 0;border-bottom:1px solid rgba(94,214,232,.07);vertical-align:middle;overflow-wrap:anywhere}
 .qt-table.small{font-size:11.5px}.qt-table.small td:last-child{color:var(--m);max-width:420px}
 .qt-bad-row td:nth-child(3){color:var(--red)}
+.qt-keep{white-space:nowrap}
 .qt-action{white-space:nowrap;text-align:right}.qt-action .qt-button{margin-left:6px}
 .qt-group{padding:8px 0;border-bottom:1px solid rgba(94,214,232,.07)}
 .qt-group b{display:block;color:#e8fbff}

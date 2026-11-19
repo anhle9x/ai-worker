@@ -4,7 +4,7 @@
 // Bảng cả team: một máy chia sẻ gì vào thư mục chung, và máy của người
 // quản lý gộp mọi file ở đó ra sao. Chỉ có con số: không bao giờ có tiêu đề cuộc trò chuyện,
 // lời nhắc, tên file hay thư mục. Hàm thuần: không dùng `$`.
-import type { BlockKind, Ledger, Spend, TeamState, Quota } from '../types'
+import type { BlockKind, Delegation, Ledger, Spend, TeamState, Quota } from '../types'
 import { LEDGER_HOURS } from './edits'
 import { tx } from './lang'
 
@@ -103,6 +103,9 @@ export type MachineSummary = {
   /** What ai-worker stopped or put to the person, by hour since the epoch (UTC): counts only, never what it was. */
   /** Những gì ai-worker đã chặn hay đưa người dùng xem, theo giờ kể từ epoch (UTC): chỉ số đếm, không bao giờ là nội dung. */
   blocks?: Record<string, Partial<Record<BlockKind, number>>>
+  /** Work handed to ChatGPT, Gemini or Gemma in the last two days, for the server's audit log: lengths, kinds and a salted fingerprint, never the text. Only to a server, never into a common folder. */
+  /** Các việc giao cho ChatGPT, Gemini hay Gemma trong hai ngày gần nhất, cho nhật ký của máy chủ: độ dài, loại và dấu vân tay có muối, không bao giờ có chữ. Chỉ gửi máy chủ, không bao giờ ghi vào thư mục chung. */
+  delegations?: Delegation[]
   /** The machine's own address on the office network, as it reports it (the webhook adds the address it sees as `ip`). */
   /** Địa chỉ của chính máy trên mạng văn phòng, như nó tự báo (webhook thêm địa chỉ nó thấy thành `ip`). */
   lanIp?: string
@@ -347,6 +350,7 @@ export function buildMachineSummary(
   ledger: Ledger | undefined,
   now: number,
   who: { device: string; name: string; account: string; lanIp?: string; enteredAccount?: string; assistants?: Assistants; pluginVersion?: string; hardwareMark?: string },
+  delegations: readonly Delegation[] = [],
 ): MachineSummary {
   const fromHour = Math.floor(now / 3_600_000) - LEDGER_HOURS
   const tasks: Record<string, WorkerCount> = {}
@@ -391,6 +395,7 @@ export function buildMachineSummary(
     ...(hardwareMark ? { hardwareMark } : {}),
     ...(Object.keys(subagents).length ? { subagents } : {}),
     ...(Object.keys(blocks).length ? { blocks } : {}),
+    ...(delegations.length ? { delegations: [...delegations] } : {}),
     updatedAt: now, openSessions, working, waiting, delegating, models, ledger: ledger ?? {}, tasks,
   }
 }

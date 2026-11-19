@@ -634,6 +634,7 @@
       [tx('Commits that would put a secret into git, asked first'), b.commit],
       [tx('Commands that destroy work or weaken the computer, asked first'), b.risky],
       [tx('Pages that tried to steer Claude, Claude warned'), b.page],
+      [tx('Answers from ChatGPT, Gemini or Gemma that held a secret, text aimed at AI or a command that cannot be undone, Claude warned'), b.answer],
     ]
     const board = o('table', 'qt-table small')
     const head = o('tr')
@@ -642,6 +643,42 @@
     for (const [label, n] of rows) {
       const h = o('tr')
       h.append(o('td', '', label), o('td', '', String(n || 0)))
+      board.append(h)
+    }
+    p.append(addLabel(board))
+    return p
+  }
+
+  // each piece of work a computer handed to ChatGPT, Gemini or Gemma in the chosen month: who, which helper, how long, what was
+  // stopped and what the check of the answer found. The prompt and the answer never reach the server, only a salted fingerprint
+  // mỗi việc một máy giao cho ChatGPT, Gemini hay Gemma trong tháng đã chọn: ai, trợ lý nào, dài bao nhiêu, đã chặn gì và bước
+  // kiểm câu trả lời thấy gì. Đề bài và câu trả lời không bao giờ tới máy chủ, chỉ có dấu vân tay có muối
+  function delegationsSection() {
+    const t = snapshot.delegationTotals || {}
+    const p = section(tx('Work handed to AI helpers'), tx('The chosen month; kept for 3 months, the newest 50 records. Never the prompt or the answer: their length and a fingerprint only'))
+    p.append(o('small', 'qt-muted', tx('{all} in all: ChatGPT {chatgpt}, Gemini {gemini}, Gemma {gemma}. Stopped before sending: {refused}. Answers flagged by the check: {flagged}.', {
+      all: t.all || 0, chatgpt: t.chatgpt || 0, gemini: t.gemini || 0, gemma: t.gemma || 0, refused: t.refused || 0, flagged: t.flagged || 0,
+    })))
+    const WORKERS = { chatgpt: 'ChatGPT', gemini: 'Gemini', gemma: 'Gemma' }
+    const OUTCOMES = { ok: tx('Answered'), error: tx('Helper failed'), refused: tx('Not sent: held a secret'), declined: tx('Not sent: declined') }
+    const CHECKS = { secret: tx('a secret'), aimed: tx('text aimed at AI'), command: tx('a command that cannot be undone') }
+    const board = o('table', 'qt-table small')
+    const head = o('tr')
+    for (const c of [tx('Time'), tx('Who'), tx('Helper'), tx('Length'), tx('Result'), tx('Check of the answer'), tx('Fingerprint')]) head.append(o('th', '', c))
+    board.append(head)
+    for (const x of snapshot.delegations || []) {
+      const flagged = (x.check || []).length > 0
+      const h = o('tr', x.outcome === 'refused' || flagged ? 'qt-bad-row' : '')
+      const result = (OUTCOMES[x.outcome] || x.outcome || '—') + ((x.found || []).length ? ` (${x.found.join(', ')})` : '')
+      h.append(
+        o('td', '', String(x.doneAt || x.at || '').replace('T', ' ').slice(0, 16)),
+        o('td', 'qt-keep', x.name || x.account || '—'),
+        o('td', '', `${WORKERS[x.worker] || x.worker || '—'}${x.tool === 'generate_image' ? ' · ' + tx('image') : ''}`),
+        o('td', '', tx('{prompt} → {answer} characters', { prompt: x.promptChars || 0, answer: x.answerChars || 0 })),
+        o('td', '', result),
+        o('td', '', x.outcome !== 'ok' ? '—' : flagged ? x.check.map(c => CHECKS[c] || c).join(', ') : tx('Nothing found')),
+        o('td', 'qt-muted qt-keep', String(x.promptHash || '').slice(0, 8) || '—'),
+      )
       board.append(h)
     }
     p.append(addLabel(board))
@@ -764,7 +801,7 @@
     backLink.href = '/'
     head.append(o('h1', '', tx('Admin')), o('span', '', viewerName), I18n.switcher(), backLink)
     const column = o('div', 'qt-column')
-    column.append(accountsSection(), tvSection(), ...(snapshot.mcpCalls.length ? [mcpCallsSection()] : []), menubarSection(), locationsSection(), teamSection(), sessionsSection(), ...(snapshot.blocked7d ? [blockedSection()] : []), auditSection())
+    column.append(accountsSection(), tvSection(), ...(snapshot.mcpCalls.length ? [mcpCallsSection()] : []), menubarSection(), locationsSection(), teamSection(), sessionsSection(), ...(snapshot.blocked7d ? [blockedSection()] : []), ...((snapshot.delegations || []).length ? [delegationsSection()] : []), auditSection())
     root.replaceChildren(head, notice, column)
   }
 

@@ -33,6 +33,8 @@ The server does not trust the IP of a request unless the request comes through t
 | Team plan spend | Yes | Yes | No |
 | Use by week and month, per office and per person (totals per day, kept 13 months) | Yes | Yes | No |
 | The whole team's cost on each of the last 7 days, one number per day (the chart of the menu bar window) | Yes | Yes | Yes |
+| How many times ai-worker stopped something across the team in the last 7 days, counts only (`blocked7d`) | Yes | Yes | No |
+| Work handed to ChatGPT, Gemini or Gemma: one record each, who, which helper, lengths, what stopped it, what the check of the answer found, a fingerprint of the prompt; never the text | Yes | No | No |
 | Computer groups with no name | Yes | No | No |
 | Text board `/board` | Yes | Yes | No |
 | `/admin` page and installers | Yes | No | No |

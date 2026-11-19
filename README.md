@@ -138,7 +138,8 @@ Where the project is going. There are no dates: an item ships when it has been c
 - [ ] The MCP endpoint tried from Cursor and Gemini CLI. So far Claude Code, Codex CLI and the Chat tab of the Claude app (through a claude.ai connector) have been.
 - [x] Charts of use by week and month on the detail board: cost per week for 12 weeks and per month for up to 13 months, for the team and for each office
 - [x] The menu bar window inside Telegram (0.37.0), for chats an admin allows: tried on Telegram Desktop and Android, on the office network
-- [ ] The window inside Telegram for chats that read totals only, and from outside the office network
+- [x] The window inside Telegram for chats that read totals only (0.41.0): the server sends totals and no person
+- [ ] The window inside Telegram from outside the office network
 - [x] A Telegram message when someone waits too long, turned on by each chat (`/alerts`), with a button that opens the window
 
 ## Documents

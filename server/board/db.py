@@ -50,6 +50,14 @@ DATA_STEPS = [
         "tokens_out INTEGER NOT NULL DEFAULT 0, gemini INTEGER NOT NULL DEFAULT 0, chatgpt INTEGER NOT NULL DEFAULT 0, gemma INTEGER NOT NULL DEFAULT 0, "
         "PRIMARY KEY (day, person))",
     ],
+    # version 3: the records of work handed to ChatGPT, Gemini or Gemma already written to the audit log, so a record a
+    # computer sends again on its next beats is written once. Kept a few days: a computer stops sending a record after two
+    # phiên bản 3: các biên bản giao việc cho ChatGPT, Gemini hay Gemma đã ghi vào nhật ký, để biên bản mà một máy gửi lại
+    # ở các nhịp sau chỉ được ghi một lần. Giữ vài ngày: máy thôi gửi một biên bản sau hai ngày
+    [
+        "CREATE TABLE delegations_seen (key TEXT PRIMARY KEY, seen_at INTEGER NOT NULL)",
+        "CREATE INDEX delegations_seen_at ON delegations_seen (seen_at)",
+    ],
 ]
 KEYS_STEPS = [
     [

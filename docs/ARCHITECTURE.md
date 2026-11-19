@@ -45,7 +45,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | F6 | Changing accounts, sessions or TV screens needs the OTP code again, valid for 5 minutes | `require_otp`, `LoginGate.confirm` |
 | F7 | A TV joins only after an admin approves its code | `TvPairing`, `TvStore` |
 | F8 | A computer installs an update only with a valid signature and checksum | `hooks/update.ts`, `updatePlugin` |
-| F9 | Text for ChatGPT or Gemini is sent only with permission; a failed question counts as no | `refuseToSend`, `hooks/workers.ts` |
+| F9 | Text for ChatGPT or Gemini is sent only with permission, and never with a secret in it (F17); a failed question counts as no | `refuseToSend`, `hooks/workers.ts` |
 | F10 | Pages, plugin and installers come in English and Vietnamese | `i18n.js`, `hooks/lang.ts`, `packaging/lang.sh` |
 | F11 | A person on Codex, Cursor or Gemini CLI shows on the board without Claude Code: sessions open, working and waiting, per tool | `connectors/ai-worker-hook.sh`, `connectors/ai-worker-hook.ps1`; `from_connector`, `is_fresh` in `server/board/devices.py` |
 | F12 | An AI tool that speaks MCP reads the board with a key of its own that an admin approved: read-only, the wall view as text, within what the key may read | `server/board/mcp.py`; `mcp_post`, `PERM_MCP_KEY` in `server/webhook.py`; `TvStore.find` in `server/board/stores.py` |
@@ -53,6 +53,13 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | F14 | Use can be compared by week and by month: the server adds the hours each computer already sends into one total per person per day and keeps it 13 months; admins and viewers see it on `/board` | `server/board/daily.py`; `record_daily`, `usage_view` in `server/board/views.py`; `usage_section`, `usage_chart` in `server/board/pages.py` |
 | F15 | A chat an admin allowed opens the menu bar window inside Telegram (a Telegram Mini App). The phone or computer reaches the board itself over HTTPS; the webhook checks what Telegram signed for the window with a key derived from the bot token, and keeps the session in memory | `server/board/tgapp.py`; `tg_session`, `get_tg_data`, `PERM_TG_SESSION` in `server/webhook.py`; `server/static/tg-app.js`; `page_mini(telegram=True)` in `server/board/pages.py`; `sync_menus` in `server/telegram_bot.py` |
 | F16 | A Telegram chat that turned alerts on gets a message when someone has waited longer than the minutes it chose: each wait once, grouped, at most one message every 5 minutes, 6 an hour and 30 a day, none at night; the first line names nobody, and a chat that reads totals gets the count alone | `server/board/alerts.py`; `alerts_due`, `_alerts` in `server/board/chat.py`; `sync_menus` in `server/telegram_bot.py`; `get_tg_state`, `tg_settings` in `server/webhook.py` |
+| F17 | Text that holds what looks like a key, a token or a password never leaves for ChatGPT or Gemini, through the plugin's tools or a separate `ai-workers` server, whatever the permission mode; Claude is told the kind and line, never the value | `hooks/secrets.ts`; `refuseToSend` and `tool.check` in `hooks/register.tsx` |
+| F18 | A shell command that destroys work or weakens the computer, and a `git commit` whose added lines hold a secret, are put to a person in every mode | `hooks/guard.ts`, `hooks/commitscan.ts`; `tool.check`, `tool.call` |
+| F19 | Text from the web, a search or a browser that gives orders to an AI is flagged to Claude (beside the result, which is never withheld) and to the person | `hooks/injection.ts`; `tool.call` |
+| F20 | A line of the audit log changed or taken out by hand shows on the Admin page: each row carries the fingerprint of the one before | `AuditLog.write`, `AuditLog.check` in `server/board/stores.py` |
+| F21 | Admins and viewers see how often the protections above acted across the team in 7 days, counts only; keys for AI tools unused for 30 days are pointed out | `blocks` in `hooks/team.ts`; `blocks_since` in `server/board/devices.py`; `idle_days` in `server/board/views.py` |
+| F22 | Each piece of work handed to ChatGPT, Gemini or Gemma becomes one line of the chained audit log, once: helper, lengths, what stopped it, what the check of the answer found and a salted fingerprint of the prompt, never the text; admins see the month's lines | `hooks/delegations.ts`; `clean_delegations` in `server/board/devices.py`; `AuditLog.write_delegations` in `server/board/stores.py` |
+| F23 | A helper's answer is checked before Claude uses it for secrets, text aimed at an AI and commands that cannot be undone; Claude gets a note beside the answer, the person a notice, and the stop is counted | `hooks/answers.ts`; the `tool.call` handler in `hooks/register.tsx` |
 
 ### Limits the server enforces
 
@@ -350,12 +357,12 @@ sequenceDiagram
   W-->>P: A session, in memory only
   P->>W: GET /tg/data every 30 seconds, with the session
   W->>W: Find the chat again: still approved and allowed?
-  W-->>P: The wall view
+  W-->>P: The wall view, or the team's totals alone for a chat that reads totals only
 ```
 
 `server/board/tgapp.py` holds the check, the sessions and the menu buttons. Telegram's rule signs the fields with HMAC-SHA256, keyed by HMAC-SHA256("WebAppData", bot token); the installer writes that key as `TELEGRAM_APP_KEY`, so the webhook checks a signature without ever holding the token, and the key cannot drive the bot. The fields come after the `#` of the address, which a browser never sends, so they reach no log. A session is a random string kept as a hash in memory, 1 hour after last use and 12 hours at most, 3 per chat; every call finds the chat again, so **Stop the window**, **Revoke** or `/stop` ends it at once. A wrong signature counts as probing; fields that are only too old do not.
 
-The page is the menu bar window's own (`page_mini(telegram=True)`): its files come from `/tg/`, so a proxy can let just that prefix through, it has no link to the board and no alert setting, and its unpair button disconnects the chat. `server/static/tg-app.js` runs before `mini.js` and gives it `window.MiniApi`, as the browser extension does. It does not load Telegram's script from telegram.org: it reads the fields from the address itself and speaks to the app through the bridge Telegram puts in the page, so no script from another site runs where the team's numbers are shown and the page's `script-src 'self'` stays as it is.
+The page is the menu bar window's own (`page_mini(telegram=True)`): its files come from `/tg/`, so a proxy can let just that prefix through, it has no link to the board, its settings tab sets the chat's own alerts, and its unpair button disconnects the chat. `server/static/tg-app.js` runs before `mini.js` and gives it `window.MiniApi`, as the browser extension does. It does not load Telegram's script from telegram.org: it reads the fields from the address itself and speaks to the app through the bridge Telegram puts in the page, so no script from another site runs where the team's numbers are shown and the page's `script-src 'self'` stays as it is.
 
 `MenuSync` in the same module compares the chats that should have the window with what the bot process was last told, and hands the changes to it; after a restart it tells every live chat again, so a chat that lost the window while the server was down gets its plain menu back. `TELEGRAM_APP=0` makes every path under `/tg/` answer 404.
 
@@ -388,12 +395,14 @@ Rolling back is a new release of the old version: a different version is accepte
 
 ### Sending text to an assistant
 
-This applies to the plugin's own tools, used when a computer has no `ai-workers` MCP server. Gemma runs on the computer; ChatGPT and Gemini are outside companies.
+This applies to the plugin's own tools, used when a computer has no `ai-workers` MCP server; the secret check applies to a separate `ai-workers` server too, in `tool.check`. Gemma runs on the computer; ChatGPT and Gemini are outside companies.
 
 ```mermaid
 %%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
 flowchart TD
-  Call["Claude calls ask_local, ask_chatgpt or ask_gemini"] --> Check["Ask the permission step of the app"]
+  Call["Claude calls ask_local, ask_chatgpt or ask_gemini"] --> Secret{"Text for ChatGPT or Gemini holds a key or password?"}
+  Secret -- Yes --> Refuse
+  Secret -- No --> Check["Ask the permission step of the app"]
   Check --> D{"Decision"}
   D -- Deny --> Refuse["Refuse"]
   D -- Allow --> Run["Run the helper"]
@@ -455,6 +464,7 @@ Each push also runs `.github/workflows/test-install.yml`: on Ubuntu it builds th
 - **Shared send key.** Everyone in the install package has `INGEST_KEY`, so a staff member can send false numbers under a name not yet tied to a device. If a package leaks, change the key and reinstall.
 - **HTTP without a proxy.** The connection is encrypted only behind Caddy or nginx.
 - **People with sudo on the server** can read all numbers and issue accounts for themselves. Keep them few.
+- **The audit log's chain** catches a row changed or taken out by hand, not someone who can rewrite the whole database and `audit_head` together: note the fingerprint the Admin page shows now and then. The secret and page checks go by the shape of keys and the wording of orders, so a secret with no known shape, or an order worded otherwise, passes.
 - **Large files.** The server is split into `server/board/` (settings, login, devices, daily totals, stores, views, pages, packages) with `server/webhook.py` keeping the request handler and routes. `hooks/register.tsx` and `server/static/ops.js` are still large: their parts share state in one closure and have no tests of their own yet, so they wait for those tests before being split.
 - **The connector knows less than the plugin.** It sends only on an event, so a tool closed without its end event stays on the board for up to 2 hours. A turn that fails sends no event either: seen with Codex CLI 0.164.0, where a refused model request left the session as working. (A turn cut short with Esc sends `Interrupt` instead of `Stop`, and that one is hooked.) The server therefore believes "working" from the connector for 30 minutes after the last send; in Cursor, which has no hook after each step, a turn that runs longer than that shows as idle until it ends. It knows no tokens, cost, quota or model. Its copy of the send key sits in a second place on the computer. Its name and email must be the ones the plugin sends, or the person shows as two rows. Cursor, Gemini CLI and Windows have not been tried in the real tools yet.
 - **The MCP endpoint.** Tried in the real tools on macOS only: Claude Code, Codex CLI, and the Chat tab of the Claude desktop app through a claude.ai connector. Cursor, Gemini CLI and every tool on Windows and Linux have not been tried. What a tool reads goes to the company that makes it. A key that reads totals only still shows a team or a leftover group of one or two people through the totals. Calls are logged in the audit table, not a table of their own, so that an older server version can still open the database. More in [SECURITY.md](../SECURITY.md).

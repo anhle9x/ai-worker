@@ -19,6 +19,8 @@ Từ ngày [ngày], [công ty] sẽ cài plugin AI Worker cho Claude Code trên 
 - Số phiên đang mở, và Claude đang làm việc hay đang chờ bạn
 - [Chỉ khi có cài bộ nối cho Codex, Cursor và Gemini CLI] Với từng công cụ đó: số phiên đang mở, đang làm hay đang chờ bạn
 - Số token đã dùng, chi phí ước tính, số việc giao cho từng trợ lý, phần hạn mức đã dùng
+- Mỗi giờ plugin đã chặn bao nhiêu lần khoá hay mật khẩu sắp gửi ra ngoài, hỏi lại bao nhiêu lần trước một commit hay một lệnh rủi ro, cảnh báo bao nhiêu trang web hay bao nhiêu câu trả lời của trợ lý: chỉ số đếm, không bao giờ có nội dung
+- Mỗi việc giao cho ChatGPT, Gemini hay Gemma một biên bản: trợ lý nào, yêu cầu và câu trả lời dài bao nhiêu, có bị chặn vì mật khẩu không, bước kiểm câu trả lời thấy gì, và một dấu vân tay của yêu cầu không đọc ngược ra được. Quản trị xem được các biên bản này; không bao giờ có yêu cầu hay câu trả lời
 - Mô hình AI và trợ lý đang dùng, Claude đang chạy những loại trợ lý phụ nào và bao nhiêu, phiên bản plugin
 
 **Không bao giờ được gửi:** nội dung trò chuyện, câu lệnh bạn gõ, tên file hay nội dung file.

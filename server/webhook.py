@@ -83,7 +83,7 @@ from urllib.parse import parse_qs, quote, urlparse
 
 from board import assets, chat, db, mcp, packages, settings, tgapp
 from board.assets import RELEASE_NAME_RE, STATIC_DIR, STATIC_FILES, has_3d_page
-from board.devices import clean_payload, key_matches, refuse_constant, save_ingest
+from board.devices import clean_delegations, clean_payload, key_matches, refuse_constant, save_ingest
 from board.lang import REQUEST, lang_from, tx
 from board.login import SESSIONS
 from board.telegram import TELEGRAM
@@ -873,7 +873,8 @@ class Handler(BaseHTTPRequestHandler):
         if n <= 0 or n > MAX_BODY_BYTES:
             return self.reply(413, {"error": "too large"})
         try:
-            d = clean_payload(json.loads(self.rfile.read(n), parse_constant=refuse_constant), time.time())
+            raw = json.loads(self.rfile.read(n), parse_constant=refuse_constant)
+            d = clean_payload(raw, time.time())
         except (ValueError, RecursionError):
             return self.reply(400, {"error": "not JSON"})
         if not d:
@@ -887,6 +888,9 @@ class Handler(BaseHTTPRequestHandler):
             sys.stderr.write("rejected ingest from %s at %s: %s\n" % (d["device"], d["ip"], rejection[1]))
             return self.reply(rejection[0], {"error": rejection[1]})
         save_ingest(d, time.time())
+        # the records of work handed to helpers go to the audit log, once each, and are not kept with the computer's numbers
+        # biên bản giao việc vào nhật ký, mỗi cái một lần, và không giữ cùng số liệu của máy
+        AUDIT_LOG.write_delegations(d["device"], d.get("name", ""), d.get("account", ""), clean_delegations(raw.get("delegations"), time.time() * 1000))
         record_history()
         self.reply(200, {"ok": True})
 

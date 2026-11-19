@@ -2,6 +2,15 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.42.0 - 2026-11-19
+
+### Added
+- Each piece of work Claude hands to ChatGPT, Gemini or Gemma leaves a record in the server's chained audit log: who, which helper, how long the prompt and the answer were, whether a secret stopped it, what the check of the answer found, and a fingerprint of the prompt. Never the prompt or the answer: the fingerprint is salted with a value kept on the computer, so the server cannot guess a short prompt by trying likely texts. The Admin page lists the month's records with totals; admins only. The records go only to a server, never into a common folder.
+- The answer of ChatGPT, Gemini or Gemma is read before Claude uses it: a key or a password in it, text aimed at an AI (a helper that searched the web can bring back a page's orders), and commands in it that cannot be undone. When something is found, Claude is told beside the answer not to copy the secret, not to follow the text and not to run the command unless you ask after seeing it, and you see a short notice. The answer still reaches Claude whole. The Admin page counts these with the other stops.
+
+### Changed
+- The server's database moves to schema version 3 (one small table that keeps the audit log from writing the same record twice). The server copies the database before upgrading, as for every schema change.
+
 ## 0.41.0 - 2026-11-18
 
 ### Added
