@@ -252,11 +252,13 @@ def report(project: str, name: str, first: str, last: str, env: str, lang: str, 
     return r, costreport.load_labels(lang), p, first < oldest
 
 
-def report_html(project: str, name: str, first: str, last: str, env: str, lang: str, now: float) -> str:
+def report_html(project: str, name: str, first: str, last: str, env: str, lang: str, now: float, screen: bool = False) -> str:
+    # the file people download is the paper version; /projects asks for the screen version
+    # file người ta tải về là bản giấy; /projects xin bản để xem trên màn hình
     r, labels, p, cut = report(project, name, first, last, env, lang, now)
     title = "%s · %s" % (labels["title"], name)
     period = "%s %s → %s" % (labels["filter"], first, last)
-    return costreport.render_html(r, labels, p, title, env, period)
+    return costreport.render_html(r, labels, p, title, env, period, screen=screen)
 
 
 def report_csv(project: str, name: str, first: str, last: str, env: str, lang: str, now: float) -> str:

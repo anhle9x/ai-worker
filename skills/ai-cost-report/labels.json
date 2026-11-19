@@ -46,7 +46,9 @@
   "localNote": "These models run on your own machines: %(models)s. They have no API bill, so they add nothing to the cost; their tokens and times are shown. The cost of the machines themselves is not in this report.",
   "localCost": "runs on own machine, no API cost",
   "yourPrices": "Your own prices: %(file)s",
-  "noTurns": "No turn was measured in these days for this environment."
+  "noTurns": "No turn was measured in these days for this environment.",
+  "made": "Made",
+  "printHint": "This is the version to print. To save it as a PDF: press Ctrl+P (⌘P on a Mac), choose Save as PDF, paper A4. This bar is not printed."
  },
  "vi": {
   "lang": "vi",
@@ -95,6 +97,8 @@
   "localNote": "Các model này chạy trên máy của chính nhóm: %(models)s. Không có tiền API nên không cộng vào chi phí; vẫn hiện token và thời gian. Chi phí của chính các máy đó không nằm trong báo cáo này.",
   "localCost": "chạy trên máy, không tính tiền API",
   "yourPrices": "Giá riêng của bạn: %(file)s",
-  "noTurns": "Chưa có lượt nào được đo trong những ngày này, ở môi trường này."
+  "noTurns": "Chưa có lượt nào được đo trong những ngày này, ở môi trường này.",
+  "made": "Tạo lúc",
+  "printHint": "Đây là bản để in. Muốn lưu PDF: bấm Ctrl+P (trên Mac là ⌘P), chọn Lưu dưới dạng PDF, khổ A4. Dòng này không được in ra."
  }
 }

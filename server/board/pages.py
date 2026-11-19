@@ -1272,6 +1272,11 @@ def page_projects(known: dict, project: str, first: str, last: str, env: str, no
              '.pick{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:end;margin:0 0 12px;padding:14px;background:var(--card);border:1px solid var(--line);border-radius:12px}'
              '.pick label{display:flex;flex-direction:column;flex:1 1 150px;font-size:13px;color:var(--muted);gap:4px;min-width:0}'
              '.pick select,.pick input,.pick button{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);min-height:40px;width:100%}'
+             # the browser's own arrow sits on the edge of the box: draw one with room around it
+             # mũi tên sẵn của trình duyệt nằm sát mép ô: tự vẽ một mũi tên có khoảng trống xung quanh
+             '.pick select{-webkit-appearance:none;appearance:none;padding-right:36px;cursor:pointer;background-repeat:no-repeat;background-size:5px 5px;'
+             'background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);'
+             'background-position:calc(100% - 19px) 50%,calc(100% - 14px) 50%}'
              '.pick select:focus-visible,.pick input:focus-visible,.pick button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}'
              '.pick button{flex:0 0 auto;width:auto;padding:8px 22px;background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600;cursor:pointer}'
              '.pick button:hover{filter:brightness(1.08)}.links{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}'
@@ -1296,7 +1301,7 @@ def page_projects(known: dict, project: str, first: str, last: str, env: str, no
             '<p class="links"><a href="/projects/report.html?%s">%s</a><a href="/projects/report.csv?%s">%s</a></p>') % (
                 e(tx("Project or application")), options, e(tx("From (UTC)")), first, e(tx("To (UTC)")), last, e(tx("Environment")), envs, e(tx("Show")),
                 e(query), e(tx("Download the report (HTML, prints to PDF)")), e(query), e(tx("Download CSV")))
-    page = projects.report_html(project, known[project], first, last, env, lang, now)
+    page = projects.report_html(project, known[project], first, last, env, lang, now, screen=True)
     oldest = projects.utc_day(now - settings.PROJECT_TURN_KEEP_DAYS * 86400)
     notes = ""
     if first < oldest:
@@ -1316,6 +1321,6 @@ def page_projects(known: dict, project: str, first: str, last: str, env: str, no
     page = page.replace("<main>", "<main>" + top + form + notes, 1)
     # the totals per day go just above the price sources, the last heading of the report
     # tổng theo ngày nằm ngay trên phần nguồn giá, đề mục cuối cùng của báo cáo
-    at = page.rfind("<h2>")
+    at = page.rfind('<section class="end">')
     return (page[:at] + table + page[at:]).encode()
 

@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.47.2 - 2026-11-19
+
+### Changed
+- The report people download (**Download the report** on `/projects`, and the HTML file the `ai-cost-report` skill makes) is now made for paper: always white, A4 portrait, with the project's name, the days, the environment and when it was made at the top, the line saying these are numbers the project measured and not a bill in bold, the totals in four columns, and tables that shrink their text and wrap instead of being cut at the edge. A table's heading repeats on each page, no row or heading is split from its table, the price sources stay with the closing line, and each page carries the report's name and its page number. Opened in a browser, the same file reads as a light document page: larger text and a wider sheet on a computer, the full width of a phone with the totals in two columns, and only the widest table (by model) scrolling inside its own box, never the page. A bar at the top, not printed, says how to save it as a PDF (the board serves the file without scripts, so there is no print button). The `/projects` page keeps its own look.
+
+### Fixed
+- On `/projects`, the arrow of the project and environment pickers sat on the edge of the box; it now sits inside, with room around it.
+
 ## 0.47.1 - 2026-11-19
 
 ### Changed

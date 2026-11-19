@@ -356,17 +356,84 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}a:f
 body{background:#fff}main{max-width:none;padding:0}.wrap{overflow:visible}h2{break-after:avoid}table{break-inside:auto}tr{break-inside:avoid}}
 """
 
+# The file people download and print: always white, A4 portrait, nothing cut at the edge, the page number at the foot of each page
+# File người ta tải về và in: luôn nền trắng, khổ A4 dọc, không gì bị cắt mép, số trang ở chân mỗi trang
+PAPER_CSS = """
+:root{color-scheme:light;--card:#fff;--fg:#14232b;--muted:#4f626b;--line:#cfd9dd;--soft:#eef3f5;--accent:#0b7a83;--info:#f1f8f8;--warn:#8a5200;--warn-bg:#fff6e5;
+--body:15px;--small:13.5px;--tiny:12.5px;--table:13px;--th:12.5px;--h1:26px;--h2:17px;--value:20px;--gap:10px}
+@page{size:A4 portrait;margin:14mm 12mm 16mm;@bottom-left{content:"%(foot)s";font:8pt system-ui,sans-serif;color:#5b6b72}
+@bottom-right{content:counter(page) " / " counter(pages);font:8pt system-ui,sans-serif;color:#5b6b72}}
+*{box-sizing:border-box}html{background:#e4eaed}
+body{margin:0;color:var(--fg);font:var(--body)/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact;-webkit-text-size-adjust:100%%}
+main{width:980px;max-width:calc(100%% - 32px);margin:16px auto 32px;padding:40px 44px;background:#fff;border-radius:6px;box-shadow:0 2px 16px rgba(0,0,0,.12)}
+.hint{width:980px;max-width:calc(100%% - 32px);margin:16px auto 0;padding:9px 14px;border-radius:6px;background:#14232b;color:#fff;font-size:var(--small);line-height:1.5}
+.doc{border-bottom:2px solid var(--accent);padding-bottom:10px;margin-bottom:12px}
+.kicker{margin:0;font-size:var(--tiny);letter-spacing:.06em;text-transform:uppercase;color:var(--accent);font-weight:700}
+h1{font-size:var(--h1);line-height:1.25;margin:2px 0 10px}
+.meta{display:grid;grid-template-columns:max-content 1fr;gap:2px 16px;margin:0;font-size:var(--small)}.meta dt{color:var(--muted)}.meta dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.note{border:1px solid var(--line);border-left:3px solid var(--accent);background:var(--info);border-radius:6px;padding:8px 12px;margin:8px 0;font-size:var(--small);break-inside:avoid}
+.note.lead{border-left-width:5px;font-weight:600}.note.warn{border-left-color:var(--warn);background:var(--warn-bg)}
+.empty{border:1px dashed var(--line);border-radius:6px;padding:22px;margin:14px 0;text-align:center;color:var(--muted)}
+h2{font-size:var(--h2);margin:24px 0 8px;break-after:avoid;break-inside:avoid}h2::before{content:"";display:inline-block;width:3px;height:.85em;margin-right:7px;background:var(--accent);vertical-align:-1px}
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--gap);margin:12px 0;break-inside:avoid}
+.card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-width:0}
+.card b{display:block;font-size:var(--value);line-height:1.3;font-weight:650;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.card span{display:block;color:var(--muted);font-size:var(--tiny);line-height:1.35}
+.wrap{border:1px solid var(--line);border-radius:8px;overflow-x:auto}
+table{border-collapse:collapse;width:100%%;font-size:var(--table);line-height:1.4;font-variant-numeric:tabular-nums}thead{display:table-header-group}
+th,td{padding:6px 9px;text-align:right;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--soft);color:var(--muted);font-size:var(--th);font-weight:600}
+td{white-space:nowrap}.models td:first-child{white-space:normal;overflow-wrap:break-word;min-width:37mm}td.t{white-space:normal;min-width:24mm}
+th:first-child,td:first-child,.models td:nth-child(2),.models th:nth-child(2){text-align:left}tbody tr:last-child td{border-bottom:0}tr{break-inside:avoid}
+ul{padding-left:20px;margin:6px 0;font-size:var(--small)}li{overflow-wrap:anywhere}
+footer{margin-top:14px;padding-top:8px;border-top:1px solid var(--line);color:var(--muted);font-size:var(--tiny);line-height:1.45}a{color:var(--accent)}.end{break-inside:avoid}
+@media screen and (max-width:700px){:root{--body:15px;--h1:22px;--value:18px;--table:11.5px;--th:11px}th,td{padding:5px 3px}th:first-child,td:first-child{padding-left:6px}th:last-child,td:last-child{padding-right:6px}
+.hint,main{max-width:none;width:auto;margin:0;border-radius:0}main{padding:18px 12px 28px;box-shadow:none}.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}}
+@media print{:root{--body:10.5pt;--small:9.5pt;--tiny:8.5pt;--table:8.5pt;--th:8pt;--h1:17pt;--h2:12pt;--value:13pt;--gap:6px}
+html{background:none}main{width:auto;max-width:none;margin:0;padding:0;border-radius:0;box-shadow:none}.hint{display:none}.wrap{overflow:visible}
+h2{margin:16px 0 6px}h2::after{content:"";display:block;height:30mm;margin-bottom:-30mm}.card{padding:6px 9px;border-radius:6px}th,td{padding:3px 6px}
+.note{padding:5px 10px;margin:6px 0}footer{margin-top:10px;padding-top:6px}a{color:var(--fg);text-decoration:none}}
+"""
 
-def render_html(r, L, prices, title, env, period):
+
+def table(rows, kind=""):
+    """A table whose first row is its heading, repeated at the top of each printed page.
+    Một bảng có hàng đầu là tiêu đề, lặp lại ở đầu mỗi trang khi in."""
+    return '<div class="wrap"><table%s><thead>%s</thead><tbody>%s</tbody></table></div>' % (' class="%s"' % kind if kind else "", rows[0], "".join(rows[1:]))
+
+
+def render_html(r, L, prices, title, env, period, screen=False):
+    """The report as one HTML page: by default the paper version, to print or save as PDF; screen=True is the version a page shows.
+    Báo cáo dạng một trang HTML: mặc định là bản giấy, để in hay lưu PDF; screen=True là bản để một trang web hiện."""
     e = html.escape
+    made = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    if screen:
+        style = CSS
+    else:
+        # the title goes into the CSS of the page's foot: nothing in it may end the string or the style
+        # tiêu đề nằm trong CSS của chân trang: không gì trong đó được làm hết chuỗi hay hết khối style
+        foot = "".join("\\%x " % ord(c) if c in '\\"<>\n\r' else c for c in title)
+        style = PAPER_CSS % {"foot": foot}
     out = ['<!doctype html><html lang="%s"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' % e(L["lang"]),
-           "<title>%s</title><style>%s</style></head><body><main>" % (e(title), CSS)]
-    out.append("<h1>%s</h1>" % e(title))
+           "<title>%s</title><style>%s</style></head><body>" % (e(title), style)]
     first = r["first"].strftime("%Y-%m-%d %H:%M") if r["first"] else "-"
     last = r["last"].strftime("%Y-%m-%d %H:%M") if r["last"] else "-"
-    span = "%s: %s → %s UTC · " % (e(L["period"]), first, last) if r["first"] else ""
-    out.append('<p class="sub">%s%s: %s%s</p>' % (span, e(L["env"]), e(env), (" · " + e(period)) if period else ""))
-    out.append('<p class="note">%s</p>' % e(L["selfReported"]))
+    if screen:
+        out.append("<main><h1>%s</h1>" % e(title))
+        span = "%s: %s → %s UTC · " % (e(L["period"]), first, last) if r["first"] else ""
+        out.append('<p class="sub">%s%s: %s%s</p>' % (span, e(L["env"]), e(env), (" · " + e(period)) if period else ""))
+        out.append('<p class="note">%s</p>' % e(L["selfReported"]))
+    else:
+        # "Report title · project" reads as a small line with the report's kind and the project's name in large letters
+        # "Tên báo cáo · dự án" thành một dòng nhỏ ghi loại báo cáo, và tên dự án chữ lớn
+        kicker, name = (L["title"], title[len(L["title"]) + 3:]) if title.startswith(L["title"] + " · ") else ("", title)
+        out.append('<p class="hint">%s</p><main><header class="doc">%s<h1>%s</h1><dl class="meta">' % (
+            e(L["printHint"]), '<p class="kicker">%s</p>' % e(kicker) if kicker else "", e(name)))
+        if r["first"]:
+            out.append("<dt>%s</dt><dd>%s → %s UTC</dd>" % (e(L["period"]), first, last))
+        out.append("<dt>%s</dt><dd>%s</dd>" % (e(L["env"]), e(env)))
+        if period:
+            out.append("<dt>%s</dt><dd>%s</dd>" % (e(L["filter"]), e(period.split(" ", 1)[-1] if period.startswith(L["filter"]) else period)))
+        out.append("<dt>%s</dt><dd>%s</dd></dl></header>" % (e(L["made"]), made))
+        out.append('<p class="note lead">%s</p>' % e(L["selfReported"]))
     if not r["turns"]:
         # nothing measured: one plain line instead of cards and tables full of dashes
         # chưa đo được gì: một dòng rõ ràng thay cho các ô và bảng toàn dấu gạch
@@ -407,9 +474,8 @@ def render_html(r, L, prices, title, env, period):
         out.append('<p class="note%s">%s</p>' % (kind, e(n)))
 
     out.append("<h2>%s</h2>" % e(L["tokensTurn"]))
-    out.append('<div class="wrap"><table><tr><th>%s</th><th>%s</th><th>%s</th><th>%s</th></tr><tr>%s</tr></table></div>' % (
-        e(L["input"]), e(L["output"]), e(L["cacheRead"]), e(L["cacheWrite"]),
-        "".join("<td>%s</td>" % num(r["tokTurn"][k]) for k in TOKENS)))
+    out.append(table(["<tr><th>%s</th><th>%s</th><th>%s</th><th>%s</th></tr>" % (e(L["input"]), e(L["output"]), e(L["cacheRead"]), e(L["cacheWrite"])),
+                      "<tr>%s</tr>" % "".join("<td>%s</td>" % num(r["tokTurn"][k]) for k in TOKENS)]))
 
     out.append("<h2>%s</h2>" % e(L["byModel"]))
     rows = ["<tr><th>%s</th>%s</tr>" % (e(L["model"]), "".join("<th>%s</th>" % e(L[k]) for k in ("provider", "turns", "calls", "errors", "retries", "input", "output", "cacheRead", "cacheWrite", "cost", "priceDate")))]
@@ -428,9 +494,9 @@ def render_html(r, L, prices, title, env, period):
         cost = L["localCost"] if a.get("local") else usd(a["cost"]) if a["costTurns"] else L["noPrice"] if a["unpricedTurns"] else "-"
         if a["costTurns"] and a["unpricedTurns"]:
             cost += " *"
-        rows.append("<tr><td>%s</td><td>%s</td>%s%s<td>%s</td><td>%s</td></tr>" % (
+        rows.append('<tr><td>%s</td><td>%s</td>%s%s<td class="t">%s</td><td>%s</td></tr>' % (
             e(model), e(prov), "".join("<td>%s</td>" % num(a[k]) for k in ("turns", "calls", "errors", "retries")), "".join(toks), e(cost), e(pdate)))
-    out.append('<div class="wrap"><table>%s</table></div>' % "".join(rows))
+    out.append(table(rows, "models"))
 
     if r["alt"]:
         out.append("<h2>%s</h2>" % e(L["altTitle"]))
@@ -440,14 +506,14 @@ def render_html(r, L, prices, title, env, period):
         for a in r["alt"]:
             c = a["costTurn"]
             rows.append("<tr><td>%s</td><td>%s</td><td>%s</td></tr>" % (e(a["model"]), e(usd(c) if c is not None else L["noPrice"]), e(usd(c * 1000, 2) if c is not None else L["noPrice"])))
-        out.append('<div class="wrap"><table>%s</table></div>' % "".join(rows))
+        out.append(table(rows))
 
     out.append("<h2>%s</h2>" % e(L["byDay"]))
     rows = ["<tr><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th></tr>" % tuple(e(L[k]) for k in ("day", "turns", "errorsTimeouts", "avgMs", "p95Ms", "cost"))]
     for day, d in sorted(r["days"].items()):
         rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
             day, num(d["turns"]), num(d["errors"]), num(avg(d["ms"])), num(p95(d["ms"])), e(usd(d["cost"]) if d["costTurns"] else "-")))
-    out.append('<div class="wrap"><table>%s</table></div>' % "".join(rows))
+    out.append(table(rows))
 
     return "".join(out + sources(prices, L, e))
 
@@ -455,7 +521,7 @@ def render_html(r, L, prices, title, env, period):
 def sources(prices, L, e):
     """The end of the report: where each price comes from, and when the report was made.
     Phần cuối báo cáo: mỗi giá lấy từ đâu, và báo cáo làm lúc nào."""
-    out = ["<h2>%s</h2><ul>" % e(L["sources"])]
+    out = ['<section class="end"><h2>%s</h2><ul>' % e(L["sources"])]
     for prov, p in sorted(prices.doc.get("providers", {}).items()):
         if p.get("yours") or not str(p.get("source", "")).startswith("https://"):
             continue
@@ -463,7 +529,7 @@ def sources(prices, L, e):
     for name in prices.yours:
         out.append("<li>%s</li>" % e(L["yourPrices"] % {"file": name}))
     out.append("</ul>")
-    out.append("<footer>%s</footer></main></body></html>" % e(L["footer"] % {"made": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}))
+    out.append("<footer>%s</footer></section></main></body></html>" % e(L["footer"] % {"made": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}))
     return out
 
 
