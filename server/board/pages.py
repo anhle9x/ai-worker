@@ -1292,15 +1292,19 @@ def page_projects(known: dict, project: str, first: str, last: str, env: str, no
                     lang, e(tx("AI projects and applications")), projects.costreport.CSS, style, top, e(tx("AI projects and applications")),
                     e(tx("No AI project or application has a key yet. An admin makes one on the Admin page, in AI projects and applications; the project then sends what it measures with the ai-cost-report meter.")))
         return body.encode()
-    options = "".join('<option value="%s"%s>%s</option>' % (e(k), " selected" if k == project else "", e(v)) for k, v in sorted(known.items(), key=lambda kv: kv[1].lower()))
+    # a project whose key was revoked still has its numbers; its name says so
+    # dự án đã thu hồi khoá vẫn còn số liệu; tên của nó ghi rõ điều đó
+    alive = projects.live(now)
+    options = "".join('<option value="%s"%s>%s</option>' % (e(k), " selected" if k == project else "", e(v if k in alive else "%s (%s)" % (v, tx("key revoked"))))
+                      for k, v in sorted(known.items(), key=lambda kv: kv[1].lower()))
     envs = "".join('<option value="%s"%s>%s</option>' % (k, " selected" if k == env else "", e(label)) for k, label in (("prod", tx("Real users (prod)")), ("test", tx("Trial runs (test)")), ("all", tx("Both"))))
     query = urlencode({"project": project, "from": first, "to": last, "env": env})
     form = ('<form class="pick" method="get" action="/projects"><label>%s<select name="project">%s</select></label>'
             '<label>%s<input type="date" name="from" value="%s"></label><label>%s<input type="date" name="to" value="%s"></label>'
             '<label>%s<select name="env">%s</select></label><button type="submit">%s</button></form>'
-            '<p class="links"><a href="/projects/report.html?%s">%s</a><a href="/projects/report.csv?%s">%s</a></p>') % (
+            '<p class="links"><a href="/projects/report.html?%s" target="_blank" rel="noopener">%s</a><a href="/projects/report.csv?%s">%s</a></p>') % (
                 e(tx("Project or application")), options, e(tx("From (UTC)")), first, e(tx("To (UTC)")), last, e(tx("Environment")), envs, e(tx("Show")),
-                e(query), e(tx("Download the report (HTML, prints to PDF)")), e(query), e(tx("Download CSV")))
+                e(query), e(tx("Open the print version (save as PDF)")), e(query), e(tx("Download CSV")))
     page = projects.report_html(project, known[project], first, last, env, lang, now, screen=True)
     oldest = projects.utc_day(now - settings.PROJECT_TURN_KEEP_DAYS * 86400)
     notes = ""

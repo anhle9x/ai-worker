@@ -468,7 +468,15 @@ def admin_data(now: float, cookie: str, month: str) -> dict:
             "mcpOn": settings.MCP_ENABLED, "mcpIdleDays": settings.MCP_IDLE_DAYS,
             # AI projects and applications: whether AI_PROJECTS=1, and the prices an admin pasted
             # dự án hay ứng dụng AI: có AI_PROJECTS=1 không, và giá quản trị đã dán
-            "projectsOn": settings.PROJECTS_ENABLED, "projectPrices": project_prices() if settings.PROJECTS_ENABLED else {}}
+            "projectsOn": settings.PROJECTS_ENABLED, "projectPrices": project_prices() if settings.PROJECTS_ENABLED else {},
+            # projects whose key was revoked but whose numbers are kept: the Admin page offers to delete those numbers
+            # dự án đã thu hồi khoá nhưng số liệu còn giữ: trang Quản trị cho xoá số liệu đó
+            "projectsRevoked": revoked_projects() if settings.PROJECTS_ENABLED else []}
+
+
+def revoked_projects() -> list:
+    from board import projects
+    return [{"id": k, "name": v} for k, v in sorted(projects.revoked(time.time()).items(), key=lambda kv: kv[1].lower())]
 
 
 def project_prices() -> dict:

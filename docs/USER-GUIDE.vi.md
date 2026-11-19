@@ -267,7 +267,7 @@ Quản lý có thể hỏi Claude về cả đội bằng lời của mình, gõ
 Khi máy chủ đã bật tính năng này, nút **Dự án AI** trên trang chủ, hoặc liên kết **Dự án và ứng dụng AI** ở đầu `/board`, mở `/projects`: số đo của từng dự án nhóm tự làm, nếu dự án đó gửi lên bảng.
 
 1. **Ở đâu:** `/projects`. **Làm gì:** chọn dự án, ngày đầu và ngày cuối (UTC) và **Người dùng thật**, rồi bấm **Xem**. **Kết quả đúng:** số lượt, tiền mỗi lượt và mỗi 1.000 lượt, thời gian trung bình, p95 và chậm nhất, theo model và theo ngày.
-2. **Làm gì:** bấm **Tải báo cáo** (HTML; mở ra rồi **In** để lưu PDF) hoặc **Tải CSV**.
+2. **Làm gì:** bấm **Mở bản in** (tab mới; bấm Ctrl+P, trên Mac là ⌘P, rồi chọn **Lưu dưới dạng PDF**) hoặc **Tải CSV**.
 
 Mỗi lượt chỉ giữ 30 ngày; với những ngày cũ hơn, bảng ở cuối trang có tổng theo ngày, giữ 13 tháng. Đây là số do dự án tự đo, không phải hoá đơn.
 
@@ -343,7 +343,7 @@ Mục **Biểu tượng thanh menu** có các file cài cho quản lý (xem 2.3)
 
 ### 3.8 Dự án và ứng dụng AI
 
-Khi máy chủ có `AI_PROJECTS=1` (xem INSTALL), mục **Dự án và ứng dụng AI** tạo khoá cho từng dự án: gõ tên, bấm **Tạo khoá**, nhập OTP. Hai dòng hiện ra một lần đó đặt vào biến môi trường trên máy chủ của chính dự án, không bao giờ vào trang web hay app điện thoại. Các khoá được liệt kê, đổi tên và thu hồi ở mục **Màn hình TV**; thu hồi vẫn giữ số dự án đã gửi. **Giá riêng** nhận file giá theo dạng `skills/ai-cost-report/my-prices.example.json`, cho hãng mà bảng giá chưa có, giá đã thương lượng, hay model chạy trên máy của nhóm.
+Khi máy chủ có `AI_PROJECTS=1` (xem INSTALL), mục **Dự án và ứng dụng AI** tạo khoá cho từng dự án: gõ tên, bấm **Tạo khoá**, nhập OTP. Hai dòng hiện ra một lần đó đặt vào biến môi trường trên máy chủ của chính dự án, không bao giờ vào trang web hay app điện thoại. Các khoá được liệt kê, đổi tên và thu hồi ở mục **Màn hình TV**; thu hồi vẫn giữ số dự án đã gửi, và trang Dự án AI ghi "(khoá đã thu hồi)" cạnh tên dự án. Muốn xoá hẳn số của một lần chạy thử, sau khi thu hồi khoá, bấm **Xoá số liệu** cạnh tên dự án trong cùng mục này. **Giá riêng** nhận file giá theo dạng `skills/ai-cost-report/my-prices.example.json`, cho hãng mà bảng giá chưa có, giá đã thương lượng, hay model chạy trên máy của nhóm.
 
 ---
 

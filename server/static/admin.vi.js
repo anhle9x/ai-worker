@@ -299,5 +299,9 @@ window.I18n.add({
   'Revoke {name}? That AI project or application can no longer send what it measures; what it sent stays.': 'Thu hồi {name}? Dự án hay ứng dụng AI đó không gửi số đo được nữa; số đã gửi vẫn giữ.',
   'Save prices': 'Lưu giá',
   'See what the projects measured': 'Xem số đo của các dự án',
+  'Key revoked, numbers kept. Delete them when they were only a trial; this cannot be undone.': 'Đã thu hồi khoá, số liệu vẫn giữ. Xoá đi nếu đó chỉ là chạy thử; không lấy lại được.',
+  'Delete its numbers': 'Xoá số liệu',
+  'Delete every number {name} sent? Its report is gone for good, and this cannot be undone.': 'Xoá mọi số liệu {name} đã gửi? Báo cáo của nó mất hẳn, không lấy lại được.',
+  'Deleted the numbers of {name}': 'Đã xoá số liệu của {name}',
   'The key is shown only this once. Do not take a photo or send it by chat. A project on a cloud server also needs its IP let through to /projects/ingest by the proxy.': 'Khoá chỉ hiện lần này. Đừng chụp ảnh hay gửi qua chat. Dự án chạy trên cloud còn cần proxy cho IP của nó đi qua tới /projects/ingest.',
 })

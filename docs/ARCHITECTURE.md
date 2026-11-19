@@ -116,6 +116,7 @@ flowchart TD
   Phone["Telegram on a phone"]
   TG["Telegram's servers"]
   IT["Signing computer:<br/>private keys"]
+  Project["Your team's AI project<br/>or application: meter"]
   subgraph Server["Company Linux server"]
     Proxy["Caddy: HTTPS,<br/>IP allow-list"] --> Hook["webhook.py"]
     Hook --> Data["data/: numbers, log"]
@@ -131,6 +132,7 @@ flowchart TD
   Phone -- "window inside Telegram:<br/>Telegram's signed fields, /tg/ only" --> Proxy
   Bot -- "asks for messages,<br/>sends answers" --> TG
   IT -. "copies signed<br/>release" .-> Releases
+  Project -- "its own counts,<br/>project key" --> Proxy
 ```
 
 | Folder | Holds |
@@ -142,7 +144,7 @@ flowchart TD
 | `extensions/manager/` | The browser extension for managers (Chrome, Edge), installed by hand |
 | `connectors/` | The connector for Codex, Cursor and Gemini CLI: the hook (`ai-worker-hook.sh`, `.ps1`), its installer (`install.sh`, `.ps1`) and the JSON merge the installer uses (`merge-hooks.js`). It does not need the plugin |
 | `packaging/` | Building packages, installers, signing releases, checks before publishing |
-| `skills/`, `agents/`, `commands/` | The skills (everyday ones and those for coding and systems), the `planner` assistant, and the commands the app lists before a session starts |
+| `skills/`, `agents/`, `commands/` | The skills (everyday ones and those for coding and systems), the `planner` assistant, and the commands the app lists before a session starts. `skills/ai-cost-report/meter/` holds the meters an AI project copies, one file per language |
 | `tests/` | Plugin tests, install tests for Linux and Windows, language checks, the menu bar tests (`tests/menubar/`), the connector tests (`tests/connectors/`) and the extension check (`tests/extension/`) |
 
 ### Languages
@@ -372,6 +374,32 @@ The page is the menu bar window's own (`page_mini(telegram=True)`): its files co
 `MenuSync` in the same module compares the chats that should have the window with what the bot process was last told, and hands the changes to it; after a restart it tells every live chat again, so a chat that lost the window while the server was down gets its plain menu back. `TELEGRAM_APP=0` makes every path under `/tg/` answer 404.
 
 The same round of the bot process (`{tick}`) also carries the alerts. `server/board/alerts.py` reads the wall view, finds the waits past each chat's minutes that it has not told yet, and applies the gap, the hourly and daily caps and the quiet hours (19:00 to 07:00); `alerts_due` in `server/board/chat.py` hands the messages to the bot process, with the window's address when the chat may open it, and writes one row of the log for each (`telegram-alert`, with how many people). Each chat sets this for itself, with `/alerts` or in the window (`/tg/settings`); it is off until then. What was told is kept in memory only.
+
+### Measuring an AI project or application
+
+A project or application a team built, in any language and with any LLM provider, measures itself with a meter it copied from `skills/ai-cost-report/meter/`. The meter writes counts and times only, never a question, an answer or a user; a problem in it never stops the project. Sending to the board is optional and off on the board unless `AI_PROJECTS=1`.
+
+```mermaid
+sequenceDiagram
+  participant U as User of the project
+  participant P as Project's server and meter
+  participant F as ai-meter.jsonl
+  participant W as webhook.py
+  participant D as data/ (SQLite)
+  participant A as Admin or viewer
+  U->>P: One request
+  P->>P: Call the LLM, read the token counts each answer carries
+  P->>F: One line: time, outcome, calls and tokens per model
+  P->>W: In the background, in batches: POST /projects/ingest with its prj_ key, HTTPS or the same machine only
+  W->>W: Check the key, else 401, the rate, else 429, the size, else 413, a browser's Origin is refused
+  W->>W: Clean each turn like the report does, drop unknown fields, keep a turn sent twice once
+  W->>D: Each turn for 30 days, totals per day and model for 13 months
+  W-->>P: 200 with three counts, nothing else
+  A->>W: /projects, logged in
+  W-->>A: The report on screen, a print version in a new tab to save as an A4 PDF, a CSV
+```
+
+Without a board, the skill makes the same report from the file on the project's machine: `report.py` is the same code as `server/board/costreport.py`. The format of a line is in `skills/ai-cost-report/FORMAT.md`.
 
 ### Updating the plugin
 

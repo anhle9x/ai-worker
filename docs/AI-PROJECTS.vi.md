@@ -379,7 +379,7 @@ Dự án chạy trong mạng văn phòng thì bỏ qua bước này.
 ## Bước 6. Chạy thật và lấy báo cáo
 
 - **Làm gì:** bỏ `AI_METER_ENV=test`, khởi động lại, cho người dùng thật dùng trong khoảng thời gian cần báo cáo.
-- **Có bảng:** bấm **Dự án AI**, chọn ngày và **Người dùng thật (prod)**, rồi **Tải báo cáo** (mở ra rồi **In** để lưu PDF) hoặc **Tải CSV**.
+- **Có bảng:** bấm **Dự án AI**, chọn ngày và **Người dùng thật (prod)**, rồi **Mở bản in** (mở ở tab mới: bấm Ctrl+P, trên Mac là ⌘P, rồi chọn **Lưu dưới dạng PDF**) hoặc **Tải CSV**.
 - **Không có bảng:** trong Claude Code, gõ `/ai-worker:ai-cost-report` và đưa file `ai-meter.jsonl`.
 - **Kết quả đúng:** báo cáo có số lượt, số lần gọi LLM và token mỗi lượt, tiền mỗi lượt và ước tính 1.000 lượt, thời gian trung bình, p95 và chậm nhất, theo từng model.
 

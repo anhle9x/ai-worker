@@ -2,6 +2,15 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.47.3 - 2026-11-19
+
+### Added
+- An admin can delete the numbers of an AI project or application whose key was revoked, for example a trial: **Delete its numbers** beside its name in **AI projects and applications** on the Admin page, with the OTP code. It is refused while the key still works, and the audit log records the project and how many turns and daily rows went. On `/projects`, such a project now reads "(key revoked)" next to its name.
+
+### Changed
+- The README puts two features with the ones that set AI Worker apart: measuring the AI projects your team builds (cost and performance in one report) and the guardrails on every computer with their record on the server. They replace two lines further down. The architecture document shows an AI project in the drawing of the parts, has a main flow for measuring one, from the meter to the report, and says where the meters live.
+- On `/projects`, **Download the report** is now **Open the print version**: the report opens in a new tab instead of being saved as an HTML file, so saving it as a PDF (Ctrl+P, ⌘P on a Mac, then Save as PDF) leaves nothing else in the downloads folder. The CSV is still a download. The bar at the top of the print version also says to untick the browser's own headers and footers, which only repeat the date and the title the report already prints. The guides say the same.
+
 ## 0.47.2 - 2026-11-19
 
 ### Changed

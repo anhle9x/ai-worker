@@ -120,6 +120,14 @@ class ProjectStore:
             c.execute("DELETE FROM project_turns WHERE at < ?", (cutoff,))
             c.execute("DELETE FROM project_daily WHERE day < ?", (first_day,))
 
+    def delete(self, project: str) -> dict:
+        """Remove every turn and daily total of one project; says how many of each went.
+        Xoá mọi lượt và mọi tổng theo ngày của một dự án; cho biết mỗi loại đã xoá bao nhiêu."""
+        with self.lock, self.db.tx() as c:
+            turns = c.execute("DELETE FROM project_turns WHERE project = ?", (project,)).rowcount
+            days = c.execute("DELETE FROM project_daily WHERE project = ?", (project,)).rowcount
+        return {"turnCount": turns, "dayRowCount": days}
+
     def names(self) -> dict:
         """{project id: the name it last had}, for every project that has numbers, live key or not.
         {id dự án: tên gần nhất}, cho mọi dự án có số liệu, khoá còn hay không."""
@@ -151,14 +159,27 @@ class ProjectStore:
 PROJECTS = ProjectStore(data_db())
 
 
+def live(now: float) -> dict:
+    """{project id: name} of every project whose key still works.
+    {id dự án: tên} của mọi dự án mà khoá còn dùng được."""
+    from board.stores import TV
+    return {x["id"]: x["name"] for x in TV.list_screens(now) if x["kind"] == KIND_PROJECT}
+
+
 def known(now: float) -> dict:
     """{project id: name}: every live key, then every project that still has numbers after its key went.
     {id dự án: tên}: mọi khoá còn hạn, rồi mọi dự án còn số liệu sau khi khoá đã bị thu hồi."""
-    from board.stores import TV
-    out = {x["id"]: x["name"] for x in TV.list_screens(now) if x["kind"] == KIND_PROJECT}
+    out = live(now)
     for k, v in PROJECTS.names().items():
         out.setdefault(k, v)
     return out
+
+
+def revoked(now: float) -> dict:
+    """{project id: name} of the projects that still have numbers while their key is gone: the only ones whose numbers an admin may delete.
+    {id dự án: tên} của các dự án còn số liệu khi khoá đã mất: chỉ số liệu của các dự án này quản trị mới được xoá."""
+    keys = live(now)
+    return {k: v for k, v in PROJECTS.names().items() if k not in keys}
 
 
 def daily_rows(project: str, first: str, last: str, env: str) -> list:

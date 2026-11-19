@@ -1029,7 +1029,9 @@ class Handler(BaseHTTPRequestHandler):
             body, kind, ext = projects.report_html(project, name, first, last, env, lang, y.now).encode("utf-8"), "text/html; charset=utf-8", "html"
         self.send_response(200)
         self.send_header("Content-Type", kind)
-        self.send_header("Content-Disposition", 'attachment; filename="%s.%s"' % (stem, ext))
+        # the report opens in its own tab, where the browser saves it as a PDF; only the CSV is a file to keep
+        # báo cáo mở trong tab riêng, nơi trình duyệt lưu thành PDF; chỉ CSV là file để giữ lại
+        self.send_header("Content-Disposition", '%s; filename="%s.%s"' % ("attachment" if ext == "csv" else "inline", stem, ext))
         # a downloaded report runs no script and loads nothing: names in it came from people
         # báo cáo tải về không chạy script và không tải gì thêm: tên trong đó do người nhập
         self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox")
@@ -1181,6 +1183,14 @@ class Handler(BaseHTTPRequestHandler):
                 # the key goes back to this admin once; only its hash and first characters are kept
                 # khoá được trả cho quản trị này một lần; chỉ giữ băm và vài ký tự đầu
                 details, extra = {"action": "project-key-created", "tv": name, "id": key_id, "kind": KIND_PROJECT}, {"token": token, "id": key_id}
+            elif self.path == "/admin/project-delete":
+                # only a project whose key is already revoked: a live project would only send again
+                # chỉ dự án đã thu hồi khoá: dự án còn khoá sẽ lại gửi tiếp
+                project = str(body.get("id") or "")
+                gone = projects.revoked(time.time())
+                if project not in gone:
+                    raise ValueError(tx("Revoke the project's key first"))
+                details = {"action": "project-deleted", "tv": gone[project], "id": project, **projects.PROJECTS.delete(project)}
             elif self.path == "/admin/project-prices":
                 doc = body.get("prices")
                 try:
@@ -1572,6 +1582,7 @@ POST_ROUTES = {
     # quản trị tạo khoá cho một dự án (hiện một lần), hoặc dán giá đè lên bảng giá
     "/admin/project-key": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True, projects=True),
     "/admin/project-prices": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True, projects=True),
+    "/admin/project-delete": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True, projects=True),
     # an AI tool with a key an admin approved asks the board's numbers; read-only
     # công cụ AI có khoá đã được quản trị duyệt hỏi số liệu của bảng; chỉ đọc
     "/mcp": Route(Handler.mcp_post, PERM_MCP_KEY, mcp=True),

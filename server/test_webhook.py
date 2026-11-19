@@ -1098,7 +1098,7 @@ class RoutePermissions(unittest.TestCase):
                                                                        "/mini/handoff", "/mini/settings", "/mini/unpair", "/mini/pair",
                                                                        "/ext/request-code", "/ext/poll", "/ext/unpair", "/telegram/start", "/telegram/unlink",
                                                                        "/mcp", "/mcp/request-code", "/mcp/poll", "/bot/telegram", "/tg/session", "/tg/unpair", "/tg/settings",
-                                                                       "/projects/ingest", "/admin/project-key", "/admin/project-prices"})
+                                                                       "/projects/ingest", "/admin/project-key", "/admin/project-prices", "/admin/project-delete"})
 
     def test_the_telegram_bots_path_is_not_there_until_it_is_turned_on(self):
         self.assertFalse(settings.TELEGRAM_ASK_ENABLED)
@@ -3857,6 +3857,7 @@ class PageMatchesServer(unittest.TestCase):
             "/team-sale": body_reads(branch("/team-sale")),
             "/admin/project-key": body_reads(branch("/admin/project-key")),
             "/admin/project-prices": body_reads(branch("/admin/project-prices")),
+            "/admin/project-delete": body_reads(branch("/admin/project-delete")),
         }
         seen = set()
         for m in re.finditer(r"(?:post|submit)\('(/[\w/-]+)',\s*(\{|\w+)", self.admin_js):

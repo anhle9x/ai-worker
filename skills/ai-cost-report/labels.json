@@ -48,7 +48,7 @@
   "yourPrices": "Your own prices: %(file)s",
   "noTurns": "No turn was measured in these days for this environment.",
   "made": "Made",
-  "printHint": "This is the version to print. To save it as a PDF: press Ctrl+P (⌘P on a Mac), choose Save as PDF, paper A4. This bar is not printed."
+  "printHint": "This is the print version. To save it as a PDF: press Ctrl+P (⌘P on a Mac), choose Save as PDF, paper A4, and untick Headers and footers. This bar is not printed."
  },
  "vi": {
   "lang": "vi",
@@ -99,6 +99,6 @@
   "yourPrices": "Giá riêng của bạn: %(file)s",
   "noTurns": "Chưa có lượt nào được đo trong những ngày này, ở môi trường này.",
   "made": "Tạo lúc",
-  "printHint": "Đây là bản để in. Muốn lưu PDF: bấm Ctrl+P (trên Mac là ⌘P), chọn Lưu dưới dạng PDF, khổ A4. Dòng này không được in ra."
+  "printHint": "Đây là bản in. Muốn lưu PDF: bấm Ctrl+P (trên Mac là ⌘P), chọn Lưu dưới dạng PDF, khổ A4, bỏ chọn Đầu trang và chân trang. Dòng này không được in ra."
  }
 }

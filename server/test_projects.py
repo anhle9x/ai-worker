@@ -229,6 +229,9 @@ class Projects(unittest.TestCase):
         self.assertIn("perTurnAverage,all,,40,1.000,,,1000.0,100.0,0.0,0.0,0.003000000,205.0,380,400", csv_text.decode())
         status, page, headers = self.call("GET", "/projects/report.html?project=" + self.key_id + "&env=prod", cookie="tok-adm")
         self.assertIn("sandbox", headers["Content-Security-Policy"])
+        # the print version opens in a tab, so nothing is left in the downloads folder; the CSV is still a download
+        # bản in mở trong một tab, để không còn gì sót trong thư mục tải về; CSV vẫn là file tải về
+        self.assertTrue(headers["Content-Disposition"].startswith("inline"))
         self.assertIn(b"Car price", page)
         page = self.call("GET", "/projects?project=" + self.key_id, cookie="tok-viewer")[1].decode()
         self.assertIn("Totals per day", page)
@@ -264,6 +267,27 @@ class Projects(unittest.TestCase):
             self.assertNotIn(d["token"], log)
         finally:
             stores.TV.revoke(d["id"])
+
+    def test_an_admin_deletes_the_numbers_only_after_the_key_is_revoked(self):
+        self.send([turn(1), turn(2)])
+        body = {"id": self.key_id}
+        status, b, _ = self.call("POST", "/admin/project-delete", body, cookie="tok-adm", Origin=self.origin)
+        self.assertEqual((status, json.loads(b).get("needsConfirm")), (403, True))
+        login.SESSIONS.confirmed_at["tok-adm"] = time.time()
+        # a live key would only send again: its numbers are not deleted
+        # khoá còn sống thì sẽ lại gửi tiếp: số liệu của nó không bị xoá
+        self.assertEqual(self.call("POST", "/admin/project-delete", body, cookie="tok-adm", Origin=self.origin)[0], 400)
+        self.assertEqual(self.call("POST", "/admin/project-delete", {"id": "../x"}, cookie="tok-adm", Origin=self.origin)[0], 400)
+        stores.TV.revoke(self.key_id)
+        page = self.call("GET", "/projects?project=" + self.key_id, cookie="tok-viewer")[1].decode()
+        self.assertIn("Car price (key revoked)", page)
+        self.assertEqual(self.call("POST", "/admin/project-delete", body, cookie="tok-viewer", Origin=self.origin)[0], 403)
+        self.assertEqual(self.call("POST", "/admin/project-delete", body, cookie="tok-adm", Origin=self.origin)[0], 200)
+        self.assertNotIn(self.key_id, projects.known(time.time()))
+        self.assertEqual(projects.PROJECTS.db.rows("SELECT COUNT(*) FROM project_turns WHERE project = ?", (self.key_id,))[0][0], 0)
+        self.assertEqual(projects.PROJECTS.db.rows("SELECT COUNT(*) FROM project_daily WHERE project = ?", (self.key_id,))[0][0], 0)
+        log = json.dumps(stores.AUDIT_LOG.read(datetime.now().strftime("%Y-%m")))
+        self.assertIn("project-deleted", log)
 
     def test_prices_an_admin_pastes(self):
         login.SESSIONS.confirmed_at["tok-adm"] = time.time()

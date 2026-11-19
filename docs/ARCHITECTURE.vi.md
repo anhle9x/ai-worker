@@ -116,6 +116,7 @@ flowchart TD
   Phone["Telegram trên điện thoại"]
   TG["Máy chủ của Telegram"]
   IT["Máy giữ khoá ký:<br/>khoá riêng"]
+  Project["Dự án hay ứng dụng AI<br/>của nhóm: bộ đo"]
   subgraph Server["Máy chủ Linux của công ty"]
     Proxy["Caddy: HTTPS,<br/>danh sách IP"] --> Hook["webhook.py"]
     Hook --> Data["data/: số liệu, nhật ký"]
@@ -131,6 +132,7 @@ flowchart TD
   Phone -- "khung trong Telegram:<br/>trường Telegram ký, chỉ /tg/" --> Proxy
   Bot -- "hỏi có tin không,<br/>gửi câu trả lời" --> TG
   IT -. "chép bản<br/>đã ký" .-> Releases
+  Project -- "số đo của nó,<br/>khoá dự án" --> Proxy
 ```
 
 | Thư mục | Chứa |
@@ -142,7 +144,7 @@ flowchart TD
 | `extensions/manager/` | Tiện ích trình duyệt cho quản lý (Chrome, Edge), cài tay |
 | `connectors/` | Bộ nối cho Codex, Cursor và Gemini CLI: hook (`ai-worker-hook.sh`, `.ps1`), bộ cài của nó (`install.sh`, `.ps1`) và phần gộp JSON mà bộ cài dùng (`merge-hooks.js`). Không cần có plugin |
 | `packaging/` | Đóng gói, file cài, ký bản phát hành, kiểm tra trước khi công khai |
-| `skills/`, `agents/`, `commands/` | Các skill (loại dùng hằng ngày và loại cho viết code, vận hành), trợ lý `planner`, và các lệnh app liệt kê trước khi phiên bắt đầu |
+| `skills/`, `agents/`, `commands/` | Các skill (loại dùng hằng ngày và loại cho viết code, vận hành), trợ lý `planner`, và các lệnh app liệt kê trước khi phiên bắt đầu. `skills/ai-cost-report/meter/` chứa các bộ đo mà dự án AI chép về, mỗi ngôn ngữ một file |
 | `tests/` | Test plugin, test cài trên Linux và Windows, kiểm tra ngôn ngữ, test thanh menu (`tests/menubar/`), test bộ nối (`tests/connectors/`) và bước kiểm tiện ích (`tests/extension/`) |
 
 ### Ngôn ngữ lập trình
@@ -372,6 +374,32 @@ Trang là chính trang của khung thanh menu (`page_mini(telegram=True)`): các
 `MenuSync` trong cùng module so các chat cần có khung với những gì tiến trình bot được báo lần trước, rồi giao phần thay đổi cho nó; sau khi khởi động lại, nó báo lại cho mọi chat còn hạn, nên chat bị bỏ quyền lúc máy chủ tắt cũng được trả lại menu thường. `TELEGRAM_APP=0` làm mọi đường dưới `/tg/` trả 404.
 
 Cùng vòng hỏi đó của tiến trình bot (`{tick}`) còn chở tin báo. `server/board/alerts.py` đọc phần treo tường, tìm các lần chờ vượt số phút của từng chat mà chưa báo, rồi áp khoảng cách giữa hai tin, trần mỗi giờ, mỗi ngày và giờ im lặng (19:00 tới 07:00); `alerts_due` trong `server/board/chat.py` giao các tin cho tiến trình bot, kèm địa chỉ khung khi chat được mở khung, và ghi mỗi tin một dòng nhật ký (`telegram-alert`, kèm số người). Mỗi chat tự đặt việc này, bằng `/alerts` hoặc trong khung (`/tg/settings`); tắt cho tới lúc đó. Những gì đã báo chỉ giữ trong bộ nhớ.
+
+### Đo một dự án hay ứng dụng AI
+
+Một dự án hay ứng dụng do nhóm tự làm, bằng ngôn ngữ nào và với hãng LLM nào cũng được, tự đo bằng bộ đo chép từ `skills/ai-cost-report/meter/`. Bộ đo chỉ ghi số đếm và thời gian, không bao giờ ghi câu hỏi, câu trả lời hay người dùng; lỗi của bộ đo không bao giờ làm dự án dừng. Gửi lên bảng là tuỳ chọn, và bảng chỉ nhận khi có `AI_PROJECTS=1`.
+
+```mermaid
+sequenceDiagram
+  participant U as Người dùng dự án
+  participant P as Máy chủ dự án và bộ đo
+  participant F as ai-meter.jsonl
+  participant W as webhook.py
+  participant D as data/ (SQLite)
+  participant A as Quản trị hoặc người xem
+  U->>P: Một yêu cầu
+  P->>P: Gọi LLM, đọc số token kèm theo mỗi câu trả lời
+  P->>F: Một dòng: thời gian, kết quả, số lần gọi và token theo model
+  P->>W: Ở nền, theo lô: POST /projects/ingest với khoá prj_, chỉ qua HTTPS hoặc cùng máy
+  W->>W: Kiểm khoá, sai thì 401, tần suất, quá thì 429, kích thước, quá thì 413, có Origin của trình duyệt thì từ chối
+  W->>W: Làm sạch từng lượt như báo cáo làm, bỏ trường lạ, lượt gửi hai lần chỉ giữ một
+  W->>D: Từng lượt giữ 30 ngày, tổng theo ngày và model giữ 13 tháng
+  W-->>P: 200 kèm ba con số, không gì khác
+  A->>W: /projects, đã đăng nhập
+  W-->>A: Báo cáo trên màn hình, bản in ở tab mới để lưu PDF khổ A4, file CSV
+```
+
+Không có bảng thì skill làm đúng báo cáo đó từ file trên máy của dự án: `report.py` là cùng đoạn mã với `server/board/costreport.py`. Định dạng một dòng có trong `skills/ai-cost-report/FORMAT.vi.md`.
 
 ### Cập nhật plugin
 

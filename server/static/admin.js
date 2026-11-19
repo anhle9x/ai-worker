@@ -350,6 +350,19 @@
     const link = o('a', '', tx('See what the projects measured'))
     link.href = '/projects'
     p.append(o('p', '', '').appendChild(link).parentNode)
+    // numbers kept after a key was revoked, for example from a trial: an admin may delete them, with the OTP code
+    // số liệu còn giữ sau khi khoá bị thu hồi, ví dụ của một lần chạy thử: quản trị được xoá, với mã OTP
+    const gone = snapshot.projectsRevoked || []
+    if (gone.length) {
+      p.append(o('small', '', tx('Key revoked, numbers kept. Delete them when they were only a trial; this cannot be undone.')))
+      gone.forEach(g => {
+        const r = o('div', 'qt-row')
+        r.append(o('span', '', g.name), button(tx('Delete its numbers'), () => {
+          if (confirm(tx('Delete every number {name} sent? Its report is gone for good, and this cannot be undone.', { name: g.name }))) post('/admin/project-delete', { id: g.id }, () => toast(tx('Deleted the numbers of {name}', { name: g.name })))
+        }, 'qt-button critical'))
+        p.append(r)
+      })
+    }
     const prices = o('details')
     prices.append(o('summary', '', tx('Prices of your own ({n} models)', { n: ((snapshot.projectPrices || {}).models || []).length })))
     prices.append(o('small', '', tx('For a provider the price file does not have, a negotiated price, or a model on your own machine. The shape of skills/ai-cost-report/my-prices.example.json; prices in millionths of a dollar per million tokens. Empty removes them.')))

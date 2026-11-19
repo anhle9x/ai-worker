@@ -267,7 +267,7 @@ A manager can ask Claude about the team in their own words, typed or dictated, i
 When the server has it turned on, the **AI projects** button on the home page, or **AI projects and applications** at the top of `/board`, opens `/projects`: what each project your team built measured, if it sends to the board.
 
 1. **Where:** `/projects`. **Do:** pick the project, the first and last day (UTC) and **Real users**, then **Show**. **Right result:** turns, cost per turn and per 1,000 turns, average, 95th percentile and slowest time, by model and by day.
-2. **Do:** **Download the report** (HTML; open it and **Print** to save a PDF) or **Download CSV**.
+2. **Do:** **Open the print version** (a new tab; press Ctrl+P, ⌘P on a Mac, and choose **Save as PDF**) or **Download CSV**.
 
 Each turn is kept 30 days; for older days the table at the bottom has the totals per day, kept 13 months. These are numbers the project measured, not a bill.
 
@@ -343,7 +343,7 @@ The **Menu bar icon** section offers the installers for managers (see 2.3). The 
 
 ### 3.8 AI projects and applications
 
-With `AI_PROJECTS=1` on the server (see INSTALL), the section **AI projects and applications** makes a key for each project: type its name, **Make a key**, enter your OTP. The two lines it shows once go into the environment of the project's own server, never into a web page or a phone app. The keys are listed, renamed and revoked in **TV screens**; revoking keeps what the project already sent. **Prices of your own** takes a price file in the shape of `skills/ai-cost-report/my-prices.example.json`, for a provider the price file does not have, a negotiated price, or a model on your own machine.
+With `AI_PROJECTS=1` on the server (see INSTALL), the section **AI projects and applications** makes a key for each project: type its name, **Make a key**, enter your OTP. The two lines it shows once go into the environment of the project's own server, never into a web page or a phone app. The keys are listed, renamed and revoked in **TV screens**; revoking keeps what the project already sent, and the project shows as "(key revoked)" on the AI projects page. To remove a trial's numbers for good, click **Delete its numbers** beside its name in the same section, after its key is revoked. **Prices of your own** takes a price file in the shape of `skills/ai-cost-report/my-prices.example.json`, for a provider the price file does not have, a negotiated price, or a model on your own machine.
 
 ---
 

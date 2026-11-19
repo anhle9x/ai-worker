@@ -379,7 +379,7 @@ A project that runs inside your office network skips this step.
 ## Step 6. Run it for real and get the report
 
 - **Do:** remove `AI_METER_ENV=test`, restart, and let real users use the project for the period you report on.
-- **With a board:** click **AI projects**, pick the days and **Real users (prod)**, then **Download the report** (open it and **Print** to save a PDF) or **Download CSV**.
+- **With a board:** click **AI projects**, pick the days and **Real users (prod)**, then **Open the print version** (it opens in a new tab: press Ctrl+P, ⌘P on a Mac, and choose **Save as PDF**) or **Download CSV**.
 - **Without a board:** in Claude Code, type `/ai-worker:ai-cost-report` and give it the `ai-meter.jsonl` file.
 - **Right result:** a report with the number of turns, LLM calls and tokens per turn, cost per turn and an estimate for 1,000 turns, average, 95th percentile and slowest time, by model.
 
