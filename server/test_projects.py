@@ -358,6 +358,20 @@ class Clean(unittest.TestCase):
     def test_p95_is_nearest_rank(self):
         self.assertEqual(costreport.p95(list(range(1, 21))), 19)
 
+    def test_vietnamese_reads_days_as_dd_mm_yyyy_and_the_csv_does_not(self):
+        at = datetime(2026, 11, 19, 8, 30, tzinfo=timezone.utc)
+        turn = costreport.clean_line({"v": 1, "turnId": "a" * 16, "at": at.strftime("%Y-%m-%dT%H:%M:%S.000Z"), "durationMs": 900, "outcome": "ok", "env": "prod",
+                                      "models": [{"provider": "anthropic", "model": "claude-sonnet-5-5", "calls": 1, "input": 100, "output": 20}]})
+        r = costreport.analyse([turn], projects.prices())
+        vi = costreport.render_html(r, costreport.load_labels("vi"), projects.prices(), "T", "prod", "Filter 2026-11-06 → 2026-11-19")
+        en = costreport.render_html(r, costreport.load_labels("en"), projects.prices(), "T", "prod", "Filter 2026-11-06 → 2026-11-19")
+        self.assertIn("19/11/2026", vi)
+        self.assertIn("06/11/2026 → 19/11/2026", vi)
+        self.assertNotRegex(vi.split("</style>", 1)[1], r"\b20\d\d-\d\d-\d\d\b")
+        self.assertIn("2026-11-19", en)
+        self.assertNotIn("19/11/2026", en)
+        self.assertIn("2026-11-19", costreport.csv_text(r))
+
 
 if __name__ == "__main__":
     unittest.main()

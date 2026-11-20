@@ -2,6 +2,12 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.47.7 - 2026-11-20
+
+### Changed
+- In Vietnamese, the cost and performance report of an AI project or application writes days as DD/MM/YYYY (for example 19/11/2026): the report the `ai-cost-report` skill makes, the print version and the board's **AI projects** page. English keeps YYYY-MM-DD, and so do the CSV, the file names and `--from`/`--to`.
+- The README's row of pictures starts with the cost and performance report (A4) and the **AI projects** page, adds the window inside Telegram, and shows the Admin page with what ai-worker stopped, the log check and AI tool keys left unused. The opening now also names turning a team's procedures into skills.
+
 ## 0.47.6 - 2026-11-20
 
 ### Changed

@@ -1307,17 +1307,20 @@ def page_projects(known: dict, project: str, first: str, last: str, env: str, no
                 e(query), e(tx("Open the print version (save as PDF)")), e(query), e(tx("Download CSV")))
     page = projects.report_html(project, known[project], first, last, env, lang, now, screen=True)
     oldest = projects.utc_day(now - settings.PROJECT_TURN_KEEP_DAYS * 86400)
+    # days read the way the page's language writes them (DD/MM/YYYY in Vietnamese); the form and the links keep YYYY-MM-DD
+    # ngày viết theo cách ngôn ngữ của trang viết (DD/MM/YYYY trong tiếng Việt); ô chọn ngày và các link vẫn giữ YYYY-MM-DD
+    shown = lambda text: projects.costreport.show_dates(text, {"lang": lang})
     notes = ""
     if first < oldest:
         notes = '<p class="note">%s</p>' % e(tx("Each turn is kept {days} days, so the report above covers {oldest} onwards and its 95th percentile only those days. The table at the bottom has the totals per day, kept 13 months.",
-                                                days=settings.PROJECT_TURN_KEEP_DAYS, oldest=oldest))
+                                                days=settings.PROJECT_TURN_KEEP_DAYS, oldest=shown(oldest)))
     rows = projects.daily_rows(project, first, last, env)
     money = lambda pico: "$%.4f" % (pico / projects.costreport.PICO)
     table = ""
     if rows:
         head = "".join("<th>%s</th>" % e(x) for x in (tx("Day"), tx("Turns"), tx("LLM calls"), tx("Errors"), tx("Tokens in"), tx("Tokens out"), tx("Cost")))
         body_rows = "".join("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
-            r["day"], "{:,}".format(r["turns"]), "{:,}".format(r["calls"]), "{:,}".format(r["errors"]), "{:,}".format(r["input"]), "{:,}".format(r["output"]),
+            shown(r["day"]), "{:,}".format(r["turns"]), "{:,}".format(r["calls"]), "{:,}".format(r["errors"]), "{:,}".format(r["input"]), "{:,}".format(r["output"]),
             e((money(r["cost"]) + " *" if r["cost"] else tx("no price")) if r["noPrice"] else money(r["cost"]))) for r in rows)
         table = ('<h2>%s</h2><p class="note">%s</p><div class="wrap"><table><tr>%s</tr>%s</table></div>') % (
             e(tx("Totals per day, kept 13 months")), e(tx("Tokens in include cache reads and writes. * means part of that day used a model with no price, left out of the cost.")), head, body_rows)

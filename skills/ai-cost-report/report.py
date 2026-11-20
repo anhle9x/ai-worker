@@ -321,6 +321,17 @@ def num(v, digits=0):
     return "{:,.{d}f}".format(v, d=digits)
 
 
+DAY_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+
+
+def show_dates(text, L):
+    """Every day written YYYY-MM-DD in a text, the way the report's language writes it: DD/MM/YYYY in Vietnamese, as it is in English.
+    Only what people read changes; the CSV, the file names and --from/--to keep YYYY-MM-DD.
+    Mọi ngày viết YYYY-MM-DD trong một đoạn chữ, theo cách ngôn ngữ của báo cáo viết: DD/MM/YYYY trong tiếng Việt, giữ nguyên trong tiếng Anh.
+    Chỉ đổi chỗ người đọc; CSV, tên file và --from/--to vẫn giữ YYYY-MM-DD."""
+    return DAY_RE.sub(r"\3/\2/\1", text) if L.get("lang") == "vi" else text
+
+
 def load_labels(lang):
     with open(os.path.join(HERE, "labels.json"), encoding="utf-8") as f:
         labels = json.load(f)
@@ -404,7 +415,7 @@ def render_html(r, L, prices, title, env, period, screen=False):
     """The report as one HTML page: by default the paper version, to print or save as PDF; screen=True is the version a page shows.
     Báo cáo dạng một trang HTML: mặc định là bản giấy, để in hay lưu PDF; screen=True là bản để một trang web hiện."""
     e = html.escape
-    made = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    made = show_dates(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), L)
     if screen:
         style = CSS
     else:
@@ -414,8 +425,9 @@ def render_html(r, L, prices, title, env, period, screen=False):
         style = PAPER_CSS % {"foot": foot}
     out = ['<!doctype html><html lang="%s"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' % e(L["lang"]),
            "<title>%s</title><style>%s</style></head><body>" % (e(title), style)]
-    first = r["first"].strftime("%Y-%m-%d %H:%M") if r["first"] else "-"
-    last = r["last"].strftime("%Y-%m-%d %H:%M") if r["last"] else "-"
+    first = show_dates(r["first"].strftime("%Y-%m-%d %H:%M"), L) if r["first"] else "-"
+    last = show_dates(r["last"].strftime("%Y-%m-%d %H:%M"), L) if r["last"] else "-"
+    period = show_dates(period, L)
     if screen:
         out.append("<main><h1>%s</h1>" % e(title))
         span = "%s: %s → %s UTC · " % (e(L["period"]), first, last) if r["first"] else ""
@@ -495,7 +507,7 @@ def render_html(r, L, prices, title, env, period, screen=False):
         if a["costTurns"] and a["unpricedTurns"]:
             cost += " *"
         rows.append('<tr><td>%s</td><td>%s</td>%s%s<td class="t">%s</td><td>%s</td></tr>' % (
-            e(model), e(prov), "".join("<td>%s</td>" % num(a[k]) for k in ("turns", "calls", "errors", "retries")), "".join(toks), e(cost), e(pdate)))
+            e(model), e(prov), "".join("<td>%s</td>" % num(a[k]) for k in ("turns", "calls", "errors", "retries")), "".join(toks), e(cost), e(show_dates(pdate, L))))
     out.append(table(rows, "models"))
 
     if r["alt"]:
@@ -512,7 +524,7 @@ def render_html(r, L, prices, title, env, period, screen=False):
     rows = ["<tr><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th></tr>" % tuple(e(L[k]) for k in ("day", "turns", "errorsTimeouts", "avgMs", "p95Ms", "cost"))]
     for day, d in sorted(r["days"].items()):
         rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
-            day, num(d["turns"]), num(d["errors"]), num(avg(d["ms"])), num(p95(d["ms"])), e(usd(d["cost"]) if d["costTurns"] else "-")))
+            show_dates(day, L), num(d["turns"]), num(d["errors"]), num(avg(d["ms"])), num(p95(d["ms"])), e(usd(d["cost"]) if d["costTurns"] else "-")))
     out.append(table(rows))
 
     return "".join(out + sources(prices, L, e))
@@ -525,11 +537,11 @@ def sources(prices, L, e):
     for prov, p in sorted(prices.doc.get("providers", {}).items()):
         if p.get("yours") or not str(p.get("source", "")).startswith("https://"):
             continue
-        out.append('<li>%s: <a href="%s">%s</a> (%s %s)</li>' % (e(prov), e(p["source"]), e(p["source"]), e(L["checked"]), e(p["checked"])))
+        out.append('<li>%s: <a href="%s">%s</a> (%s %s)</li>' % (e(prov), e(p["source"]), e(p["source"]), e(L["checked"]), e(show_dates(p["checked"], L))))
     for name in prices.yours:
         out.append("<li>%s</li>" % e(L["yourPrices"] % {"file": name}))
     out.append("</ul>")
-    out.append("<footer>%s</footer></section></main></body></html>" % e(L["footer"] % {"made": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}))
+    out.append("<footer>%s</footer></section></main></body></html>" % e(L["footer"] % {"made": show_dates(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), L)}))
     return out
 
 
