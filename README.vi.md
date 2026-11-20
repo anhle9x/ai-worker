@@ -11,6 +11,8 @@ Tiếng Việt | [English](README.md)
   <img alt="Máy chủ: thư viện chuẩn Python và SQLite" src="https://img.shields.io/badge/server-Python%20%2B%20SQLite-0a0a0a.svg?style=for-the-badge&amp;labelColor=000000" height="28">
 </p>
 
+https://github.com/user-attachments/assets/73de3b5f-0960-4df0-b22b-19bb8348c45a
+
 Báo cáo sử dụng cho biết công ty đã tiêu bao nhiêu cho AI. AI Worker cho biết **ai đang cần giúp ngay lúc này**, và **mỗi dự án AI của nhóm tốn bao nhiêu cho mỗi lượt dùng**.
 
 - **Thấy người, không chỉ thấy số.** Bảng trực tiếp cho biết ai đang làm, ai đang chờ trả lời và đã chờ bao lâu, với Claude, Codex, Cursor, Gemini CLI và các trợ lý phụ: trên trình duyệt, TV treo tường, thanh menu hay ngay trong Telegram.

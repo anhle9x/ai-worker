@@ -11,6 +11,8 @@ Measure AI cost and speed from your whole team to every AI product you build, tu
   <img alt="Server: Python standard library and SQLite" src="https://img.shields.io/badge/server-Python%20%2B%20SQLite-0a0a0a.svg?style=for-the-badge&amp;labelColor=000000" height="28">
 </p>
 
+https://github.com/user-attachments/assets/74d2aca1-608f-4b0d-9812-2a5f3509a882
+
 Usage reports tell you what the company spent on AI. AI Worker tells you **who needs help right now**, and **what each of your team's AI projects costs per use**.
 
 - **People, not just numbers.** A live board shows who is working, who is waiting for an answer and for how long, across Claude, Codex, Cursor, Gemini CLI and the helper assistants: in a browser, on a TV wall screen, from the menu bar or inside Telegram.
