@@ -11,8 +11,6 @@ Tiếng Việt | [English](README.md)
   <img alt="Máy chủ: thư viện chuẩn Python và SQLite" src="https://img.shields.io/badge/server-Python%20%2B%20SQLite-0a0a0a.svg?style=for-the-badge&amp;labelColor=000000" height="28">
 </p>
 
-https://github.com/user-attachments/assets/73de3b5f-0960-4df0-b22b-19bb8348c45a
-
 Báo cáo sử dụng cho biết công ty đã tiêu bao nhiêu cho AI. AI Worker cho biết **ai đang cần giúp ngay lúc này**, và **mỗi dự án AI của nhóm tốn bao nhiêu cho mỗi lượt dùng**.
 
 - **Thấy người, không chỉ thấy số.** Bảng trực tiếp cho biết ai đang làm, ai đang chờ trả lời và đã chờ bao lâu, với Claude, Codex, Cursor, Gemini CLI và các trợ lý phụ: trên trình duyệt, TV treo tường, thanh menu hay ngay trong Telegram.
@@ -25,6 +23,8 @@ Báo cáo sử dụng cho biết công ty đã tiêu bao nhiêu cho AI. AI Worke
 <!-- one row that scrolls sideways, one picture to a view. GitHub shrinks pictures in a table to fit the page; the line of em spaces under each caption cannot wrap (nowrap), so it holds the cell at the width of the page -->
 <table>
   <tr>
+    <!-- the video cell is kept narrow on purpose: GitHub sizes the player to the width of its cell, and 17 em spaces make it as tall as the pictures -->
+    <td nowrap align="center" valign="top"><video src="https://github.com/user-attachments/assets/73de3b5f-0960-4df0-b22b-19bb8348c45a" controls></video><sub><b>Video giới thiệu (2 phút).</b><br>Từ báo cáo chi phí tới bảng trong Telegram.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;</td>
     <td nowrap align="left" valign="top"><img src="assets/report.vi.jpg" alt="Báo cáo chi phí và hiệu năng khổ A4 của một dự án AI mẫu: các con số chính, bảng theo model, bảng theo ngày" height="377"><br><sub><b>Báo cáo chi phí và hiệu năng (dự án mẫu).</b> Đo thật từ từng lượt: chi phí mỗi lượt, thời gian p95, theo model; in ra PDF A4.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
     <td nowrap align="center" valign="top"><img src="assets/projects.vi.jpg" alt="Trang Dự án AI trên bảng: chọn dự án, khoảng ngày, môi trường, rồi xem các con số" width="808"><br><sub><b>Trang Dự án AI.</b> Chọn dự án, khoảng ngày và môi trường; cùng báo cáo đó trên màn hình, kèm CSV.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
     <td nowrap align="center" valign="top"><img src="assets/dashboard.vi.png" alt="Bảng điều hành 3D với dữ liệu mẫu" height="377"><br><sub><b>Bảng điều hành (dữ liệu mẫu).</b> Ai đang làm, ai chờ trả lời, chi phí và hạn mức, cập nhật trực tiếp.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>

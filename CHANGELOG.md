@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.49.1 - 2026-11-20
+
+### Fixed
+- The board's top bar no longer cuts its title to "AI WORKER // AGEN…" or breaks the line under it in two when the bar is crowded (more buttons, or a window a little over 1500 pixels wide): the end of the title and the line under it show only when they fit whole, and are hidden otherwise.
+
 ## 0.49.0 - 2026-11-20
 
 ### Security

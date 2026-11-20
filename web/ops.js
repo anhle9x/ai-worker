@@ -253,8 +253,22 @@
     live.append(o('b'), 'SYSTEM LIVE')
     const title = o('div', 'o-title')
     const brand = o('div')
-    brand.append('AI WORKER', o('span', 'o-title-more', ' // AGENT OPERATIONS MATRIX'))
-    title.append(brand, o('small', '', 'ORCHESTRATION · TELEMETRY · CONTROL'))
+    const more = o('span', 'o-title-more', ' // AGENT OPERATIONS MATRIX')
+    brand.append('AI WORKER', more)
+    const motto = o('small', '', 'ORCHESTRATION · TELEMETRY · CONTROL')
+    title.append(brand, motto)
+    // the tail of the name and the motto show only whole: when the top bar has no room for one (more buttons, a narrower
+    // window), it is hidden rather than cut to "AGEN…" or broken over two lines. Measured again whenever the room changes
+    // đuôi của tên và dòng khẩu hiệu chỉ hiện khi đủ: khi thanh trên cùng không đủ chỗ (thêm nút, cửa sổ hẹp hơn), nó bị ẩn
+    // thay vì cắt còn "AGEN…" hay gãy thành hai dòng. Đo lại mỗi khi chỗ trống đổi
+    const fitTitle = () => {
+      for (const [box, part] of [[brand, more], [motto, motto]]) {
+        part.hidden = false
+        if (box.scrollWidth > box.clientWidth + 1) part.hidden = true
+      }
+    }
+    if (window.ResizeObserver) new ResizeObserver(fitTitle).observe(title)
+    else addEventListener('resize', fitTitle)
     const right = o('div', 'o-right')
     const nodes = o('span')
     const statusEl = o('span', 'o-pill')

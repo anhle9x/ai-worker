@@ -27,7 +27,8 @@ body.ops-mode{margin:0}
 /* if there is not enough room, keep only the name so it is not cut off halfway */
 /* không đủ chỗ thì chỉ giữ tên, khỏi bị cắt giữa chừng */
 @media (max-width:1500px){.o-title-more{display:none}}
-.o-title small{display:block;font-size:10px;letter-spacing:.3em;color:var(--o-muted);margin-top:2px}
+.o-title small{display:block;font-size:10px;letter-spacing:.3em;color:var(--o-muted);margin-top:2px;white-space:nowrap;overflow:hidden}
+.o-title small[hidden],.o-title-more[hidden]{display:none}
 .o-right{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--o-muted);white-space:nowrap}
 .o-right strong{color:var(--o-green);font-size:14px}
 .o-clock{color:#e8fbff;font-size:15px;letter-spacing:.08em}

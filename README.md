@@ -11,8 +11,6 @@ Measure AI cost and speed from your whole team to every AI product you build, tu
   <img alt="Server: Python standard library and SQLite" src="https://img.shields.io/badge/server-Python%20%2B%20SQLite-0a0a0a.svg?style=for-the-badge&amp;labelColor=000000" height="28">
 </p>
 
-https://github.com/user-attachments/assets/74d2aca1-608f-4b0d-9812-2a5f3509a882
-
 Usage reports tell you what the company spent on AI. AI Worker tells you **who needs help right now**, and **what each of your team's AI projects costs per use**.
 
 - **People, not just numbers.** A live board shows who is working, who is waiting for an answer and for how long, across Claude, Codex, Cursor, Gemini CLI and the helper assistants: in a browser, on a TV wall screen, from the menu bar or inside Telegram.
@@ -25,6 +23,8 @@ Usage reports tell you what the company spent on AI. AI Worker tells you **who n
 <!-- one row that scrolls sideways, one picture to a view. GitHub shrinks pictures in a table to fit the page; the line of em spaces under each caption cannot wrap (nowrap), so it holds the cell at the width of the page -->
 <table>
   <tr>
+    <!-- the video cell is kept narrow on purpose: GitHub sizes the player to the width of its cell, and 17 em spaces make it as tall as the pictures -->
+    <td nowrap align="center" valign="top"><video src="https://github.com/user-attachments/assets/74d2aca1-608f-4b0d-9812-2a5f3509a882" controls></video><sub><b>Intro video (2 minutes).</b><br>From the cost report to the board in Telegram.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;</td>
     <td nowrap align="left" valign="top"><img src="assets/report.jpg" alt="A4 cost and performance report of a sample AI project: key numbers, a table by model and a table by day" height="377"><br><sub><b>Cost and performance report (sample project).</b> Measured from each real turn: cost per use, p95 time, by model; prints as an A4 PDF.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
     <td nowrap align="center" valign="top"><img src="assets/projects.jpg" alt="The AI projects page on the board: pick a project, the days and the environment, then read the numbers" width="808"><br><sub><b>AI projects page.</b> Pick a project, the days and the environment: the same report on screen, with a CSV.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
     <td nowrap align="center" valign="top"><img src="assets/dashboard.png" alt="The 3D operations board with sample data" height="377"><br><sub><b>Operations board (sample data).</b> Who is working, who waits for an answer, cost and quota, live.</sub><br>&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;</td>
