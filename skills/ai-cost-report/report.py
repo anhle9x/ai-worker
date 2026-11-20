@@ -359,6 +359,7 @@ h2{font-size:16px;margin:32px 0 10px;color:var(--fg)}h2::before{content:"";displ
 .wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}
 table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}th,td{padding:9px 14px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
 th:first-child,td:first-child{text-align:left}th{background:var(--soft);color:var(--muted);font-size:13px;font-weight:600}tr:last-child td{border-bottom:0}
+.models th{white-space:normal;vertical-align:bottom}.models th,.models td{padding:9px 7px}.models th:first-child,.models td:first-child{padding-left:14px}.models th:last-child,.models td:last-child{padding-right:14px}.models td:nth-child(2),.models th:nth-child(2){text-align:left}.models td.t{white-space:normal;min-width:96px}
 tr:hover td{background:var(--info)}ul{padding-left:20px}li{overflow-wrap:anywhere;margin:2px 0}
 footer{margin-top:32px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
 a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
@@ -394,6 +395,7 @@ table{border-collapse:collapse;width:100%%;font-size:var(--table);line-height:1.
 th,td{padding:6px 9px;text-align:right;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--soft);color:var(--muted);font-size:var(--th);font-weight:600}
 td{white-space:nowrap}.models td:first-child{white-space:normal;overflow-wrap:break-word;min-width:37mm}td.t{white-space:normal;min-width:24mm}
 th:first-child,td:first-child,.models td:nth-child(2),.models th:nth-child(2){text-align:left}tbody tr:last-child td{border-bottom:0}tr{break-inside:avoid}
+@media screen{.models{font-size:12.5px}.models th,.models td{padding:6px 5px}.models th:first-child,.models td:first-child{padding-left:9px}.models th:last-child,.models td:last-child{padding-right:9px}}
 ul{padding-left:20px;margin:6px 0;font-size:var(--small)}li{overflow-wrap:anywhere}
 footer{margin-top:14px;padding-top:8px;border-top:1px solid var(--line);color:var(--muted);font-size:var(--tiny);line-height:1.45}a{color:var(--accent)}.end{break-inside:avoid}
 @media screen and (max-width:700px){:root{--body:15px;--h1:22px;--value:18px;--table:11.5px;--th:11px}th,td{padding:5px 3px}th:first-child,td:first-child{padding-left:6px}th:last-child,td:last-child{padding-right:6px}

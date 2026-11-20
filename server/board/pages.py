@@ -1271,6 +1271,9 @@ def page_projects(known: dict, project: str, first: str, last: str, env: str, no
     style = ('<style>.top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin-bottom:14px;font-size:14px}'
              '.pick{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:end;margin:0 0 12px;padding:14px;background:var(--card);border:1px solid var(--line);border-radius:12px}'
              '.pick label{display:flex;flex-direction:column;flex:1 1 150px;font-size:13px;color:var(--muted);gap:4px;min-width:0}'
+             # the project's name is the longest thing in the row, so its box gets the most room
+             # tên dự án là thứ dài nhất trong hàng, nên ô của nó được nhiều chỗ nhất
+             '.pick label:first-child{flex:2 1 260px}.pick label:nth-of-type(4){flex:1.5 1 215px}'
              '.pick select,.pick input,.pick button{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);min-height:40px;width:100%}'
              # the browser's own arrow sits on the edge of the box: draw one with room around it
              # mũi tên sẵn của trình duyệt nằm sát mép ô: tự vẽ một mũi tên có khoảng trống xung quanh

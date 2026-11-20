@@ -33,6 +33,12 @@
     return b
   }
   const dateTime = ms => new Date(ms).toLocaleString(I18n.locale, { hour12: false })
+  // a time the server kept as text (2026-11-19T08:30:00): cut to n characters, and in Vietnamese the day reads 19/11/2026
+  // một thời điểm máy chủ giữ dạng chữ (2026-11-19T08:30:00): cắt còn n ký tự, và trong tiếng Việt ngày đọc là 19/11/2026
+  const stamp = (iso, n) => {
+    const text = String(iso || '').replace('T', ' ').slice(0, n)
+    return I18n.locale === 'vi-VN' ? text.replace(/^(\d{4})-(\d{2})-(\d{2})/, '$3/$2/$1') : text
+  }
   // Vietnamese mode shows dong through the rate as before; English shows US dollars with no conversion.
   // Tiếng Việt hiện đồng qua tỉ giá như trước; tiếng Anh hiện đô la Mỹ, không quy đổi.
   const compactMoney = d => (d >= 1e6 ? (d / 1e6).toFixed(2).replace('.', ',') + 'tr' : d >= 1e3 ? Math.round(d / 1e3) + 'k' : Math.round(d)) + ' đ' // i18n-allow
@@ -681,7 +687,7 @@
     board.append(head)
     for (const x of snapshot.mcpCalls) {
       const h = o('tr', x.ok ? '' : 'qt-bad-row')
-      h.append(o('td', '', String(x.at || '').replace('T', ' ').slice(0, 19)), o('td', '', x.tv || '—'), o('td', '', x.client || '—'), o('td', '', x.clientIp || '—'), o('td', '', !x.ok ? tx('Refused') : x.action === 'telegram-ask' ? tx('Answered /{command}', { command: x.tool }) : tx('Read the board')))
+      h.append(o('td', '', stamp(x.at, 19)), o('td', '', x.tv || '—'), o('td', '', x.client || '—'), o('td', '', x.clientIp || '—'), o('td', '', !x.ok ? tx('Refused') : x.action === 'telegram-ask' ? tx('Answered /{command}', { command: x.tool }) : tx('Read the board')))
       board.append(h)
     }
     p.append(addLabel(board))
@@ -735,7 +741,7 @@
       const h = o('tr', x.outcome === 'refused' || flagged ? 'qt-bad-row' : '')
       const result = (OUTCOMES[x.outcome] || x.outcome || '—') + ((x.found || []).length ? ` (${x.found.join(', ')})` : '')
       h.append(
-        o('td', '', String(x.doneAt || x.at || '').replace('T', ' ').slice(0, 16)),
+        o('td', '', stamp(x.doneAt || x.at, 16)),
         o('td', 'qt-keep', x.name || x.account || '—'),
         o('td', '', `${WORKERS[x.worker] || x.worker || '—'}${x.tool === 'generate_image' ? ' · ' + tx('image') : ''}`),
         o('td', '', tx('{prompt} → {answer} characters', { prompt: x.promptChars || 0, answer: x.answerChars || 0 })),
@@ -767,10 +773,10 @@
     const chain = snapshot.auditChain
     if (chain && chain.rows) {
       p.append(chain.ok
-        ? o('small', 'qt-muted', tx('Log check: no line changed or taken out since {since} ({n} lines). Last fingerprint {head}: note it down to compare later.', { since: String(chain.since).replace('T', ' ').slice(0, 16), n: chain.rows, head: chain.head }))
+        ? o('small', 'qt-muted', tx('Log check: no line changed or taken out since {since} ({n} lines). Last fingerprint {head}: note it down to compare later.', { since: stamp(chain.since, 16), n: chain.rows, head: chain.head }))
         : o('div', 'qt-hint', chain.brokenAt === 'end'
           ? tx('Log check: the newest lines were taken out of the database by hand. Find out who can reach the server.')
-          : tx('Log check: a line near {at} was changed or taken out of the database by hand. Find out who can reach the server.', { at: String(chain.brokenAt).replace('T', ' ').slice(0, 16) })))
+          : tx('Log check: a line near {at} was changed or taken out of the database by hand. Find out who can reach the server.', { at: stamp(chain.brokenAt, 16) })))
     }
     const board = o('table', 'qt-table small')
     const head = o('tr')
@@ -779,7 +785,7 @@
     for (const x of snapshot.auditLog) {
       const { at, actor, role, clientIp, action, path, device, prev, hash, ...rest } = x
       const h = o('tr', /tu-choi|sai|^loi$/.test(action || '') ? 'qt-bad-row' : '')
-      h.append(o('td', '', String(at || '').replace('T', ' ').slice(0, 19)), o('td', '', actor || '—'), o('td', '', ACTION_NAMES[action] || action || '—'), o('td', '', clientIp || '—'), o('td', '', Object.entries(rest).map(([k, v]) => `${k}: ${v && typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ')))
+      h.append(o('td', '', stamp(at, 19)), o('td', '', actor || '—'), o('td', '', ACTION_NAMES[action] || action || '—'), o('td', '', clientIp || '—'), o('td', '', Object.entries(rest).map(([k, v]) => `${k}: ${v && typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ')))
       board.append(h)
     }
     if (!snapshot.auditLog.length) p.append(o('small', '', tx('Nothing this month.')))

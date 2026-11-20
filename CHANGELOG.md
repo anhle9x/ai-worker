@@ -2,6 +2,16 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.48.1 - 2026-11-20
+
+### Fixed
+- The **By model** table of an AI project's report fits its frame on a computer screen: the Cost and Price checked columns were hidden past the right edge on the board's **AI projects** page and in the print version seen on screen. The printed A4 page was already right.
+- On the **AI projects** page, the boxes that pick the project and the environment show their whole text: a long project name, or "Real users (prod)" in Vietnamese, was cut short.
+
+### Changed
+- In Vietnamese, the Admin page writes days as DD/MM/YYYY in the audit log, the log check line, the reads by AI tools and Telegram chats, and the work handed to AI helpers. English keeps YYYY-MM-DD.
+- README: the pictures of the report, the **AI projects** page and Telegram were taken again, so the numbers in them agree.
+
 ## 0.48.0 - 2026-11-20
 
 ### Changed
