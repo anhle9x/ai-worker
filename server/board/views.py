@@ -19,7 +19,7 @@ from datetime import datetime
 from board import packages, settings
 from board.assets import UI_VERSION
 from board.daily import NUMBERS, PERIODS, DailyStore, totals_by_day
-from board.db import data_db, dumps, keys_db
+from board.db import data_db, drop_old_legacy_accounts, dumps, keys_db
 from board.devices import (
     IngestGate,
     blocks_since,
@@ -667,6 +667,7 @@ def record_daily() -> None:
         DAILY.record(totals_by_day(devices, now), offices, now)
         for database in (data_db(), keys_db()):
             database.drop_old_upgrade_backups(now)
+        drop_old_legacy_accounts(keys_db(), settings.KEYS_DIR, now)
     # a side table: if it breaks, say so and carry on, do not crash the webhook
     # bảng phụ: hỏng thì báo rồi chạy tiếp, không làm sập webhook
     except Exception as e:

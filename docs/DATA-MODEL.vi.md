@@ -114,6 +114,6 @@ File nào được đặt lại vào `data/` sau này sẽ được chuyển và
 Sao lưu khi máy chủ đang chạy bằng lệnh sao lưu của chính SQLite, không dùng `tar` hay `cp`, vì có thể chép phải WAL đang ghi dở. Lệnh nằm ở [OPERATIONS.vi.md](OPERATIONS.vi.md), mục 4.
 
 - Sao lưu `board.db` hằng ngày. File này không chứa mã bí mật. File `.schema-N.bak` không thay cho việc sao lưu này: nó chỉ là một bản sao ở thời điểm nâng cấp.
-- Sao lưu `accounts.db` riêng, chỉ root đọc được. Mất file này thì mọi tài khoản phải quét lại mã QR.
+- Sao lưu `accounts.db` riêng, chỉ root đọc được. Mất file này thì mọi tài khoản phải quét lại mã QR. Khoá OTP trong đó được niêm phong bằng `/etc/ai-worker-otp.key` (lược đồ phiên bản 2): giữ một bản của khoá đó tách khỏi các bản sao lưu, xem [OPERATIONS.vi.md](OPERATIONS.vi.md) mục 4.
 
 Quay về bản trước SQLite mà không mất phần đã thay đổi từ đó: `webhook.py --export-json <thư-mục>` ghi cơ sở dữ liệu ngược ra file JSON cũ. Tổng theo ngày không có chỗ trong các file đó nên không được xuất. Xem [OPERATIONS.vi.md](OPERATIONS.vi.md), mục 5.

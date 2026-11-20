@@ -270,6 +270,30 @@ class Meter(Tmp):
             pass
         self.assertEqual(self.lines()[0]["env"], "test")
 
+    def test_a_redirect_is_not_followed_with_the_key(self):
+        # the board answers 302 to another address: nothing reaches that address, so the key stays where it was sent
+        # bảng trả 302 sang địa chỉ khác: không gì tới được địa chỉ đó, nên khoá ở lại nơi nó được gửi tới
+        with Board() as other:
+            class Redirect(BaseHTTPRequestHandler):
+                def do_POST(self):
+                    self.send_response(302)
+                    self.send_header("Location", other.url)
+                    self.end_headers()
+
+                def log_message(self, *args):
+                    pass
+
+            first = ThreadingHTTPServer(("127.0.0.1", 0), Redirect)
+            threading.Thread(target=first.serve_forever, daemon=True).start()
+            try:
+                sender = ai_meter._Sender("http://127.0.0.1:%d/projects/ingest" % first.server_address[1], "test-key")
+                sender.add({"turnId": "t1"})
+                sender.flush()
+            finally:
+                first.shutdown()
+                first.server_close()
+            self.assertEqual(other.sent, [])
+
 
 def line(tid, ms, models, outcome="ok", at="2026-11-20T08:00:00.000Z", **more):
     d = {"v": 1, "turnId": tid, "at": at, "durationMs": ms, "outcome": outcome, "env": "prod", "models": models}

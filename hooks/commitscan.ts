@@ -8,19 +8,35 @@ import { shellWords } from './guard'
 import { tx } from './lang'
 import { findSecrets, secretLabel } from './secrets'
 
-export type CommitRun = { dir: string; all: boolean }
+// `added` is there when a `git add` comes earlier in the same command line: the hook runs before the whole line, so what
+// that add will stage is not staged yet. `paths` are its pathspecs (none: the whole tree), `tracked` is `git add -u`.
+// `added` có mặt khi một lệnh `git add` đứng trước trong cùng dòng lệnh: hook chạy trước cả dòng, nên những gì lệnh add
+// đó sẽ stage thì chưa được stage. `paths` là các đường dẫn của nó (không có: cả cây), `tracked` là `git add -u`.
+export type CommitRun = { dir: string; all: boolean; added?: { paths: string[]; tracked: boolean } }
 export type CommitSecret = { file: string; line: number; kind: string; hint: string }
 
-/** The `git commit` in a command line: the folder it runs in (from `cd` or `git -C`, relative to the session's), and whether it takes every changed tracked file (`-a`). */
-/** Lệnh `git commit` trong một dòng lệnh: thư mục nó chạy (từ `cd` hay `git -C`, so với thư mục của phiên), và nó có lấy mọi file đã theo dõi bị đổi không (`-a`). */
+// words that only start the next program: sudo git, env git, VAR=x git, /usr/bin/git
+// các từ chỉ mở đầu chương trình kế tiếp: sudo git, env git, VAR=x git, /usr/bin/git
+const LEADERS = new Set(['sudo', 'command', 'env', 'nohup', 'time', 'exec'])
+function gitAt(words: string[]): number {
+  let i = 0
+  while (i < words.length && (LEADERS.has(words[i]!) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i]!))) i++
+  return (words[i] ?? '').split(/[\\/]/).pop()?.replace(/\.exe$/i, '') === 'git' ? i : -1
+}
+
+/** The `git commit` in a command line: the folder it runs in (from `cd` or `git -C`, relative to the session's), whether it takes every changed tracked file (`-a`), and what an earlier `git add` in the line will stage. */
+/** Lệnh `git commit` trong một dòng lệnh: thư mục nó chạy (từ `cd` hay `git -C`, so với thư mục của phiên), nó có lấy mọi file đã theo dõi bị đổi không (`-a`), và những gì một lệnh `git add` đứng trước trong dòng sẽ stage. */
 export function commitIn(command: string): CommitRun | undefined {
   let dir = ''
-  for (const words of shellWords(command)) {
-    if (words[0] === 'cd' && words[1]) {
-      dir = join(dir, words[1])
+  let added: { paths: string[]; tracked: boolean } | undefined
+  for (const raw of shellWords(command)) {
+    if (raw[0] === 'cd' && raw[1]) {
+      dir = join(dir, raw[1])
       continue
     }
-    if (words[0] !== 'git') continue
+    const at = gitAt(raw)
+    if (at < 0) continue
+    const words = raw.slice(at)
     let i = 1
     let here = dir
     // git's own options before the subcommand
@@ -32,6 +48,18 @@ export function commitIn(command: string): CommitRun | undefined {
         i += 2
       } else if (w === '-c') i += 2
       else i++
+    }
+    if (words[i] === 'add') {
+      const args = words.slice(i + 1)
+      const cut = args.indexOf('--')
+      const flags = cut >= 0 ? args.slice(0, cut) : args.filter(w => w.startsWith('-'))
+      const paths = cut >= 0 ? args.slice(cut + 1) : args.filter(w => !w.startsWith('-'))
+      const tracked = flags.some(w => w === '-u' || w === '--update')
+      // no path, ".", or an earlier add of the whole tree: every new file is read
+      // không có đường dẫn, ".", hay một lệnh add cả cây trước đó: mọi file mới đều được đọc
+      const whole = !paths.length || paths.some(p => p === '.' || p === ':/') || (added !== undefined && !added.paths.length)
+      added = { paths: whole ? [] : [...(added?.paths ?? []), ...paths], tracked: tracked && (added?.tracked ?? true) }
+      continue
     }
     if (words[i] !== 'commit') continue
     const rest = words.slice(i + 1)
@@ -47,7 +75,7 @@ export function commitIn(command: string): CommitRun | undefined {
       }
       if (w === '--all' || /^-[a-zA-Z]*a[a-zA-Z]*$/.test(w)) all = true
     }
-    return { dir: here, all }
+    return added ? { dir: here, all, added } : { dir: here, all }
   }
   return undefined
 }
@@ -60,7 +88,22 @@ function join(base: string, next: string): string {
 /** The git command that prints what the commit will add: what is staged, or with `-a` every change to a tracked file. */
 /** Lệnh git in ra những gì commit sẽ thêm: phần đã stage, hoặc với `-a` mọi thay đổi ở file đã theo dõi. */
 export function diffCommand(run: CommitRun): string[] {
-  return ['git', 'diff', run.all ? 'HEAD' : '--cached', '--no-color', '--no-ext-diff', '--unified=0']
+  // after an add in the same line, every change to a tracked file against HEAD: the add has not staged it yet
+  // sau một lệnh add trong cùng dòng, mọi thay đổi ở file đã theo dõi so với HEAD: lệnh add chưa stage nó
+  return ['git', 'diff', run.all || run.added ? 'HEAD' : '--cached', '--no-color', '--no-ext-diff', '--unified=0']
+}
+
+/** The git command that lists the new files an earlier `git add` will stage (none for `git add -u`), or undefined. */
+/** Lệnh git liệt kê các file mới mà một lệnh `git add` đứng trước sẽ stage (không có với `git add -u`), hoặc undefined. */
+export function untrackedCommand(run: CommitRun): string[] | undefined {
+  if (!run.added || run.added.tracked) return undefined
+  return ['git', 'ls-files', '--others', '--exclude-standard', '-z', ...(run.added.paths.length ? ['--', ...run.added.paths] : [])]
+}
+
+/** The git command that prints a new file as a diff that adds every line, so it is read like the rest. */
+/** Lệnh git in một file mới thành diff thêm mọi dòng, để nó được đọc như phần còn lại. */
+export function newFileDiffCommand(file: string): string[] {
+  return ['git', 'diff', '--no-index', '--no-color', '--no-ext-diff', '--unified=0', '--', '/dev/null', file]
 }
 
 /** The secrets on the lines a diff adds, with the file and the line number in the new file; never the value. */

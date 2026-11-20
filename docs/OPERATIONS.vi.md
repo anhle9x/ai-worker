@@ -88,6 +88,14 @@ sudo python3 -c 'import sqlite3, sys; sqlite3.connect(sys.argv[1]).backup(sqlite
 
 Kết quả đúng: không in gì, và có file mới.
 
+Khoá OTP trong `accounts.db` được niêm phong bằng khoá OTP `/etc/ai-worker-otp.key`, do `install.sh` tạo một lần (chỉ root đọc được). Chỉ có bản chép `accounts.db` thì không đăng nhập được ai, và máy chủ không chạy trên file đó nếu thiếu khoá này. Giữ một bản của khoá ở nơi an toàn, tách khỏi bản sao lưu `/opt/ai-worker`, ví dụ trong trình quản lý mật khẩu của quản trị hay một USB cất trong ngăn kéo:
+
+```bash
+sudo cat /etc/ai-worker-otp.key
+```
+
+Kết quả đúng: một dòng gồm 64 chữ và số. Nếu mất khoá và cả bản giữ của nó, xem "Mất khoá OTP" ở mục 5.
+
 Khôi phục:
 
 ```bash
@@ -144,6 +152,34 @@ Sau đó chạy `sudo bash install.sh` trong thư mục `server/` cũ (lệnh n�
 Quay lui thì mất gì: mọi thứ đã ghi vào `board.db` sau khi nâng, như tổng theo ngày, các dòng nhật ký quản trị, màn hình hay khoá đã ghép và địa điểm đã đặt tên từ lúc đó. Bảng trực tiếp đầy lại sau vài phút, vì mỗi lần gửi máy nào cũng gửi kèm 8 ngày theo giờ gần nhất. Tài khoản không bị đụng tới.
 
 Máy chủ xoá `board.db.schema-1.bak` 30 ngày sau khi nâng (nhật ký: `deleted the upgrade backup ...`). Đây là một bản sao đầy đủ số liệu của mọi người: giữ kín như `board.db`, và chỉ chép đi nơi khác trước khi hết 30 ngày nếu cần giữ lâu hơn.
+
+#### Quay lui sau khi khoá OTP đã niêm phong
+
+Bản đầu tiên niêm phong khoá OTP nâng `accounts.db` từ lược đồ phiên bản 1 lên 2 và ghi vào nhật ký `Sealed <n> OTP secrets with the OTP key`. Bản cũ từ chối file đó, vì nó sẽ đọc khoá đã niêm phong như chính khoá và không ai đăng nhập được. Trước khi cài bản cũ, lưu lại khoá như cũ, trong lúc bản mới vẫn đang cài:
+
+```bash
+sudo bash /opt/ai-worker/manage-otp.sh --unseal
+```
+
+Kết quả đúng: `Khoá OTP đã lưu lại dạng thường, và webhook đang dừng.` Rồi chạy `sudo bash install.sh` trong thư mục `server/` cũ. Không mất gì. Bản chép `accounts.db.schema-1.bak` cũng giữ các tài khoản như trước khi nâng; máy chủ xoá nó sau 7 ngày, vì khoá trong đó chưa niêm phong.
+
+#### Mất khoá OTP
+
+Nhật ký dịch vụ báo `... are sealed, but the OTP key cannot be read` hoặc `... it is not the key they were sealed with`, và webhook không chạy. Trước hết chép lại file khoá từ bản giữ, bằng root, rồi chạy lại `sudo bash install.sh`:
+
+```bash
+sudo install -m 600 -o root -g root <bản giữ của khoá> /etc/ai-worker-otp.key
+```
+
+Nếu khoá mất hẳn, không ai mở được các khoá đã niêm phong. Bỏ các tài khoản đó, rồi tạo khoá mới và một quản trị mới:
+
+```bash
+sudo bash /opt/ai-worker/manage-otp.sh --forget-sealed
+sudo rm -f /etc/ai-worker-otp.key
+sudo bash install.sh
+```
+
+`install.sh` tạo khoá mới và, khi không còn quản trị nào, hỏi tên người quản trị đầu tiên. Những người khác được tạo lại tài khoản ở `/admin` và quét mã QR mới.
 
 Quay về bản trước SQLite (0.24 trở về trước) mà không mất phần đã thay đổi từ đó:
 

@@ -29,7 +29,7 @@ from datetime import date, datetime, timedelta
 
 TMP = tempfile.mkdtemp(prefix="test-webhook-")
 os.environ.update(INGEST_KEY="test", DATA_DIR=os.path.join(TMP, "data"), KEYS_DIR=os.path.join(TMP, "keys"),
-                  BRANCHES_FILE=os.path.join(TMP, "missing.json"), OTP="")
+                  BRANCHES_FILE=os.path.join(TMP, "missing.json"), OTP="", OTP_KEY_FILE=os.path.join(TMP, "no-otp.key"))
 os.makedirs(os.environ["DATA_DIR"])
 
 import telegram_bot  # noqa: E402
@@ -915,6 +915,20 @@ class RoutePermissions(unittest.TestCase):
         for path in self.POST_ADMIN:
             with self.subTest(path=path):
                 self.assertEqual(self.call("POST", path, "tok-adm", "{}", Origin="https://other.example.com")[0], 403)
+
+    def test_login_from_another_site_is_refused_before_it_counts(self):
+        # another site's form, with its own origin or a no-referrer null, gets 403 and leaves the IP's count alone
+        # form của site khác, với nguồn của nó hay null do no-referrer, nhận 403 và không đụng tới số lần đếm của IP
+        form = "account=nobody&code=000000"
+        login.SESSIONS.fails, login.SESSIONS.account_fails = {}, {}
+        for _ in range(8):
+            self.assertEqual(self.call("POST", "/login", None, form, Origin="https://other.example.com")[0], 403)
+            self.assertEqual(self.call("POST", "/login", None, form, Origin="null", **{"Sec-Fetch-Site": "cross-site"})[0], 403)
+        self.assertEqual((login.SESSIONS.fails, login.SESSIONS.account_fails), ({}, {}))
+        # the board's own login form: Origin null from its no-referrer page, Sec-Fetch-Site same-origin; a wrong code is 401, not locked out
+        # form đăng nhập của chính bảng: Origin null vì trang no-referrer, Sec-Fetch-Site same-origin; mã sai là 401, không bị khoá
+        self.assertEqual(self.call("POST", "/login", None, form, Origin="null", **{"Sec-Fetch-Site": "same-origin"})[0], 401)
+        self.assertEqual(self.call("POST", "/login", None, form, Origin=self.origin)[0], 401)
 
     def test_account_actions_require_origin(self):
         # OTP already re-entered, so a 403 here can only come from a missing origin

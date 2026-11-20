@@ -2,6 +2,20 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.49.0 - 2026-11-20
+
+### Security
+- The check before a risky command reads a backslash the way the shell does. `rm -rf x\" ~/work \"node_modules` was read as one harmless word ending in `node_modules` and ran without being put to the person; the same escaped quote could hide `| sh` after a download.
+- The secret check before `git commit` also reads what a `git add` earlier in the same command will stage. In `git add . && git commit`, the most common form, the check ran before the add and saw nothing new. A `git commit` written as `/usr/bin/git`, `env git`, `sudo git` or `NAME=value git` is now seen too.
+- The board's login refuses a form sent from a page on another site. Such a page, opened by anyone in the office, could send five wrong codes from that person's browser and lock everyone behind the office's IP out of login for 15 minutes.
+- The Python and Go meters no longer follow a redirect from the board's address. The Python meter carried the project's key to wherever the redirect pointed, another host or plain http included.
+- The OTP secrets are sealed in `accounts.db` with a key that `install.sh` makes once in `/etc/ai-worker-otp.key`, root only, and hands to the webhook through systemd (`LoadCredential`). A copy of `keys/` or of a backup of `/opt` no longer logs anyone in. The webhook seals the secrets already there at its first start and rewrites the file so no plain copy stays in it; without the right key it does not start, and says why. The running service and sudo users can still open them.
+- No copy of an OTP secret is left in plain text where it is not needed: `install.sh` takes the names the webhook has imported out of `OTP=` in `/etc/ai-worker.env` and starts it again, `manage-otp.sh --rescue` writes the new admin straight into the database instead of that line, the copy of `accounts.db` made before a schema upgrade is deleted after 7 days instead of 30, `keys/legacy-json/accounts.json` from before SQLite is deleted 30 days after it was moved in, and deleted rows of `accounts.db` are overwritten.
+
+### Changed
+- `accounts.db` goes to schema version 2, so an older version refuses it. To go back, run `sudo bash manage-otp.sh --unseal` first (docs/OPERATIONS.md, section 5). `manage-otp.sh --forget-sealed` removes the accounts whose sealed secret no key on the server opens, for when the OTP key is lost for good.
+- Keep a copy of `/etc/ai-worker-otp.key` somewhere safe, apart from your backups of `/opt/ai-worker`: without it nobody can log in.
+
 ## 0.48.1 - 2026-11-20
 
 ### Fixed

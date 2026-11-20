@@ -24,6 +24,12 @@ LEGACY_DIR_NAME = "legacy-json"
 # Máy chủ xoá nó sau ngần này ngày, để một bản sao cũ của số liệu mọi người không nằm mãi trên đĩa.
 UPGRADE_BACKUP_SUFFIX = ".schema-%d.bak"
 UPGRADE_BACKUP_KEEP_DAYS = 30
+# the accounts' copy holds the OTP secrets as they were, unsealed: it is kept only long enough to go back after an upgrade
+# bản sao của tài khoản chứa khoá OTP như cũ, chưa niêm phong: chỉ giữ đủ lâu để quay lui sau một lần nâng cấp
+KEYS_BACKUP_KEEP_DAYS = 7
+# keys/legacy-json/accounts.json, the accounts before SQLite, holds plain OTP secrets: deleted this long after they were moved in
+# keys/legacy-json/accounts.json, tài khoản của bản trước SQLite, chứa khoá OTP dạng thường: xoá sau ngần này ngày kể từ lúc chuyển vào
+LEGACY_ACCOUNTS_KEEP_DAYS = 30
 
 # Each step upgrades the schema by one version, in one transaction. Never change a step that has shipped: add a new one.
 # Mỗi bước nâng lược đồ lên một phiên bản, trong một giao dịch. Không sửa bước đã phát hành: thêm bước mới.
@@ -81,6 +87,11 @@ KEYS_STEPS = [
         "CREATE TABLE imported (name TEXT PRIMARY KEY)",
         "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)",
     ],
+    # version 2: the OTP secrets may be sealed with the OTP key (board/sealing.py). Nothing in the tables changes, but an older
+    # program would read a sealed secret as base32 and no login would work, so it must refuse the file; manage-otp.sh --unseal goes back
+    # phiên bản 2: khoá OTP có thể đã niêm phong bằng khoá OTP (board/sealing.py). Các bảng không đổi gì, nhưng chương trình cũ sẽ
+    # đọc khoá đã niêm phong như base32 và không ai đăng nhập được, nên nó phải từ chối file; manage-otp.sh --unseal để quay lui
+    [],
 ]
 
 
@@ -88,8 +99,9 @@ class Database:
     """One SQLite file with one connection shared by all threads behind a lock; every write goes through tx().
     Một file SQLite, một kết nối dùng chung cho mọi luồng sau một khoá; mọi lần ghi đi qua tx()."""
 
-    def __init__(self, path: str, steps: list, synchronous: str):
+    def __init__(self, path: str, steps: list, synchronous: str, backup_keep_days: int = UPGRADE_BACKUP_KEEP_DAYS, secure_delete: bool = False):
         self.path = path
+        self.backup_keep_days = backup_keep_days
         self.lock = threading.RLock()
         self.depth = 0
         folder = os.path.dirname(path)
@@ -102,6 +114,10 @@ class Database:
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA busy_timeout=10000")
         self.conn.execute("PRAGMA synchronous=" + synchronous)
+        # deleted or rewritten rows are overwritten with zeros, so an old secret does not linger in a free page
+        # dòng đã xoá hay viết lại được ghi đè bằng số không, để khoá cũ không nằm lại trong một trang trống
+        if secure_delete:
+            self.conn.execute("PRAGMA secure_delete=ON")
         try:
             self._upgrade(steps)
         except SystemExit:
@@ -159,19 +175,26 @@ class Database:
         sys.stderr.write("backed up %s (schema version %d) to %s before upgrading to schema version %d\n" % (self.path, version, path, target))
 
     def drop_old_upgrade_backups(self, now: float) -> list:
-        """Delete the copies made before a schema upgrade once they are older than UPGRADE_BACKUP_KEEP_DAYS; returns the paths deleted.
-        Xoá các bản sao làm trước khi nâng lược đồ khi chúng cũ hơn UPGRADE_BACKUP_KEEP_DAYS; trả về các đường dẫn đã xoá."""
+        """Delete the copies made before a schema upgrade once they are older than backup_keep_days; returns the paths deleted.
+        Xoá các bản sao làm trước khi nâng lược đồ khi chúng cũ hơn backup_keep_days; trả về các đường dẫn đã xoá."""
         dropped = []
         for path in glob.glob(glob.escape(self.path) + ".schema-*.bak"):
             try:
-                if now - os.path.getmtime(path) > UPGRADE_BACKUP_KEEP_DAYS * 86400:
+                if now - os.path.getmtime(path) > self.backup_keep_days * 86400:
                     os.remove(path)
                     dropped.append(path)
             except OSError as e:
                 sys.stderr.write("cannot delete the old upgrade backup %s: %s\n" % (path, e))
         for path in dropped:
-            sys.stderr.write("deleted the upgrade backup %s, older than %d days\n" % (path, UPGRADE_BACKUP_KEEP_DAYS))
+            sys.stderr.write("deleted the upgrade backup %s, older than %d days\n" % (path, self.backup_keep_days))
         return dropped
+
+    def compact(self) -> None:
+        """Rewrite the file and empty its WAL, so no copy of a row written before stays in it.
+        Viết lại file và làm rỗng WAL của nó, để không bản chép nào của dòng đã ghi trước đó còn nằm lại."""
+        with self.lock:
+            self.conn.execute("VACUUM")
+            self.conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
     @contextlib.contextmanager
     def tx(self):
@@ -236,7 +259,7 @@ def keys_db() -> Database:
     Cơ sở dữ liệu tài khoản trong KEYS_DIR, tách khỏi số liệu để bản sao lưu DATA_DIR không mang mã bí mật OTP."""
     with _OPEN_LOCK:
         if "keys" not in _OPEN:
-            db = Database(os.path.join(KEYS_DIR, KEYS_DB_NAME), KEYS_STEPS, "FULL")
+            db = Database(os.path.join(KEYS_DIR, KEYS_DB_NAME), KEYS_STEPS, "FULL", backup_keep_days=KEYS_BACKUP_KEEP_DAYS, secure_delete=True)
             migrate_keys_json(db, KEYS_DIR)
             _OPEN["keys"] = db
         return _OPEN["keys"]
@@ -371,6 +394,22 @@ def migrate_keys_json(db: Database, folder: str) -> int:
     _move_to_legacy(folder, [path])
     sys.stderr.write("migrated %d accounts into %s\n" % (n, db.path))
     return n
+
+
+def drop_old_legacy_accounts(db: Database, folder: str, now: float) -> bool:
+    """Delete keys/legacy-json/accounts.json once its accounts have been in the database for LEGACY_ACCOUNTS_KEEP_DAYS; True when deleted.
+    Xoá keys/legacy-json/accounts.json khi tài khoản của nó đã nằm trong cơ sở dữ liệu được LEGACY_ACCOUNTS_KEEP_DAYS ngày; True khi đã xoá."""
+    path = os.path.join(folder, LEGACY_DIR_NAME, "accounts.json")
+    moved = db.get_meta("migrated_from_json_at")
+    if not os.path.isfile(path) or not moved.isdigit() or now - int(moved) < LEGACY_ACCOUNTS_KEEP_DAYS * 86400:
+        return False
+    try:
+        os.remove(path)
+    except OSError as e:
+        sys.stderr.write("cannot delete %s: %s\n" % (path, e))
+        return False
+    sys.stderr.write("deleted %s, the accounts before SQLite: they have been in the database for %d days\n" % (path, LEGACY_ACCOUNTS_KEEP_DAYS))
+    return True
 
 
 def export_json(out_dir: str) -> list:

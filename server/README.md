@@ -87,7 +87,7 @@ sudo bash manage-otp.sh --delete it-team  # emergency delete when the page canno
 sudo bash manage-otp.sh --list            # who has an account, with what role
 ```
 
-Accounts and keys are in `keys/accounts.db`, a folder only the webhook can read, apart from `data/board.db`. A backup of `board.db` has no keys; to restore without scanning again, back up `keys/` separately, readable by root only. On the first run the webhook imports the accounts from `OTP=` in the env file by itself, with no new scan; keep those lines so you can roll back to the old version.
+Accounts and keys are in `keys/accounts.db`, a folder only the webhook can read, apart from `data/board.db`. A backup of `board.db` has no keys; to restore without scanning again, back up `keys/` separately, readable by root only. On the first run the webhook imports the accounts from `OTP=` in the env file by itself, with no new scan; `install.sh` then takes the imported names out of that line, since their secrets are in the database, sealed with `/etc/ai-worker-otp.key`. To roll back, see docs/OPERATIONS.md section 5.
 
 Action log: the `audit` table in `data/board.db` records logins, changes and refusals; kept 12 months, with no keys or CSV content.
 

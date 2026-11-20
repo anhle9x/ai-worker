@@ -174,6 +174,26 @@ if [ "$ASK" = 1 ] && grep -q '^TELEGRAM_APP=1[[:space:]]*$' "$ENV"; then
   fi
 fi
 
+# The key that seals the OTP secrets in keys/: made once, kept in /etc apart from keys/, so a copy of keys/ or of a backup
+# of /opt gives no login. Root only; systemd 247 and later hands it to the webhook (LoadCredential) without the webhook's user
+# being able to read the file. An older systemd: the file is opened to the webhook's group instead.
+# Khoá niêm phong khoá OTP trong keys/: tạo một lần, để ở /etc tách khỏi keys/, nên bản chép keys/ hay bản sao lưu /opt
+# không cho đăng nhập. Chỉ root; systemd từ bản 247 trao nó cho webhook (LoadCredential) mà tài khoản của webhook không
+# đọc được file. systemd cũ hơn: file được mở cho nhóm của webhook thay vào đó.
+OTP_KEY=/etc/ai-worker-otp.key
+if [ ! -f "$OTP_KEY" ]; then
+  ( umask 077; python3 -c 'import secrets; print(secrets.token_hex(32))' > "$OTP_KEY" )
+  say "  Made the OTP key $OTP_KEY. Keep a copy of it somewhere safe, apart from your backups of $APP_DIR: without it nobody can log in." "  Đã tạo khoá OTP $OTP_KEY. Giữ một bản của nó ở nơi an toàn, tách khỏi bản sao lưu $APP_DIR: mất nó thì không ai đăng nhập được."
+fi
+SYSTEMD_VERSION=$(systemctl --version 2>/dev/null | awk 'NR==1 {print $2}' | grep -Eo '^[0-9]+' || echo 0)
+if [ "${SYSTEMD_VERSION:-0}" -ge 247 ]; then
+  chown root:root "$OTP_KEY"; chmod 600 "$OTP_KEY"
+  OTP_KEY_LINE="LoadCredential=otp-key:$OTP_KEY"
+else
+  chown root:ai-worker "$OTP_KEY"; chmod 640 "$OTP_KEY"
+  OTP_KEY_LINE="Environment=OTP_KEY_FILE=$OTP_KEY"
+fi
+
 cat > /etc/systemd/system/ai-worker-webhook.service <<EOF
 [Unit]
 Description=AI Worker Office dashboard webhook
@@ -181,6 +201,7 @@ After=network.target
 
 [Service]
 EnvironmentFile=$ENV
+$OTP_KEY_LINE
 ExecStart=/usr/bin/env python3 $APP_DIR/webhook.py
 User=ai-worker
 Restart=on-failure
@@ -208,6 +229,43 @@ systemctl restart ai-worker-webhook
 # chờ tối đa 10 giây cho lần trả lời đầu: Python và cơ sở dữ liệu cần chút thời gian để khởi động
 PORT_NOW=$(sed -n 's/^PORT=//p' "$ENV"); PORT_NOW=${PORT_NOW:-$PORT}
 for _ in 1 2 3 4 5 6 7 8 9 10; do curl -fsS "http://127.0.0.1:$PORT_NOW/health" >/dev/null 2>&1 && break; sleep 1; done
+
+# Names in OTP= that the webhook has imported now live, sealed, in the accounts database: take them out of the config file,
+# then start the webhook once more so its environment no longer holds them either. A name not imported yet stays.
+# Các tên trong OTP= mà webhook đã nhập giờ nằm, đã niêm phong, trong cơ sở dữ liệu tài khoản: bỏ chúng khỏi file cấu hình,
+# rồi khởi động webhook lại một lần để môi trường của nó cũng không còn giữ chúng. Tên chưa nhập thì để lại.
+if grep -q '^OTP=.' "$ENV" && [ -f "$APP_DIR/keys/accounts.db" ]; then
+  if python3 - "$ENV" "$APP_DIR/keys/accounts.db" <<'PY'
+import os, sqlite3, sys
+env_path, db_path = sys.argv[1:3]
+# read only: root must not create files the webhook could not write afterwards
+# chỉ đọc: root không được tạo file mà webhook sau đó không ghi được
+imported = {r[0] for r in sqlite3.connect("file:%s?mode=ro" % db_path, uri=True).execute("SELECT name FROM imported")}
+lines = open(env_path).read().splitlines()
+def get(var):
+    return next((x[len(var) + 1:] for x in lines if x.startswith(var + "=")), "")
+entries = [m for m in get("OTP").split(",") if ":" in m]
+left = [m for m in entries if m.split(":")[0] not in imported]
+if len(left) == len(entries):
+    sys.exit(1)
+names = {m.split(":")[0] for m in left}
+admins = sorted(t for t in get("OTP_ADMINS").split(",") if t in names)
+wall = sorted(t for t in get("OTP_WALL").split(",") if t in names)
+lines = [x for x in lines if not x.startswith(("OTP=", "OTP_ADMINS=", "OTP_WALL="))]
+if left: lines.append("OTP=" + ",".join(left))
+if admins: lines.append("OTP_ADMINS=" + ",".join(admins))
+if wall: lines.append("OTP_WALL=" + ",".join(wall))
+tmp = env_path + ".tmp"
+with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+    f.write("\n".join(lines) + "\n")
+os.replace(tmp, env_path)
+PY
+  then
+    say "  Took the imported OTP secrets out of $ENV: they are in the accounts database now." "  Đã bỏ các khoá OTP đã nhập khỏi $ENV: giờ chúng nằm trong cơ sở dữ liệu tài khoản."
+    systemctl restart ai-worker-webhook
+    for _ in 1 2 3 4 5 6 7 8 9 10; do curl -fsS "http://127.0.0.1:$PORT_NOW/health" >/dev/null 2>&1 && break; sleep 1; done
+  fi
+fi
 
 . "$ENV"
 IP=$(hostname -I 2>/dev/null | awk '{print $1}')

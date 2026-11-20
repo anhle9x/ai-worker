@@ -332,6 +332,16 @@ def _send_allowed(url):
     return url.startswith("https://") or re.match(r"^http://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/", url) is not None
 
 
+class _RefuseRedirect(urllib.request.HTTPRedirectHandler):
+    # a redirect is not followed: urllib would carry the key to the new address, another host or plain http included
+    # không theo chuyển hướng: urllib sẽ mang khoá tới địa chỉ mới, kể cả máy khác hay http thường
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_NO_REDIRECT = urllib.request.build_opener(_RefuseRedirect)
+
+
 class _Sender:
     def __init__(self, url, key):
         self.url, self.key = url, key
@@ -373,7 +383,7 @@ class _Sender:
             req = urllib.request.Request(self.url, data=body, method="POST", headers={
                 "Authorization": "Bearer " + self.key, "Content-Type": "application/json", "User-Agent": "ai-meter/1"})
             try:
-                with urllib.request.urlopen(req, timeout=SEND_TIMEOUT_SECONDS) as r:
+                with _NO_REDIRECT.open(req, timeout=SEND_TIMEOUT_SECONDS) as r:
                     r.read()
             except Exception:
                 # tried once more at the next send, then let go; the file still has every turn

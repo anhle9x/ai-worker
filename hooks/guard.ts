@@ -43,6 +43,18 @@ export function shellWords(command: string): string[][] {
   }
   for (let i = 0; i < command.length; i++) {
     const c = command[i]!
+    const next = command[i + 1] ?? ''
+    // a backslash takes the next character as it is, the way the shell does: x\" is x and a quote, not the start of a
+    // quoted word, so "rm -rf x\" ~ \"y" cannot hide ~ inside one word. Before a letter it is kept, for Windows paths.
+    // dấu gạch ngược lấy ký tự kế tiếp đúng như nó, như shell làm: x\" là x và một dấu nháy, không phải mở một từ
+    // trong nháy, nên "rm -rf x\" ~ \"y" không giấu được ~ trong một từ. Trước một chữ cái thì giữ lại, cho đường dẫn Windows.
+    if (c === '\\' && quote !== "'" && next && (quote ? /["\\$`]/.test(next) : /[\s"'\\;|&()<>$`]/.test(next))) {
+      i++
+      if (next === '\n') continue
+      word += next
+      has = true
+      continue
+    }
     if (quote) {
       if (c === quote) quote = ''
       else word += c
@@ -163,7 +175,9 @@ export function destructiveCommand(command: string): Danger | undefined {
   // that mentions curl | sh runs nothing); bash -c "…" is read again below, on its own
   // ống nối hai lệnh, nên được đọc trên chính dòng lệnh, bỏ qua phần trong dấu nháy (lời commit nhắc tới curl | sh
   // thì không chạy gì); bash -c "…" được đọc lại riêng ở dưới
-  const bare = command.replace(/'[^']*'|"[^"]*"/g, '""')
+  // an escaped character is no quote: curl … \" | sh \" still pipes into sh
+  // ký tự đã thoát không phải dấu nháy: curl … \" | sh \" vẫn đổ vào sh
+  const bare = command.replace(/\\[\s\S]/g, '_').replace(/'[^']*'|"[^"]*"/g, '""')
   if (PIPE_TO_SHELL.test(bare) || RUN_DOWNLOAD.test(bare)) return { kind: 'pipe-to-shell', target: URL_IN.exec(command)?.[0] ?? '' }
   for (const words of shellWords(command)) {
     const found = inOne(words)

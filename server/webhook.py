@@ -456,6 +456,11 @@ class Handler(BaseHTTPRequestHandler):
         # a form on a page with no-referrer sends Origin: null, treated as no Origin; actions that require the exact origin still refuse it
         # form trên trang có no-referrer gửi Origin: null, coi như không có Origin; thao tác bắt buộc đúng nguồn vẫn từ chối
         if origin == "null" and d.origin_policy == ORIGIN_IF_PRESENT:
+            # a page on another site can also choose no-referrer and send null; the browser's own Sec-Fetch-Site tells the two apart
+            # một trang ở site khác cũng có thể chọn no-referrer và gửi null; Sec-Fetch-Site do chính trình duyệt gắn phân biệt được hai trường hợp
+            if self.headers.get("Sec-Fetch-Site", "same-origin") not in ("same-origin", "none"):
+                self.reply(403, {"error": tx("Wrong origin")})
+                return None
             origin = None
         # a browser extension's own pages and service worker send their own origin; any other foreign page is refused
         # trang và service worker của tiện ích trình duyệt gửi nguồn của chính nó; mọi trang lạ khác bị từ chối
@@ -1561,7 +1566,9 @@ GET_ROUTES = {
 STATIC_ROUTE = Route(Handler.get_static, PERM_LOGIN)
 RELEASES_ROUTE = Route(Handler.get_release, PERM_INGEST_KEY)
 POST_ROUTES = {
-    "/login": Route(Handler.login, PERM_PUBLIC),
+    # a login from a page on another site is refused before it counts: five wrong ones would lock out the office's IP
+    # đăng nhập từ trang ở site khác bị từ chối trước khi được đếm: năm lần sai sẽ khoá IP của cả văn phòng
+    "/login": Route(Handler.login, PERM_PUBLIC, origin_policy=ORIGIN_IF_PRESENT),
     "/logout": Route(Handler.logout, PERM_PUBLIC, origin_policy=ORIGIN_IF_PRESENT),
     "/telegram/start": Route(Handler.telegram_start, PERM_NOT_WALL, origin_policy=ORIGIN_IF_PRESENT),
     "/telegram/unlink": Route(Handler.telegram_unlink, PERM_NOT_WALL, origin_policy=ORIGIN_IF_PRESENT),
@@ -1652,6 +1659,16 @@ if __name__ == "__main__":
     imported_count = ACCOUNTS.import_from_env()
     if imported_count:
         print("Imported %d accounts from the config file" % imported_count, flush=True)
+    # sealed OTP secrets with no key, or a key that is not theirs: nobody could log in, so say why and stop
+    # khoá OTP đã niêm phong mà không có khoá, hoặc khoá không phải của chúng: không ai đăng nhập được, nên nói lý do rồi dừng
+    problem = ACCOUNTS.sealing_problem()
+    if problem:
+        sys.exit(problem)
+    sealed_count = ACCOUNTS.seal_all()
+    if sealed_count:
+        print("Sealed %d OTP secrets with the OTP key" % sealed_count, flush=True)
+    print("OTP secrets: %s" % ("sealed with the OTP key" if ACCOUNTS.key else "not sealed, no OTP key (see docs/OPERATIONS.md)"), flush=True)
+    db.drop_old_legacy_accounts(db.keys_db(), settings.KEYS_DIR, time.time())
     count = [t["role"] for t in ACCOUNTS.list_accounts()]
     print("Accounts: %d admin, %d wall display, %d view only" % (count.count(ADMIN), count.count(WALL), count.count(VIEWER)), flush=True)
     if ADMIN not in count:

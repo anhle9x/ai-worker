@@ -24,7 +24,7 @@ import { buildHelp, skillLine } from './help'
 import { voiceSettingsCommand, voiceSteps } from './voice'
 import { dangerNote, dangerQuestion, destructiveCommand } from './guard'
 import { findSecrets, secretRefusal } from './secrets'
-import { commitIn, commitQuestion, diffCommand, secretsInDiff } from './commitscan'
+import { commitIn, commitQuestion, diffCommand, newFileDiffCommand, secretsInDiff, untrackedCommand } from './commitscan'
 import { OUTSIDE_TEXT_TOOL, findInjection, injectionNote, injectionToast } from './injection'
 import { answerFlags, answerNote, answerToast, checkAnswer } from './answers'
 import { addDelegation, delegationTool, makeDelegation, newSalt, promptHash, recentDelegations } from './delegations'
@@ -95,8 +95,26 @@ async function commitSecretQuestion($: EngineInterface, command: string): Promis
   try {
     const home = (await $.env.get('HOME')) || (await $.env.get('USERPROFILE')) || ''
     const dir = run.dir.startsWith('~') ? home + run.dir.slice(1) : run.dir
-    const r = await $.process.run(diffCommand(run), { ...(dir ? { cwd: dir } : {}), timeoutMs: 10_000 })
-    const found = r.exitCode === 0 ? secretsInDiff(r.stdout) : []
+    const where = dir ? { cwd: dir } : {}
+    let r = await $.process.run(diffCommand(run), { ...where, timeoutMs: 10_000 })
+    // a repository with no commit yet has no HEAD: what is staged is then all there is
+    // repo chưa có commit nào thì không có HEAD: khi đó chỉ có phần đã stage
+    if (r.exitCode !== 0 && run.added) r = await $.process.run(diffCommand({ dir: run.dir, all: false }), { ...where, timeoutMs: 10_000 })
+    let diff = r.exitCode === 0 ? r.stdout : ''
+    // the new files an add earlier in the line will stage, each read as a diff that adds every line (at most 50)
+    // các file mới mà lệnh add đứng trước trong dòng sẽ stage, mỗi file đọc như một diff thêm mọi dòng (tối đa 50)
+    const listing = untrackedCommand(run)
+    if (listing) {
+      const list = await $.process.run(listing, { ...where, timeoutMs: 10_000 })
+      const files = list.exitCode === 0 ? list.stdout.split('\0').filter(Boolean).slice(0, 50) : []
+      for (const file of files) {
+        // git diff --no-index ends with 1 when the two sides differ, which they always do here
+        // git diff --no-index kết thúc với 1 khi hai bên khác nhau, ở đây luôn khác
+        const one = await $.process.run(newFileDiffCommand(file), { ...where, timeoutMs: 10_000 })
+        if (one.exitCode === 0 || one.exitCode === 1) diff += '\n' + one.stdout
+      }
+    }
+    const found = secretsInDiff(diff)
     if (found.length) question = commitQuestion(found)
   } catch {
     // git could not be asked: the commit goes on as the rules beneath say

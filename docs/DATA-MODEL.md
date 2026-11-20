@@ -114,6 +114,6 @@ A file put back into `data/` later is moved in at the next start the same way.
 Back up while the server runs with SQLite's own backup, not `tar` or `cp`, which could copy a half-written WAL. The commands are in [OPERATIONS.md](OPERATIONS.md), section 4.
 
 - Back up `board.db` daily. It holds no secrets. The `.schema-N.bak` file is not a backup for this purpose: it is one copy from the moment of an upgrade.
-- Back up `accounts.db` separately, readable by root only. Without it, every account must scan a new QR code.
+- Back up `accounts.db` separately, readable by root only. Without it, every account must scan a new QR code. Its OTP secrets are sealed with `/etc/ai-worker-otp.key` (schema version 2): keep a copy of that key apart from the backups, see [OPERATIONS.md](OPERATIONS.md) section 4.
 
 To go back to a version before SQLite without losing what changed since: `webhook.py --export-json <folder>` writes the databases back as the old JSON files. The totals per day have no place in those files and are left out. See [OPERATIONS.md](OPERATIONS.md), section 5.

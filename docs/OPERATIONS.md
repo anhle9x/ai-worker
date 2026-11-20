@@ -88,6 +88,14 @@ sudo python3 -c 'import sqlite3, sys; sqlite3.connect(sys.argv[1]).backup(sqlite
 
 Correct result: no output, and the new file is there.
 
+The OTP secrets in `accounts.db` are sealed with the OTP key `/etc/ai-worker-otp.key`, which `install.sh` makes once (root only). A copy of `accounts.db` alone logs nobody in, and the server does not start on it without that key. Keep one copy of the key somewhere safe, apart from your backups of `/opt/ai-worker`, for example on the admin's password manager or a USB stick in a drawer:
+
+```bash
+sudo cat /etc/ai-worker-otp.key
+```
+
+Correct result: one line of 64 letters and digits. If the key is lost and its copy too, see "The OTP key is lost" in section 5.
+
 Restore:
 
 ```bash
@@ -144,6 +152,34 @@ Then run `sudo bash install.sh` in the old `server/` folder (it starts the servi
 What going back loses: everything written to `board.db` after the upgrade, such as the totals per day, audit lines, screens or keys paired and locations named since. The live board fills again within minutes, because every computer sends its last 8 days of hours with each report. Accounts are untouched.
 
 The server deletes `board.db.schema-1.bak` 30 days after the upgrade (log: `deleted the upgrade backup ...`). It is a full copy of people's numbers: keep it as private as `board.db`, and copy it elsewhere before the 30 days are over only if you need it longer.
+
+#### Going back after the OTP secrets were sealed
+
+The first version that seals the OTP secrets raises `accounts.db` from schema version 1 to 2 and logs `Sealed <n> OTP secrets with the OTP key`. An older version refuses that file, because it would read a sealed secret as the secret itself and nobody could log in. Before installing the older version, store the secrets as they were, with the newer version still installed:
+
+```bash
+sudo bash /opt/ai-worker/manage-otp.sh --unseal
+```
+
+Correct result: `The OTP secrets are stored as they are again, and the webhook is stopped.` Then run `sudo bash install.sh` in the old `server/` folder. Nothing is lost. The copy `accounts.db.schema-1.bak` also holds the accounts as they were before the upgrade; the server deletes it after 7 days, since its secrets are not sealed.
+
+#### The OTP key is lost
+
+The service log says `... are sealed, but the OTP key cannot be read` or `... it is not the key they were sealed with`, and the webhook does not start. First put the key file back from its copy, as root, then run `sudo bash install.sh` again:
+
+```bash
+sudo install -m 600 -o root -g root <copy of the key> /etc/ai-worker-otp.key
+```
+
+If the key is gone for good, the sealed secrets cannot be opened by anyone. Remove those accounts, then make a new key and a new admin:
+
+```bash
+sudo bash /opt/ai-worker/manage-otp.sh --forget-sealed
+sudo rm -f /etc/ai-worker-otp.key
+sudo bash install.sh
+```
+
+`install.sh` makes a new key and, when no admin is left, asks for the name of the first one. Everyone else gets a new account on `/admin` and scans a new QR code.
 
 Going back to a version before SQLite (0.24 or older) without losing what changed since:
 

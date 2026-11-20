@@ -87,7 +87,7 @@ sudo bash manage-otp.sh --delete phong-it  # xoá khẩn cấp khi không vào �
 sudo bash manage-otp.sh --list            # ai có tài khoản, vai gì
 ```
 
-Tài khoản và khoá nằm ở `keys/accounts.db`, thư mục chỉ webhook đọc được, tách khỏi `data/board.db`. Bản sao lưu `board.db` không có khoá; muốn khôi phục không phải quét lại thì sao lưu riêng `keys/`, chỉ root đọc được. Lần đầu chạy, webhook tự nhập tài khoản từ `OTP=` trong file env, không phải quét lại; các dòng đó giữ lại để lùi về bản cũ.
+Tài khoản và khoá nằm ở `keys/accounts.db`, thư mục chỉ webhook đọc được, tách khỏi `data/board.db`. Bản sao lưu `board.db` không có khoá; muốn khôi phục không phải quét lại thì sao lưu riêng `keys/`, chỉ root đọc được. Lần đầu chạy, webhook tự nhập tài khoản từ `OTP=` trong file env, không phải quét lại; sau đó `install.sh` bỏ các tên đã nhập khỏi dòng đó, vì khoá của chúng đã nằm trong cơ sở dữ liệu, niêm phong bằng `/etc/ai-worker-otp.key`. Muốn lùi về bản cũ, xem docs/OPERATIONS.vi.md mục 5.
 
 Nhật ký thao tác: bảng `audit` trong `data/board.db`, ghi đăng nhập, thay đổi, lần bị từ chối; giữ 12 tháng, không chép khoá hay nội dung CSV.
 

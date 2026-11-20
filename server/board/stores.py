@@ -14,6 +14,7 @@ import threading
 import time
 from datetime import datetime
 
+from board import sealing
 from board.db import account_row, data_db, dumps, keys_db, revoked_row, screen_row
 from board.lang import tx
 # what an MCP key may read: each person's row, or totals only. A key with neither word reads totals only
@@ -130,7 +131,14 @@ class Accounts(Store):
     """Login accounts: {accounts: {name: {role, secret (base32), createdAt, createdBy, lastLoginAt}}, imported: [names imported from env]}.
     They are in KEYS_DIR (accounts.db), outside the data folder, so data backups do not contain keys.
     Tài khoản đăng nhập: {accounts: {tên: {role, secret (base32), createdAt, createdBy, lastLoginAt}}, imported: [tên đã nhập từ env]}.
-    Nằm ở KEYS_DIR (accounts.db), ngoài thư mục dữ liệu, để bản sao lưu số liệu không chứa khoá."""
+    Nằm ở KEYS_DIR (accounts.db), ngoài thư mục dữ liệu, để bản sao lưu số liệu không chứa khoá.
+
+    With an OTP key (board/sealing.py) each secret is stored sealed, in memory as on disk; it is opened only to check a code.
+    Có khoá OTP (board/sealing.py) thì mỗi khoá bí mật được lưu dạng niêm phong, trong bộ nhớ cũng như trên đĩa; chỉ mở ra khi kiểm một mã."""
+
+    def __init__(self, database):
+        self.key = sealing.load_key()
+        super().__init__(database)
 
     def load(self) -> dict:
         return {"accounts": load_bodies(self.db, "SELECT name, body FROM accounts"),
@@ -156,7 +164,8 @@ class Accounts(Store):
             accounts, imported = d.setdefault("accounts", {}), d.setdefault("imported", [])
             new_names = [t for t in otp if t not in imported]
             for t in new_names:
-                accounts[t] = {"role": ADMIN if t in admins else WALL if t in wall_names else VIEWER, "secret": base64.b32encode(otp[t]).decode(),
+                accounts[t] = {"role": ADMIN if t in admins else WALL if t in wall_names else VIEWER,
+                               "secret": sealing.stored(base64.b32encode(otp[t]).decode(), t, self.key),
                          "createdAt": int(time.time() * 1000), "createdBy": "install"}
                 imported.append(t)
             return len(new_names)
@@ -166,7 +175,53 @@ class Accounts(Store):
         return self.d.get("accounts", {}).get(name, {}).get("role")
 
     def secrets_by_name(self) -> dict:
-        return {t: base64.b32decode(m["secret"]) for t, m in self.d.get("accounts", {}).items()}
+        """Each account's OTP secret as bytes; a sealed one that cannot be opened here is left out, so it logs nobody in.
+        Khoá OTP của từng tài khoản dạng byte; khoá đã niêm phong mà ở đây không mở được thì bỏ ra, nên nó không cho ai đăng nhập."""
+        out = {}
+        for t, m in self.d.get("accounts", {}).items():
+            secret = sealing.plain(m.get("secret", ""), t, self.key)
+            if secret:
+                out[t] = base64.b32decode(secret)
+        return out
+
+    def sealing_problem(self) -> str:
+        """Why the webhook must not start with these accounts and this key, or "": sealed secrets and no key, or a key that is not theirs.
+        Lý do webhook không được chạy với các tài khoản và khoá này, hoặc "": có khoá đã niêm phong mà không có khoá OTP, hoặc khoá không phải của chúng."""
+        accounts = self.d.get("accounts", {})
+        sealed = [t for t, m in accounts.items() if sealing.is_sealed(m.get("secret"))]
+        known = self.db.get_meta("otp_key_id")
+        if not self.key:
+            if sealed:
+                return ("%d OTP secrets in %s are sealed, but the OTP key cannot be read (systemd credential %s, or %s). "
+                        "Put the key file back from your backup and run install.sh again." % (len(sealed), self.db.path, sealing.CREDENTIAL_NAME,
+                                                                                             os.environ.get("OTP_KEY_FILE", "") or sealing.KEY_FILE_DEFAULT))
+            return ""
+        if (known and known != sealing.key_id(self.key)) or any(sealing.plain(accounts[t]["secret"], t, self.key) is None for t in sealed):
+            return ("The OTP key does not open the sealed secrets in %s: it is not the key they were sealed with. "
+                    "Put the right key file back from your backup and run install.sh again." % self.db.path)
+        return ""
+
+    def seal_all(self) -> int:
+        """With a key: seal every secret still stored as it is, note the key's fingerprint, and rewrite the file so no plain copy
+        stays in its free pages. Returns how many were sealed.
+        Có khoá: niêm phong mọi khoá bí mật còn lưu dạng thường, ghi dấu vân tay của khoá, và viết lại file để không bản thường nào
+        còn nằm trong các trang trống. Trả về số khoá đã niêm phong."""
+        if not self.key:
+            return 0
+
+        def change(d):
+            n = 0
+            for t, m in d.get("accounts", {}).items():
+                if not sealing.is_sealed(m.get("secret")):
+                    m["secret"] = sealing.seal(m.get("secret", ""), t, self.key)
+                    n += 1
+            return n
+        n = self.mutate(change) if any(not sealing.is_sealed(m.get("secret")) for m in self.d.get("accounts", {}).values()) else 0
+        with self.db.tx() as c:
+            c.execute("INSERT OR REPLACE INTO meta VALUES ('otp_key_id', ?)", (sealing.key_id(self.key),))
+        if n:
+            self.db.compact()
+        return n
 
     def list_accounts(self) -> list:
         """Never includes the key.
@@ -193,7 +248,7 @@ class Accounts(Store):
                 raise ValueError(tx("This name is already taken"))
             if len(accounts) >= MAX_ACCOUNTS:
                 raise ValueError(tx("Account limit reached"))
-            accounts[name] = {"role": role, "secret": secret, "createdAt": int(time.time() * 1000), "createdBy": created_by}
+            accounts[name] = {"role": role, "secret": sealing.stored(secret, name, self.key), "createdAt": int(time.time() * 1000), "createdBy": created_by}
             if name not in d.setdefault("imported", []):
                 d["imported"].append(name)
         self.mutate(change)
@@ -205,7 +260,7 @@ class Accounts(Store):
         def change(d):
             if name not in d.get("accounts", {}):
                 raise ValueError(tx("This account no longer exists"))
-            d["accounts"][name]["secret"] = secret
+            d["accounts"][name]["secret"] = sealing.stored(secret, name, self.key)
         self.mutate(change)
         return secret
 

@@ -481,7 +481,10 @@ type sender struct {
 }
 
 func newSender(url, key string) *sender {
-	s := &sender{url: url, key: key, client: http.Client{Timeout: 5 * time.Second}, stop: make(chan struct{}), wake: make(chan struct{}, 1)}
+	// a redirect is not followed: Go keeps the key on a redirect to the same host, from https to plain http included
+	// không theo chuyển hướng: Go giữ khoá khi chuyển hướng tới cùng máy, kể cả từ https sang http thường
+	noRedirect := func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	s := &sender{url: url, key: key, client: http.Client{Timeout: 5 * time.Second, CheckRedirect: noRedirect}, stop: make(chan struct{}), wake: make(chan struct{}, 1)}
 	go func() {
 		tick := time.NewTicker(10 * time.Second)
 		defer tick.Stop()
