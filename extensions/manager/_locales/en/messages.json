@@ -18,7 +18,7 @@
     "message": "Pairing code"
   },
   "pairingHint": {
-    "message": "Give this code to an admin. They enter it in Admin > TV screens and approve it. No password is needed here."
+    "message": "Give this code to an admin. They enter it in Admin > Paired devices and keys and approve it. No password is needed here."
   },
   "cancelPairing": {
     "message": "Cancel"

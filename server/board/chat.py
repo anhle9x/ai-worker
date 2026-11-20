@@ -204,7 +204,7 @@ def _stranger(telegram_id: str, username: str, command: str, now: float) -> dict
         ask.HEADER,
         "",
         "🔑 " + tx("Pairing code: {code} (good for {minutes} min).", code="%s-%s" % (code[:4], code[4:]), minutes=max(1, (seconds_left + 59) // 60)),
-        tx("Read this code to an admin of the board yourself. The admin enters it on the Admin page, under TV screens, and chooses what this chat may read."),
+        tx("Read this code to an admin of the board yourself. The admin enters it on the Admin page, under Paired devices and keys, and chooses what this chat may read."),
         "",
         "🔐 " + tx("Then send any message here. This bot never asks for a login code or a password."),
     ]))

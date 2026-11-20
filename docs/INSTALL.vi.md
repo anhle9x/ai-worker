@@ -79,8 +79,8 @@ Máy chủ có một cổng MCP ở `/mcp`. MCP (Model Context Protocol) là cá
 
 **Cách lấy khoá.**
 
-1. Người cần khoá mở `https://board.example.com/mcp/connect` bằng trình duyệt trong mạng công ty rồi bấm **Lấy mã**. Trang hiện một mã 8 số. Quản trị và tài khoản chỉ xem vào trang này bằng nút **Nối một công cụ AI** trên `/board`; trang Quản trị cũng hiện link kèm nút **Chép link** ở mục **Màn hình TV**.
-2. Quản trị mở `/admin`, vào mục **Màn hình TV**, gõ mã rồi bấm **Xem yêu cầu**. Thẻ hiện ra ghi rõ đây là khoá cho công cụ AI. Quản trị chọn khoá được đọc gì (chỉ số gộp của cả đội và từng văn phòng, hoặc cả từng người), đặt tên cho khoá rồi bấm **Duyệt**.
+1. Người cần khoá mở `https://board.example.com/mcp/connect` bằng trình duyệt trong mạng công ty rồi bấm **Lấy mã**. Trang hiện một mã 8 số. Quản trị và tài khoản chỉ xem vào trang này bằng nút **Nối một công cụ AI** trên `/board`; trang Quản trị cũng hiện link kèm nút **Chép link** ở mục **Thiết bị và khoá đã ghép**.
+2. Quản trị mở `/admin`, vào mục **Thiết bị và khoá đã ghép**, gõ mã rồi bấm **Xem yêu cầu**. Thẻ hiện ra ghi rõ đây là khoá cho công cụ AI. Quản trị chọn khoá được đọc gì (chỉ số gộp của cả đội và từng văn phòng, hoặc cả từng người), đặt tên cho khoá rồi bấm **Duyệt**.
 3. Trang của người xin sẽ hiện khoá một lần, kèm dòng để dán vào từng công cụ. Chỉ duyệt mã do chính người xin đọc cho bạn: bản thân mã không nói lên ai đang xin.
 
 **Điều cần biết về một khoá.**
@@ -143,7 +143,7 @@ Quản lý thấy ngay trên thanh menu có bao nhiêu người đang chờ tr�
 
 - **Tải về:** trang Quản trị, mục "Biểu tượng thanh menu": "Tải cho macOS ▾" (.dmg khi máy chủ có app đã dựng, và .zip), "Tải cho Windows ▾" (.msi, và file cài PowerShell cũ "AI-Worker-windows.zip"), "Tải cho Ubuntu (.deb)". Chưa đặt `MENUBAR_MAC_APP` thì "Tải cho macOS" phát gói cài dựa trên SwiftBar, không phải app.
 - **Ubuntu:** mở file .deb bằng App Center, hoặc `sudo apt install ./ai-worker-menubar.deb`; apt tự cài thư viện AppIndicator, biểu tượng tự chạy mỗi lần đăng nhập, `sudo apt remove ai-worker-menubar` là gỡ.
-- **Ghép máy:** quản lý bấm biểu tượng rồi nhập tài khoản và mã 6 số của chính mình; mỗi tài khoản ghép tối đa 2 máy. Quản lý chưa có tài khoản thì đọc mã trên biểu tượng cho quản trị nhập ở mục Màn hình TV.
+- **Ghép máy:** quản lý bấm biểu tượng rồi nhập tài khoản và mã 6 số của chính mình; mỗi tài khoản ghép tối đa 2 máy. Quản lý chưa có tài khoản thì đọc mã trên biểu tượng cho quản trị nhập ở mục Thiết bị và khoá đã ghép.
 - **App macOS được dựng một lần cho mỗi công ty** trên một máy Mac có Command Line Tools của Apple, rồi máy chủ phát app đó:
 
 ```bash
@@ -159,7 +159,7 @@ Tiện ích cho Chrome hoặc Edge hiện trên biểu tượng số người đ
 1. **Đóng gói** trên máy giữ repo: `bash packaging/build-extension.sh` tạo `server/menubar/AI-Worker-extension.zip`; chép `server/` lên máy chủ và chạy `install.sh`, trang Quản trị hiện nút **Tiện ích Chrome, Edge** ở mục "Biểu tượng thanh menu". Sửa tiện ích thì chạy lại lệnh này.
 2. **Cài tay** trên máy quản lý: giải nén file đó (hoặc chép thư mục `extensions/manager/`), mở `chrome://extensions` (Edge: `edge://extensions`), bật Developer mode, bấm "Load unpacked" rồi chọn thư mục đó.
 3. **Ghép:** bấm biểu tượng, nhập địa chỉ dùng để mở bảng (ví dụ `https://board.example.com`), cho phép truy cập đúng trang đó khi trình duyệt hỏi, rồi đọc mã 8 số cho quản trị.
-4. **Quản trị duyệt** ở trang Quản trị, mục Màn hình TV, như với màn hình; dòng đó được ghi "Tiện ích trình duyệt". Thu hồi ở đó thì trong vòng một phút tiện ích báo "chưa ghép".
+4. **Quản trị duyệt** ở trang Quản trị, mục Thiết bị và khoá đã ghép, như với màn hình; dòng đó được ghi "Tiện ích trình duyệt". Thu hồi ở đó thì trong vòng một phút tiện ích báo "chưa ghép".
 
 Đã ghép thì cửa sổ nhỏ chính là khung nhỏ của các app thanh menu (năm thẻ, Cài đặt có thông báo, ngôn ngữ và bỏ ghép). Cửa sổ chạy bản chép của `server/static/mini.js`, `mini.css` và logo, để trong `extensions/manager/mini/`: sửa các file đó thì chép lại (`cp server/static/mini.js server/static/mini.css extensions/manager/mini/`, và chép `server/menubar/icons/generic-black.png`, `generic-white.png` thành `extensions/manager/mini/logo-black.png`, `logo-white.png`), rồi phát lại thư mục.
 
@@ -204,8 +204,8 @@ Quản lý không viết code có thể hỏi bảng từ một chat Telegram tr
    ```bash
    printf "Bot token: "; read -rs T; echo; sudo sed -i "s|^TELEGRAM_ASK_TOKEN=.*|TELEGRAM_ASK_TOKEN=$T|" /etc/ai-worker-telegram.env; unset T; sudo bash install.sh
    ```
-   Tại `Bot token:` dán token ở bước 1 rồi bấm Enter (không hiện gì là đúng). Hoặc tự sửa file bằng `sudo nano /etc/ai-worker-telegram.env` rồi chạy lại `sudo bash install.sh`. Kết quả đúng: `✔ Tiến trình bot Telegram đang chạy.`, và ở `/admin`, mục **Màn hình TV**, có một dòng cho biết bot đang đọc tin kèm tên của nó.
-4. **Mỗi người nối một lần.** Họ mở bot trong Telegram, bấm **Start** và đọc mã 8 số bot đưa cho quản trị. Quản trị mở `/admin`, vào **Màn hình TV**, gõ mã và bấm **Xem yêu cầu**. Thẻ hiện tên và số Telegram của người đó, cùng tài khoản bảng mà Telegram ấy đã liên kết, nếu có. Quản trị chọn chat được đọc gì, đặt tên rồi bấm **Duyệt**. Người đó gửi một tin bất kỳ: bot chào và hiện các nút.
+   Tại `Bot token:` dán token ở bước 1 rồi bấm Enter (không hiện gì là đúng). Hoặc tự sửa file bằng `sudo nano /etc/ai-worker-telegram.env` rồi chạy lại `sudo bash install.sh`. Kết quả đúng: `✔ Tiến trình bot Telegram đang chạy.`, và ở `/admin`, mục **Thiết bị và khoá đã ghép**, có một dòng cho biết bot đang đọc tin kèm tên của nó.
+4. **Mỗi người nối một lần.** Họ mở bot trong Telegram, bấm **Start** và đọc mã 8 số bot đưa cho quản trị. Quản trị mở `/admin`, vào **Thiết bị và khoá đã ghép**, gõ mã và bấm **Xem yêu cầu**. Thẻ hiện tên và số Telegram của người đó, cùng tài khoản bảng mà Telegram ấy đã liên kết, nếu có. Quản trị chọn chat được đọc gì, đặt tên rồi bấm **Duyệt**. Người đó gửi một tin bất kỳ: bot chào và hiện các nút.
 
 **Cần biết.**
 
@@ -246,7 +246,7 @@ Chat đã được duyệt còn có thể mở khung nhỏ của biểu tượng
    TELEGRAM_APP=1
    TELEGRAM_APP_URL=https://board.example.com/tg/app
    ```
-   Bộ cài ghi thêm `TELEGRAM_APP_KEY` bên cạnh: một khoá nó suy ra từ khoá bot theo quy tắc của Telegram. Webhook dùng khoá này để kiểm phần Telegram ký cho khung, và không dùng được nó để điều khiển bot; bản thân khoá bot vẫn chỉ ở tiến trình bot. Kết quả đúng: không có dòng nào nói về `TELEGRAM_APP_URL`, và ở `/admin`, mục **Màn hình TV**, mỗi chat Telegram có nút **Cho mở khung**.
+   Bộ cài ghi thêm `TELEGRAM_APP_KEY` bên cạnh: một khoá nó suy ra từ khoá bot theo quy tắc của Telegram. Webhook dùng khoá này để kiểm phần Telegram ký cho khung, và không dùng được nó để điều khiển bot; bản thân khoá bot vẫn chỉ ở tiến trình bot. Kết quả đúng: không có dòng nào nói về `TELEGRAM_APP_URL`, và ở `/admin`, mục **Thiết bị và khoá đã ghép**, mỗi chat Telegram có nút **Cho mở khung**.
 2. **Cho phép một chat.** Bấm **Cho mở khung** ở dòng của chat đó rồi xác nhận. Kết quả đúng: dòng ghi *mở được khung*, và trong vòng một phút nút menu của chat trong Telegram đổi thành **AI Worker**. Nếu Telegram vẫn hiện menu cũ, đóng chat rồi mở lại.
 3. **Mở khung.** Trong chat, bấm **AI Worker** cạnh ô nhập tin. Kết quả đúng: khung hiện cùng các con số như biểu tượng thanh menu.
 

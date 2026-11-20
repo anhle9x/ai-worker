@@ -107,7 +107,7 @@ export function pairingSteps(code: string, server: string): string {
   return [
     tx('Pairing code: {code} (good for 10 minutes).', { code: `${code.slice(0, 4)}-${code.slice(4)}` }),
     '',
-    tx('1. An admin of the board opens {server}/admin, goes to "TV screens", types the code and clicks "View request", then "Approve".', { server }),
+    tx('1. An admin of the board opens {server}/admin, goes to "Paired devices and keys", types the code and clicks "View request", then "Approve".', { server }),
     tx('2. Type /ai-worker:board here again to finish.'),
     '',
     tx('Once paired, Claude on this computer can read the board when you ask about the team: names, states, cost and quota, never an email or an IP. An admin can revoke it on the same page.'),

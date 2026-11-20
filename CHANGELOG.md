@@ -2,6 +2,12 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.48.0 - 2026-11-20
+
+### Changed
+- On the Admin page, the section **TV screens** is now **Paired devices and keys**: it has long held menu bar icons, browser extensions, Telegram chats and the keys of AI tools and AI projects as well as TVs. The connect page, the Telegram bot, the plugin, the browser extension and the guides use the new name.
+- README: on a phone the row of pictures opens on the cost and performance report straight away, with no empty space to its left, the Telegram picture is the fourth instead of the last and now shows the bot's chat beside the board's window, a new picture shows the page that connects an AI tool to the board over MCP, and the opening names SOPs where it speaks of turning a team's procedures into skills.
+
 ## 0.47.7 - 2026-11-20
 
 ### Changed

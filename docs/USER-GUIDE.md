@@ -247,7 +247,7 @@ The extension holds no password, OTP or login cookie.
 A manager can ask Claude about the team in their own words, typed or dictated, in any language: "who is waiting longest right now?", "which office spent the most this week?". Claude reads the board's numbers and answers.
 
 1. In Claude Code on your computer, type `/ai-worker:board`. It shows an 8-digit code, good for 10 minutes.
-2. Read the code to an admin of the board, who opens the Admin page, **TV screens**, types the code, clicks **View request**, checks that the type is "Claude plugin of a manager", then clicks **Approve**.
+2. Read the code to an admin of the board, who opens the Admin page, **Paired devices and keys**, types the code, clicks **View request**, checks that the type is "Claude plugin of a manager", then clicks **Approve**.
 3. Type `/ai-worker:board` again.
 
 **Correct result:** it says the computer is paired, and from the next message Claude answers questions about the team.
@@ -301,7 +301,7 @@ Creating, reissuing, changing a role and deleting all ask for your OTP code agai
 ### 3.3 TV screens
 
 1. On the TV, open the board's address (the one your admin gives you, for example `https://board.company.com`). A smart TV shows an 8-digit code by itself; on a computer plugged into a TV, click **Wall screen: pair with a code** on the login page.
-2. Scan the QR code on the TV with a phone on the company network, or type the code under **TV screens** on the Admin page.
+2. Scan the QR code on the TV with a phone on the company network, or type the code under **Paired devices and keys** on the Admin page.
 3. Check the device and IP, choose **Add a new screen** (or replace an old one so no extra row is made), give it a name such as "Meeting room TV", and click **Approve**.
 
 **Correct result:** the TV shows the wall display within a few seconds. It shows short names only, no emails or IPs.
@@ -335,7 +335,7 @@ Personal plans (Pro, Max) are not in that report.
 - **Open sessions:** who is logged in, from where. **End** one, or **End the other sessions** to log everyone else out.
 - **Audit log:** logins, changes and refusals for the chosen month. Kept 12 months; the page shows the newest 300 lines. **Log check** above it says whether any line was changed or taken out of the database by hand, and shows the last fingerprint: note it down now and then to compare later.
 - **Stopped by ai-worker:** how many times, across the team in the last 7 days, a key or password was kept from ChatGPT or Gemini, a commit or a risky command was asked about, or a page that tried to steer Claude was flagged. Counts only, never what it was.
-- **Keys for AI tools not used for 30 days** are listed above the TV screens table; revoke the ones nobody needs.
+- **Keys for AI tools not used for 30 days** are listed above the table in **Paired devices and keys**; revoke the ones nobody needs.
 
 ### 3.7 Menu bar downloads
 
@@ -343,7 +343,7 @@ The **Menu bar icon** section offers the installers for managers (see 2.3). The 
 
 ### 3.8 AI projects and applications
 
-With `AI_PROJECTS=1` on the server (see INSTALL), the section **AI projects and applications** makes a key for each project: type its name, **Make a key**, enter your OTP. The two lines it shows once go into the environment of the project's own server, never into a web page or a phone app. The keys are listed, renamed and revoked in **TV screens**; revoking keeps what the project already sent, and the project shows as "(key revoked)" on the AI projects page. To remove a trial's numbers for good, click **Delete its numbers** beside its name in the same section, after its key is revoked. **Prices of your own** takes a price file in the shape of `skills/ai-cost-report/my-prices.example.json`, for a provider the price file does not have, a negotiated price, or a model on your own machine.
+With `AI_PROJECTS=1` on the server (see INSTALL), the section **AI projects and applications** makes a key for each project: type its name, **Make a key**, enter your OTP. The two lines it shows once go into the environment of the project's own server, never into a web page or a phone app. The keys are listed, renamed and revoked in **Paired devices and keys**; revoking keeps what the project already sent, and the project shows as "(key revoked)" on the AI projects page. To remove a trial's numbers for good, click **Delete its numbers** beside its name in the same section, after its key is revoked. **Prices of your own** takes a price file in the shape of `skills/ai-cost-report/my-prices.example.json`, for a provider the price file does not have, a negotiated price, or a model on your own machine.
 
 ---
 

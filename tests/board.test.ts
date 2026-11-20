@@ -111,7 +111,7 @@ test('/ai-worker:board asks for a code, waits for an admin, then Claude can read
   const first = await run($)
   expect(first).toContain('Pairing code: 1234-5678')
   expect(first).toContain('https://board.example/admin')
-  expect(first).toContain('"TV screens"')
+  expect(first).toContain('"Paired devices and keys"')
   expect(server.calls[0]).toEqual({ path: '/ext/request-code', method: 'POST', auth: '', agent: 'AI-Worker-Plugin/9.9.8 (Mac)' })
 
   // typed again before an admin approved: the same code, no new request

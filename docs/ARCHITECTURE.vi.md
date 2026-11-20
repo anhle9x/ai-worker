@@ -24,7 +24,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | Người | Dùng | Làm được |
 |---|---|---|
 | Nhân viên | Plugin trên máy mình | Xem phiên của mình, nhận bản cập nhật, giao việc cho trợ lý |
-| Quản trị | Bảng, `/admin` | Mọi việc bên dưới, thêm tài khoản, địa điểm, CSV gói Team, màn hình TV, nhật ký |
+| Quản trị | Bảng, `/admin` | Mọi việc bên dưới, thêm tài khoản, địa điểm, CSV gói Team, thiết bị và khoá đã ghép, nhật ký |
 | Người xem | Bảng, `/board` | Xem số liệu kèm tên, email, IP nội bộ; không đổi được gì |
 | Màn hình treo tường | Bảng trên TV | Xem số liệu với tên rút gọn; không có email, IP nội bộ |
 | Quản lý | Biểu tượng thanh menu, tiện ích trình duyệt | Xem ai đang chờ, ai đang làm, hạn mức và chi phí hôm nay mà không phải mở bảng, với dữ liệu của màn hình treo tường; xem [menu-bar-spec.vi.md](menu-bar-spec.vi.md) và [chrome-extension-spec.vi.md](chrome-extension-spec.vi.md) |
@@ -42,7 +42,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | F3 | Máy chủ chỉ nhận các trường đã biết và tự ghi IP người gửi | `clean_payload` trong `server/board/devices.py`, `Handler.ingest` trong `server/webhook.py` |
 | F4 | Mỗi máy gắn với một người | `IngestGate` |
 | F5 | Xem bảng phải đăng nhập OTP, và máy chủ tự áp dụng từng vai | `LoginGate`, `Handler.gate`, `role_view` |
-| F6 | Đổi tài khoản, phiên hay màn hình TV phải nhập lại mã OTP, hiệu lực 5 phút | `require_otp`, `LoginGate.confirm` |
+| F6 | Đổi tài khoản, phiên, thiết bị hay khoá đã ghép phải nhập lại mã OTP, hiệu lực 5 phút | `require_otp`, `LoginGate.confirm` |
 | F7 | TV chỉ vào được sau khi quản trị duyệt mã của nó | `TvPairing`, `TvStore` |
 | F8 | Máy chỉ cài bản cập nhật khi chữ ký và mã kiểm đều đúng | `hooks/update.ts`, `updatePlugin` |
 | F9 | Chữ gửi cho ChatGPT hay Gemini phải được phép, và không bao giờ kèm bí mật (F17); câu hỏi lỗi thì tính là không | `refuseToSend`, `hooks/workers.ts` |

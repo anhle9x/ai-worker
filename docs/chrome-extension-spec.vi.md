@@ -59,6 +59,6 @@ Quản lý nhìn một cái, ở bất kỳ tab nào, là biết bao nhiêu nhâ
 
 Tiện ích dùng quy trình ghép của TV (`TvPairing`, `TvStore`), nhưng qua `/ext/request-code` và `/ext/poll`: khoá chờ và phiên đi trong JSON trả về và header `Authorization`, không bao giờ trong cookie. Cookie sẽ nằm trong chính trình duyệt của quản lý và đè lên phiên đăng nhập bảng của họ. Yêu cầu gửi với `credentials: "omit"`. Tiện ích đã ghép đọc `/ext/state` cho biểu tượng, chỉ trả người đang chờ hoặc đang làm, theo tên treo tường, không email, IP hay chi phí. Cửa sổ nhỏ là khung thanh menu: đọc `/ext/mini` (trang, chỉ lấy bố cục và chữ; không script nào của bảng được chạy) và `/ext/data` (đúng `/data` của màn hình treo tường), cùng một khoá, rồi chạy bản `mini.js` của chính nó. Các bản chép trong `extensions/manager/mini/` phải giống `server/static/mini.*`, còn `logo-black.png` và `logo-white.png` trong đó phải giống `server/menubar/icons/generic-black.png` và `generic-white.png`; `node tests/extension/check-extension.js` báo lỗi khi khác.
 
-Trong `/admin`, thẻ yêu cầu ghi "tiện ích trình duyệt" và bảng Màn hình TV đánh dấu dòng đó, để quản trị phân biệt laptop với TV. Tiện ích tính vào giới hạn 20 màn hình (`TV_MAX`).
+Trong `/admin`, thẻ yêu cầu ghi "tiện ích trình duyệt" và bảng Thiết bị và khoá đã ghép đánh dấu dòng đó, để quản trị phân biệt laptop với TV. Tiện ích tính vào giới hạn 20 màn hình (`TV_MAX`).
 
 Quá 5 phút không nhận được trả lời từ máy chủ thì tiện ích đếm lại các lần chờ, vì không biết lần chờ có liên tục không.

@@ -322,7 +322,7 @@
   // Dự án hay ứng dụng AI: quản trị tạo khoá mà dự án dùng để gửi số đo, và có thể dán giá riêng.
   let newProjectKey = null
   function projectsSection() {
-    const p = section(tx('AI projects and applications'), tx('A project your team built measures each turn with the ai-cost-report meter and sends the counts here. Never a question, an answer or a user. Keys are listed and revoked in TV screens above.'))
+    const p = section(tx('AI projects and applications'), tx('A project your team built measures each turn with the ai-cost-report meter and sends the counts here. Never a question, an answer or a user. Keys are listed and revoked in Paired devices and keys above.'))
     if (newProjectKey) {
       const box = o('div', 'qt-secret')
       box.append(o('b', '', tx('Key for {name}', { name: newProjectKey.name })))
@@ -383,7 +383,7 @@
   }
 
   function tvSection() {
-    const p = section(tx('TV screens'), tx('Every 8-digit code is approved here: TV screens, menu bar icons, browser extensions, Telegram chats and AI tools. A TV also shows a QR code to scan with a phone.'))
+    const p = section(tx('Paired devices and keys'), tx('Every 8-digit code is approved here: TV screens, menu bar icons, browser extensions, Telegram chats and AI tools. A TV also shows a QR code to scan with a phone.'))
     const row = o('div', 'qt-row')
     const code = o('input')
     code.placeholder = tx('8-digit code')
@@ -787,8 +787,8 @@
     return p
   }
 
-  // Menu bar icon for managers: the installers come from this server with its address already inside; the code the icon shows is approved in TV screens.
-  // Biểu tượng thanh menu cho quản lý: gói cài lấy từ máy chủ này, đã có sẵn địa chỉ; mã biểu tượng hiện ra được duyệt ở mục Màn hình TV.
+  // Menu bar icon for managers: the installers come from this server with its address already inside; the code the icon shows is approved in Paired devices and keys.
+  // Biểu tượng thanh menu cho quản lý: gói cài lấy từ máy chủ này, đã có sẵn địa chỉ; mã biểu tượng hiện ra được duyệt ở mục Thiết bị và khoá đã ghép.
   function menubarSection() {
     const p = section(tx('Menu bar icon'), tx('For managers: who is waiting for an answer, without opening the board'))
     const row = o('div', 'qt-row')
@@ -850,9 +850,9 @@
         ? tx('Windows: open AI-Worker.msi and click Install (no admin rights needed). If Windows says "Windows protected your PC", click More info, then Run anyway, only for a file downloaded from this page. Installing a new version over the old one works the same way and keeps the pairing. To remove it: Settings > Apps > AI Worker, or Uninstall in the window\'s Settings. Use the .zip only when the .msi does not install.')
         : tx('Windows: unzip and double-click the .bat file inside.'),
       tx('Ubuntu: open the .deb with App Center, or run sudo apt install ./ai-worker-menubar.deb, then log out and back in.'),
-      tx('The manager clicks the icon and pairs it with their own account and 6-digit code; nobody needs to approve. A manager without an account: enter the code shown on the icon in TV screens above.'),
+      tx('The manager clicks the icon and pairs it with their own account and 6-digit code; nobody needs to approve. A manager without an account: enter the code shown on the icon in Paired devices and keys above.'),
       tx('Within a minute the icon shows how many people are waiting; a click opens the small window.'),
-      ...(snapshot.menubarExtension ? [tx('Chrome, Edge: unzip somewhere it will stay (for example Documents), open chrome://extensions (edge://extensions), turn on Developer mode, click Load unpacked and pick the AI-Worker-extension folder. Click the icon, enter this board\'s address and read the 8-digit code to an admin, who approves it in TV screens above.')] : []),
+      ...(snapshot.menubarExtension ? [tx('Chrome, Edge: unzip somewhere it will stay (for example Documents), open chrome://extensions (edge://extensions), turn on Developer mode, click Load unpacked and pick the AI-Worker-extension folder. Click the icon, enter this board\'s address and read the 8-digit code to an admin, who approves it in Paired devices and keys above.')] : []),
     ]) steps.append(o('li', '', text))
     p.append(steps)
     p.append(o('small', '', tx('A paired computer sees short names and costs, like a wall screen. Each account may pair 2 computers; deleting the account or ending its sessions removes them.')))

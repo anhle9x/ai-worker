@@ -79,8 +79,8 @@ The server has an MCP endpoint at `/mcp`. MCP (Model Context Protocol) is the co
 
 **Getting a key.**
 
-1. The person opens `https://board.example.com/mcp/connect` in a browser on the company network and clicks **Get a code**. The page shows an 8-digit code. Admins and view-only accounts reach this page from the **Connect an AI tool** button on `/board`, and the Admin page shows the link with a **Copy link** button under **TV screens**.
-2. An admin opens `/admin`, goes to **TV screens**, types the code and clicks **View request**. The card says it is a key for an AI tool. The admin chooses what the key may read (team and office totals only, or each person too), names the key and clicks **Approve**.
+1. The person opens `https://board.example.com/mcp/connect` in a browser on the company network and clicks **Get a code**. The page shows an 8-digit code. Admins and view-only accounts reach this page from the **Connect an AI tool** button on `/board`, and the Admin page shows the link with a **Copy link** button under **Paired devices and keys**.
+2. An admin opens `/admin`, goes to **Paired devices and keys**, types the code and clicks **View request**. The card says it is a key for an AI tool. The admin chooses what the key may read (team and office totals only, or each person too), names the key and clicks **Approve**.
 3. The person's page then shows the key once, with the line to paste into each tool. Approve only a code the person read to you themselves: the code says nothing about who is asking.
 
 **What to know about a key.**
@@ -143,7 +143,7 @@ Managers see in the menu bar how many people are waiting for an answer, without 
 
 - **Download:** the Admin page, section "Menu bar icon": "Download for macOS ▾" (.dmg when the server has the built app, and .zip), "Download for Windows ▾" (.msi, and the old PowerShell installer "AI-Worker-windows.zip"), "Download for Ubuntu (.deb)". Without `MENUBAR_MAC_APP`, "Download for macOS" gives the SwiftBar-based installer instead of the app.
 - **Ubuntu:** open the .deb with App Center, or `sudo apt install ./ai-worker-menubar.deb`; apt adds the AppIndicator libraries, the icon starts at every login, and `sudo apt remove ai-worker-menubar` takes it away.
-- **Pairing:** the manager clicks the icon and enters their own account and 6-digit code; an account may pair 2 computers. A manager without an account reads the icon's code to an admin, who enters it under TV screens.
+- **Pairing:** the manager clicks the icon and enters their own account and 6-digit code; an account may pair 2 computers. A manager without an account reads the icon's code to an admin, who enters it under Paired devices and keys.
 - **The macOS app is built once per company** on a Mac with Apple's Command Line Tools, then served by the server:
 
 ```bash
@@ -159,7 +159,7 @@ A Chrome or Edge extension shows, on its icon, how many people are waiting for a
 1. **Package** on the computer with the repository: `bash packaging/build-extension.sh` makes `server/menubar/AI-Worker-extension.zip`; copy `server/` to the server and run `install.sh`, and the Admin page shows an **Extension for Chrome, Edge** button under "Menu bar icon". Run it again after changing the extension.
 2. **Install by hand** on the manager's computer: unzip that file (or copy the `extensions/manager/` folder), open `chrome://extensions` (Edge: `edge://extensions`), turn on Developer mode, click "Load unpacked" and choose the folder.
 3. **Pair:** click the icon, type the address you open the board with (for example `https://board.example.com`), allow access to that one site when the browser asks, and read the 8-digit code to an admin.
-4. **The admin approves** it on the Admin page under TV screens, like a screen; the row is marked "Browser extension". Revoking it there makes the extension show "not paired" within a minute.
+4. **The admin approves** it on the Admin page under Paired devices and keys, like a screen; the row is marked "Browser extension". Revoking it there makes the extension show "not paired" within a minute.
 
 Once paired, the popup is the same small window as the menu bar apps (five tabs, Settings with notifications, language and unpair). It runs copies of `server/static/mini.js`, `mini.css` and the logos kept in `extensions/manager/mini/`: after changing those files, copy them again (`cp server/static/mini.js server/static/mini.css extensions/manager/mini/`, and `server/menubar/icons/generic-black.png` and `generic-white.png` to `extensions/manager/mini/logo-black.png` and `logo-white.png`), then hand out the folder again.
 
@@ -204,8 +204,8 @@ A manager who does not write code can ask the board from a Telegram chat on thei
    ```bash
    printf "Bot token: "; read -rs T; echo; sudo sed -i "s|^TELEGRAM_ASK_TOKEN=.*|TELEGRAM_ASK_TOKEN=$T|" /etc/ai-worker-telegram.env; unset T; sudo bash install.sh
    ```
-   At `Bot token:` paste the token from step 1 and press Enter (nothing shows, that is expected). Or edit the file by hand with `sudo nano /etc/ai-worker-telegram.env` and run `sudo bash install.sh` again. Correct result: `✔ The Telegram bot process is running.`, and on `/admin`, under **TV screens**, a line says the bot is reading messages and names it.
-4. **Each person connects once.** They open the bot in Telegram, press **Start** and read the 8-digit code it shows to an admin. The admin opens `/admin`, goes to **TV screens**, types the code and clicks **View request**. The card shows the person's Telegram name and number, and the board account that Telegram is linked to, if any. The admin chooses what the chat may read, names it and clicks **Approve**. The person then sends any message: the bot greets them and shows the buttons.
+   At `Bot token:` paste the token from step 1 and press Enter (nothing shows, that is expected). Or edit the file by hand with `sudo nano /etc/ai-worker-telegram.env` and run `sudo bash install.sh` again. Correct result: `✔ The Telegram bot process is running.`, and on `/admin`, under **Paired devices and keys**, a line says the bot is reading messages and names it.
+4. **Each person connects once.** They open the bot in Telegram, press **Start** and read the 8-digit code it shows to an admin. The admin opens `/admin`, goes to **Paired devices and keys**, types the code and clicks **View request**. The card shows the person's Telegram name and number, and the board account that Telegram is linked to, if any. The admin chooses what the chat may read, names it and clicks **Approve**. The person then sends any message: the bot greets them and shows the buttons.
 
 **What to know.**
 
@@ -246,7 +246,7 @@ An approved chat can also open the small window of the menu bar icon inside Tele
    TELEGRAM_APP=1
    TELEGRAM_APP_URL=https://board.example.com/tg/app
    ```
-   The installer writes `TELEGRAM_APP_KEY` next to them: a key it derives from the bot's token by Telegram's rule. The webhook checks with it what Telegram signs for the window, and cannot use it to drive the bot; the token itself stays with the bot process. Correct result: no line about `TELEGRAM_APP_URL`, and on `/admin`, under **TV screens**, each Telegram chat has an **Allow the window** button.
+   The installer writes `TELEGRAM_APP_KEY` next to them: a key it derives from the bot's token by Telegram's rule. The webhook checks with it what Telegram signs for the window, and cannot use it to drive the bot; the token itself stays with the bot process. Correct result: no line about `TELEGRAM_APP_URL`, and on `/admin`, under **Paired devices and keys**, each Telegram chat has an **Allow the window** button.
 2. **Allow a chat.** Click **Allow the window** on the chat's row and confirm. Correct result: the row says *opens the window*, and within a minute the chat's menu button in Telegram turns into **AI Worker**. In Telegram, close the chat and open it again if the old menu still shows.
 3. **Open it.** In the chat, tap **AI Worker** next to the message field. Correct result: the window shows the same numbers as the menu bar icon.
 

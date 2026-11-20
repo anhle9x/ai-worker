@@ -24,7 +24,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | Person | Uses | Can do |
 |---|---|---|
 | Staff member | Plugin on their computer | See their own sessions, get updates, send work to assistants |
-| Admin | Dashboard, `/admin` | Everything below, plus accounts, locations, Team plan CSV, TV screens, the log |
+| Admin | Dashboard, `/admin` | Everything below, plus accounts, locations, Team plan CSV, paired devices and keys, the log |
 | Viewer | Dashboard, `/board` | See numbers with names, emails and internal IPs; change nothing |
 | Wall screen | Dashboard on a TV | See numbers with shortened names; no emails or internal IPs |
 | Manager | Menu bar icon, browser extension | See who is waiting or working, quota and cost today without opening the board, with the wall screen's data; see [menu-bar-spec.md](menu-bar-spec.md) and [chrome-extension-spec.md](chrome-extension-spec.md) |
@@ -42,7 +42,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | F3 | The server accepts only known fields and writes the sender's IP itself | `clean_payload` in `server/board/devices.py`, `Handler.ingest` in `server/webhook.py` |
 | F4 | One device stays tied to one person | `IngestGate` |
 | F5 | The dashboard needs an OTP login, and the server applies each role itself | `LoginGate`, `Handler.gate`, `role_view` |
-| F6 | Changing accounts, sessions or TV screens needs the OTP code again, valid for 5 minutes | `require_otp`, `LoginGate.confirm` |
+| F6 | Changing accounts, sessions, paired devices or keys needs the OTP code again, valid for 5 minutes | `require_otp`, `LoginGate.confirm` |
 | F7 | A TV joins only after an admin approves its code | `TvPairing`, `TvStore` |
 | F8 | A computer installs an update only with a valid signature and checksum | `hooks/update.ts`, `updatePlugin` |
 | F9 | Text for ChatGPT or Gemini is sent only with permission, and never with a secret in it (F17); a failed question counts as no | `refuseToSend`, `hooks/workers.ts` |

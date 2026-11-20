@@ -283,7 +283,7 @@ EOF
   systemctl restart "$BOT_SERVICE"
   sleep 2
   if [ "$(systemctl is-active "$BOT_SERVICE")" = active ]; then
-    say "✔ The Telegram bot process is running. The /admin page, under TV screens, says whether Telegram takes its token." "✔ Tiến trình bot Telegram đang chạy. Trang /admin, mục Màn hình TV, cho biết Telegram có nhận khoá của nó không."
+    say "✔ The Telegram bot process is running. The /admin page, under Paired devices and keys, says whether Telegram takes its token." "✔ Tiến trình bot Telegram đang chạy. Trang /admin, mục Thiết bị và khoá đã ghép, cho biết Telegram có nhận khoá của nó không."
   else
     say "✘ The Telegram bot process is not running: see 'journalctl -u $BOT_SERVICE'" "✘ Tiến trình bot Telegram chưa chạy: xem 'journalctl -u $BOT_SERVICE'"
   fi

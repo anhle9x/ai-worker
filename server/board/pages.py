@@ -313,7 +313,7 @@ def page_mcp_connect() -> bytes:
             '<p class="warn" id="insecure" hidden>' + html.escape(tx("This page is not on HTTPS, so the key travels unencrypted on the network.")) + '</p>'
             '<div id="ask"><button id="get" type="button">' + html.escape(tx("Get a code")) + '</button><p id="note" class="hint" role="status"></p></div>'
             '<div id="wait" hidden><label>' + html.escape(tx("Your code")) + '</label><div id="code">····-····</div><p id="status" role="status"></p><p id="left" class="hint"></p>'
-            '<p>' + html.escape(tx("Read this code to an admin of the board yourself. The admin enters it on the Admin page, under TV screens, and chooses what the key may read.")) + '</p>'
+            '<p>' + html.escape(tx("Read this code to an admin of the board yourself. The admin enters it on the Admin page, under Paired devices and keys, and chooses what the key may read.")) + '</p>'
             '<p class="hint">' + html.escape(tx("Only an admin can approve. Do not share the code with anyone.")) + '</p></div>'
             '<div id="done" hidden></div></div><script src="/mcp-connect.js"></script></body></html>').encode()
 

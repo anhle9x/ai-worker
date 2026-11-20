@@ -247,7 +247,7 @@ Tiện ích không giữ mật khẩu, mã OTP hay cookie đăng nhập nào.
 Quản lý có thể hỏi Claude về cả đội bằng lời của mình, gõ hoặc nói, bằng tiếng Việt: "ai đang chờ lâu nhất?", "tuần này văn phòng nào tốn nhất?". Claude đọc số liệu của bảng rồi trả lời.
 
 1. Trong Claude Code trên máy bạn, gõ `/ai-worker:board`. Lệnh hiện một mã 8 số, dùng được trong 10 phút.
-2. Đọc mã cho người quản trị của bảng. Người đó mở trang Quản trị, mục **Màn hình TV**, nhập mã, bấm **Xem yêu cầu**, xem đúng loại là "plugin Claude của quản lý", rồi bấm **Duyệt**.
+2. Đọc mã cho người quản trị của bảng. Người đó mở trang Quản trị, mục **Thiết bị và khoá đã ghép**, nhập mã, bấm **Xem yêu cầu**, xem đúng loại là "plugin Claude của quản lý", rồi bấm **Duyệt**.
 3. Gõ lại `/ai-worker:board`.
 
 **Đúng là:** lệnh báo máy đã ghép, và từ tin nhắn kế tiếp Claude trả lời được câu hỏi về cả đội.
@@ -301,7 +301,7 @@ Tạo, cấp lại, đổi vai và xoá đều hỏi lại mã OTP của bạn, 
 ### 3.3 Màn hình TV
 
 1. Trên TV, mở địa chỉ bảng tổng (người quản trị đưa, ví dụ `https://board.company.com`). TV thông minh tự hiện mã 8 số; với máy tính cắm vào TV, bấm **Màn hình treo tường: ghép bằng mã** ở trang đăng nhập.
-2. Quét mã QR trên TV bằng điện thoại đang ở mạng công ty, hoặc gõ mã ở mục **Màn hình TV** trên trang Quản trị.
+2. Quét mã QR trên TV bằng điện thoại đang ở mạng công ty, hoặc gõ mã ở mục **Thiết bị và khoá đã ghép** trên trang Quản trị.
 3. Kiểm thiết bị và IP, chọn **Thêm màn hình mới** (hoặc thay màn hình cũ để không sinh thêm dòng), đặt tên như "TV phòng họp", bấm **Duyệt**.
 
 **Đúng là:** vài giây sau TV hiện bảng treo tường. Bảng này chỉ hiện tên rút gọn, không có email hay IP.
@@ -335,7 +335,7 @@ Gói cá nhân (Pro, Max) không có trong báo cáo này.
 - **Phiên đang mở:** ai đang đăng nhập, từ đâu. Bấm **Kết thúc** một phiên, hoặc **Kết thúc các phiên khác** để đăng xuất mọi người khác.
 - **Nhật ký:** đăng nhập, thay đổi và các lần bị từ chối trong tháng đã chọn. Giữ 12 tháng; trang hiện 300 dòng mới nhất. Dòng **Kiểm nhật ký** phía trên cho biết có dòng nào bị sửa hay bị xoá khỏi cơ sở dữ liệu bằng tay không, và hiện dấu vân tay cuối: thỉnh thoảng ghi lại để so về sau.
 - **ai-worker đã chặn:** trên cả team trong 7 ngày qua, bao nhiêu lần khoá hay mật khẩu không được gửi sang ChatGPT hay Gemini, bao nhiêu commit hay lệnh rủi ro được hỏi lại, bao nhiêu trang tìm cách lái Claude bị cảnh báo. Chỉ số đếm, không bao giờ có nội dung.
-- **Khoá cho công cụ AI không dùng 30 ngày** được liệt kê phía trên bảng màn hình TV; thu hồi khoá nào không ai cần.
+- **Khoá cho công cụ AI không dùng 30 ngày** được liệt kê phía trên bảng ở mục **Thiết bị và khoá đã ghép**; thu hồi khoá nào không ai cần.
 
 ### 3.7 File cài biểu tượng thanh menu
 
@@ -343,7 +343,7 @@ Mục **Biểu tượng thanh menu** có các file cài cho quản lý (xem 2.3)
 
 ### 3.8 Dự án và ứng dụng AI
 
-Khi máy chủ có `AI_PROJECTS=1` (xem INSTALL), mục **Dự án và ứng dụng AI** tạo khoá cho từng dự án: gõ tên, bấm **Tạo khoá**, nhập OTP. Hai dòng hiện ra một lần đó đặt vào biến môi trường trên máy chủ của chính dự án, không bao giờ vào trang web hay app điện thoại. Các khoá được liệt kê, đổi tên và thu hồi ở mục **Màn hình TV**; thu hồi vẫn giữ số dự án đã gửi, và trang Dự án AI ghi "(khoá đã thu hồi)" cạnh tên dự án. Muốn xoá hẳn số của một lần chạy thử, sau khi thu hồi khoá, bấm **Xoá số liệu** cạnh tên dự án trong cùng mục này. **Giá riêng** nhận file giá theo dạng `skills/ai-cost-report/my-prices.example.json`, cho hãng mà bảng giá chưa có, giá đã thương lượng, hay model chạy trên máy của nhóm.
+Khi máy chủ có `AI_PROJECTS=1` (xem INSTALL), mục **Dự án và ứng dụng AI** tạo khoá cho từng dự án: gõ tên, bấm **Tạo khoá**, nhập OTP. Hai dòng hiện ra một lần đó đặt vào biến môi trường trên máy chủ của chính dự án, không bao giờ vào trang web hay app điện thoại. Các khoá được liệt kê, đổi tên và thu hồi ở mục **Thiết bị và khoá đã ghép**; thu hồi vẫn giữ số dự án đã gửi, và trang Dự án AI ghi "(khoá đã thu hồi)" cạnh tên dự án. Muốn xoá hẳn số của một lần chạy thử, sau khi thu hồi khoá, bấm **Xoá số liệu** cạnh tên dự án trong cùng mục này. **Giá riêng** nhận file giá theo dạng `skills/ai-cost-report/my-prices.example.json`, cho hãng mà bảng giá chưa có, giá đã thương lượng, hay model chạy trên máy của nhóm.
 
 ---
 
