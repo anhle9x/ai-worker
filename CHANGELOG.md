@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.2 - 2026-11-22
+
+### Fixed
+- The menu bar icon (macOS, Windows, Ubuntu) no longer forgets its pairing when the computer is on a network the board's proxy does not allow (a cafe, home, a phone's hotspot). The proxy's plain 403 page was taken for the board refusing the session: the icon dropped it and asked to pair again, while the server still counted the old pairing, so the account soon hit its limit of 2 computers. Now only an answer from the board itself drops the session; on a network that is not allowed the icon is dimmed and says "This network may not reach the board", and it works again as soon as the computer is back on an allowed one.
+
 ## 0.50.1 - 2026-11-21
 
 ### Fixed

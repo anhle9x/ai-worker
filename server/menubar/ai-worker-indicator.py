@@ -93,10 +93,16 @@ def look():
                 return dict(view, state=state, code=code)
             token = read_session()
         status, data, _ = core.call(server, "GET", "/mini/state", cookie="session=" + token)
-        if status in (401, 403):
+        # only the board itself, which answers with an error in JSON, can say the session is gone; a 403 page from the proxy in front of it
+        # means this network may not reach the board, and the session is kept for when the computer is back on one that may
+        # chỉ chính bảng, trả lời bằng một lỗi dạng JSON, mới nói được phiên đã mất; trang 403 của proxy đứng trước nó nghĩa là mạng này
+        # không được tới bảng, và phiên được giữ cho lúc máy về lại mạng được phép
+        if status in (401, 403) and isinstance(data, dict) and "error" in data:
             core.remove(core.SESSION)
             state, code = pair_step(server)
             return dict(view, state=state, code=code)
+        if status == 403:
+            return dict(view, blocked=True)
         if status != 200:
             return view
     except (OSError, ValueError):
@@ -452,7 +458,8 @@ def run_gui():
         if state == "unset":
             menu.append(item(tx("Not set up: run the installer again")))
         elif state == "off":
-            menu.append(item(tx("Cannot reach the server") if not view["code"] else tx("The server refused the pairing, try again later")))
+            menu.append(item(tx("This network may not reach the board") if view.get("blocked")
+                             else tx("Cannot reach the server") if not view["code"] else tx("The server refused the pairing, try again later")))
             if server:
                 menu.append(item(tx("Open board"), lambda: core.open_window(server + "/board")))
         elif state == "pair":

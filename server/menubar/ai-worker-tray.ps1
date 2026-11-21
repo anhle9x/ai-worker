@@ -164,7 +164,12 @@ function Round {
       }
     }
     $s = Call 'GET' '/mini/state' ('session=' + $token)
-    if ($s.Status -eq 401 -or $s.Status -eq 403) { Remove-Item $SessionFile -ErrorAction SilentlyContinue; return Round }
+    # only the board itself, which answers with an error in JSON, can say the session is gone; a 403 page from the proxy in front of it
+    # means this network may not reach the board, and the session is kept for when the computer is back on one that may
+    # chỉ chính bảng, trả lời bằng một lỗi dạng JSON, mới nói được phiên đã mất; trang 403 của proxy đứng trước nó nghĩa là mạng này
+    # không được tới bảng, và phiên được giữ cho lúc máy về lại mạng được phép
+    if (($s.Status -eq 401 -or $s.Status -eq 403) -and $s.Json -and $s.Json.error) { Remove-Item $SessionFile -ErrorAction SilentlyContinue; return Round }
+    if ($s.Status -eq 403) { return @{ State = 'off'; Count = 0; Text = (T 'This network may not reach the board') } }
     if ($s.Status -ne 200) { throw "status $($s.Status)" }
     $h = Call 'POST' '/mini/handoff' ('session=' + $token)
     $waiting = @($s.Json.waiting)

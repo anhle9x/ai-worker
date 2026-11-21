@@ -162,7 +162,7 @@ func call(_ method: String, _ path: String, cookie: String = "", origin: String 
 // MARK: the app
 // MARK: ứng dụng
 
-enum State { case ok, long, off, pair, setup }
+enum State { case ok, long, off, blocked, pair, setup }
 
 final class App: NSObject, NSApplicationDelegate, NSPopoverDelegate, WKNavigationDelegate, WKScriptMessageHandler, WKUIDelegate {
   let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -358,7 +358,8 @@ final class App: NSObject, NSApplicationDelegate, NSPopoverDelegate, WKNavigatio
       }
     }
     if target.isEmpty || server.isEmpty {
-      web.loadHTMLString("<body style='font:14px -apple-system;color:#888;padding:20px;background:transparent'>\(tx(server.isEmpty ? "Not set up: run the installer again" : "Cannot reach the server"))</body>", baseURL: nil)
+      let text = server.isEmpty ? "Not set up: run the installer again" : state == .blocked ? "This network may not reach the board" : "Cannot reach the server"
+      web.loadHTMLString("<body style='font:14px -apple-system;color:#888;padding:20px;background:transparent'>\(tx(text))</body>", baseURL: nil)
     } else if let u = URL(string: target) {
       web.load(URLRequest(url: u))
     }
@@ -374,10 +375,15 @@ final class App: NSObject, NSApplicationDelegate, NSPopoverDelegate, WKNavigatio
     let token = readFile("session")
     if token.isEmpty { return await pairing() }
     guard let r = await call("GET", N.state, cookie: N.session + "=" + token) else { state = .off; return draw() }
-    if r.status == 401 || r.status == 403 {
+    // only the board itself, which answers with an error in JSON, can say the session is gone; a 403 page from the proxy in front of it
+    // means this network may not reach the board, and the session is kept for when the computer is back on one that may
+    // chỉ chính bảng, trả lời bằng một lỗi dạng JSON, mới nói được phiên đã mất; trang 403 của proxy đứng trước nó nghĩa là mạng này
+    // không được tới bảng, và phiên được giữ cho lúc máy về lại mạng được phép
+    if (r.status == 401 || r.status == 403) && r.json["error"] != nil {
       removeFile("session")
       return await pairing()
     }
+    if r.status == 403 { state = .blocked; return draw() }
     guard r.status == 200 else { state = .off; return draw() }
     let waiting = r.json[N.waiting] as? [[String: Any]] ?? []
     let notify = r.json[N.notify] as? Bool ?? true
@@ -456,7 +462,7 @@ final class App: NSObject, NSApplicationDelegate, NSPopoverDelegate, WKNavigatio
       // báo chờ lâu được tô thẳng vào logo bằng màu xanh lam của bảng
       button.image = logo.map { tint($0, NSColor(srgbRed: 26 / 255, green: 86 / 255, blue: 200 / 255, alpha: 1)) }
       button.alphaValue = 1
-    case .off, .setup:
+    case .off, .blocked, .setup:
       logo?.isTemplate = true
       button.image = logo
       button.alphaValue = 0.4
@@ -466,7 +472,7 @@ final class App: NSObject, NSApplicationDelegate, NSPopoverDelegate, WKNavigatio
     }
     button.title = (state == .ok || state == .long) && count > 0 ? " \(count)" : ""
     button.imagePosition = .imageLeft
-    button.toolTip = state == .off ? tx("Cannot reach the server") : state == .pair ? tx("Pair with my account") : appName
+    button.toolTip = state == .off ? tx("Cannot reach the server") : state == .blocked ? tx("This network may not reach the board") : state == .pair ? tx("Pair with my account") : appName
   }
 
   func tint(_ image: NSImage, _ color: NSColor) -> NSImage {

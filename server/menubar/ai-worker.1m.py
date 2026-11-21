@@ -412,9 +412,18 @@ def main():
                 return
             token = open(SESSION, encoding="utf-8").read().strip()
         status, state, _ = call(server, "GET", "/mini/state", cookie="session=" + token)
-        if status in (401, 403):
+        # only the board itself, which answers with an error in JSON, can say the session is gone; a 403 page from the proxy in front of it
+        # means this network may not reach the board, and the session is kept for when the computer is back on one that may
+        # chỉ chính bảng, trả lời bằng một lỗi dạng JSON, mới nói được phiên đã mất; trang 403 của proxy đứng trước nó nghĩa là mạng này
+        # không được tới bảng, và phiên được giữ cho lúc máy về lại mạng được phép
+        if status in (401, 403) and isinstance(state, dict) and "error" in state:
             remove(SESSION)
             pairing(server)
+            return
+        if status == 403:
+            print(icon_line(0, "off"))
+            print("---")
+            print(tx("This network may not reach the board"))
             return
         if status != 200:
             raise OSError(status)

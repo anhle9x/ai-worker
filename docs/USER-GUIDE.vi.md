@@ -230,6 +230,8 @@ Một biểu tượng trên thanh menu (Mac), cạnh đồng hồ (Windows) ho�
 
 **Đúng là:** trong vòng 1 phút biểu tượng hiện số người đang chờ; bấm vào thì mở khung nhỏ có năm thẻ: **Đang chờ, Đang làm, Hạn mức, Chi phí hôm nay, Cài đặt**.
 
+Ở mạng bảng không cho phép (quán cà phê, ở nhà), biểu tượng mờ đi và khung ghi "Mạng này không được phép tới bảng". Máy vẫn giữ ghép, về lại mạng được phép là chạy tiếp.
+
 Trong **Cài đặt** có thể bật tắt thông báo và chọn chờ bao lâu thì báo (5, 10, 15, 30 hoặc 60 phút; mặc định 10), đổi ngôn ngữ, tự chạy khi đăng nhập, bỏ ghép, hoặc gỡ app. Mỗi lần có người chờ lâu chỉ báo một lần, không báo mỗi phút.
 
 **Cập nhật:** tải file cài mới từ bảng tổng và cài đè lên bản cũ. Máy vẫn giữ ghép.

@@ -3,6 +3,7 @@
  "Pairing code": "Mã ghép",
  "Ask an admin to approve this code on the Admin page": "Nhờ quản trị duyệt mã này ở trang Quản trị",
  "Cannot reach the server": "Không tới được máy chủ",
+ "This network may not reach the board": "Mạng này không được phép tới bảng",
  "Open board": "Mở bảng",
  "Open the window": "Mở khung",
  "Quit": "Thoát",

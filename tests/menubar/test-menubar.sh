@@ -8,6 +8,7 @@ TMP="$(mktemp -d)"
 # MENUBAR_TEST_PORT chọn cổng khác khi cổng 8792 đang bận
 PORT="${MENUBAR_TEST_PORT:-8792}"
 export MENUBAR_TEST_HOSTILE="$TMP/hostile"
+export MENUBAR_TEST_BLOCKED="$TMP/blocked"
 python3 "$ROOT/tests/menubar/fake_server.py" "$PORT" > "$TMP/server.log" 2>&1 &
 SERVER=$!
 trap 'kill $SERVER 2>/dev/null' EXIT
@@ -35,6 +36,14 @@ for platform in darwin linux; do
 done
 [ ! -e "$MENUBAR_TEST_HOSTILE.pwned" ] && check ok "nothing ran from the hostile code" || check no "nothing ran from the hostile code"
 rm -f "$MENUBAR_TEST_HOSTILE"
+# a network the proxy does not allow: the plain 403 page is not the board saying the session is gone, so it is kept and the menu says why
+# mạng proxy không cho phép: trang 403 chữ thường không phải bảng nói phiên đã mất, nên phiên được giữ và menu nói lý do
+touch "$MENUBAR_TEST_BLOCKED"
+blocked="$(python3 "$ROOT/server/menubar/ai-worker.1m.py")"
+echo "$blocked" | grep -q "This network may not reach the board" && check ok "a proxy's 403 says the network may not reach the board" || check no "a proxy's 403 says the network may not reach the board"
+[ -s "$AI_WORKER_MENUBAR_DIR/menubar-session" ] && check ok "a proxy's 403 keeps the session" || check no "a proxy's 403 keeps the session"
+rm -f "$MENUBAR_TEST_BLOCKED"
+python3 "$ROOT/server/menubar/ai-worker.1m.py" | head -1 | grep -q "^2 |" && check ok "back on an allowed network, no pairing again" || check no "back on an allowed network, no pairing again"
 # http is only for this very computer: a name that merely starts with localhost is refused
 # http chỉ dành cho chính máy này: tên chỉ bắt đầu bằng localhost bị từ chối
 echo '{"server": "http://localhost.evil.example.com", "lang": "en"}' > "$AI_WORKER_MENUBAR_DIR/menubar.json"

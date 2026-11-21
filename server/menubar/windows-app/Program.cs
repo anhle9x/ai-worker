@@ -239,7 +239,12 @@ namespace AIWorker
                     }
                 }
                 var s = Call("GET", "/mini/state", "session=" + token);
-                if ((s.Status == 401 || s.Status == 403) && !retried) { File.Delete(SessionFile); return OneRound(true); }
+                // only the board itself, which answers with an error in JSON, can say the session is gone; a 403 page from the proxy in front of it
+                // means this network may not reach the board, and the session is kept for when the computer is back on one that may
+                // chỉ chính bảng, trả lời bằng một lỗi dạng JSON, mới nói được phiên đã mất; trang 403 của proxy đứng trước nó nghĩa là mạng này
+                // không được tới bảng, và phiên được giữ cho lúc máy về lại mạng được phép
+                if ((s.Status == 401 || s.Status == 403) && s.Json.ContainsKey("error") && !retried) { File.Delete(SessionFile); return OneRound(true); }
+                if (s.Status == 403) return new Round { State = "off", Text = T("This network may not reach the board") };
                 if (s.Status != 200) throw new Exception("status " + s.Status);
                 var h = Call("POST", "/mini/handoff", "session=" + token);
                 var round = new Round { Notify = !s.Json.TryGetValue("notify", out var n) || n is bool b && b, NotifyMinutes = (int)Num(s.Json.TryGetValue("notifyMinutes", out var nm) ? nm : 10) };

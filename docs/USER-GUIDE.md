@@ -230,6 +230,8 @@ An icon in the menu bar (Mac), next to the clock (Windows) or in the top bar (Ub
 
 **Correct result:** within a minute the icon shows the number of people waiting, and a click opens a small window with five tabs: **Waiting, Working, Quota, Cost today, Settings**.
 
+On a network the board does not allow (a cafe, home), the icon is dimmed and its window says "This network may not reach the board". It stays paired and works again once you are back on an allowed network.
+
 In **Settings** you can turn notifications on or off and choose how long a wait triggers one (5, 10, 15, 30 or 60 minutes; default 10), change the language, start at login, unpair, or remove the app. You get one notification per long wait, not one every minute.
 
 **To update:** download the new installer from the board and install it over the old one. The pairing is kept.

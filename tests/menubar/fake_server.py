@@ -42,6 +42,28 @@ HOSTILE = os.environ.get("MENUBAR_TEST_HOSTILE", "")
 HOSTILE_CODE = "abc' ; touch %s.pwned ; echo ' bash=/usr/bin/touch param1=%s.pwned terminal=false" % (HOSTILE, HOSTILE)
 plain_issue = stores.MINI_HANDOFF.issue
 stores.MINI_HANDOFF.issue = lambda token, now: HOSTILE_CODE if HOSTILE and os.path.exists(HOSTILE) else plain_issue(token, now)
+# while the file named in MENUBAR_TEST_BLOCKED exists, every request gets the plain 403 page a proxy in front of the board sends to a network
+# it does not allow (Caddy's "Forbidden"), not an answer of the board
+# khi file ghi trong MENUBAR_TEST_BLOCKED còn tồn tại, mọi yêu cầu nhận trang 403 chữ thường mà proxy đứng trước bảng gửi cho mạng nó
+# không cho phép ("Forbidden" của Caddy), không phải câu trả lời của bảng
+BLOCKED = os.environ.get("MENUBAR_TEST_BLOCKED", "")
+
+
+class Handler(w.Handler):
+    def handle_one_request(self):
+        if BLOCKED and os.path.exists(BLOCKED):
+            self.raw_requestline = self.rfile.readline(65537)
+            if not self.raw_requestline or not self.parse_request():
+                return
+            self.send_response(403)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", "9")
+            self.end_headers()
+            self.wfile.write(b"Forbidden")
+            return
+        super().handle_one_request()
+
+
 port = int(sys.argv[1]) if len(sys.argv) > 1 else 8781
 print("ready on %d" % port, flush=True)
-w.ThreadingHTTPServer(("127.0.0.1", port), w.Handler).serve_forever()
+w.ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
