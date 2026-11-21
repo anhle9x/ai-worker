@@ -8,8 +8,9 @@
   No office, branch or IP goes into a key, since those change.
 
   A key is checked on its own (signature, kid, age), so any process that holds the secret can check it without a lookup. Two small
-  tables say which computers have a key and which were revoked: a computer that has a key may no longer send with the shared key, and a
-  revoked one is refused until an admin forgets it.
+  tables say which computers have used a key and which were revoked: a computer that has sent with its own key may no longer send with
+  the shared key, and a revoked one is refused until an admin forgets it. A key only issued binds nothing yet, so a plugin too old to keep
+  it, or an answer lost on the way, never shuts a computer out.
 
   Một khoá riêng cho mỗi máy gửi số liệu, để khoá gửi mà mọi gói cài đều mang (INGEST_KEY) không còn đủ để gửi thay máy của người khác,
   và cắt được một máy mà không phải cài lại cho mọi người.
@@ -21,8 +22,9 @@
   Không đưa văn phòng, chi nhánh hay IP vào khoá, vì chúng đổi.
 
   Khoá được kiểm tự thân (chữ ký, kid, tuổi), nên tiến trình nào giữ bí mật cũng kiểm được mà không cần tra. Hai bảng nhỏ ghi máy nào
-  đã có khoá và máy nào bị thu hồi: máy đã có khoá không được gửi bằng khoá chung nữa, và máy bị thu hồi bị từ chối cho tới khi quản trị
-  quên nó đi.
+  đã dùng khoá và máy nào bị thu hồi: máy đã gửi bằng khoá riêng không được gửi bằng khoá chung nữa, và máy bị thu hồi bị từ chối cho tới
+  khi quản trị quên nó đi. Khoá mới chỉ được cấp thì chưa ràng buộc gì, nên plugin quá cũ không giữ được khoá, hay câu trả lời bị rơi dọc
+  đường, không bao giờ làm máy bị khoá ngoài.
   """
 import base64
 import hashlib
@@ -31,6 +33,7 @@ import json
 import re
 import secrets
 import threading
+from typing import Optional
 
 from board.db import data_db, keys_db
 
@@ -58,6 +61,11 @@ INTERNAL_KEY = "receiver_internal_secret"
 # bí mật dùng ký vé của luồng số trực tiếp của bảng (board/receiver.py, Tickets): một bí mật riêng, không bao giờ là bí mật của máy, để vé
 # không thể thành khoá hay khoá thành vé; nó cũng nằm trong file bí mật của bộ nhận, nơi kiểm vé
 TICKET_KEY = "live_ticket_secret"
+# set once the rows of device_keys are written only for keys a computer has used (0.50.1): before, issuing a key wrote the row, so a
+# plugin too old to keep its key was refused for ever; the rows of that time that are not revoked are dropped once
+# đặt một lần khi các dòng device_keys chỉ được ghi cho khoá mà máy đã dùng (0.50.1): trước đó, cấp khoá là ghi dòng, nên plugin cũ không
+# giữ được khoá bị từ chối mãi; các dòng của thời đó chưa bị thu hồi được bỏ một lần
+USED_ONLY_KEY = "device_keys_used_only"
 # how many codes of rows on the board are kept made (row_code); past that they are made again
 # giữ sẵn bao nhiêu mã dòng của bảng (row_code); quá mức đó thì làm lại
 ROW_CODES_MAX = 200_000
@@ -86,10 +94,11 @@ class DeviceKeys:
         self.renew_before = 0
         self.internal = ""
         self.ticket = ""
-        # device -> (iat of the newest key, revoked_at or 0)
-        # máy -> (iat của khoá mới nhất, revoked_at hoặc 0)
+        # device -> (iat of the newest key it has sent with, revoked_at or 0); a key issued and never used has no row
+        # máy -> (iat của khoá mới nhất nó đã dùng để gửi, revoked_at hoặc 0); khoá đã cấp mà chưa dùng thì không có dòng
         self.rows = {}
         self.rows_for = None
+        self.used_only = False
         # person_key -> the code of their row on the board, for the keys database it was made with
         # person_key -> mã dòng của người đó trên bảng, cho cơ sở dữ liệu khoá đã dùng để làm nó
         self.row_codes = {}
@@ -122,6 +131,8 @@ class DeviceKeys:
             ticket = meta(TICKET_KEY) or _b64(secrets.token_bytes(32))
             c.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)", (TICKET_KEY, ticket))
             renew_before = meta(RENEW_BEFORE_KEY)
+            used_only = meta(USED_ONLY_KEY)
+        self.used_only = used_only == "1"
         self.stored = json.loads(stored)
         self.signing = [(e["kid"], base64.urlsafe_b64decode(e["secret"] + "=" * (-len(e["secret"]) % 4))) for e in self.stored]
         self.internal = internal
@@ -132,6 +143,17 @@ class DeviceKeys:
     def _rows(self):
         db = data_db()
         if self.rows_for is not db:
+            self._secrets()
+            if not self.used_only:
+                # rows written by 0.50.0 when a key was issued, maybe to a plugin that threw it away: dropped once, so those computers
+                # enrol again; a computer that keeps its key writes its row back at its next send
+                # dòng do 0.50.0 ghi lúc cấp khoá, có thể cho một plugin đã vứt khoá đi: bỏ một lần, để các máy đó ghi danh lại;
+                # máy giữ khoá thì ghi lại dòng của nó ở lần gửi kế tiếp
+                with db.tx() as c:
+                    c.execute("DELETE FROM device_keys WHERE revoked_at = 0")
+                with keys_db().tx() as c:
+                    c.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)", (USED_ONLY_KEY, "1"))
+                self.used_only = True
             self.rows = {d: (iat, revoked) for d, iat, revoked in db.rows("SELECT device, iat, revoked_at FROM device_keys")}
             self.rows_for = db
         return db
@@ -171,17 +193,31 @@ class DeviceKeys:
         Một khoá mới cho máy này, ghi lại là khoá mới nhất của nó; tài khoản và tên là những gì máy chủ đã gắn với máy."""
         with self.lock:
             self._secrets()
-            db = self._rows()
             iat = int(now)
             kid, secret = self.signing[0]
             person = (account or "").strip().lower() + "|" + (name or "").strip().lower()
             body = ".".join((PREFIX, kid, self.org, self._id("pid", person), self._id("rk", (account or "").strip().lower() or person), device, str(iat)))
-            key = body + "." + _b64(hmac.new(secret, body.encode(), hashlib.sha256).digest())
+            # nothing is written yet: the computer has a key it must use only once it has sent with it (note_used), so a plugin too old
+            # to keep the key, or an answer lost on the way, never shuts the computer out
+            # chưa ghi gì: máy chỉ bị buộc dùng khoá riêng khi nó đã gửi bằng khoá đó (note_used), nên plugin quá cũ không giữ được khoá,
+            # hay câu trả lời bị rơi dọc đường, không bao giờ làm máy bị khoá ngoài
+            return body + "." + _b64(hmac.new(secret, body.encode(), hashlib.sha256).digest())
+
+    def note_used(self, device: str, iat: Optional[int], now: float) -> None:
+        """A computer has just sent with a key of its own: from now on the shared key no longer sends for it. iat is the key's, or None
+        when the Go receiver checked the key and did not say which one.
+        Một máy vừa gửi bằng khoá riêng: từ giờ khoá chung không gửi thay nó được nữa. iat là của khoá đó, hoặc None khi bộ nhận Go đã
+        kiểm khoá mà không nói là khoá nào."""
+        with self.lock:
+            db = self._rows()
+            row = self.rows.get(device)
+            if row and (row[1] or iat is None or row[0] >= iat):
+                return
+            at = int(now) if iat is None else int(iat)
             with db.tx() as c:
-                c.execute("INSERT INTO device_keys (device, iat, revoked_at) VALUES (?, ?, 0) ON CONFLICT(device) DO UPDATE SET iat = excluded.iat",
-                          (device, iat))
-            self.rows[device] = (iat, self.rows.get(device, (0, 0))[1])
-            return key
+                c.execute("INSERT INTO device_keys (device, iat, revoked_at) VALUES (?, ?, 0) "
+                          "ON CONFLICT(device) DO UPDATE SET iat = MAX(iat, excluded.iat) WHERE revoked_at = 0", (device, at))
+            self.rows[device] = (max(at, row[0] if row else 0), 0)
 
     def check(self, token: str, now: float):
         """The key's fields when it is well formed, signed by a known secret, not too old and not revoked; else (None, reason).
@@ -290,12 +326,16 @@ class DeviceKeys:
             return sorted(d for d, (_, r) in self.rows.items() if r)
 
     def revoke(self, device: str, now: float) -> bool:
+        """Cuts a computer off. One the server has enrolled is revoked even before it has used its key, which may already be out.
+        Cắt một máy. Máy máy chủ đã ghi danh bị thu hồi cả khi chưa dùng khoá của nó, vì khoá có thể đã được cấp ra."""
         with self.lock:
             db = self._rows()
             with db.tx() as c:
                 changed = c.execute("UPDATE device_keys SET revoked_at = ? WHERE device = ? AND revoked_at = 0", (int(now), device)).rowcount
+                if not changed and device not in self.rows and c.execute("SELECT 1 FROM identities WHERE device = ?", (device,)).fetchone():
+                    changed = c.execute("INSERT INTO device_keys (device, iat, revoked_at) VALUES (?, 0, ?)", (device, int(now))).rowcount
             if changed:
-                self.rows[device] = (self.rows[device][0], int(now))
+                self.rows[device] = (self.rows.get(device, (0, 0))[0], int(now))
             return bool(changed)
 
     def forget(self, device: str) -> bool:
@@ -307,13 +347,15 @@ class DeviceKeys:
             return bool(gone)
 
     def listing(self, now: float) -> list:
-        """Every computer that has had a key: its id, when its newest key was issued and when it was revoked (ms), and its state.
-        Mọi máy từng có khoá: mã máy, lúc cấp khoá mới nhất và lúc bị thu hồi (ms), và trạng thái.
+        """Every computer that has sent with a key of its own, or was revoked: its id, when the newest key it used was issued (None when
+        unknown) and when it was revoked (ms), and its state.
+        Mọi máy đã gửi bằng khoá riêng, hoặc đã bị thu hồi: mã máy, lúc cấp khoá mới nhất nó đã dùng (None khi không rõ) và lúc bị thu hồi
+        (ms), và trạng thái.
         """
         with self.lock:
             self._rows()
             rows = dict(self.rows)
-        return [{"device": d, "issuedAt": iat * 1000, "revokedAt": revoked * 1000 if revoked else None,
+        return [{"device": d, "issuedAt": iat * 1000 if iat else None, "revokedAt": revoked * 1000 if revoked else None,
                  "state": "revoked" if revoked else "expired" if now - iat > KEY_DAYS * 86400 else "active"} for d, (iat, revoked) in rows.items()]
 
     def counts(self) -> dict:

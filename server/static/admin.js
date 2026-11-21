@@ -355,7 +355,7 @@
           if (confirm(tx('Revoke {device} of {name}? It stops sending at once, and the key in the install package cannot bring it back until you let it back.', { device: x.device, name: who }))) post('/admin/device-revoke', { device: x.device }, () => toast(tx('Revoked {device}', { device: x.device })))
         }))
       }
-      h.append(o('td', '', who), o('td', '', x.device), o('td', '', dateTime(x.issuedAt)), o('td', '', x.state === 'revoked' && x.revokedAt ? states.revoked + ' · ' + dateTime(x.revokedAt) : states[x.state] || x.state), act)
+      h.append(o('td', '', who), o('td', '', x.device), o('td', '', x.issuedAt ? dateTime(x.issuedAt) : '—'), o('td', '', x.state === 'revoked' && x.revokedAt ? states.revoked + ' · ' + dateTime(x.revokedAt) : states[x.state] || x.state), act)
       board.append(h)
     }
     p.append(addLabel(board))

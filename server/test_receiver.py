@@ -202,6 +202,9 @@ class Receiver(unittest.TestCase):
         batch = {"src": "go-1", "boot": "b1", "seq": 1, "rows": [self.row("device-rcva", {"ledger": {h: {"usdMicro": 5}}}, name="Someone Else")]}
         status, answer = self.internal("POST", "/internal/rows", batch)
         self.assertEqual((status, answer), (200, {"ok": True, "seq": 1, "needFull": [], "unknown": [], "incomplete": [], "bad": []}))
+        # the receiver takes only sends made with the computer's own key: from now on the shared key no longer sends for it
+        # bộ nhận chỉ nhận lần gửi bằng khoá riêng: từ giờ khoá chung không gửi thay máy này được nữa
+        self.assertEqual(devicekeys.DEVICE_KEYS.state("device-rcva", time.time()), "active")
         m = devices.read_device("device-rcva")
         self.assertEqual((m["name"], m["account"], m["ip"]), ("rae", "device-rcva@example.com", "203.0.113.9"))
         self.assertEqual(m["ledger"][h]["usdMicro"], 5)
@@ -383,6 +386,9 @@ class TurningTheSecret(unittest.TestCase):
         key = keys.issue("device-rot", "rot@example.com", "Rot", now)
         claims, _ = keys.check(key, now)
         self.assertFalse(keys.needs_renewal(claims, now))
+        # the computer sends with it, so it has a key it must use
+        # máy gửi bằng khoá đó, nên nó có khoá phải dùng
+        keys.note_used("device-rot", claims["iat"], now)
         ticket_kid = keys.ticket_secret()[0]
         kid = keys.rotate(now + 1)
         self.assertEqual(keys.receiver_secrets(now)[0]["kid"], kid)

@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { buildHelp, skillLine } from '../hooks/help'
 import { findHostApp, parseLinuxHost, parseWindowsHost, hasSigningKeys, parseHash, parseSignatureResult, parseManifest, shouldOfferUpdate } from '../hooks/update'
-import { DEVICE_ID_LENGTH, OPEN_MS, buildMachineSummary, deviceKeyIn, newDeviceId, hardwareMark, parseHardwareId, sha256Hex, isLanIp, mergeShare, mergeTeam, parseLanIp, parseSessionFile, readShareConfig, summarySignature, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, answerModel, toQuota, quotaWarning } from '../hooks/team'
+import { DEVICE_ID_LENGTH, OPEN_MS, REFUSED_FIRST_MS, REFUSED_MAX_MS, buildMachineSummary, deviceKeyIn, refusalAfter, newDeviceId, hardwareMark, parseHardwareId, sha256Hex, isLanIp, mergeShare, mergeTeam, parseLanIp, parseSessionFile, readShareConfig, summarySignature, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, answerModel, toQuota, quotaWarning } from '../hooks/team'
 
 const H = 3_600_000
 const NOW = 500_000 * H
@@ -436,4 +436,14 @@ test('a new device id is long enough for a million computers and is one the serv
   }
   expect(ids.size).toBe(2000)
   expect(DEVICE_ID_LENGTH).toBeGreaterThanOrEqual(16)
+})
+
+test('after the server refuses a send, the plugin waits longer each time, up to 10 minutes', () => {
+  const first = refusalAfter(undefined, 1_000)
+  expect(first).toEqual({ until: 1_000 + REFUSED_FIRST_MS, wait: REFUSED_FIRST_MS })
+  expect(refusalAfter(first, 2_000).wait).toBe(2 * REFUSED_FIRST_MS)
+  let r = first
+  for (let i = 0; i < 20; i++) r = refusalAfter(r, 0)
+  expect(r.wait).toBe(REFUSED_MAX_MS)
+  expect(refusalAfter({}, 5).until).toBe(5 + REFUSED_FIRST_MS)
 })

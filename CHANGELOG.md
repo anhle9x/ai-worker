@@ -2,6 +2,13 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.1 - 2026-11-21
+
+### Fixed
+- A computer whose plugin was older than 0.50.0 when the server went to 0.50.0 was shut out of the board: the server gave it a key of its own in the answer, the old plugin threw the key away, and from then on the server refused the shared key for it ("use this computer's own key"), even after the plugin was updated. Now a key the server gives binds nothing until the computer has sent with it once: until then the shared key still sends for it. A computer that has sent with its own key is held to it as before. When the server starts this version, the rows 0.50.0 wrote for keys it only gave are dropped once, so computers shut out that way send again by themselves; a computer an admin revoked stays revoked. A computer the server knows can still be revoked before it has used its key.
+- The plugin no longer sends again every second or two while the server refuses its sends (401 or 403): it waits 30 seconds, then twice as long each time, up to 10 minutes, and goes back to its usual pace after a send goes through.
+- The Admin page's list of computers and their keys shows a dash, not a date in 1970, for a computer revoked before it used a key, or whose key was dropped with `--rotate-device-secret --drop-old`.
+
 ## 0.50.0 - 2026-11-21
 
 ### Security

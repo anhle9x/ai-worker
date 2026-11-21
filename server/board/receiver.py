@@ -304,6 +304,14 @@ def apply_rows(batch, now: float):
         raise
     with POLICY.lock:
         POLICY.batches[source] = max(seq, POLICY.batches.get(source, -1))
+    # the receiver takes only sends made with a computer's own key: each computer written here has used it
+    # bộ nhận chỉ nhận lần gửi bằng khoá riêng của máy: mỗi máy được ghi ở đây đều đã dùng khoá đó
+    skipped = set(out["unknown"]) | set(out["bad"])
+    for row in batch["rows"]:
+        k = row.get("k") if isinstance(row, dict) else None
+        if isinstance(k, list) and row.get("kind") in ("v1", "hours", "full") and len(k) == 2 and k[0] == "m" and isinstance(k[1], str) \
+                and k[1] in INGEST_GATE.identities and k[1] not in skipped:
+            DEVICE_KEYS.note_used(k[1], None, now)
     for d, records in delegations:
         AUDIT_LOG.write_delegations(d["device"], d.get("name", ""), d.get("account", ""), records)
     for person in people:

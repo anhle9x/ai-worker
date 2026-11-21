@@ -419,6 +419,18 @@ export function newDeviceId(random: () => number = Math.random): string {
 
 /** The computer's own key in the server's answer to a send, when there is one: only a well-formed `awd1.` key is taken. */
 /** Khoá riêng của máy trong câu trả lời của máy chủ cho một lần gửi, nếu có: chỉ nhận khoá `awd1.` đúng dạng. */
+/** The first wait after the server refuses a send, and the longest: the wait doubles each time in between. */
+/** Thời gian chờ đầu tiên sau khi máy chủ từ chối một lần gửi, và lâu nhất: ở giữa, mỗi lần chờ gấp đôi. */
+export const REFUSED_FIRST_MS = 30_000
+export const REFUSED_MAX_MS = 10 * 60_000
+
+/** When to send again after a refusal, given the wait before it (none after a send that went through). */
+/** Khi nào gửi lại sau một lần bị từ chối, biết thời gian chờ trước đó (không có sau một lần gửi thành công). */
+export function refusalAfter(previous: { wait?: number } | undefined, now: number): { until: number; wait: number } {
+  const wait = Math.min(REFUSED_MAX_MS, previous?.wait ? previous.wait * 2 : REFUSED_FIRST_MS)
+  return { until: now + wait, wait }
+}
+
 export function deviceKeyIn(answer: string): string | undefined {
   try {
     const key = (JSON.parse(answer) as { deviceKey?: unknown }).deviceKey

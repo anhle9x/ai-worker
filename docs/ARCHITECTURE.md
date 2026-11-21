@@ -497,7 +497,7 @@ Each push also runs `.github/workflows/test-install.yml`: on Ubuntu it builds th
 
 ## 6. Known limits
 
-- **Shared send key, for enrolling.** Each computer gets a key of its own (`awd1.…`) at its first send, and from then on only that key sends for it; `--revoke-device` cuts one computer off. Enrolling still uses `INGEST_KEY`, which every install package carries, so a staff member can still enrol a made-up computer under a name not yet tied to one. Once every computer has its own key, `SHARED_KEY_MODE=known-only` or `off` closes that.
+- **Shared send key, for enrolling.** Each computer gets a key of its own (`awd1.…`) in the answer to its first send, and once it has sent with that key only that key sends for it (a key only given binds nothing, so a plugin too old to keep it is not shut out); `--revoke-device` cuts one computer off. Enrolling still uses `INGEST_KEY`, which every install package carries, so a staff member can still enrol a made-up computer under a name not yet tied to one. Once every computer has its own key, `SHARED_KEY_MODE=known-only` or `off` closes that.
 - **How many computers.** `MAX_DEVICES` is 300 computers, about 100 to 150 people, and one process on one machine takes the sends. Measured ceilings and what comes next: [BENCHMARK.md](BENCHMARK.md). Sends are limited per computer (a bucket of 20 that refills one a second), so computers behind one shared public address do not stop each other.
 - **HTTP without a proxy.** The connection is encrypted only behind Caddy or nginx.
 - **People with sudo on the server** can read all numbers and issue accounts for themselves. Keep them few.

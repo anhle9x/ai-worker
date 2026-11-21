@@ -12,7 +12,7 @@ import type { EngineInterface, Register, ToolCallResult } from 'claude-code'
 import type { Activity, BlockKind, Job, Ledger, TeamState, Usage, WorkerId } from '../types'
 import { applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, staleSessionFiles } from './activity'
 import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextNoteForClaude, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
-import { answerModel, buildMachineSummary, deviceKeyIn, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
+import { answerModel, buildMachineSummary, deviceKeyIn, refusalAfter, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
 import type { ShareConfig } from './team'
 import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT, findHostApp, parseLinuxHost, parseWindowsHost, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
 import { AGY_BRAIN, IMAGE_DIR, IMAGE_SCHEMA, IMAGE_SETTLE_MS, OLLAMA_URL, PROMPT_LEVEL_SCHEMA, PROMPT_SCHEMA, WORKER_TIMEOUT_MS, imageArgv, imageTargets, newImages, safeImageName, sendingNeedsAsking, sendingRefusal, agyArgv, codexArgv, codexInput, isBatchLauncher, delegationRules, gemmaAnswer, gemmaRequest, mcpConfigured, ownTools, pickGemma } from './workers'
@@ -464,6 +464,9 @@ const SHARED_KEY = 'sharedLast'
 /** The key of its own the server gave this computer (awd1.…), kept in the plugin's store, never in config.js where the office page reads. */
 /** Khoá riêng máy chủ cấp cho máy này (awd1.…), giữ trong kho của plugin, không bao giờ trong config.js nơi trang văn phòng đọc được. */
 const DEVICE_KEY = 'deviceKey'
+/** After the server refuses a send (401 or 403), no send before `until` (refusalAfter). */
+/** Sau khi máy chủ từ chối một lần gửi (401 hay 403), không gửi trước `until` (refusalAfter). */
+const REFUSED_KEY = 'shareRefused'
 /** A change is sent this long after it is saved, so the changes a turn makes together (cost, then state) leave in one send. */
 /** Một thay đổi được gửi sau khi lưu chừng này, để các thay đổi một lượt làm cùng lúc (chi phí, rồi trạng thái) đi chung một lần gửi. */
 const SHARE_GATHER_MS = 1_000
@@ -757,7 +760,8 @@ async function shareOnce($: EngineInterface) {
       }, viaWeb ? recentDelegations(sessions, now) : [])
       const sig = summarySignature(summary)
       const last = ((await $.store.get(SHARED_KEY).catch(() => undefined)) ?? {}) as { sig?: string; at?: number }
-      if (sig !== last.sig || now - (last.at ?? 0) > SHARE_EVERY_MS) {
+      const refused = ((await $.store.get(REFUSED_KEY).catch(() => undefined)) ?? {}) as { until?: number; wait?: number }
+      if ((sig !== last.sig || now - (last.at ?? 0) > SHARE_EVERY_MS) && !(viaWeb && now < (refused.until ?? 0))) {
         if (viaWeb) {
           // this computer's own key once the server has given it one, else the key of the install package
           // khoá riêng của máy này khi máy chủ đã cấp, nếu không thì khoá của gói cài
@@ -771,7 +775,13 @@ async function shareOnce($: EngineInterface) {
           // its own key refused (too old, or the server was set up again): drop it, so the next send asks for a new one
           // khoá riêng bị từ chối (quá cũ, hoặc máy chủ được cài lại): bỏ nó, để lần gửi sau xin khoá mới
           if (r.status === 401 && key !== share.ingestKey) await $.store.delete(DEVICE_KEY).catch(() => undefined)
+          // a refusal does not pass by itself: wait longer each time instead of asking again every second
+          // lần từ chối không tự hết: chờ lâu dần thay vì hỏi lại mỗi giây
+          if (r.status === 401 || r.status === 403) {
+            await $.store.set(REFUSED_KEY, refusalAfter(refused, now))
+          }
           if (!r.ok) throw new Error(`webhook ${r.status}`)
+          if (refused.wait) await $.store.delete(REFUSED_KEY).catch(() => undefined)
           const given = deviceKeyIn(r.text)
           if (given) await $.store.set(DEVICE_KEY, given)
         } else {

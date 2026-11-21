@@ -497,7 +497,7 @@ Mỗi lần đẩy code còn chạy `.github/workflows/test-install.yml`: trên 
 
 ## 6. Giới hạn đã biết
 
-- **Khoá chung, để ghi danh.** Mỗi máy nhận khoá riêng (`awd1.…`) ở lần gửi đầu, và từ đó chỉ khoá đó được gửi cho máy; `--revoke-device` cắt một máy. Việc ghi danh vẫn dùng `INGEST_KEY` mà mọi gói cài đều mang, nên nhân viên vẫn ghi danh được một máy bịa dưới một tên chưa gắn với máy nào. Khi mọi máy đã có khoá riêng, `SHARED_KEY_MODE=known-only` hoặc `off` đóng chỗ đó.
+- **Khoá chung, để ghi danh.** Mỗi máy nhận khoá riêng (`awd1.…`) trong câu trả lời của lần gửi đầu, và khi đã gửi bằng khoá đó thì chỉ khoá đó được gửi cho máy (khoá mới chỉ được cấp thì chưa ràng buộc gì, nên plugin quá cũ không giữ được khoá cũng không bị khoá ngoài); `--revoke-device` cắt một máy. Việc ghi danh vẫn dùng `INGEST_KEY` mà mọi gói cài đều mang, nên nhân viên vẫn ghi danh được một máy bịa dưới một tên chưa gắn với máy nào. Khi mọi máy đã có khoá riêng, `SHARED_KEY_MODE=known-only` hoặc `off` đóng chỗ đó.
 - **Số máy.** `MAX_DEVICES` là 300 máy, khoảng 100 tới 150 người, và một tiến trình trên một máy nhận mọi lần gửi. Mức trần đã đo và việc tiếp theo: [BENCHMARK.vi.md](BENCHMARK.vi.md). Lần gửi bị giới hạn theo từng máy (một xô 20 lượt, tự đầy lại một lượt mỗi giây), nên các máy đi chung một địa chỉ công cộng không chặn lẫn nhau.
 - **HTTP khi không có proxy.** Kết nối chỉ được mã hoá khi đi qua Caddy hoặc nginx.
 - **Người có sudo trên máy chủ** đọc được mọi số liệu và tự cấp được tài khoản. Nên giữ ít người.

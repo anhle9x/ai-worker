@@ -5316,6 +5316,48 @@ class DeviceKeys(unittest.TestCase):
         self.assertEqual(len(rows[0]), 3)
         self.assertNotIn(key, json.dumps(rows))
 
+    def test_a_plugin_that_throws_the_key_away_keeps_sending(self):
+        """A plugin older than 0.50.0 does not read deviceKey: the key it was given binds nothing until a send uses it, so the computer is
+        not shut out when the server is upgraded first (it was, in 0.50.0). Once a send uses the key, the shared key no longer sends for it.
+        Plugin cũ hơn 0.50.0 không đọc deviceKey: khoá được cấp chưa ràng buộc gì cho tới khi một lần gửi dùng nó, nên máy không bị khoá
+        ngoài khi máy chủ được nâng trước (0.50.0 thì bị). Một khi đã gửi bằng khoá đó, khoá chung không gửi thay máy được nữa."""
+        first = self.enrol("device-k13")
+        status, answer = self.send("device-k13", self.SHARED)
+        self.assertEqual((status, answer["ok"]), (200, True))
+        self.assertEqual(devicekeys.DEVICE_KEYS.state("device-k13", time.time()), "none")
+        # the plugin is updated and keeps the key it gets next: both keys check, and the first one used binds the computer
+        # plugin được nâng và giữ khoá nhận được lần sau: cả hai khoá đều kiểm được, và lần đầu dùng khoá thì máy bị ràng buộc
+        self.assertEqual(self.send("device-k13", answer["deviceKey"])[0], 200)
+        self.assertEqual(self.send("device-k13", first)[0], 200)
+        self.assertEqual(self.send("device-k13", self.SHARED), (401, {"error": "use this computer's own key"}))
+        self.assertEqual([c["state"] for c in devicekeys.DEVICE_KEYS.listing(time.time()) if c["device"] == "device-k13"], ["active"])
+
+    def test_a_computer_given_a_key_it_never_used_can_still_be_revoked(self):
+        self.enrol("device-k14")
+        self.assertTrue(devicekeys.DEVICE_KEYS.revoke("device-k14", time.time()))
+        self.assertEqual(self.send("device-k14", self.SHARED), (403, {"error": "device revoked"}))
+        listed = [c for c in devicekeys.DEVICE_KEYS.listing(time.time()) if c["device"] == "device-k14"]
+        self.assertEqual((listed[0]["state"], listed[0]["issuedAt"]), ("revoked", None))
+        # a computer this server never enrolled is not written down
+        # máy máy chủ chưa từng ghi danh thì không được ghi lại
+        self.assertFalse(devicekeys.DEVICE_KEYS.revoke("device-k99", time.time()))
+
+    def test_the_rows_written_by_0_50_0_are_dropped_once(self):
+        keys = devicekeys.DEVICE_KEYS
+        self.devices += ["device-k15", "device-k16"]
+        with db.data_db().tx() as c:
+            c.execute("INSERT INTO device_keys (device, iat, revoked_at) VALUES ('device-k15', ?, 0), ('device-k16', ?, ?)",
+                      (int(time.time()), int(time.time()), int(time.time())))
+        with db.keys_db().tx() as c:
+            c.execute("DELETE FROM meta WHERE key = ?", (devicekeys.USED_ONLY_KEY,))
+        keys.loaded_for = keys.rows_for = None
+        # the computer given a key in 0.50.0 may enrol again; the one an admin revoked stays revoked
+        # máy được cấp khoá ở 0.50.0 được ghi danh lại; máy quản trị đã thu hồi vẫn bị thu hồi
+        self.assertEqual((keys.state("device-k15", time.time()), keys.state("device-k16", time.time())), ("none", "revoked"))
+        keys.note_used("device-k15", int(time.time()), time.time())
+        keys.loaded_for = keys.rows_for = None
+        self.assertEqual(keys.state("device-k15", time.time()), "active")
+
     def test_a_key_sends_only_for_its_own_computer(self):
         key = self.enrol("device-k02")
         self.enrol("device-k03")
@@ -5333,6 +5375,12 @@ class DeviceKeys(unittest.TestCase):
         old = devicekeys.DEVICE_KEYS.issue("device-k06", "device-k06@example.com", "Key 06", time.time() - (devicekeys.KEY_DAYS + 1) * 86400)
         self.devices.append("device-k06")
         self.assertEqual(self.send("device-k06", old), (401, {"error": "device key expired"}))
+        # never sent with: the shared key may still enrol it
+        # chưa từng gửi bằng khoá này: khoá chung vẫn ghi danh được máy
+        self.assertEqual(devicekeys.DEVICE_KEYS.state("device-k06", time.time()), "none")
+        # used, but too long ago: the same
+        # đã dùng, nhưng quá lâu: cũng vậy
+        devicekeys.DEVICE_KEYS.note_used("device-k06", int(old.split(".")[6]), time.time())
         self.assertEqual(devicekeys.DEVICE_KEYS.state("device-k06", time.time()), "expired")
         self.assertTrue(self.enrol("device-k06").startswith("awd1."))
 
@@ -5381,6 +5429,7 @@ class DeviceKeys(unittest.TestCase):
 
     def test_an_admin_revokes_a_computer_from_the_page_and_lets_it_back(self):
         key = self.enrol("device-k12")
+        self.assertEqual(self.send("device-k12", key)[0], 200)
         listed = {c["device"]: c for c in views.computer_keys(time.time())["computers"]}
         self.assertEqual((listed["device-k12"]["state"], listed["device-k12"]["account"]), ("active", "device-k12@example.com"))
         # without the OTP typed again the action is refused

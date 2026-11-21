@@ -1038,6 +1038,10 @@ class Handler(BaseHTTPRequestHandler):
         if rejection:
             sys.stderr.write("rejected ingest from %s at %s: %s\n" % (d["device"], d["ip"], rejection[1]))
             return self.reply(rejection[0], {"error": rejection[1]})
+        # its own key accepted: from now on the shared key no longer sends for this computer
+        # khoá riêng được nhận: từ giờ khoá chung không gửi thay máy này được nữa
+        if self.device_claims is not None:
+            DEVICE_KEYS.note_used(d["device"], self.device_claims["iat"], time.time())
         outcome = save_ingest(d, time.time(), send_kind(raw))
         # the records of work handed to helpers go to the audit log, once each, and are not kept with the computer's numbers
         # biên bản giao việc vào nhật ký, mỗi cái một lần, và không giữ cùng số liệu của máy
