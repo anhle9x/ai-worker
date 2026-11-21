@@ -896,6 +896,20 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply_page(200, TV_INSTALL_WINDOWS.replace("__BOARD_URL__", board_url).encode(), content_type="application/octet-stream")
         self.reply_page(200, tv_mac_zip(board_url), content_type="application/zip")
 
+    def get_plugin_installer(self, y: "RequestCtx") -> None:
+        """The plugin .msi for staff computers on Windows, with this server's address, the send code and the update keys filled in.
+        It carries the send code, so it is for admins only, never cached, and every download goes into the log.
+        Gói .msi plugin cho máy nhân viên Windows, đã điền địa chỉ máy chủ này, mã gửi và khoá cập nhật.
+        Gói mang mã gửi, nên chỉ cho quản trị, không cho lưu đệm, và lần tải nào cũng vào nhật ký."""
+        board_url = self.board_url_from_host()
+        if not board_url:
+            return self.reply(400, {"error": tx("Invalid address")})
+        package = packages.plugin_msi(board_url, settings.INGEST_KEY, packages.release_signers(assets.RELEASES_DIR))
+        if package is None:
+            return self.reply(404, {"error": tx("Not found")})
+        self.audit_request(y, action="plugin-msi")
+        self.reply_page(200, package, content_type="application/x-msi", cache_control="no-store")
+
     def get_menubar_installer(self, y: "RequestCtx") -> None:
         board_url = self.board_url_from_host()
         if not board_url:
@@ -1810,6 +1824,7 @@ GET_ROUTES = {
     "/menubar/install-mac.zip": Route(Handler.get_menubar_installer, PERM_ADMIN),
     "/menubar/install-windows.zip": Route(Handler.get_menubar_installer, PERM_ADMIN),
     "/menubar/install-windows.msi": Route(Handler.get_menubar_installer, PERM_ADMIN),
+    "/plugin/install-windows.msi": Route(Handler.get_plugin_installer, PERM_ADMIN),
     "/menubar/install-mac.dmg": Route(Handler.get_menubar_installer, PERM_ADMIN),
     "/menubar/extension.zip": Route(Handler.get_menubar_installer, PERM_ADMIN),
     "/menubar/install-ubuntu.deb": Route(Handler.get_menubar_installer, PERM_ADMIN),

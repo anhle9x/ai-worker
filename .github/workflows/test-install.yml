@@ -190,3 +190,39 @@ jobs:
         with:
           name: ai-worker-msi
           path: server/menubar/windows-app/AI Worker.msi
+
+  # The plugin installer for staff computers (packaging/windows-msi): a thin .msi around the normal package built above,
+  # with a placeholder the server fills with its address and send code. It holds no company data, so it can be built here.
+  # Gói cài plugin cho máy nhân viên (packaging/windows-msi): .msi mỏng bọc gói thường dựng ở trên,
+  # có chuỗi giữ chỗ để máy chủ điền địa chỉ và mã gửi. Gói không chứa dữ liệu công ty nào, nên dựng ở đây được.
+  plugin-msi:
+    needs: build
+    if: needs.build.outputs.windows == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: package
+          path: package
+      - name: Build AI Worker plugin.msi
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add -g WixToolset.UI.wixext/5.0.2 WixToolset.Util.wixext/5.0.2
+          $zip = (Get-ChildItem package\AI-Worker-*.zip | Select-Object -First 1).FullName
+          $version = (Get-Content -Raw .claude-plugin\plugin.json | ConvertFrom-Json).version
+          # a copy one version higher, for the upgrade and downgrade cases of the test
+          # một bản cao hơn một số, cho các tình huống nâng cấp và hạ cấp của bài thử
+          $v = [version]$version; $newer = "$($v.Major).$($v.Minor).$($v.Build + 1)"
+          pwsh -NoProfile -File packaging/windows-msi/build-msi.ps1 -Package $zip -Version $version -Out "dist-msi\AI Worker plugin.msi"
+          pwsh -NoProfile -File packaging/windows-msi/build-msi.ps1 -Package $zip -Version $newer -Out "dist-msi\AI Worker plugin newer.msi"
+      - name: Test install, setup, update, upgrade and removal
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/windows/test-msi.ps1 -Msi "dist-msi\AI Worker plugin.msi" -NewerMsi "dist-msi\AI Worker plugin newer.msi"
+        timeout-minutes: 15
+      - name: Keep AI Worker plugin.msi
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-worker-plugin-msi
+          path: dist-msi/AI Worker plugin.msi

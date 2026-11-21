@@ -10,7 +10,7 @@
     'login': tx('Log in'), 'login-failed': tx('Login failed'), 'confirmed': tx('Re-enter OTP'), 'confirm-failed': tx('Wrong OTP re-entered'), 'confirm-required': tx('OTP not re-entered'),
     'role-denied': tx('Denied by role'), error: tx('Error'), assign: tx('Add network'), unassign: tx('Remove network'), 'unassign-delete-location': tx('Last network removed, location deleted'), 'set-sales': tx('Mark as sales'), csv: tx('Load CSV'),
     'account-create': tx('Create account'), 'account-reissue': tx('Reissue key'), 'account-role': tx('Change role'), 'account-delete': tx('Delete account'), 'end-session': tx('End session'),
-    'tv-request-code': tx('Screen asked for code'), 'tv-refused': tx('Code request refused'), 'tv-view': tx('Viewed screen request'), 'tv-approve': tx('Approved screen'), 'tv-joined': tx('Screen joined board'), 'tv-revoke': tx('Revoked screen'), 'tv-self-exit': tx('Screen exited by itself'), 'tv-unpaired-itself': tx('Paired device unpaired itself'), 'tv-reload': tx('Reloaded screen remotely'), 'tv-rename': tx('Renamed screen'), 'tv-ip-changed': tx('Screen changed IP'), 'tv-renewed': tx('Renewed screen'),
+    'plugin-msi': tx('Downloaded the staff plugin installer'), 'tv-request-code': tx('Screen asked for code'), 'tv-refused': tx('Code request refused'), 'tv-view': tx('Viewed screen request'), 'tv-approve': tx('Approved screen'), 'tv-joined': tx('Screen joined board'), 'tv-revoke': tx('Revoked screen'), 'tv-self-exit': tx('Screen exited by itself'), 'tv-unpaired-itself': tx('Paired device unpaired itself'), 'tv-reload': tx('Reloaded screen remotely'), 'tv-rename': tx('Renamed screen'), 'tv-ip-changed': tx('Screen changed IP'), 'tv-renewed': tx('Renewed screen'),
     'tv-revoked-key-used': tx('Revoked device asked again'), 'mcp-rate-limited': tx('Key for an AI tool asked too often'),
     'device-revoked': tx('Revoked a computer\'s key'), 'device-forgotten': tx('Let a computer enrol again'),
     'account-telegram-unlink': tx('Unlink Telegram'), 'telegram-link': tx('Link Telegram'), 'telegram-unlink': tx('Unlink Telegram'), 'telegram-link-failed': tx('Telegram link failed'),
@@ -832,6 +832,27 @@
     return p
   }
 
+  // The plugin installer for staff computers on Windows: one .msi with this server's address and send code inside, shown only when the server has it.
+  // Gói cài plugin cho máy nhân viên Windows: một file .msi đã có địa chỉ và mã gửi của máy chủ này, chỉ hiện khi máy chủ có gói.
+  function pluginSection() {
+    const p = section(tx('Plugin for staff computers (Windows)'), tx('One file that installs AI Worker for Claude Code, already set up for this board'))
+    const row = o('div', 'qt-row')
+    const link = o('a', 'qt-button', tx('Download AI-Worker-Plugin.msi'))
+    link.href = '/plugin/install-windows.msi'
+    link.download = 'AI-Worker-Plugin.msi'
+    row.append(link)
+    p.append(row)
+    const steps = o('ol', 'qt-steps')
+    for (const text of [
+      tx('The file holds this board\'s send code: send it only to your own staff, through your company\'s channels. Each download is written in the log below.'),
+      tx('On the staff computer: open AI-Worker-Plugin.msi and click Install (no admin rights needed). If Windows says "Windows protected your PC", click More info, then Run anyway.'),
+      tx('Leave "Finish the setup now" ticked and click Finish: a window checks that Claude is signed in, asks the full name and registers the plugin. It can be run again from the Start menu: Finish AI Worker setup.'),
+      tx('Updates still come with /update. To remove it: Settings > Apps > AI Worker plugin.'),
+    ]) steps.append(o('li', '', text))
+    p.append(steps)
+    return p
+  }
+
   // Menu bar icon for managers: the installers come from this server with its address already inside; the code the icon shows is approved in Paired devices and keys.
   // Biểu tượng thanh menu cho quản lý: gói cài lấy từ máy chủ này, đã có sẵn địa chỉ; mã biểu tượng hiện ra được duyệt ở mục Thiết bị và khoá đã ghép.
   function menubarSection() {
@@ -910,7 +931,7 @@
     backLink.href = '/'
     head.append(o('h1', '', tx('Admin')), o('span', '', viewerName), I18n.switcher(), backLink)
     const column = o('div', 'qt-column')
-    column.append(accountsSection(), tvSection(), computersSection(), ...(snapshot.projectsOn ? [projectsSection()] : []), ...(snapshot.mcpCalls.length ? [mcpCallsSection()] : []), menubarSection(), locationsSection(), teamSection(), sessionsSection(), ...(snapshot.blocked7d ? [blockedSection()] : []), ...((snapshot.delegations || []).length ? [delegationsSection()] : []), auditSection())
+    column.append(accountsSection(), tvSection(), computersSection(), ...(snapshot.projectsOn ? [projectsSection()] : []), ...(snapshot.mcpCalls.length ? [mcpCallsSection()] : []), ...(snapshot.pluginMsi ? [pluginSection()] : []), menubarSection(), locationsSection(), teamSection(), sessionsSection(), ...(snapshot.blocked7d ? [blockedSection()] : []), ...((snapshot.delegations || []).length ? [delegationsSection()] : []), auditSection())
     root.replaceChildren(head, notice, column)
   }
 

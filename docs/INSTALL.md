@@ -33,6 +33,7 @@ Real addresses, the `INGEST_KEY` and the keys do not go into git. The repo only 
    ```
    This makes `dist/AI-Worker-<version>-company.zip`.
 5. **Employees install.** Unzip, double-click `INSTALL-Mac.command` or `INSTALL-Windows.bat`, type the full name. The package contains the send code, so give it out inside the company only.
+   On Windows there is also one installer file, `AI-Worker-Plugin.msi`, which the server fills with its own address and send code: see [Plugin installer for Windows (.msi)](#plugin-installer-for-windows-msi).
 6. **View the dashboard.** Open the board in a browser: `https://<board domain>` behind your HTTPS proxy (for example `https://board.example.com`), or `http://<server-IP>:8788` from inside the network before the proxy is set up. Sign in with the OTP code. The `/board` page has a Plugin column showing which computers are not on the latest version yet.
 
 ## Commands on an employee's computer
@@ -136,6 +137,23 @@ A project or application your team built can send what its `ai-cost-report` mete
 What the project's developers do: [AI-PROJECTS.md](AI-PROJECTS.md).
 
 Prices come from `server/board/prices.json`, a copy of the skill's price file that ships with each release. For a provider it does not have, a negotiated price, or a model on your own machine, paste a price file of your own under **Prices of your own** on the Admin page.
+
+## Plugin installer for Windows (.msi)
+
+Instead of the zip, staff computers on Windows can install from one file, `AI-Worker-Plugin.msi`. It installs for the person only, with no admin rights, and has an entry in Settings > Apps. The file itself is the same for every company: GitHub builds it with a placeholder, and your server fills in its own address, the send code (`INGEST_KEY`) and the update signing keys at the moment an admin downloads it. So the send code never goes to GitHub, and you do not build anything on your own computer.
+
+1. **Fetch the file**, on the computer with the repository and the `gh` command signed in, after a successful GitHub run of the branch (the job `plugin-msi`):
+   ```bash
+   bash packaging/windows-msi/fetch-msi.sh
+   ```
+   Right result: `Fetched AI-Worker-Plugin.msi ...`, and the file is in `server/menubar/` (it is not kept in git). Copy `server/` to the server and run `install.sh` as usual. The file carries the plugin of the version it was built from: fetch it again after each release.
+2. **Release once** with `packaging/release.sh` before handing the file out: the server takes the update signing keys from the newest release. Without a release the plugin installs but does not update itself with `/update`.
+3. **Download:** the Admin page, section **Plugin for staff computers (Windows)**, button **Download AI-Worker-Plugin.msi**. The section shows only when the server has the file. Every download is written in the Admin log ("Downloaded the staff plugin installer"). The file holds the send code, like the company zip: give it out inside the company only.
+4. **On the staff computer:** open the file and click **Install**. If Windows says "Windows protected your PC" (the file is not signed), click **More info**, then **Run anyway**. Leave **Finish the setup now** ticked and click **Finish**: a window does the same steps as `INSTALL-Windows.bat` (Claude signed in, full name, registering the plugin with Claude Code). Right result: the window ends with "Done. Open (or reopen) Claude Code, then type /office". The window can be run again from the Start menu, **Finish AI Worker setup**, for example after a silent install (`msiexec /i AI-Worker-Plugin.msi /qn`, which shows no finish screen).
+5. **Updates** still come with `/update`. Installing a newer `.msi` over the old one keeps the plugin; running the setup again never puts back a plugin older than the one `/update` installed.
+6. **To remove it:** Settings > Apps > **AI Worker plugin** > Uninstall. This unregisters the plugin from Claude Code and deletes the plugin folder with its `company.json`; the person's own data in `%USERPROFILE%\.local\share\ai-worker` stays.
+
+What to keep in mind: the file is not signed, and it cannot be signed as it is, since the server changes it after the build. Once every computer has installed, you can set `SHARED_KEY_MODE=known-only` in `/etc/ai-worker.env` so that a copy of the file that leaks cannot add new computers. The zip and its `.bat` stay available, as a fallback and for macOS and Linux.
 
 ## Menu bar icon for managers
 

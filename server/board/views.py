@@ -629,7 +629,7 @@ def admin_data(now: float, cookie: str, month: str) -> dict:
             # work handed to ChatGPT, Gemini or Gemma this month: totals and the newest records, never the text
             # việc giao cho ChatGPT, Gemini hay Gemma trong tháng: số tổng và các biên bản mới nhất, không bao giờ có chữ
             "delegations": AUDIT_LOG.read_delegations(month, 50), "delegationTotals": AUDIT_LOG.delegation_totals(month), "menubarDmg": bool(menubar_mac_dmg()),
-            "menubarMsi": os.path.isfile(os.path.join(packages.MENUBAR_DIR, "AI-Worker.msi")), "menubarExtension": bool(menubar_extension()),
+            "menubarMsi": os.path.isfile(os.path.join(packages.MENUBAR_DIR, "AI-Worker.msi")), "menubarExtension": bool(menubar_extension()), "pluginMsi": packages.plugin_msi_available(),
             # asking the board from Telegram: whether it is turned on, and what the bot process last said about itself
             # hỏi bảng qua Telegram: có đang bật không, và tiến trình bot nói gì gần nhất về chính nó
             "telegramAsk": dict(TELEGRAM_BOT.read(), on=settings.TELEGRAM_ASK_ENABLED, app=settings.TELEGRAM_APP_ENABLED),

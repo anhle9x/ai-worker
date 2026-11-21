@@ -19,6 +19,7 @@ import socket
 import sqlite3
 import shutil
 import tempfile
+import zipfile
 import threading
 import time
 import unittest
@@ -590,6 +591,73 @@ class MsiPackage(unittest.TestCase):
             self.assertIsNone(packages.menubar_msi(bad), bad)
 
 
+class PluginMsiPackage(unittest.TestCase):
+    """AI Worker plugin.msi: the server fills the company settings (address, send code, update keys) into the placeholder at the same length.
+    Gói AI Worker plugin.msi: máy chủ điền thiết lập công ty (địa chỉ, mã gửi, khoá cập nhật) vào chỗ giữ chỗ, giữ nguyên độ dài."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.old = packages.MENUBAR_DIR
+        packages.MENUBAR_DIR = self.tmp
+
+    def tearDown(self):
+        packages.MENUBAR_DIR = self.old
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def write(self, body):
+        with open(os.path.join(self.tmp, packages.PLUGIN_MSI_NAME), "wb") as f:
+            f.write(body)
+
+    def test_the_placeholder_is_the_one_the_build_uses(self):
+        # build-msi.ps1 makes the placeholder; the server must look for the very same text
+        # build-msi.ps1 dựng chuỗi giữ chỗ; máy chủ phải tìm đúng chữ đó
+        with open(os.path.join(os.path.dirname(__file__), "..", "packaging", "windows-msi", "build-msi.ps1"), encoding="utf-8") as f:
+            self.assertIn("$placeholder = 'AIWORKER-COMPANY-' + ('0' * 2031)", f.read())
+        self.assertEqual(len(packages.PLUGIN_MSI_PLACEHOLDER), 2048)
+
+    def test_fills_the_company_settings(self):
+        self.assertFalse(packages.plugin_msi_available())
+        self.write(b"head" + packages.PLUGIN_MSI_PLACEHOLDER + b"tail")
+        self.assertTrue(packages.plugin_msi_available())
+        signers = "ai-worker ssh-ed25519 AAAAexample\n"
+        package = packages.plugin_msi("https://board.example.com/", "k" * 32, signers)
+        self.assertEqual(len(package), len(packages.PLUGIN_MSI_PLACEHOLDER) + 8)
+        self.assertNotIn(packages.PLUGIN_MSI_PLACEHOLDER, package)
+        filled = package[4:-4].rstrip(b" ")
+        settings_ = json.loads(base64.b64decode(filled))
+        self.assertEqual(settings_["company"], {"sharing": {"enabled": True, "webhook": "https://board.example.com", "ingestKey": "k" * 32}})
+        self.assertEqual(settings_["signers"], signers)
+
+    def test_refuses(self):
+        self.assertIsNone(packages.plugin_msi("https://board.example.com", "k", ""))  # no package yet
+        self.write(packages.PLUGIN_MSI_PLACEHOLDER)
+        self.assertIsNone(packages.plugin_msi("https://board.example.com", "", ""))  # no send code on this server
+        for bad in ("https://a.com/\"x", "ftp://a.com", "https://a.com/path"):
+            self.assertIsNone(packages.plugin_msi(bad, "k", ""), bad)
+        self.assertIsNone(packages.plugin_msi("https://board.example.com", "k" * 2000, ""))  # too long for the placeholder
+        self.write(packages.PLUGIN_MSI_PLACEHOLDER * 2)
+        self.assertIsNone(packages.plugin_msi("https://board.example.com", "k", ""))  # placeholder twice
+
+    def test_signers_come_from_the_newest_release(self):
+        releases = os.path.join(self.tmp, "releases")
+        os.makedirs(releases)
+        self.assertEqual(packages.release_signers(releases), "")  # nothing released yet
+        with zipfile.ZipFile(os.path.join(releases, "ai-worker-1.2.3.zip"), "w") as z:
+            z.writestr("keys/allowed_signers", "ai-worker ssh-ed25519 AAAAexample\n")
+        with open(os.path.join(releases, "latest.json"), "w") as f:
+            json.dump({"version": "1.2.3", "name": "ai-worker-1.2.3.zip"}, f)
+        self.assertEqual(packages.release_signers(releases), "ai-worker ssh-ed25519 AAAAexample\n")
+        with open(os.path.join(releases, "latest.json"), "w") as f:
+            json.dump({"name": "../secret.zip"}, f)
+        self.assertEqual(packages.release_signers(releases), "")  # an odd name is not opened
+
+    def test_the_download_is_logged(self):
+        self.write(packages.PLUGIN_MSI_PLACEHOLDER)
+        source = inspect.getsource(w.Handler.get_plugin_installer)
+        self.assertIn('action="plugin-msi"', source)
+        self.assertIn('cache_control="no-store"', source)
+
+
 class RoutePermissions(unittest.TestCase):
     """Pins the current permission of each path and each role, so the permission gate can be changed without changing behavior.
     Chốt quyền hiện tại của từng đường dẫn và từng vai, để sửa cổng kiểm quyền mà không đổi hành vi."""
@@ -635,6 +703,9 @@ class RoutePermissions(unittest.TestCase):
         "/menubar/install-mac.zip": (401, 403, 403, 200, 403),
         "/menubar/install-windows.zip": (401, 403, 403, 200, 403),
         "/menubar/install-windows.msi": (401, 403, 403, 200 if packages.menubar_msi("https://board.example.com") else 404, 403),
+        # the plugin .msi carries the send code: admins only, like the menu bar installers
+        # gói .msi plugin mang mã gửi: chỉ quản trị, như các gói cài thanh menu
+        "/plugin/install-windows.msi": (401, 403, 403, 200 if packages.plugin_msi("https://board.example.com", settings.INGEST_KEY, "") else 404, 403),
         "/menubar/install-mac.dmg": (401, 403, 403, 404, 403),
         "/menubar/extension.zip": (401, 403, 403, 200 if packages.menubar_extension() else 404, 403),
         "/menubar/install-ubuntu.deb": (401, 403, 403, 200, 403),

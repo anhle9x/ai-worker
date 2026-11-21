@@ -1,6 +1,7 @@
 """Install packages built on request: TV, menu bar for Mac, Windows (.msi, .zip) and Ubuntu (.deb).
 Gói cài dựng khi được yêu cầu: TV, thanh menu cho Mac, Windows (.msi, .zip) và Ubuntu (.deb)."""
 
+import base64
 import hashlib
 import io
 import json
@@ -155,6 +156,61 @@ def menubar_msi(board_url: str):
     if package.count(MSI_PLACEHOLDER) != 1:
         return None
     return package.replace(MSI_PLACEHOLDER, board_url.encode("ascii").ljust(len(MSI_PLACEHOLDER)))
+
+
+# The plugin installer for staff computers on Windows (packaging/windows-msi, built by GitHub, fetched by packaging/windows-msi/fetch-msi.sh).
+# Unlike the menu bar app it carries the send code, so only an admin downloads it, and it is never kept in git.
+# Gói cài plugin cho máy nhân viên Windows (packaging/windows-msi, GitHub dựng, lấy về bằng packaging/windows-msi/fetch-msi.sh).
+# Khác app thanh menu, gói này mang mã gửi, nên chỉ quản trị được tải, và không bao giờ nằm trong git.
+PLUGIN_MSI_NAME = "AI-Worker-Plugin.msi"
+# the same text as $placeholder in packaging/windows-msi/build-msi.ps1: 2048 characters, filled with base64 text padded with spaces
+# đúng chữ $placeholder trong packaging/windows-msi/build-msi.ps1: 2048 ký tự, được điền chữ base64 đệm dấu cách
+PLUGIN_MSI_PLACEHOLDER = b"AIWORKER-COMPANY-" + b"0" * 2031
+
+
+def plugin_msi_available() -> bool:
+    """Whether the server holds the plugin .msi, for the button on the Admin page.
+    Máy chủ có gói .msi plugin không, cho nút ở trang Quản trị."""
+    return os.path.isfile(os.path.join(MENUBAR_DIR, PLUGIN_MSI_NAME))
+
+
+def release_signers(releases_dir: str) -> str:
+    """The update signing keys inside the newest release (packaging/release.sh puts them there), or '' with no release.
+    The installed plugin needs them to accept /update; they are public keys, not secrets.
+    Khoá ký bản cập nhật trong bản phát hành mới nhất (packaging/release.sh đưa vào), hoặc '' khi chưa phát hành.
+    Plugin đã cài cần chúng để nhận /update; đây là khoá công khai, không phải bí mật."""
+    try:
+        with open(os.path.join(releases_dir, "latest.json"), encoding="utf-8") as f:
+            name = json.load(f).get("name", "")
+        if not re.fullmatch(r"ai-worker-[0-9.]+\.zip", name):
+            return ""
+        with zipfile.ZipFile(os.path.join(releases_dir, name)) as z:
+            text = z.read("keys/allowed_signers").decode("utf-8")
+    except (OSError, ValueError, KeyError, zipfile.BadZipFile):
+        return ""
+    return text if re.search(r"(?m)^\s*ai-worker\s+ssh-", text) else ""
+
+
+def plugin_msi(board_url: str, ingest_key: str, signers: str):
+    """The plugin .msi with this server's address, the send code and the signing keys filled in; None without a package or a send code,
+    with an odd address, settings too long for the placeholder, or a placeholder not found exactly once.
+    Gói .msi plugin đã điền địa chỉ máy chủ này, mã gửi và khoá ký; None khi không có gói hay mã gửi,
+    địa chỉ lạ, thiết lập dài quá chuỗi giữ chỗ, hoặc chuỗi giữ chỗ không đúng một lần."""
+    board_url = board_url.rstrip("/")
+    path = os.path.join(MENUBAR_DIR, PLUGIN_MSI_NAME)
+    if not ingest_key or not os.path.isfile(path) or not re.fullmatch(r"https?://[A-Za-z0-9.:\[\]-]+", board_url):
+        return None
+    # the same company.json as packaging/company.example.json; prepare.ps1 on the computer writes it into the plugin folder
+    # đúng company.json như packaging/company.example.json; prepare.ps1 trên máy ghi nó vào thư mục plugin
+    settings = {"company": {"sharing": {"enabled": True, "webhook": board_url, "ingestKey": ingest_key}}, "signers": signers}
+    filled = base64.b64encode(json.dumps(settings, separators=(",", ":")).encode("utf-8"))
+    if len(filled) > len(PLUGIN_MSI_PLACEHOLDER):
+        return None
+    with open(path, "rb") as f:
+        package = f.read()
+    if package.count(PLUGIN_MSI_PLACEHOLDER) != 1:
+        return None
+    return package.replace(PLUGIN_MSI_PLACEHOLDER, filled.ljust(len(PLUGIN_MSI_PLACEHOLDER)))
 
 
 def menubar_zip(board_url: str, system: str) -> bytes:

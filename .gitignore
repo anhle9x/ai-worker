@@ -27,3 +27,7 @@ server/menubar/macos-app/dist/
 # the manager extension zipped by packaging/build-extension.sh: built from extensions/manager
 # tiện ích cho quản lý do packaging/build-extension.sh nén: dựng từ extensions/manager
 server/menubar/AI-Worker-extension.zip
+
+# the plugin installer for staff computers, fetched by packaging/windows-msi/fetch-msi.sh: a new one every version, kept out of git
+# gói cài plugin cho máy nhân viên, lấy về bằng packaging/windows-msi/fetch-msi.sh: mỗi phiên bản một gói mới, không đưa vào git
+server/menubar/AI-Worker-Plugin.msi

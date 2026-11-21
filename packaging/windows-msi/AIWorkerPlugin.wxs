@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AI Worker plugin.msi (WiX 5): a thin shell around the normal package for staff computers on Windows. It installs for this user only, -->
+<!-- no admin rights, into %LOCALAPPDATA%\Programs\AI Worker Plugin: the package zip and three small scripts, nothing else. -->
+<!-- The plugin folder itself (%USERPROFILE%\claude-plugins-ai-worker) is not owned by the .msi: INSTALL-Windows.bat writes it and /update replaces it. -->
+<!-- The company settings: the COMPANY property, by default a fixed-length placeholder; the server replaces it with base64 text of its address, -->
+<!-- the send code and the update signing keys (padded with spaces) when an admin downloads the file. Left as the placeholder, the install is a personal one. -->
+<!-- AI Worker plugin.msi (WiX 5): vỏ mỏng bọc gói thường cho máy nhân viên Windows. Cài cho riêng người dùng, -->
+<!-- không cần quyền quản trị, vào %LOCALAPPDATA%\Programs\AI Worker Plugin: gói zip và ba script nhỏ, không gì khác. -->
+<!-- Thư mục plugin (%USERPROFILE%\claude-plugins-ai-worker) không thuộc .msi: INSTALL-Windows.bat ghi nó và /update thay nó. -->
+<!-- Thiết lập công ty: thuộc tính COMPANY, mặc định là chuỗi giữ chỗ dài cố định; máy chủ thay bằng chữ base64 của địa chỉ, -->
+<!-- mã gửi và khoá ký bản cập nhật (đệm dấu cách) khi quản trị tải file. Để nguyên chuỗi giữ chỗ thì là bản cài cá nhân. -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Package Name="AI Worker plugin" Manufacturer="AI Worker" Version="$(var.Version)" Scope="perUser"
+           UpgradeCode="E7CCE36C-6D17-4032-94E1-13568DB4638C" Language="1033">
+    <!-- a newer .msi over an older one: copy the new files first, remove the old product last (the same order as the menu bar app) -->
+    <!-- .msi mới đè lên bản cũ: chép file mới trước, gỡ sản phẩm cũ sau cùng (cùng thứ tự với app thanh menu) -->
+    <MajorUpgrade Schedule="afterInstallExecute" AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of the AI Worker plugin installer is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Icon Id="app.ico" SourceFile="$(var.MenubarDir)\app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="app.ico" />
+    <!-- Hidden: msiexec does not print its value in a log file -->
+    <!-- Hidden: msiexec không in giá trị của nó vào file log -->
+    <Property Id="COMPANY" Value="$(var.CompanyPlaceholder)" Hidden="yes" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsDir" Name="Programs">
+        <Directory Id="InstallDir" Name="AI Worker Plugin" />
+      </Directory>
+    </StandardDirectory>
+
+    <!-- installed for this user only: each part keeps one HKCU value as its installed mark -->
+    <!-- cài cho riêng người dùng: mỗi phần lấy một giá trị trong HKCU làm dấu đã cài -->
+    <ComponentGroup Id="Plugin" Directory="InstallDir">
+      <Component Id="Payload" Guid="2CD81BBD-9FE3-4773-AB71-C229919E2FDB">
+        <File Id="PackageZip" Source="$(var.StageDir)\AI-Worker.zip" />
+        <File Id="SetupCmd" Source="$(var.StageDir)\setup.cmd" />
+        <File Source="$(var.StageDir)\prepare.ps1" />
+        <File Id="UninstallCmd" Source="$(var.StageDir)\uninstall.cmd" />
+        <RegistryValue Root="HKCU" Key="Software\AI Worker Plugin" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+        <RemoveFolder Id="RemoveInstallDir" On="uninstall" />
+        <RemoveFolder Id="RemovePrograms" Directory="ProgramsDir" On="uninstall" />
+      </Component>
+      <!-- the company settings for setup.cmd, which deletes the value once it has written them into the plugin folder -->
+      <!-- thiết lập công ty cho setup.cmd, script này xoá giá trị sau khi đã ghi vào thư mục plugin -->
+      <Component Id="Company" Guid="324D9CA5-D6D1-4DEF-A6F8-F6B43D26EFE5">
+        <RegistryValue Root="HKCU" Key="Software\AI Worker Plugin" Name="Company" Type="string" Value="[COMPANY]" KeyPath="yes" />
+      </Component>
+      <!-- Start menu: run the setup again, for a silent install (no finish screen) or after a step that did not finish -->
+      <!-- menu Start: chạy lại bước cài, cho bản cài im lặng (không có màn hình cuối) hay sau một bước chưa xong -->
+      <Component Id="StartMenu" Directory="ProgramMenuFolder" Guid="713EB001-51AD-4D5A-A412-4F8ED84A7B32">
+        <Shortcut Id="SetupShortcut" Name="Finish AI Worker setup" Description="Register the AI Worker plugin with Claude Code"
+                  Target="[#SetupCmd]" WorkingDirectory="InstallDir" Icon="app.ico" />
+        <RegistryValue Root="HKCU" Key="Software\AI Worker Plugin" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+    <StandardDirectory Id="ProgramMenuFolder" />
+    <Feature Id="Main">
+      <ComponentGroupRef Id="Plugin" />
+    </Feature>
+
+    <!-- uninstall (only a real one, not the removal of the old product during an upgrade): unregister the plugin from Claude Code and delete the plugin folder -->
+    <!-- before the files go; a failure does not stop the uninstall. The user's folders go as arguments: a step of the uninstall may not have the user's environment -->
+    <!-- gỡ (chỉ lần gỡ thật, không phải lần dọn sản phẩm cũ khi nâng cấp): bỏ đăng ký plugin khỏi Claude Code và xoá thư mục plugin -->
+    <!-- trước khi xoá file; lỗi cũng không chặn việc gỡ. Thư mục của người dùng truyền qua tham số: một bước của việc gỡ có thể không có biến môi trường của người dùng -->
+    <SetProperty Id="UninstallPlugin" Value="&quot;[SystemFolder]cmd.exe&quot; /d /c &quot;&quot;[#UninstallCmd]&quot; &quot;[LocalAppDataFolder]&quot; &quot;[AppDataFolder]&quot;&quot;" Before="UninstallPlugin" Sequence="execute" />
+    <CustomAction Id="UninstallPlugin" BinaryRef="Wix4UtilCA_X86" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="yes" />
+    <InstallExecuteSequence>
+      <Custom Action="UninstallPlugin" Before="RemoveFiles" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+
+    <!-- the setup window: the notice and the Install button, then a finish screen whose box (on by default) opens setup.cmd in a console window -->
+    <!-- (text in the .msi is English only: its code page is 1252; the console window speaks the computer's language) -->
+    <!-- cửa sổ cài: lời dặn và nút Install, rồi màn hình xong có ô (đánh sẵn) mở setup.cmd trong cửa sổ dòng lệnh -->
+    <!-- (chữ trong file .msi chỉ dùng tiếng Anh: bảng mã là 1252; cửa sổ dòng lệnh nói theo ngôn ngữ của máy) -->
+    <ui:WixUI Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="notice.rtf" />
+    <WixVariable Id="WixUIBannerBmp" Value="$(var.MenubarDir)\banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="$(var.MenubarDir)\dialog.bmp" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Finish the setup now (recommended)" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WixShellExecTarget" Value="[#SetupCmd]" />
+    <CustomAction Id="RunSetup" DllEntry="WixShellExec" Impersonate="yes" BinaryRef="Wix4UtilCA_X86" />
+    <UI>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="RunSetup" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
+    </UI>
+  </Package>
+</Wix>

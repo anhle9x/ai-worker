@@ -33,6 +33,7 @@ Muốn xem bảng trước khi triển khai, chạy `python3 server/demo.py` (tr
    ```
    Được `dist/AI-Worker-<phiên bản>-company.zip`.
 5. **Nhân viên cài.** Giải nén, bấm đúp `INSTALL-Mac.command` hoặc `INSTALL-Windows.bat`, nhập họ tên. Gói có mã gửi nên chỉ phát trong công ty.
+   Trên Windows còn có một file cài duy nhất, `AI-Worker-Plugin.msi`, do máy chủ điền sẵn địa chỉ và mã gửi của nó: xem [Gói cài plugin cho Windows (.msi)](#gói-cài-plugin-cho-windows-msi).
 6. **Xem bảng.** Mở bảng trên trình duyệt: `https://<domain của bảng>` sau proxy HTTPS (ví dụ `https://board.example.com`), hoặc `http://<IP-máy-chủ>:8788` từ trong mạng khi chưa dựng proxy. Đăng nhập bằng mã OTP. Trang `/board` có cột Plugin cho biết máy nào chưa lên bản mới nhất.
 
 ## Lệnh trên máy nhân viên
@@ -136,6 +137,23 @@ Một dự án hay ứng dụng nhóm tự làm có thể gửi những gì bộ
 Phần người làm dự án tự làm: [AI-PROJECTS.vi.md](AI-PROJECTS.vi.md).
 
 Giá lấy từ `server/board/prices.json`, bản sao bảng giá của skill, đi theo mỗi bản phát hành. Hãng chưa có trong đó, giá đã thương lượng, hay model chạy trên máy của nhóm thì dán file giá riêng ở mục **Giá riêng** trên trang Quản trị.
+
+## Gói cài plugin cho Windows (.msi)
+
+Thay cho gói zip, máy nhân viên Windows có thể cài từ một file duy nhất, `AI-Worker-Plugin.msi`. File cài cho riêng người dùng, không cần quyền quản trị, và có mục gỡ trong Settings > Apps. Bản thân file giống nhau cho mọi công ty: GitHub dựng nó với một chuỗi giữ chỗ, còn máy chủ của bạn điền địa chỉ của nó, mã gửi (`INGEST_KEY`) và khoá ký bản cập nhật đúng lúc quản trị tải về. Vì vậy mã gửi không bao giờ lên GitHub, và bạn không phải dựng gì trên máy mình.
+
+1. **Lấy file về**, trên máy có repo và lệnh `gh` đã đăng nhập, sau một lượt chạy đạt trên GitHub của nhánh (việc `plugin-msi`):
+   ```bash
+   bash packaging/windows-msi/fetch-msi.sh
+   ```
+   Kết quả đúng: `Fetched AI-Worker-Plugin.msi ...`, và file nằm trong `server/menubar/` (không đưa vào git). Chép `server/` lên máy chủ và chạy `install.sh` như thường lệ. File mang plugin của phiên bản lúc dựng: lấy lại sau mỗi lần phát hành.
+2. **Phát hành một lần** bằng `packaging/release.sh` trước khi phát file: máy chủ lấy khoá ký bản cập nhật từ bản phát hành mới nhất. Chưa phát hành thì plugin vẫn cài được nhưng không tự cập nhật bằng `/update`.
+3. **Tải:** trang Quản trị, mục **Plugin cho máy nhân viên (Windows)**, nút **Tải AI-Worker-Plugin.msi**. Mục này chỉ hiện khi máy chủ có file. Lần tải nào cũng được ghi vào nhật ký Quản trị ("Tải gói cài plugin cho nhân viên"). File có mã gửi, như gói zip công ty: chỉ phát trong công ty.
+4. **Trên máy nhân viên:** mở file và bấm **Install**. Nếu Windows báo "Windows protected your PC" (file chưa được ký), bấm **More info**, rồi **Run anyway**. Để nguyên ô **Finish the setup now** và bấm **Finish**: một cửa sổ làm đúng các bước của `INSTALL-Windows.bat` (Claude đã đăng nhập, họ tên, đăng ký plugin với Claude Code). Kết quả đúng: cửa sổ kết thúc bằng "Xong. Mở (hoặc mở lại) Claude Code, rồi gõ /office". Chạy lại cửa sổ này được từ menu Start, **Finish AI Worker setup**, ví dụ sau khi cài im lặng (`msiexec /i AI-Worker-Plugin.msi /qn`, không có màn hình cuối).
+5. **Cập nhật** vẫn bằng `/update`. Cài `.msi` mới hơn đè lên bản cũ thì plugin vẫn giữ nguyên; chạy lại bước cài không bao giờ đưa về plugin cũ hơn bản `/update` đã cài.
+6. **Gỡ cài:** Settings > Apps > **AI Worker plugin** > Uninstall. Việc gỡ bỏ đăng ký plugin khỏi Claude Code và xoá thư mục plugin cùng `company.json`; dữ liệu riêng của người dùng trong `%USERPROFILE%\.local\share\ai-worker` được giữ.
+
+Cần nhớ: file chưa được ký, và để nguyên cách này thì không ký được, vì máy chủ sửa file sau khi dựng. Khi mọi máy đã cài xong, có thể đặt `SHARED_KEY_MODE=known-only` trong `/etc/ai-worker.env` để một bản file bị lộ không thêm được máy mới. Gói zip và file `.bat` vẫn còn, làm đường dự phòng và cho macOS, Linux.
 
 ## Biểu tượng thanh menu cho quản lý
 
