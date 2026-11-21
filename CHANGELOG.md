@@ -2,7 +2,7 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.50.3 - 2026-11-22
 
 ### Fixed
 - On Windows, the connector for Codex, Cursor and Gemini CLI now keeps the computer's own key (`awd1.…`) even when the answer reaches it without a text `Content-Type` (a proxy that drops the header, for example). PowerShell then hands over the answer as bytes, and the connector looked for the key in them as if they were text, found nothing and kept sending with the shared key. It now reads the answer as UTF-8 either way, as the sh connector does.
