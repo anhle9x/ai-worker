@@ -176,9 +176,11 @@ function Remove-Case([string]$name, [string]$answer) {
   $userHome = Join-Path $root $name
   $folder = Join-Path $root "package-$name"
   $stdin = Join-Path $root "stdin-remove-$name.txt"
-  [IO.File]::WriteAllText($stdin, ("$answer`r`n" + ("`r`n" * 5)), (New-Object Text.UTF8Encoding $false))
+  [IO.File]::WriteAllText($stdin, ("`r`n" * 5), (New-Object Text.UTF8Encoding $false))
+  $answersFile = Join-Path $root "answers-remove-$name.txt"
+  [IO.File]::WriteAllText($answersFile, "$answer`r`n", (New-Object Text.UTF8Encoding $false))
   Remove-Item -ErrorAction SilentlyContinue "$userHome\commands.log"
-  $envMap = @{ AI_WORKER_LANG = 'en'; USERPROFILE = $userHome; APPDATA = "$userHome\AppData\Roaming"; LOCALAPPDATA = "$userHome\AppData\Local"; Path = "$fake;C:\Windows\System32;C:\Windows;C:\Windows\System32\WindowsPowerShell\v1.0" }
+  $envMap = @{ AI_WORKER_LANG = 'en'; AI_WORKER_ANSWERS_FILE = $answersFile; USERPROFILE = $userHome; APPDATA = "$userHome\AppData\Roaming"; LOCALAPPDATA = "$userHome\AppData\Local"; Path = "$fake;C:\Windows\System32;C:\Windows;C:\Windows\System32\WindowsPowerShell\v1.0" }
   $saved = @{}
   foreach ($k in $envMap.Keys) { $saved[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $envMap[$k]) }
   try {

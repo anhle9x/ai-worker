@@ -22,7 +22,14 @@ call :say "This unregisters the plugin from Claude Code and deletes %USERPROFILE
 call :say "Your name and history in %USERPROFILE%\.local\share\ai-worker are kept." "Họ tên và lịch sử của bạn trong %USERPROFILE%\.local\share\ai-worker được giữ lại."
 set "ANSWER="
 call :say "Remove it? (y/N): " "Gỡ không? (y/N): " nonl
-set /p "ANSWER="
+:: Automatic runs and tests: the answer comes from the file AI_WORKER_ANSWERS_FILE, as in the other installers (set /p did not get a redirected stdin on the test machine)
+:: Chạy tự động và thử nghiệm: câu trả lời lấy từ file AI_WORKER_ANSWERS_FILE, như các file cài khác (set /p không nhận được stdin chuyển hướng trên máy thử)
+if defined AI_WORKER_ANSWERS_FILE (
+  set /p "ANSWER=" < "%AI_WORKER_ANSWERS_FILE%"
+  echo(
+) else (
+  set /p "ANSWER="
+)
 if /i not "%ANSWER%"=="y" (
   call :say "Nothing was changed." "Không thay đổi gì."
   pause
