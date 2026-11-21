@@ -142,7 +142,7 @@ Prices come from `server/board/prices.json`, a copy of the skill's price file th
 
 Instead of the zip, staff computers on Windows can install from one file, `AI-Worker-Plugin.msi`. It installs for the person only, with no admin rights, and has an entry in Settings > Apps. The file itself is the same for every company: GitHub builds it with a placeholder, and your server fills in its own address, the send code (`INGEST_KEY`) and the update signing keys at the moment an admin downloads it. So the send code never goes to GitHub, and you do not build anything on your own computer.
 
-1. **Fetch the file**, on the computer with the repository and the `gh` command signed in, after a successful GitHub run of the branch (the job `plugin-msi`):
+1. **Fetch the file**, on the computer with the repository and the `gh` command signed in. It takes the newest successful run of the published repository (the job `plugin-msi`), where Actions run for free; a fork passes its own: `bash packaging/windows-msi/fetch-msi.sh owner/repository branch`.
    ```bash
    bash packaging/windows-msi/fetch-msi.sh
    ```

@@ -142,7 +142,7 @@ Giá lấy từ `server/board/prices.json`, bản sao bảng giá của skill, �
 
 Thay cho gói zip, máy nhân viên Windows có thể cài từ một file duy nhất, `AI-Worker-Plugin.msi`. File cài cho riêng người dùng, không cần quyền quản trị, và có mục gỡ trong Settings > Apps. Bản thân file giống nhau cho mọi công ty: GitHub dựng nó với một chuỗi giữ chỗ, còn máy chủ của bạn điền địa chỉ của nó, mã gửi (`INGEST_KEY`) và khoá ký bản cập nhật đúng lúc quản trị tải về. Vì vậy mã gửi không bao giờ lên GitHub, và bạn không phải dựng gì trên máy mình.
 
-1. **Lấy file về**, trên máy có repo và lệnh `gh` đã đăng nhập, sau một lượt chạy đạt trên GitHub của nhánh (việc `plugin-msi`):
+1. **Lấy file về**, trên máy có repo và lệnh `gh` đã đăng nhập. Lệnh lấy lượt chạy đạt mới nhất của repo phát hành (việc `plugin-msi`), nơi Actions chạy miễn phí; bản fork truyền repo của mình: `bash packaging/windows-msi/fetch-msi.sh chủ/repo nhánh`.
    ```bash
    bash packaging/windows-msi/fetch-msi.sh
    ```
