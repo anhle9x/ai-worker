@@ -152,6 +152,13 @@ class LoginGate:
             role = ACCOUNTS.role_of(p[0]) if p and p[1] > now else None
             return (p[0], role) if role else (None, None)
 
+    def role_of_token(self, token: str, now: float):
+        """The role a session token still has, None once it is logged out, expired, cancelled, or its account or TV screen is gone: the
+        tickets of the live feed ask it of the sessions they were given to, to end their feeds (board/receiver.py, Tickets).
+        Vai một mã phiên còn có, None khi đã đăng xuất, hết hạn, bị huỷ, hay tài khoản hoặc màn hình TV của nó không còn: vé của luồng số
+        trực tiếp hỏi điều này về các phiên đã được cấp vé, để cắt luồng của chúng (board/receiver.py, Tickets)."""
+        return self.user_and_role("session=" + token, now)[1]
+
     def _drop(self, token: str) -> None:
         self.sessions.pop(token, None)
         self.confirmed_at.pop(token, None)

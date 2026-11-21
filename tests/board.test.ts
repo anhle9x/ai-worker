@@ -35,6 +35,15 @@ test('the board reads as plain lines: the team, each office, each person', () =>
   expect(text).toContain('- Device 3fa9c1 | no office (mobile or not assigned) | offline | - | 0.00 | 0.00 | - | - | -')
 })
 
+test('someone waiting in one session while another runs is counted both waiting and working', () => {
+  const both = { ...WALL, people: WALL.people.map(p => (p.name === 'Nga' ? { ...p, working: 2 } : p)) }
+  const text = summarizeBoard(both, AT)
+  expect(text).toContain('Team: 3 people, 2 working, 1 waiting for an answer, 0 idle, 1 offline. Cost today 12.50, last 7 days 40.00.')
+  expect(text).toContain('so these can add up to more than the people.')
+  expect(text).toContain('- Da Nang | 1 | 1 | 1 | 10.64 | 29.69')
+  expect(text).toContain('- Nga | Da Nang | waiting for an answer, another session working | 27 | 10.64 | 29.69 | 96 | - | Opus 5.5')
+})
+
 test('an empty or broken board answer does not throw', () => {
   expect(summarizeBoard({}, AT)).toContain('Team: 0 people')
   expect(summarizeBoard({ people: [{}], branches: 'x' } as never, AT)).toContain('- ? | no office (mobile or not assigned) | offline')

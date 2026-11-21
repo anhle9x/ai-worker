@@ -4,7 +4,7 @@ Read this before changing anything in this repository. People read [CONTRIBUTING
 
 ## What this is
 
-A Claude Code plugin (`.claude-plugin/`, `hooks/`, `skills/`, `web/`) on each employee's computer, a connector for Codex, Cursor and Gemini CLI that needs no Claude Code (`connectors/`), and a dashboard server (`server/`) on one Linux machine. Design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Data: [docs/DATA-MODEL.md](docs/DATA-MODEL.md). Permissions: [docs/PERMISSIONS.md](docs/PERMISSIONS.md).
+A Claude Code plugin (`.claude-plugin/`, `hooks/`, `skills/`, `web/`) on each employee's computer, a connector for Codex, Cursor and Gemini CLI that needs no Claude Code (`connectors/`), a dashboard server (`server/`) on one Linux machine, and an optional receiver in Go for large organisations (`receiver/`, [docs/RECEIVER.md](docs/RECEIVER.md)). Design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Data: [docs/DATA-MODEL.md](docs/DATA-MODEL.md). Permissions: [docs/PERMISSIONS.md](docs/PERMISSIONS.md).
 
 ## Do not move
 
@@ -13,6 +13,7 @@ A Claude Code plugin (`.claude-plugin/`, `hooks/`, `skills/`, `web/`) on each em
 ## Rules
 
 - Every comment and docstring: an English line, then a Vietnamese line. Vietnamese only in comments, docstrings or `*.vi.*` files. Each document has `.md` and `.vi.md`.
+- The receiver in `receiver/` uses the Go standard library only. Its cleaning copies `server/board/devices.py`: change both, then run `python3 tests/contract/ingest-v2/make_cases.py` if a case changed.
 - The server uses the Python standard library only (Python 3.8+). Data is in SQLite through `server/board/db.py`; a schema change is a new step, never an edit of a shipped one. SQL takes values only as parameters.
 - A new server path goes into the route table in `server/webhook.py` and the permission table in `server/test_webhook.py`.
 - `web/ops.js`, `ops.css`, `ops3d.js`, `i18n.js`, `ops.vi.js` must equal their copies in `server/static/`.
@@ -23,7 +24,7 @@ A Claude Code plugin (`.claude-plugin/`, `hooks/`, `skills/`, `web/`) on each em
 
 ## Checks
 
-Run all eleven before calling a change done. CI runs the same ones.
+Run all twelve before calling a change done. CI runs the same ones.
 
 ```bash
 claude plugin test .
@@ -69,6 +70,10 @@ bash tests/test-check-clean.sh
 uvx ruff check .
 ```
 
-Without `uv`, the last one is `pipx run ruff check .`.
+```bash
+cd receiver && go test ./...
+```
+
+Without `uv`, the ruff check is `pipx run ruff check .`. The last one needs Go 1.22 or later and `python3`: the receiver's tests run the Python server as the judge.
 
 `bash packaging/check-clean.sh` is not in this list: it looks for private data in the folder it runs in, so it belongs on what gets published. In a checkout that holds your own `packaging/company.json` it reports that file, and that is expected.

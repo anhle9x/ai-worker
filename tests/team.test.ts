@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { buildHelp, skillLine } from '../hooks/help'
 import { findHostApp, parseLinuxHost, parseWindowsHost, hasSigningKeys, parseHash, parseSignatureResult, parseManifest, shouldOfferUpdate } from '../hooks/update'
-import { OPEN_MS, buildMachineSummary, hardwareMark, parseHardwareId, sha256Hex, isLanIp, mergeShare, mergeTeam, parseLanIp, parseSessionFile, readShareConfig, summarySignature, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, answerModel, toQuota, quotaWarning } from '../hooks/team'
+import { DEVICE_ID_LENGTH, OPEN_MS, buildMachineSummary, deviceKeyIn, newDeviceId, hardwareMark, parseHardwareId, sha256Hex, isLanIp, mergeShare, mergeTeam, parseLanIp, parseSessionFile, readShareConfig, summarySignature, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, answerModel, toQuota, quotaWarning } from '../hooks/team'
 
 const H = 3_600_000
 const NOW = 500_000 * H
@@ -415,4 +415,25 @@ test('what ai-worker stopped leaves the machine as counts by hour, never what it
   const m = buildMachineSummary([{ jobs: [], now: NOW, seenAt: NOW, blocks }], undefined, NOW, who)
   expect(m.blocks).toEqual({ [hour]: { secret: 2, risky: 1 } })
   expect(buildMachineSummary([{ jobs: [], now: NOW, seenAt: NOW }], undefined, NOW, who).blocks).toBeUndefined()
+})
+
+test('a key of its own in the server answer is taken only when it is well formed', () => {
+  const key = 'awd1.kid1.org1.pid1.rk1.device-x.1795000000.sig1'
+  expect(deviceKeyIn(JSON.stringify({ ok: true, deviceKey: key }))).toBe(key)
+  expect(deviceKeyIn(JSON.stringify({ ok: true }))).toBeUndefined()
+  expect(deviceKeyIn(JSON.stringify({ ok: true, deviceKey: 'awd1.short' }))).toBeUndefined()
+  expect(deviceKeyIn(JSON.stringify({ ok: true, deviceKey: key + '.extra' }))).toBeUndefined()
+  expect(deviceKeyIn(JSON.stringify({ ok: true, deviceKey: 'awd1.a.b.c.d.e.f.<script>' }))).toBeUndefined()
+  expect(deviceKeyIn('not json')).toBeUndefined()
+})
+
+test('a new device id is long enough for a million computers and is one the server takes', () => {
+  const ids = new Set<string>()
+  for (let i = 0; i < 2000; i++) {
+    const id = newDeviceId()
+    expect(id).toMatch(/^device-[a-z0-9]{16}$/)
+    ids.add(id)
+  }
+  expect(ids.size).toBe(2000)
+  expect(DEVICE_ID_LENGTH).toBeGreaterThanOrEqual(16)
 })

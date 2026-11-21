@@ -50,9 +50,12 @@ On the dashboard, a computer silent for 12 minutes shows as offline and one sile
 | Every computer offline | Caddy stopped, certificate expired, or the office IP changed | `systemctl status caddy`; update the IP list in the Caddy file and `systemctl reload caddy` |
 | One computer missing | Its IP is outside the allow-list, or it was installed with an old package | Ask the user to run `/office`; check the Caddy access log for its IP |
 | Log shows `401 wrong ingest key` | The package was built with another `INGEST_KEY` | Rebuild the package with the current key and reinstall on that computer |
+| Log shows `use this computer's own key` | The computer has a key of its own but sent with the shared key, usually because its plugin data was wiped | `--forget-device <device id>` (as for a computer that changed hands); it enrols again at its next send |
+| A computer must stop sending (lost, stolen, left) | | On the Admin page, **Computers and their keys**, press **Revoke** on its row; or from the command line `sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --revoke-device <device id>`: its key stops at once and the shared key no longer sends for it |
+| Every computer must get a new key (the secret that signs them is old, or the file of secrets leaked) | | Stop the webhook, run `sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --rotate-device-secret`, start it again: every computer gets a new key at its next send, and old keys still work until then. With `--drop-old` the old keys stop at once and every computer enrols again with the shared key ([RECEIVER.md](RECEIVER.md), section 6) |
 | Log shows `409 this device is linked to another person` | The computer changed hands | `sudo systemctl stop ai-worker-webhook`, then `sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --forget-device <device id>`, then start the service |
-| Log shows `429 too many submissions` | One address sends too often, often a loop or many computers behind one IP | Check that address; the limit is 300 sends per 10 minutes per IP |
-| Log shows `507 device limit reached` | 300 computers reached | Wait for old computers to drop after 30 days, or raise `MAX_DEVICES` in code |
+| Log shows `429 too many submissions` | One computer sends too often, usually a loop | Check that computer; each computer may send 20 times at once, then once a second |
+| Log shows `507 device limit reached` | 300 computers reached | Wait for old computers to drop after 30 days, or raise `MAX_DEVICES` in `/etc/ai-worker.env` after measuring ([BENCHMARK.md](BENCHMARK.md)) |
 | "Too many wrong tries" at login | 5 wrong OTP codes in 15 minutes | Wait 15 minutes; check the phone clock is set automatically |
 | A TV shows "not seen for a while" | The TV is off or lost its network | Turn it on; if it asks for a code, pair it again on `/admin` |
 | Staff do not get the update | Plugin older than 0.23.0, signature check failed, or the plugin folder has `.git` | See section 5 |
@@ -152,6 +155,8 @@ Then run `sudo bash install.sh` in the old `server/` folder (it starts the servi
 What going back loses: everything written to `board.db` after the upgrade, such as the totals per day, audit lines, screens or keys paired and locations named since. The live board fills again within minutes, because every computer sends its last 8 days of hours with each report. Accounts are untouched.
 
 The server deletes `board.db.schema-1.bak` 30 days after the upgrade (log: `deleted the upgrade backup ...`). It is a full copy of people's numbers: keep it as private as `board.db`, and copy it elsewhere before the 30 days are over only if you need it longer.
+
+The same holds for every later schema change, with that version's number in the file name. The version that keeps the hour books in rows of their own (`device_hours`, `device_days`, see [DATA-MODEL.md](DATA-MODEL.md)) raises `board.db` from schema version 5 to 6, so its copy is `board.db.schema-5.bak`: use that name in the steps above. The upgrade runs in one transaction, so a failure half way leaves the database at version 5 and the service stops with the error in the log.
 
 #### Going back after the OTP secrets were sealed
 

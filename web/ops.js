@@ -46,6 +46,11 @@
     const keys = Object.keys(TOOL_NAMES).filter(k => tools[k])
     return keys.some(k => k !== 'claude') ? keys.map(k => [TOOL_NAMES[k], tools[k].waiting ? 'waiting' : tools[k].working ? 'working' : 'open', k]) : []
   }
+  // Whether a person counts as working: status gives the one state that colours them (waiting first), but someone waiting in one
+  // session while another runs is working too, as the board's server counts them.
+  // Một người có được đếm là đang làm không: status cho một trạng thái để tô màu (chờ trước), nhưng người đang chờ ở một phiên trong
+  // khi phiên khác chạy cũng đang làm, như máy chủ của bảng đếm.
+  const isWorking = p => p.status === 'working' || (p.status === 'waiting' && p.working > 0)
   const otherToolNames = p => openTools(p).filter(t => t[2] !== 'claude').map(t => t[0]).join(', ')
   // Fable costs about 2.5 times more than Opus: give it its own color so it stands out
   // Fable đắt hơn khoảng 2,5 lần Opus: tô màu riêng để dễ thấy
@@ -270,6 +275,10 @@
     if (window.ResizeObserver) new ResizeObserver(fitTitle).observe(title)
     else addEventListener('resize', fitTitle)
     const right = o('div', 'o-right')
+    // the scope picker, only while the board reads one scope at a time (the receiver's live feed, docs/RECEIVER.md section 3): the whole organisation or one branch, and the page of a big branch
+    // ô chọn phạm vi, chỉ khi bảng đọc từng phạm vi một (luồng số trực tiếp của bộ nhận, docs/RECEIVER.vi.md mục 3): cả tổ chức hay một chi nhánh, và trang của chi nhánh lớn
+    const scopeBox = o('span', 'o-scope')
+    scopeBox.hidden = true
     const nodes = o('span')
     const statusEl = o('span', 'o-pill')
     const clock = o('span', 'o-clock')
@@ -379,7 +388,7 @@
     const list = o('div', 'o-list')
     const lfoot = o('div', 'o-foot')
     const modelList = o('div', 'o-models')
-    left.append(...heading('Active operations', 'ops', M ? tx('whole session') : tx('today')), list, lfoot, ...heading(M ? 'Models & quota' : 'Models in use', 'models'), modelList)
+    left.append(...heading('Active operations', 'ops', M ? tx('whole session') : tx('today')), scopeBox, list, lfoot, ...heading(M ? 'Models & quota' : 'Models in use', 'models'), modelList)
 
     const graph = o('div', 'panel o-graph')
     const gcv = o('canvas')
@@ -446,7 +455,10 @@
     // view modes in one menu button: Default (flat), 2.5D (tilted, grid floor), 3D (free rotation); remembered per browser
     // chế độ xem trong một nút menu: Mặc định (phẳng), 2.5D (nghiêng, nền lưới), 3D (xoay tự do); nhớ theo trình duyệt
     const stage = o('div', 'o-stage')
-    stage.append(gcv, mapBox)
+    // the totals of each branch, in place of the diagram while the whole organisation is shown without its people (too many for one page)
+    // tổng của từng chi nhánh, thay cho sơ đồ khi cả tổ chức hiện không kèm người (quá đông cho một trang)
+    const orgBox = o('div', 'o-org')
+    stage.append(gcv, mapBox, orgBox)
     const modeBar = o('div', 'o-mode-bar')
     const MODES = [['default', tx('Default')], ['2.5d', '2.5D'], ['3d', '3D'], ...(M ? [] : [['map', tx('Map')]])]
     const wallMode = !M && (new URLSearchParams(location.search).get('frame') === 'wall' || document.body.dataset.role === 'wall')
@@ -549,7 +561,11 @@
       actionButton('newWindow', tx('Open in new window'), () => {
         const width = Math.min(1400, screen.availWidth - 40)
         const height = Math.min(880, screen.availHeight - 60)
-        window.open('/?frame=diagram', 'ai-worker-diagram', `popup,width=${width},height=${height}`)
+        // the diagram's own window shows the same scope and page as this one
+        // cửa sổ riêng của sơ đồ hiện đúng phạm vi và trang như cửa sổ này
+        const query = new URLSearchParams(location.search)
+        query.set('frame', 'diagram')
+        window.open('/?' + query, 'ai-worker-diagram', `popup,width=${width},height=${height}`)
       })
     const replayBar = o('div', 'o-replay')
     replayBar.hidden = true
@@ -685,7 +701,7 @@
         .then(() => (window.Ops3D ? 0 : loadScript('ops3d.js')))
         .then(() => {
           view3d = window.Ops3D.create(stage, {
-            people: drawPeople, card, HELPERS, STATUS_INFO, mainModel: mainModel, compact,
+            people: drawPeople, card, HELPERS, STATUS_INFO, mainModel: mainModel, compact, isWorking,
             selected: i => selectPerson(i), selectedIndex: () => selected,
           })
           view3d.show(mode === '3d')
@@ -851,15 +867,96 @@
       if (events.length > 40) events.pop()
     }
 
+    // the scope and page being shown ("" for the plain /data of a board without the live feed), and the totals of each branch while the
+    // whole organisation is shown without its people (null otherwise)
+    // phạm vi và trang đang hiện ("" với /data thường của bảng không có luồng số trực tiếp), và tổng của từng chi nhánh khi cả tổ chức
+    // hiện không kèm người (null nếu không)
+    let scopeKey = ''
+    let orgTotals = null
+    const sumTotals = () => {
+      const t = { people: 0, online: 0, working: 0, waiting: 0, openSessions: 0, usdToday: 0, tokens: 0 }
+      for (const b of orgTotals || []) for (const k of Object.keys(t)) t[k] += +b[k] || 0
+      return t
+    }
+    const headcount = () => (orgTotals ? sumTotals().people : people.length)
+    const branchName = id => (id ? ((snapshot.branches || []).find(b => b.id === id) || { name: id }).name : tx('Not in a branch'))
+    const openScope = (scope, page) => opts.onScope && opts.onScope(scope, page || 0)
+
+    // the picker of scope and page; built again only when what it offers changes, and never while it is being used
+    // ô chọn phạm vi và trang; chỉ dựng lại khi thứ nó đưa ra đổi, và không bao giờ lúc đang được dùng
+    let scopeShown = ''
+    function drawScope(d) {
+      scopeBox.hidden = d.scope === undefined || !opts.onScope
+      if (scopeBox.hidden || scopeBox.contains(document.activeElement)) return
+      const branches = d.branches || []
+      const shown = JSON.stringify([d.scope, d.page, d.pageNames, branches.map(b => [b.id, b.name]), I18n.locale])
+      if (shown === scopeShown) return
+      scopeShown = shown
+      const choice = (label, items, value, pick) => {
+        const s = o('select')
+        s.setAttribute('aria-label', label)
+        for (const [v, text] of items) {
+          const op = o('option', '', text)
+          op.value = v
+          s.append(op)
+        }
+        s.value = value
+        s.addEventListener('change', () => pick(s.value))
+        return s
+      }
+      const parts = [choice(tx('Scope'), [['org', tx('Whole organisation')], ...branches.map(b => ['branch:' + b.id, b.name]), ['branch:', tx('Not in a branch')]], d.scope, v => openScope(v, 0))]
+      // a branch of more than 500 people comes a page at a time, in the order of the names: each page is offered by its first and last name
+      // chi nhánh quá 500 người đến từng trang, theo thứ tự tên: mỗi trang được đưa ra bằng tên đầu và tên cuối của nó
+      if (d.pages > 1) parts.push(choice(tx('Page'), (d.pageNames || []).map(([a, b], i) => [String(i), `${a} – ${b}`]), String(d.page || 0), v => openScope(d.scope, +v)))
+      scopeBox.replaceChildren(...parts)
+    }
+
+    // the whole organisation without its people: one card per branch, which opens that branch
+    // cả tổ chức không kèm người: mỗi chi nhánh một thẻ, bấm vào thì mở chi nhánh đó
+    function drawOrg() {
+      if (!orgTotals) return orgBox.replaceChildren()
+      const rate = snapshot.usdRate || 26000
+      orgBox.replaceChildren(...orgTotals.map(b => {
+        const c = o('button', 'o-org-card')
+        c.type = 'button'
+        const color = b.waiting ? COLORS.yellow : b.working ? COLORS.green : b.online ? COLORS.cyan : STATUS_INFO.offline.color
+        c.style.borderColor = color
+        const dot = o('i')
+        dot.style.background = color
+        const name = o('b', '', branchName(b.id))
+        name.prepend(dot)
+        c.append(name, o('span', '', money(b.usdToday, rate)),
+          o('small', '', tx('{working} working · {waiting} waiting · {online}/{total} online', { working: b.working, waiting: b.waiting, online: b.online, total: b.people })),
+          o('small', '', tx('{n} open sessions · {tokens} tokens', { n: b.openSessions, tokens: compact(b.tokens) })))
+        c.addEventListener('click', () => openScope('branch:' + b.id, 0))
+        return c
+      }))
+    }
+
     function update(d) {
+      // another scope or page: what was seen before belongs to other people, so the events and the history start again
+      // phạm vi hay trang khác: những gì thấy trước đó là của người khác, nên sự kiện và lịch sử bắt đầu lại
+      const key = d.scope === undefined ? '' : d.scope + '|' + (d.page || 0)
+      if (key !== scopeKey) {
+        scopeKey = key
+        previous = null
+        events.length = 0
+        history.working.length = history.waiting.length = 0
+        selected = -1
+        hoverCard.hidden = true
+      }
       snapshot = d
+      orgTotals = d.scope === 'org' && !(d.people || []).length && d.peopleTotal > 0 ? d.branchTotals || [] : null
+      stage.classList.toggle('o-org-on', !!orgTotals)
+      drawScope(d)
+      drawOrg()
       people = [...(d.people || [])].map((p, i) => ({ ...p, root: i })).sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name, I18n.locale))
       // events: compare the status with the previous time
       // sự kiện: so trạng thái với lần trước
       const current = {}
       for (const p of people) current[p.name + '|' + p.account] = { s: p.status, g: (p.delegating || []).map(v => v > 0) }
       if (!previous) {
-        addEvent('b-info', `OPERATIONS MATRIX ONLINE · ${people.length} NODES`, COLORS.cyan)
+        addEvent('b-info', `OPERATIONS MATRIX ONLINE · ${headcount()} NODES`, COLORS.cyan)
         for (const p of people) if (p.status !== 'offline') addEvent(STATUS_INFO[p.status].label, `${p.name} · ${STATUS_INFO[p.status].name}`)
       } else {
         for (const p of people) {
@@ -877,8 +974,15 @@
         }
       }
       previous = current
-      const counts = { working: 0, waiting: 0, open: 0, offline: 0 }
-      for (const p of people) counts[p.status]++
+      // a person waiting in one session while another runs is counted both working and waiting, so the counts do not add up to the people
+      // người đang chờ ở một phiên trong khi phiên khác chạy được đếm cả đang làm lẫn đang chờ, nên các số đếm không cộng lại thành số người
+      const counts = { working: 0, waiting: 0, offline: 0 }
+      if (orgTotals) {
+        // the whole organisation without its people: the counts come from the totals of the branches, counted as the board counts people
+        // cả tổ chức không kèm người: các số đếm lấy từ tổng của các chi nhánh, đếm như bảng đếm người
+        const t = sumTotals()
+        Object.assign(counts, { working: t.working, waiting: t.waiting, offline: t.people - t.online })
+      } else Object.assign(counts, { working: people.filter(isWorking).length, waiting: people.filter(p => p.status === 'waiting').length, offline: people.filter(p => p.status === 'offline').length })
       history.working.push(counts.working)
       history.waiting.push(counts.waiting)
       for (const k of ['working', 'waiting']) if (history[k].length > 40) history[k].shift()
@@ -899,7 +1003,7 @@
     // vòng đo khi treo tường: người đang làm, và hạn mức cao nhất cả team theo từng khung
     function drawRings(counts) {
       const height = kind => Math.max(0, ...people.flatMap(p => ((p.quota && p.quota.windows) || []).filter(c => c.kind === kind).map(c => c.pct)))
-      const online = people.length - counts.offline
+      const online = headcount() - counts.offline
       const levelColor = p => (p >= 95 ? COLORS.red : p >= 80 ? COLORS.yellow : COLORS.cyan)
       const list = [
         [tx('WORKING'), online ? Math.round((counts.working / online) * 100) : 0, `${counts.working}/${online}`, COLORS.green],
@@ -987,6 +1091,7 @@
           const draw = window[name].create(cls, {
             wall: wallMode, STATUS_INFO, money: usd => money(usd, snapshot.usdRate || 26000),
             selected: id => {
+              if (orgTotals) return openScope('branch:' + id, 0)
               const n = newGroups.find(x => x.b.id === id)
               if (n) branchCard(n, snapshot.usdRate || 26000)
               const r = mapViews[mapKind]
@@ -1049,12 +1154,17 @@
       const branches = snapshot.branches || []
       const groups = branches.map(b => {
         const members = people.filter(p => p.branch === b.id)
-        const counts = k => members.filter(p => p.status === k).length
-        const online = members.length - counts('offline')
+        const counts = k => members.filter(k === 'working' ? isWorking : p => p.status === k).length
+        // the whole organisation without its people: the numbers of the branch come from its totals, and it has no members to list
+        // cả tổ chức không kèm người: số của chi nhánh lấy từ tổng của nó, và không có thành viên nào để liệt kê
+        const t = orgTotals && (orgTotals.find(x => x.id === b.id) || { people: 0, online: 0, working: 0, waiting: 0, usdToday: 0 })
+        const online = t ? t.online : members.length - counts('offline')
+        const working = t ? t.working : counts('working')
+        const waiting = t ? t.waiting : counts('waiting')
         const critical = members.filter(nearQuotaLimit).length
         return {
-          b, members, online, working: counts('working'), waiting: counts('waiting'), critical, usd: members.reduce((s, p) => s + p.usdToday, 0),
-          color: critical ? COLORS.red : counts('waiting') ? COLORS.yellow : counts('working') ? COLORS.green : online ? COLORS.cyan : STATUS_INFO.offline.color,
+          b, members, total: t ? t.people : members.length, online, working, waiting, critical, usd: t ? t.usdToday : members.reduce((s, p) => s + p.usdToday, 0),
+          color: critical ? COLORS.red : waiting ? COLORS.yellow : working ? COLORS.green : online ? COLORS.cyan : STATUS_INFO.offline.color,
         }
       })
       newGroups = groups
@@ -1069,15 +1179,18 @@
         c.style.background = n.color
         c.style.boxShadow = `0 0 8px ${n.color}`
         r.append(c, o('span', '', n.b.name), o('span', '', money(n.usd, rate)))
-        r.append(o('small', '', tx('{working} working · {waiting} waiting · {online}/{total} online', { working: n.working, waiting: n.waiting, online: n.online, total: n.members.length }) + (n.critical ? ' · ' + tx('⛔ {n} near quota limit', { n: n.critical }) : '')))
+        r.append(o('small', '', tx('{working} working · {waiting} waiting · {online}/{total} online', { working: n.working, waiting: n.waiting, online: n.online, total: n.total }) + (n.critical ? ' · ' + tx('⛔ {n} near quota limit', { n: n.critical }) : '')))
         r.addEventListener('click', () => {
+          if (orgTotals) return openScope('branch:' + n.b.id, 0)
           branchCard(n, rate)
           if (mapViews[mapKind]) mapViews[mapKind].draw.flyTo(n.b.id)
         })
         return r
       }))
       const unassigned = people.filter(p => !branches.some(b => b.id === p.branch))
-      if (unassigned.length) mapList.append(o('div', 'o-bd-row empty', tx('Mobile / unassigned: {who}', { who: wallMode ? countPeople(unassigned.length) : unassigned.map(p => p.name).join(', ') })))
+      const noBranch = orgTotals && orgTotals.find(x => !x.id)
+      if (noBranch && noBranch.people) mapList.append(o('div', 'o-bd-row empty', tx('Mobile / unassigned: {who}', { who: countPeople(noBranch.people) })))
+      else if (unassigned.length) mapList.append(o('div', 'o-bd-row empty', tx('Mobile / unassigned: {who}', { who: wallMode ? countPeople(unassigned.length) : unassigned.map(p => p.name).join(', ') })))
       // the wall display has no emails; naming is done on the admin page
       // màn hình treo tường không có email; việc đặt tên nằm ở trang quản trị
       if (isAdmin && !wallMode && (snapshot.unnamedGroups || []).length) {
@@ -1127,8 +1240,8 @@
 
     function drawStatic(counts) {
       const rate = snapshot.usdRate || 26000
-      const online = people.length - counts.offline
-      nodes.replaceChildren('NODES ', o('strong', '', `${online}/${people.length}`))
+      const online = headcount() - counts.offline
+      nodes.replaceChildren('NODES ', o('strong', '', `${online}/${headcount()}`))
       statusEl.className = 'o-pill' + (counts.waiting ? ' warn' : '')
       statusEl.replaceChildren(o('b'), counts.waiting ? `${counts.waiting} AWAITING INPUT` : 'ALL SYSTEMS NOMINAL')
       // list
@@ -1189,10 +1302,31 @@
           return r
         }),
       )
+      // the whole organisation without its people: the list holds the branches, each opening its own page
+      // cả tổ chức không kèm người: danh sách là các chi nhánh, mỗi dòng mở trang của chi nhánh đó
+      if (orgTotals) {
+        const maxBranch = Math.max(...orgTotals.map(b => b.usdToday), 1e-9)
+        const allUsd = orgTotals.reduce((a, b) => a + b.usdToday, 0)
+        list.replaceChildren(...orgTotals.map(b => {
+          const r = o('div', 'o-row')
+          const status = b.waiting ? 'waiting' : b.working ? 'working' : b.online ? 'open' : 'offline'
+          const d = o('span', 'd')
+          d.style.background = STATUS_INFO[status].color
+          const bar = o('div', 'bar')
+          const fill = o('i')
+          fill.style.width = `${Math.max(2, (b.usdToday / maxBranch) * 100)}%`
+          bar.append(fill)
+          const pc = o('span', 'p', (allUsd ? Math.round((b.usdToday / allUsd) * 100) : 0) + '%')
+          r.append(d, o('span', 'n', branchName(b.id)), pc, bar,
+            o('span', 's', tx('{working} working · {waiting} waiting · {online}/{total} online', { working: b.working, waiting: b.waiting, online: b.online, total: b.people }) + ' · ' + money(b.usdToday, rate)))
+          r.addEventListener('click', () => openScope('branch:' + b.id, 0))
+          return r
+        }))
+      }
       const tasksToday = people.reduce((a, p) => a + p.tasks.reduce((x, y) => x + y, 0), 0)
       // single-machine page: each session's cost covers its whole life, while the "today" figure comes from the machine's hourly ledger (usdTodayTotal)
       // trang một máy: chi phí từng phiên là cả đời phiên, còn số "hôm nay" lấy từ sổ theo giờ của máy (du.usdNayTong)
-      const usdToday = snapshot.usdTodayTotal ?? totalUsd
+      const usdToday = orgTotals ? sumTotals().usdToday : snapshot.usdTodayTotal ?? totalUsd
       lfoot.replaceChildren(o('span', '', 'AI TASKS '), o('b', '', String(tasksToday)), o('span', '', M ? tx('TODAY') + ' ' : 'TEAM '), o('b', '', money(usdToday, rate)))
       // models in use: Claude by person with an open session, Gemma by size, ChatGPT / Gemini by machine that has it installed
       // mô hình đang dùng: Claude theo người có phiên mở, Gemma theo cỡ, ChatGPT / Gemini theo máy có cài
@@ -1229,9 +1363,13 @@
         if (M) for (const c of (snapshot.machineQuota && snapshot.machineQuota.windows) || []) {
           if (QUOTA_TAGS[c.kind]) lines.push([c.kind === 'five_hour' ? tx('Quota 5 hours') : tx('Quota 7 days'), `${c.pct >= 95 ? '⛔ ' : c.pct >= 80 ? '⚠ ' : ''}${Math.round(c.pct)}%`, c.pct >= 80 ? COLORS.red : c.pct >= 60 ? COLORS.yellow : COLORS.muted])
         }
+        // the whole organisation without its people: the models are counted per person, so they show on the page of a branch
+        // cả tổ chức không kèm người: mô hình được đếm theo người, nên chỉ hiện ở trang của một chi nhánh
+        if (orgTotals) lines.length = 0
         const unknownCount = M ? 0 : people.filter(p => !p.assistants || !p.assistants.known).length
         if (unknownCount) lines.push([tx('Unknown (old plugin)'), countPeople(unknownCount), COLORS.muted])
-        modelList.replaceChildren(...lines.map(([name, count, color]) => {
+        if (orgTotals) modelList.replaceChildren(o('div', 'o-models-note', tx('Open a branch to see the models its people use.')))
+        else modelList.replaceChildren(...lines.map(([name, count, color]) => {
           const r = o('div', 'o-mrow')
           const d = o('i')
           d.style.background = color
@@ -1245,7 +1383,9 @@
       vRun.s.textContent = `${p2(counts.working)}/${p2(online)}`
       vWait.s.textContent = p2(counts.waiting)
       vCost.s.textContent = money(usdToday, rate)
-      vTok.s.textContent = compact(snapshot.tokensInTotal ?? people.reduce((a, p) => a + p.tokensIn, 0))
+      // the totals of a branch count the tokens in and out together
+      // tổng của một chi nhánh đếm chung token vào và ra
+      vTok.s.textContent = compact(orgTotals ? sumTotals().tokens : snapshot.tokensInTotal ?? people.reduce((a, p) => a + p.tokensIn, 0))
       const hourly24 = snapshot.hourlyTotal24 || Array.from({ length: 24 }, (_, i) => people.reduce((a, p) => a + (p.hourly24 ? p.hourly24[i] : 0), 0))
       spark(vRun.c, history.working, COLORS.green, true)
       spark(vWait.c, history.waiting, COLORS.yellow, true)
@@ -1329,7 +1469,7 @@
         b.p.textContent = pct + '%'
         b.i.style.width = pct + '%'
       }
-      setBar(barOnline, online, people.length)
+      setBar(barOnline, online, headcount())
       setBar(barRunning, counts.working, online)
       setBar(barAi, delegatingCount, online)
       // event stream
@@ -1513,7 +1653,7 @@
           g.restore()
         }
       }
-      const counts = people.filter(p => p.status === 'working').length
+      const counts = people.filter(isWorking).length
       const delegatingByHelper = [0, 1, 2].map(k => people.filter(p => (p.delegating || [])[k] > 0))
 
       const drawLine = (a, b, color, active, particles, speed) => {
@@ -1592,7 +1732,7 @@
       // khoảng 30 khung hình/giây
       if (ts - last < 33) return
       last = ts
-      if (mode !== 'map') drawDiagram(ts / 1000)
+      if (mode !== 'map' && !orgTotals) drawDiagram(ts / 1000)
     }
     requestAnimationFrame(frame)
     setMode(mode)

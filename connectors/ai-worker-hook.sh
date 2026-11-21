@@ -103,17 +103,34 @@ send_report() {
     printf '{"v":1,"device":"%s","name":"%s","account":"%s","updatedAt":%s000,%s,"tools":{%s}}' \
       "$device" "$(printf '%s' "$name" | tr -d '"\\\000-\037')" "$(printf '%s' "$account" | tr -d '"\\\000-\037')" "$now" "$totals" "$tools" > "$DIR/report.json"
     code=''
+    # this computer's own key once the server has given it one, else the key of the install package
+    # khoá riêng của máy này khi máy chủ đã cấp, nếu không thì khoá của gói cài
+    send_key=$key
+    own=$(cat "$DIR/device-key" 2> /dev/null)
+    case "$own" in awd1.*) send_key=$own ;; esac
+    rm -f "$DIR/answer"
     if command -v curl > /dev/null 2>&1; then
       # the key goes in through stdin, so it never shows in the list of running programs
       # khoá đi vào qua stdin, nên không bao giờ hiện trong danh sách chương trình đang chạy
-      code=$(printf 'header = "Authorization: Bearer %s"\n' "$key" | curl -K - -sS -m 8 -o /dev/null -w '%{http_code}' \
-        -H 'Content-Type: application/json' --data-binary "@$DIR/report.json" "$url/ingest" 2> /dev/null)
+      code=$( (umask 077 && printf 'header = "Authorization: Bearer %s"\n' "$send_key" | curl -K - -sS -m 8 -o "$DIR/answer" -w '%{http_code}' \
+        -H 'Content-Type: application/json' --data-binary "@$DIR/report.json" "$url/ingest" 2> /dev/null))
     elif command -v wget > /dev/null 2>&1; then
-      (umask 077 && printf 'header = Authorization: Bearer %s\n' "$key" > "$DIR/wgetrc")
-      wget --config="$DIR/wgetrc" -q -O /dev/null --timeout=8 --tries=1 --header='Content-Type: application/json' \
-        --post-file="$DIR/report.json" "$url/ingest" 2> /dev/null && code=200
+      (umask 077 && printf 'header = Authorization: Bearer %s\n' "$send_key" > "$DIR/wgetrc")
+      (umask 077 && wget --config="$DIR/wgetrc" -q -O "$DIR/answer" --timeout=8 --tries=1 --header='Content-Type: application/json' \
+        --post-file="$DIR/report.json" "$url/ingest" 2> /dev/null) && code=200
+      # wget gives no status on a refusal: an answer that names a key problem counts as 401
+      # wget không cho mã khi bị từ chối: câu trả lời nói về lỗi khoá được coi là 401
+      [ -z "$code" ] && grep -q 'key\|signature' "$DIR/answer" 2> /dev/null && code=401
       rm -f "$DIR/wgetrc"
     fi
+    # a key of its own in the answer: kept where only this user can read it, used from the next send on
+    # khoá riêng trong câu trả lời: cất nơi chỉ người dùng này đọc được, dùng từ lần gửi sau
+    given=$(sed -n 's/.*"deviceKey": *"\(awd1\.[A-Za-z0-9._-]*\)".*/\1/p' "$DIR/answer" 2> /dev/null | head -n 1)
+    [ -n "$given" ] && (umask 077 && printf '%s\n' "$given" > "$DIR/device-key")
+    # its own key refused (too old, or the server was set up again): drop it, so the next send asks for a new one
+    # khoá riêng bị từ chối (quá cũ, hoặc máy chủ được cài lại): bỏ nó, để lần gửi sau xin khoá mới
+    [ "$code" = 401 ] && [ "$send_key" != "$key" ] && rm -f "$DIR/device-key"
+    rm -f "$DIR/answer"
     if [ "$code" = 200 ]; then
       printf '%s %s\n' "$now" "$signature" > "$DIR/sent"
       rm -f "$DIR/last-error"

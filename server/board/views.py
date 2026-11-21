@@ -2,8 +2,6 @@
 Mỗi vai được thấy gì, số liệu và thao tác quản trị, và lịch sử của bảng."""
 
 import csv
-import hashlib
-import hmac
 import io
 import ipaddress
 import json
@@ -20,7 +18,9 @@ from board import packages, settings
 from board.assets import UI_VERSION
 from board.daily import NUMBERS, PERIODS, DailyStore, totals_by_day
 from board.db import data_db, drop_old_legacy_accounts, dumps, keys_db
+from board.devicekeys import DEVICE_KEYS
 from board.devices import (
+    DEVICES,
     IngestGate,
     blocks_since,
     group_by_person,
@@ -205,13 +205,18 @@ def branch_of(r: dict, branches: list) -> str:
     return ""
 
 
-ALIAS_SALT = secrets.token_bytes(16)
-
-
 def alias(text: str) -> str:
-    """Replace an email with an unreadable code that still tells people apart; it changes after every start.
-    Thay email bằng mã không đọc được, vẫn phân biệt được người; đổi sau mỗi lần khởi động."""
-    return hmac.new(ALIAS_SALT, text.encode(), hashlib.sha256).hexdigest()[:10] if text else ""
+    """Replace an email with an unreadable code that still tells people apart. The code stays the same after a restart and in every process
+    (the secret is kept in the keys database), so a screen that gets numbers from another process later can match its rows.
+    Thay email bằng mã không đọc được, vẫn phân biệt được người. Mã giữ nguyên sau khi khởi động lại và ở mọi tiến trình
+    (bí mật được giữ trong cơ sở dữ liệu khoá), để sau này màn hình nhận số từ tiến trình khác vẫn khớp được các dòng."""
+    return DEVICE_KEYS.alias(text)
+
+
+def row_code(person: str) -> str:
+    """The code of a person's row (person_key), the same for every role and in the Go receiver's table of people (board/receiver.py).
+    Mã dòng của một người (person_key), như nhau cho mọi vai và trong bảng người của bộ nhận Go (board/receiver.py)."""
+    return DEVICE_KEYS.row_code(person)
 
 
 def wall_name(name: str) -> str:
@@ -241,6 +246,9 @@ COMMON_FIELDS_BY_ROLE = {
 PERSON_FIELDS_ALL = frozenset({
     "branch", "name", "account", "shared", "deviceCount", "status", "openSessions", "working", "waiting", "delegating", "subagents",
     "usdToday", "usd7d", "tokensIn", "tokensOut", "tasks", "updatedAt", "waitingSince", "models", "assistants", "quota", "pluginVersion", "hourly24", "tools",
+    # the code of the row, which the live feed of the Go receiver joins its numbers on; only there with RECEIVER=1 (see _raw_data)
+    # mã dòng, thứ luồng số trực tiếp của bộ nhận Go dùng để ghép số; chỉ có khi RECEIVER=1 (xem _raw_data)
+    "row",
 })
 PERSON_FIELDS_BY_ROLE = {
     ADMIN: PERSON_FIELDS_ALL | {"lanIps", "enteredAccounts"},
@@ -284,10 +292,149 @@ def role_view(role: str, now: float, every_branch: bool = False) -> dict:
     return d
 
 
+class ViewCache:
+    """What role_view gave each role in the last few seconds, as a dict and as the JSON sent to browsers: with many boards open
+    and many computers sending, the board is built at most once per role in that time instead of once per request.
+    VIEW_CACHE_SECONDS sets the time (default 0.5; 0 builds every time). A board asks every second, so a change shows within a few seconds.
+    Thứ role_view trả cho mỗi vai trong vài giây gần nhất, dạng dict và dạng JSON gửi trình duyệt: khi nhiều bảng đang mở
+    và nhiều máy đang gửi, bảng được dựng nhiều nhất một lần cho mỗi vai trong khoảng đó thay vì mỗi yêu cầu một lần.
+    VIEW_CACHE_SECONDS đặt khoảng đó (mặc định 0,5; 0 thì lần nào cũng dựng). Bảng hỏi mỗi giây, nên một thay đổi hiện trong vài giây."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.built = {}
+
+    @staticmethod
+    def seconds() -> float:
+        try:
+            return max(0.0, float(os.environ.get("VIEW_CACHE_SECONDS", "0.5")))
+        except ValueError:
+            return 0.5
+
+    def _entry(self, role: str, now: float, every_branch: bool) -> dict:
+        v = role if role in COMMON_FIELDS_BY_ROLE else WALL
+        key, keep = (v, every_branch), self.seconds()
+        # one lock: while one thread builds, the others wait for it and take what it built instead of building again
+        # một khoá: khi một luồng đang dựng, các luồng khác chờ rồi lấy thứ nó dựng thay vì dựng lại
+        with self.lock:
+            entry = self.built.get(key)
+            if not entry or keep <= 0 or not 0 <= now - entry["at"] < keep:
+                entry = {"at": now, "view": role_view(v, now, every_branch), "json": None}
+                self.built[key] = entry
+            return entry
+
+    def view(self, role: str, now: float, every_branch: bool = False) -> dict:
+        """role_view through the cache; the copy may get new top-level keys, its inner parts must not be changed.
+        role_view qua bộ nhớ đệm; bản sao được thêm khoá ở tầng ngoài, các phần bên trong không được sửa."""
+        return dict(self._entry(role, now, every_branch)["view"])
+
+    def json(self, role: str, now: float) -> bytes:
+        entry = self._entry(role, now, False)
+        if entry["json"] is None:
+            entry["json"] = json.dumps(entry["view"], ensure_ascii=False).encode()
+        return entry["json"]
+
+    def scoped(self, role: str, now: float, scope: str, page: int) -> dict:
+        """scoped_view of the cached view of this role.
+        scoped_view của khung nhìn đang giữ cho vai này."""
+        return scoped_view(self.view(role, now), scope, page)
+
+    def scoped_json(self, role: str, now: float, scope: str, page: int) -> bytes:
+        """scoped as the JSON sent to browsers, built once per scope and page for as long as the view of the role is kept.
+        scoped dạng JSON gửi trình duyệt, dựng một lần cho mỗi phạm vi và trang trong lúc khung nhìn của vai còn được giữ."""
+        entry = self._entry(role, now, False)
+        with self.lock:
+            done = entry.setdefault("scoped", {})
+            b = done.get((scope, page))
+        if b is None:
+            b = json.dumps(scoped_view(dict(entry["view"]), scope, page), ensure_ascii=False).encode()
+            with self.lock:
+                if len(done) > SCOPES_KEPT:
+                    done.clear()
+                done[(scope, page)] = b
+        return b
+
+
+VIEWS = ViewCache()
+
+# /data?scope=: the whole organisation, or one branch. Plain /data is unchanged. A branch gives its people only, PAGE_PEOPLE at a time
+# in the order of their names; the whole organisation gives the totals of each branch, and its people only while they are PAGE_PEOPLE
+# or fewer. Every part comes from role_view of the same role, so a scope never shows a role more than plain /data does.
+# /data?scope=: cả tổ chức, hoặc một chi nhánh. /data không có phạm vi giữ nguyên. Một chi nhánh chỉ cho người của nó, mỗi lần
+# PAGE_PEOPLE người theo thứ tự tên; cả tổ chức cho tổng của từng chi nhánh, và người của nó chỉ khi có PAGE_PEOPLE người trở xuống.
+# Mọi phần đều lấy từ role_view của cùng vai, nên một phạm vi không bao giờ cho một vai thấy hơn /data không có phạm vi.
+PAGE_PEOPLE = 500
+SCOPE_ORG = "org"
+SCOPE_BRANCH = "branch:"
+# how many scoped answers are kept for one view of a role
+# giữ bao nhiêu câu trả lời theo phạm vi cho một khung nhìn của một vai
+SCOPES_KEPT = 256
+# the fields a scope adds at the top, and the fields of the totals of one branch: numbers only, no person
+# các trường một phạm vi thêm ở tầng ngoài, và các trường của tổng một chi nhánh: chỉ có số, không có người
+SCOPE_FIELDS = frozenset({"scope", "page", "pages", "peopleTotal", "pageNames", "branchTotals"})
+BRANCH_TOTAL_FIELDS = frozenset({"id", "people", "online", "working", "waiting", "openSessions", "usdToday", "tokens"})
+
+
+def parse_scope(text: str):
+    """The scope asked for in /data?scope=: "org", or "branch:<id>" of a branch that exists ("branch:" alone is the people in no branch);
+    None for anything else.
+    Phạm vi xin trong /data?scope=: "org", hoặc "branch:<mã>" của một chi nhánh có thật ("branch:" trống là người chưa thuộc chi nhánh
+    nào); None với mọi thứ khác."""
+    if text == SCOPE_ORG:
+        return text
+    if text.startswith(SCOPE_BRANCH):
+        branch = text[len(SCOPE_BRANCH):]
+        if not branch or branch in {b["id"] for b in all_branches()}:
+            return text
+    return None
+
+
+def branch_totals(d: dict) -> list:
+    """The totals of each branch of a view, in the order of its branches, with the people in no branch last (id ""): counted as
+    totals_view counts the whole team.
+    Tổng của từng chi nhánh trong một khung nhìn, theo thứ tự chi nhánh của nó, người chưa thuộc chi nhánh nào ở cuối (id ""): đếm như
+    totals_view đếm cả team."""
+    by_id = {b["id"]: {"id": b["id"], "people": 0, "online": 0, "working": 0, "waiting": 0, "openSessions": 0, "usdToday": 0.0, "tokens": 0}
+             for b in d.get("branches", [])}
+    for p in d.get("people", []):
+        t = by_id.setdefault(p.get("branch") or "", {"id": p.get("branch") or "", "people": 0, "online": 0, "working": 0, "waiting": 0,
+                                                    "openSessions": 0, "usdToday": 0.0, "tokens": 0})
+        t["people"] += 1
+        t["usdToday"] += float(p.get("usdToday") or 0)
+        t["tokens"] += int(p.get("tokensIn") or 0) + int(p.get("tokensOut") or 0)
+        if p.get("status") != "offline":
+            t["online"] += 1
+            t["openSessions"] += int(p.get("openSessions") or 0)
+            # a person waiting in one session while another runs is counted in both, so working + waiting can pass online
+            # người đang chờ ở một phiên trong khi phiên khác chạy được đếm ở cả hai, nên đang làm + đang chờ có thể vượt số trực tuyến
+            if p.get("waiting"):
+                t["waiting"] += 1
+            if p.get("working"):
+                t["working"] += 1
+    out = [t for t in by_id.values() if t["id"]] + [t for t in by_id.values() if not t["id"]]
+    return [_pick(dict(t, usdToday=round(t["usdToday"], 4)), BRANCH_TOTAL_FIELDS) for t in out]
+
+
+def scoped_view(d: dict, scope: str, page: int) -> dict:
+    """A view of role_view (or of ViewCache.view) for one scope (parse_scope); page counts from 0 and is held to the pages there are.
+    Một khung nhìn của role_view (hay của ViewCache.view) cho một phạm vi (parse_scope); trang đếm từ 0 và được giữ trong số trang có."""
+    people = d.get("people", [])
+    if scope == SCOPE_ORG:
+        return dict(d, scope=scope, people=people if len(people) <= PAGE_PEOPLE else [], peopleTotal=len(people), branchTotals=branch_totals(d))
+    branch = scope[len(SCOPE_BRANCH):]
+    mine = sorted((p for p in people if (p.get("branch") or "") == branch), key=lambda p: str(p.get("name") or "").lower())
+    pages = max(1, -(-len(mine) // PAGE_PEOPLE))
+    page = min(max(0, page), pages - 1)
+    return dict(d, scope=scope, people=mine[page * PAGE_PEOPLE:(page + 1) * PAGE_PEOPLE], page=page, pages=pages, peopleTotal=len(mine),
+                # the first and the last name of each page, for a page that offers them by name
+                # tên đầu và tên cuối của mỗi trang, cho trang bảng chọn trang theo tên
+                pageNames=[[mine[i]["name"], mine[min(i + PAGE_PEOPLE, len(mine)) - 1]["name"]] for i in range(0, len(mine), PAGE_PEOPLE)])
+
+
 def totals_view(now: float) -> dict:
     """What the window inside Telegram reads for a chat that reads totals only: the team's counts, added up here, and no person.
     Thứ khung bên trong Telegram đọc cho chat chỉ được đọc tổng: các con số của cả team, cộng sẵn ở đây, và không có người nào."""
-    d = role_view(WALL, now)
+    d = VIEWS.view(WALL, now)
     people = d.get("people", [])
     online = [p for p in people if p.get("status") != "offline"]
     return {
@@ -295,7 +442,9 @@ def totals_view(now: float) -> dict:
         "tasks24": d["tasks24"], "teamDays": d["teamDays"], "people": [], "role": d["role"], "uiVersion": d["uiVersion"],
         "totals": {
             "waiting": sum(1 for p in online if p.get("waiting")),
-            "working": sum(1 for p in online if p.get("working") and not p.get("waiting")),
+            # counted as branch_totals counts: a person can be both waiting and working
+            # đếm như branch_totals: một người có thể vừa đang chờ vừa đang làm
+            "working": sum(1 for p in online if p.get("working")),
             "openSessions": sum(int(p.get("openSessions") or 0) for p in online),
             "usdToday": round(sum(float(p.get("usdToday") or 0) for p in people), 4),
             "tokens": sum(int(p.get("tokensIn") or 0) + int(p.get("tokensOut") or 0) for p in people),
@@ -442,6 +591,27 @@ def tv_action(path: str, body: dict, actor: str) -> tuple:
             "tvIp": r["ip"], "tvDevice": device_label(r["device"]), "branch": branch_name_for_ip(r["ip"])}, {}
 
 
+# the Admin page lists at most this many computers with a key; the rest are counted
+# trang Quản trị liệt kê nhiều nhất chừng này máy có khoá; phần còn lại chỉ được đếm
+COMPUTER_KEYS_SHOWN = 500
+
+
+def computer_keys(now: float) -> dict:
+    """The computers that have a key of their own, for the Admin page: revoked first, then by person; with the shared key's mode.
+    Các máy có khoá riêng, cho trang Quản trị: máy bị thu hồi trước, rồi theo người; kèm chế độ của khoá chung."""
+    people = INGEST_GATE.identities
+    rows = []
+    for r in DEVICE_KEYS.listing(now):
+        # the name as the computer last sent it (the table that ties computers to people keeps it in lower case)
+        # tên như máy gửi lần gần nhất (bảng gắn máy với người giữ nó dạng chữ thường)
+        last = DEVICES.get(r["device"]) or {}
+        account, name = people.get(r["device"], ["", ""])
+        rows.append(dict(r, account=last.get("account") or account, name=last.get("name") or name))
+    rows.sort(key=lambda r: (r["state"] != "revoked", (r["name"] or r["account"] or r["device"]).lower()))
+    return {"sharedKeyMode": settings.SHARED_KEY_MODE, "total": len(rows), "active": sum(1 for r in rows if r["state"] == "active"),
+            "revoked": sum(1 for r in rows if r["state"] == "revoked"), "computers": rows[:COMPUTER_KEYS_SHOWN]}
+
+
 def admin_data(now: float, cookie: str, month: str) -> dict:
     d = role_view(ADMIN, now, every_branch=True)
     if not re.fullmatch(r"\d{4}-\d{2}", month or ""):
@@ -463,6 +633,9 @@ def admin_data(now: float, cookie: str, month: str) -> dict:
             # asking the board from Telegram: whether it is turned on, and what the bot process last said about itself
             # hỏi bảng qua Telegram: có đang bật không, và tiến trình bot nói gì gần nhất về chính nó
             "telegramAsk": dict(TELEGRAM_BOT.read(), on=settings.TELEGRAM_ASK_ENABLED, app=settings.TELEGRAM_APP_ENABLED),
+            # computers with a key of their own: who they belong to, when the key was issued, whether it was revoked
+            # máy có khoá riêng: của ai, cấp khoá lúc nào, đã bị thu hồi chưa
+            "computerKeys": computer_keys(now),
             # whether /mcp/connect exists, so the page points to it only when it does (MCP=0 turns it off)
             # /mcp/connect có tồn tại không, để trang chỉ trỏ tới khi có (MCP=0 tắt nó)
             "mcpOn": settings.MCP_ENABLED, "mcpIdleDays": settings.MCP_IDLE_DAYS,
@@ -565,9 +738,21 @@ def _raw_data(now: float) -> dict:
             # chi phí từng giờ, 24 giờ gần nhất, cũ trước mới sau
             "hourly24": [round(r["costByHour"].get(this_hour - 23 + i, 0.0), 4) for i in range(24)],
         })
+        # only with the Go receiver, which joins its live numbers on it: without it /data stays byte for byte what it was
+        # chỉ khi có bộ nhận Go, nơi ghép số trực tiếp theo nó: không có thì /data giữ nguyên từng byte như trước
+        if settings.RECEIVER_ENABLED:
+            out[-1]["row"] = row_code(r["key"])
     # tasks delegated to each AI per hour, whole team, last 24 hours
     # việc giao cho từng AI theo giờ, cả team, 24 giờ gần nhất
-    jobs24 = [[sum(r["tasksByHour"].get(this_hour - 23 + i, [0, 0, 0])[k] for r in rows) for i in range(24)] for k in range(3)]
+    # one pass over the hours each person has, not 72 passes over everyone
+    # một lượt qua các giờ mỗi người có, thay cho 72 lượt qua mọi người
+    jobs24 = [[0] * 24 for _ in range(3)]
+    for r in rows:
+        for hour, counts in r["tasksByHour"].items():
+            i = hour - (this_hour - 23)
+            if 0 <= i < 24:
+                for k in range(3):
+                    jobs24[k][i] += counts[k]
     return {"updatedAt": int(now * 1000), "usdRate": USD_RATE, "tasks24": jobs24, "tzOffsetHours": LOCAL_TZ.utcoffset(None).total_seconds() / 3600, "teamDays": _team_days(now), "people": out,
             # what ai-worker stopped or asked about across the team in the last 7 days, totals only
             # những gì ai-worker đã chặn hay hỏi trên cả team trong 7 ngày qua, chỉ số tổng
@@ -695,10 +880,12 @@ def sweep_projects() -> None:
         sys.stderr.write("projects: %s\n" % e)
 
 
-def record_history() -> None:
+def record_history(person: str = "") -> None:
+    """Add a history row for each person whose state changed; with person, look at that one person's devices only.
+    Thêm một dòng lịch sử cho mỗi người đã đổi trạng thái; có person thì chỉ xem các máy của đúng người đó."""
     try:
         now = time.time()
-        HISTORY.record_if_changed(group_by_person(read_all_devices(), now), now)
+        HISTORY.record_if_changed(group_by_person(DEVICES.of_person(person) if person else read_all_devices(), now), now)
     # a side log: if it breaks, ignore it, do not crash the webhook
     # nhật ký phụ: hỏng thì bỏ qua, không làm sập webhook
     except Exception as e:

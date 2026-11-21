@@ -57,8 +57,19 @@ def state_of(p: dict) -> str:
     return status if isinstance(status, str) and status in STATES else "offline"
 
 
+def in_state(p: dict, state: str) -> bool:
+    """Whether a person is counted in a state. A person waiting for an answer in one session while another session runs is counted
+    both waiting and working: state_of gives the one state that colours and sorts the person (waiting first), this one the counts.
+    Một người có được đếm vào một trạng thái không. Người đang chờ trả lời ở một phiên trong khi phiên khác đang chạy được đếm cả
+    đang chờ lẫn đang làm: state_of cho một trạng thái để tô màu và sắp xếp (chờ trước), hàm này cho các con số đếm."""
+    status = state_of(p)
+    if state == "working":
+        return status == "working" or (status == "waiting" and num(p.get("working")) > 0)
+    return status == state
+
+
 def count(people: list, state: str) -> int:
-    return sum(1 for p in people if state_of(p) == state)
+    return sum(1 for p in people if in_state(p, state))
 
 
 def total(people: list, field: str) -> float:

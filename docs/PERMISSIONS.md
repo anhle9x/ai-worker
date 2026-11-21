@@ -8,7 +8,7 @@ Who can see and do what on the dashboard server. The rules live in one place: th
 
 | Caller | Proves itself with | Role on the server |
 |---|---|---|
-| Employee computer (plugin) | `INGEST_KEY` in the `Authorization` header | None: may only send numbers and download signed updates |
+| Employee computer (plugin, connector) | Its own key (`awd1.…`) in the `Authorization` header, or `INGEST_KEY` until it has one | None: may only send numbers for itself and download signed updates |
 | Admin | Account name + 6-digit OTP, then a session cookie (8 hours) | `admin` |
 | Manager | Account name + OTP, session cookie (8 hours) | `viewer` |
 | Admin or manager with Telegram linked (optional) | Telegram's signature checked with the bot token (5 minutes, once), session cookie | Their own role; admin changes still ask for the OTP |
@@ -28,8 +28,9 @@ The server does not trust the IP of a request unless the request comes through t
 | Data | `admin` | `viewer` | `wall` |
 |---|---|---|---|
 | 3D office, status, cost, tasks, quota | Yes | Yes | Yes |
-| Email | Yes | Yes | No: replaced by a short code that changes at each restart |
+| Email | Yes | Yes | No: replaced by a short code made with a secret kept in the keys database, the same after a restart |
 | Name that is an email or IP | Yes | Yes | No: shown as "Device xxxxxx" |
+| The code of each person's row (`row`, only with `RECEIVER=1`), which the Go receiver's live feed puts its numbers on | Yes | Yes | Yes: 12 characters made with the same secret under another label, so it gives back neither the email nor the name, and is not the code above |
 | Internal IPs, accounts typed by staff | Yes | Yes | No |
 | Team plan spend | Yes | Yes | No |
 | Use by week and month, per office and per person (totals per day, kept 13 months) | Yes | Yes | No |
@@ -40,14 +41,14 @@ The server does not trust the IP of a request unless the request comes through t
 | Text board `/board` | Yes | Yes | No |
 | `/admin` page and installers | Yes | No | No |
 
-The fields each role receives are fixed in `server/board/views.py` (`COMMON_FIELDS_BY_ROLE`, `PERSON_FIELDS_BY_ROLE`). A field not listed there is never sent. Use by week and month has its own lists in the same file (`USAGE_FIELDS_BY_ROLE`, `USAGE_OFFICE_FIELDS_BY_ROLE`, `USAGE_PERSON_FIELDS_BY_ROLE`), empty for `wall`: it is on `/board` only, so a TV screen, a menu bar icon, the browser extension, a manager's plugin and the MCP endpoint, which all read as `wall`, get none of it.
+The fields each role receives are fixed in `server/board/views.py` (`COMMON_FIELDS_BY_ROLE`, `PERSON_FIELDS_BY_ROLE`). A field not listed there is never sent. `/data?scope=org` and `/data?scope=branch:<id>` ([RECEIVER.md](RECEIVER.md), section 3) are cut from the same view of the same role, plus totals per branch that hold numbers only, so a scope never shows a role more than plain `/data`. Use by week and month has its own lists in the same file (`USAGE_FIELDS_BY_ROLE`, `USAGE_OFFICE_FIELDS_BY_ROLE`, `USAGE_PERSON_FIELDS_BY_ROLE`), empty for `wall`: it is on `/board` only, so a TV screen, a menu bar icon, the browser extension, a manager's plugin and the MCP endpoint, which all read as `wall`, get none of it.
 
 ## 3. What each role can do
 
 | Action | Path | Who | Extra check |
 |---|---|---|---|
-| Send numbers | `POST /ingest` | Computer with `INGEST_KEY` | The computer stays tied to the person of its first send |
-| Download an update | `GET /releases/...` | Computer with `INGEST_KEY` | The computer checks the signature before installing |
+| Send numbers | `POST /ingest` | Computer with its own key, or `INGEST_KEY` while it has none and `SHARED_KEY_MODE` allows it | A key sends only for its own computer; the computer stays tied to the person of its first send; a revoked computer is refused |
+| Download an update | `GET /releases/...` | Computer with its own key or `INGEST_KEY` | The computer checks the signature before installing |
 | Name locations, mark the sales team, load the Team CSV | `POST /locations`, `/team-sale`, `/team-csv` | `admin` | Same-origin request |
 | Create, delete, change role of accounts; end sessions | `POST /admin/accounts`, `/admin/sessions` | `admin` | Re-enter OTP, valid 5 minutes |
 | Approve, rename, revoke TV screens, extensions, keys for AI tools and Telegram chats; choose what such a key or chat may read | `POST /admin/tv-*` | `admin` | Re-enter OTP, valid 5 minutes |
@@ -57,6 +58,9 @@ The fields each role receives are fixed in `server/board/views.py` (`COMMON_FIEL
 | Read the board from an AI tool | `POST /mcp` | AI tool with a key for the MCP endpoint | Read-only. 120 requests per key in 10 minutes; a web page on another site is refused; each call of the tool is logged for 3 months |
 | The board's window inside Telegram: trade Telegram's signed fields for a session, read the wall view (the team's totals alone for a chat that reads totals only), read and set its own chat's alerts, disconnect its own chat | `POST /tg/session`, `GET /tg/data`, `GET /tg/state`, `POST /tg/settings`, `POST /tg/unpair` | A chat an admin approved and allowed the window; the session from `/tg/session` in the Authorization header | Off (404) unless `TELEGRAM_APP=1`. Telegram's signature checked with a key derived from the bot token, fields at most 5 minutes old; session in memory, 1 hour after last use, 12 hours at most, 3 per chat; the chat is found again on every call. 10 sessions per IP a minute, 20 per chat in 10 minutes, 60 reads per session in 10 minutes |
 | Hand over a message from a Telegram chat and get the answer to send | `POST /bot/telegram` | The Telegram bot process on the server itself, with `TELEGRAM_ASK_KEY` | Off (404) unless `TELEGRAM_ASK=1`. Only a direct call from the same machine: a request that came through the proxy gets 404, a login or any other key gets 401. Private chats only; 20 messages per chat in 10 minutes; each answer with numbers is logged for 3 months, never the words typed |
+| The optional Go receiver: write a batch of rows, pass on a send as it came, read the numbered policy, the hour books and the table of people (each computer's row code and branch, no name, email or address) | `POST /internal/rows`, `POST /internal/ingest`, `GET /internal/policy`, `GET /internal/devices`, `GET /internal/people` | The receiver on the server itself, with the internal code of its file of secrets | Off (404) unless `RECEIVER=1`. Only a direct call from the same machine with the internal code: anything else, a login included, gets 404. A send passed on has its own key checked as on `/ingest` ([RECEIVER.md](RECEIVER.md)) |
+| Get a ticket to the board's live feed | `POST /sse/ticket` | Any logged-in account or TV screen | Off (404) unless `RECEIVER=1` and `RECEIVER_LIVE_URL`, `RECEIVER_BOARD_ORIGIN` are set. The request must come from the board's own page. Any scope of `/data?scope=`; the ticket lives 5 minutes and carries the role, the scope and a code of the session, no name ([RECEIVER.md](RECEIVER.md), "The live feed") |
+| Read the board's live numbers | `GET /live`, `GET /live/snap` on the Go receiver | A page of `RECEIVER_BOARD_ORIGIN` with a ticket that is still good, for the scope it asks | The same numbers for every role, and only numbers and row codes: no name, email or address. Cut within about 20 seconds once the session is closed |
 | Send what an AI project or application measured | `POST /projects/ingest` | The project's own server, with its key | Off (404) unless `AI_PROJECTS=1`. Refused from a browser. Each turn cleaned by the report's code (unknown fields dropped, bad turns refused, turns older than 30 days refused) and kept once per key and `turnId`. 120 sends per key in 10 minutes, 256 KB and 500 turns per send, 100,000 turns per key a day |
 | Read and download the report of an AI project or application | `GET /projects`, `/projects/report.html`, `/projects/report.csv` | `admin`, `viewer` | Off (404) unless `AI_PROJECTS=1`. The print version opens in its own tab and runs no script |
 | Make a key for an AI project or application; paste prices of your own; delete the numbers of a project whose key is revoked | `POST /admin/project-key`, `/admin/project-prices`, `/admin/project-delete` | `admin` | Re-enter OTP, valid 5 minutes. Rename and revoke the key with `/admin/tv-*`. Deleting is refused while the key works |

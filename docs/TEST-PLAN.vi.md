@@ -30,6 +30,7 @@ GitHub Actions chạy `.github/workflows/test-install.yml` mỗi lần đẩy co
 | Tin báo tới chat Telegram: mỗi lần chờ một lần, khoảng cách giữa hai tin, trần mỗi giờ, giờ im lặng, phiên bỏ mở, chỉ nêu tên với chat đọc từng người, dòng đầu không nêu tên ai, ngôn ngữ và số phút của chat; `/alerts` và cài đặt trong khung; nhật ký; bot gửi tin có bảo vệ kèm nút mở khung | `test_webhook.py`, lớp `AlertRules` và `TelegramAlerts`; `test_telegram_bot.py`, lớp `MenuButtons` |
 | Dịch vụ của bot sau khi cài: mặc định tắt, người dùng và file cấu hình riêng, giới hạn mạng, gỡ bỏ | `tests/linux/test-server.sh`, phần S5 |
 | Mỗi vai nhận dữ liệu gì (màn hình treo tường không có email, IP) | `test_webhook.py` |
+| Bộ nhận tuỳ chọn bằng Go: bộ mẫu chung ở cả hai định dạng, các lần gửi ngẫu nhiên được làm sạch giống hệt Python (khoá đúng thứ tự, số nguyên tách khỏi số thực), bước kiểm khoá so với khoá máy chủ cấp, lần gửi qua bộ nhận kết thúc với đúng sổ trên máy chủ Python thật kèm tên nó biết và địa chỉ thật, lô gửi hai lần chỉ ghi một lần, TLS chỉ HTTP/1.1 và chứng chỉ gia hạn được đọc lại; phía máy chủ, các đường nội bộ (404 trừ khi `RECEIVER=1`, từ chính máy này và có mã nội bộ), file bí mật, tài liệu chính sách, sổ theo trang, lớp đối chiếu thứ ba và việc xoay bí mật ký ; bộ mẫu chung chạy qua bộ nhận vào máy chủ Python thật, mỗi lần gửi một lô riêng và mọi lần gửi gộp thành mỗi máy một dòng, Python kết thúc với đúng sổ và các ngày bộ mẫu chờ; các dòng của một máy gộp lại như Python ghi từng lần một; Python vắng một phút trong khi mọi máy vẫn gửi, mọi lần gửi được trả lời 200 và mỗi máy chờ nhiều nhất một dòng; các giờ giữ dạng số cộng ra như nhau; dòng đối chiếu chỉ được so, không bao giờ được ghi, và các giờ hôm nay bộ nhận nạp | `receiver/` (`go test ./...`), `server/test_receiver.py` |
 | Ghép TV, thanh menu, tiện ích; thu hồi; hết hạn | `test_webhook.py`, `check-extension.js`, các test thanh menu |
 | Một máy không gửi thay người khác được; giới hạn gửi | `test_webhook.py` |
 | Nhãn và ghim văn phòng trên bản đồ: ghim chạm nhau được vẽ cạnh nhau; khi nhiều văn phòng thì nhãn không còn chỗ trống bị ẩn; không nhãn nào đè nhãn khác, đè ghim của văn phòng khác hay đè danh sách văn phòng, không nhãn nào ra khỏi khung | `tests/check-map-layout.js` |
@@ -37,7 +38,7 @@ GitHub Actions chạy `.github/workflows/test-install.yml` mỗi lần đẩy co
 | Chữ gửi cho ChatGPT hay Gemini: vẫn hỏi ở chế độ quyền không hỏi gì, ở lại trên máy khi bị từ chối, chỉ gửi không hỏi khi có quy tắc cho phép | `tests/sending.test.ts`, `tests/workers.test.ts` |
 | Ghi chú bàn giao được báo cho phiên mới: chỉ file mà skill sẽ viết, năm ghi chú mới nhất theo tên và ngày, không thêm gì trên máy không có ghi chú, plugin không mở ghi chú nào | `tests/handoff.test.ts` |
 | Câu hỏi trước lệnh phá huỷ công việc: lệnh nào bị bắt và lệnh nào được bỏ qua, lệnh đã được cho phép bị đổi thành câu hỏi cho một người, lệnh đã bị cấm vẫn bị cấm, công tắc trong `config.js` | `tests/guard.test.ts` |
-| Những gì rời máy hay vào máy: bí mật trong chữ gửi ChatGPT hay Gemini (cả qua server ai-workers riêng), bí mật trên các dòng commit thêm vào, trang nói với AI, lời nhắc 80% context cho Claude, số lần chặn trong báo cáo của máy | `tests/secrets.test.ts`, `commitscan.test.ts`, `injection.test.ts`, `nudges.test.ts`, `sending.test.ts`, `team.test.ts` |
+| Những gì rời máy hay vào máy: bí mật trong chữ gửi ChatGPT hay Gemini (cả qua server ai-workers riêng), bí mật trên các dòng commit thêm vào, trang nói với AI, thiết lập AI của chính repo, lời nhắc 80% context cho Claude, số lần chặn trong báo cáo của máy | `tests/secrets.test.ts`, `commitscan.test.ts`, `injection.test.ts`, `repoconfig.test.ts`, `nudges.test.ts`, `sending.test.ts`, `team.test.ts` |
 | Phần máy chủ của các lớp bảo vệ: chuỗi dấu vân tay của nhật ký (sửa một dòng, xoá một dòng, xoá các dòng mới nhất), số lần chặn được làm sạch và cộng cho quản trị và người xem, khoá cho công cụ AI không dùng 30 ngày | `test_webhook.py`, lớp `AuditChain`, `BlockCounts`, `UnusedKeys` |
 | `/ai-worker:voice`: đúng trang cài đặt và đúng các bước cho Mac, Windows và Linux; có bước làm tay khi trang không mở được; không chạy gì khác | `tests/voice.test.ts` |
 | Bản thử với dữ liệu giả lập: bật được, vào được bằng mã nó in ra, bỏ qua cấu hình của bảng thật, xoá dữ liệu khi dừng | `test_demo.py` |
@@ -47,13 +48,14 @@ GitHub Actions chạy `.github/workflows/test-install.yml` mỗi lần đẩy co
 | Không có câu hỏi, nội dung chat hay nội dung file bí mật nào rời máy | `tests/activity.test.ts`, `tests/edits.test.ts`, `tests/team.test.ts`, `tests/office.test.tsx` |
 | Trợ lý phụ: chọn model Gemma, truyền tham số an toàn cho Codex | `tests/workers.test.ts` |
 | Lưu trữ SQLite: chuyển file JSON cũ vào, phiên bản lược đồ, quyền file, nhiều luồng cùng ghi, sao lưu, xuất ngược ra JSON; cơ sở dữ liệu cũ được chép ra trước khi nâng, bản sao mở được và chương trình cũ chạy được trên đó, không chép được thì không nâng | `test_webhook.py` (`DatabaseStorage`), `tests/linux/test-server.sh` |
+| Sổ giờ ở các dòng riêng (lược đồ phiên bản 6): một `board.db` lược đồ phiên bản 5 cho cùng bảng, lịch sử, tổng theo ngày và bản xuất sau khi nâng, dòng không đọc được giữ nguyên và bản sao phiên bản 5 được giữ; các lần gửi ngẫu nhiên ở cả hai định dạng để lại đúng sổ mà `merge_hours` và `replace_hours` cho, đúng các ngày trong `device_days` và trong bộ nhớ, cả sau khi khởi động lại và với SQLite cũ hơn 3.24; lần gửi không đổi gì thì không ghi gì; `TZ_OFFSET` mới thì đếm lại các ngày | `server/test_hour_rows.py` |
 | Tổng theo từng người từng ngày: cộng giờ thành ngày, đếm lại không cộng trùng, giữ 13 tháng rồi xoá, đọc ra theo tuần và theo tháng; biểu đồ chi phí theo tuần và theo tháng; chỉ quản trị và người xem nhận được | `test_webhook.py` (`DailyTotals`, `UsageByRole`) |
 | Chọn ngôn ngữ và ngôn ngữ dự phòng | `tests/lang.test.ts` |
 | Gói cài không có từ riêng, địa chỉ hay khoá | `tests/test-check-clean.sh` với `packaging/check-clean.sh` |
 
 ## 2. Chạy trên máy mình
 
-Chạy đủ mười một bước trước khi coi một thay đổi là xong. CI chạy đúng các bước này. Mỗi lệnh chạy ở thư mục gốc repo.
+Chạy đủ mười hai bước trước khi coi một thay đổi là xong. CI chạy đúng các bước này. Mỗi lệnh chạy ở thư mục gốc repo.
 
 ```bash
 claude plugin test .
@@ -105,6 +107,26 @@ uvx ruff check .
 
 Kết quả đúng của cả tám lệnh này: thoát với mã 0. Không có `uv` thì lệnh cuối là `pipx run ruff check .`.
 
+```bash
+cd receiver && go test ./...
+```
+
+Kết quả đúng: `ok` ở mọi gói. Cần Go 1.22 trở lên và `python3`: bài test của bộ nhận chạy chính mã của máy chủ làm trọng tài. Xong thì quay về thư mục gốc repo.
+
+### Đo chịu tải
+
+Không nằm trong mười hai bước: chạy mất khoảng 20 phút và số đo tuỳ máy. Chạy trước khi phát hành bản có đổi cách máy chủ nhận số hay dựng bảng, rồi so với [BENCHMARK.vi.md](BENCHMARK.vi.md).
+
+```bash
+python3 tests/load/load_test.py --json load.json
+```
+
+```bash
+python3 tests/load/load_test.py --scale 300,1000,3000,5000,10000
+```
+
+Kết quả đúng: lệnh đầu in ra một bảng và thoát với mã 0, nghĩa là không lượt office nào có lỗi; lệnh sau cho thấy một lần gửi mất gần như cùng thời gian ở mọi cỡ. `--quick` kiểm trong khoảng 15 giây rằng chính bài đo vẫn chạy. Nó chỉ nói chuyện với máy chủ nó tự bật trên 127.0.0.1.
+
 `bash packaging/check-clean.sh` không nằm trong danh sách này: nó tìm dữ liệu riêng trong thư mục đang chạy, nên dùng cho phần sẽ được công bố, ở đó kết quả đúng là `Clean.` Ở bản checkout có file `packaging/company.json` của riêng bạn, nó sẽ báo file đó, và như vậy là đúng.
 
 ## 3. Phần vẫn cần người kiểm
@@ -145,3 +167,4 @@ Test tự động dùng máy chủ giả và trình duyệt giả. Trước khi 
 - `hooks/register.tsx` và `web/ops.js` (chép sang `server/static/ops.js`) chưa có test riêng.
 - Chưa có test tự động trên máy Mac thật.
 - Chưa có test tự động trên Ubuntu Wayland; đang kiểm tay.
+- Bài đo chịu tải mới chạy trên Mac, chưa chạy trên máy chủ Linux như nơi bảng được cài, và mỗi máy giả gửi từ một địa chỉ bịa riêng, nên chưa thấy giới hạn số lần gửi theo địa chỉ mà các máy đi chung một địa chỉ sẽ gặp.

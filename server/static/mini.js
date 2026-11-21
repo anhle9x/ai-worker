@@ -67,7 +67,7 @@
     if (!box) return
     var big = $('big')
     if (!data) { big.textContent = '\u2013'; $('bigLabel').textContent = t('waiting for an answer'); $('sub').textContent = ''; $('chart').hidden = true; $('stats').hidden = true; return }
-    var working = totals() ? totals().working : people.filter(function (p) { return p.working && !p.waiting }).length
+    var working = totals() ? totals().working : people.filter(function (p) { return p.working }).length
     var total = totals() ? totals().usdToday : (data.people || []).reduce(function (sum, p) { return sum + (p.usdToday || 0) }, 0)
     if (waiting.length) {
       big.textContent = String(waiting.length)
@@ -205,7 +205,9 @@
       })
       if (!waiting.length) list.appendChild(empty(t('Nobody is waiting')))
     } else if (tab === 'working') {
-      var working = people.filter(function (p) { return p.working && !p.waiting })
+      // someone waiting in one session while another runs is in this tab too, as in the Waiting tab
+      // người đang chờ ở một phiên trong khi phiên khác chạy cũng có ở thẻ này, như ở thẻ Đang chờ
+      var working = people.filter(function (p) { return p.working })
       working.forEach(function (p) {
         var model = Object.keys(p.models || {})[0] || ''
         var m = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?/.exec(model)

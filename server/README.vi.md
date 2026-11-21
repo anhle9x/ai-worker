@@ -38,7 +38,7 @@ Vì ai có gói cài cũng có mã, webhook còn tự chặn:
 - **mỗi máy gắn với một người**: lần gửi đầu ghi `device-... → tài khoản + tên` vào bảng `identities`; máy đó gửi
   dưới tên người khác thì bị từ chối (409, ghi vào nhật ký). Chuyển máy cho người khác: dừng dịch vụ, chạy
   `sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --forget-device <mã-máy>`, rồi bật lại dịch vụ;
-- tối đa 300 lần gửi / 10 phút và 10 máy mới / ngày cho mỗi IP, tổng tối đa 300 máy;
+- mỗi máy được gửi dồn 20 lần, sau đó mỗi giây một lần; 10 máy mới / ngày cho mỗi IP; tổng tối đa 300 máy (`MAX_DEVICES`);
 - đăng nhập OTP: sai 5 lần từ một IP khoá IP đó 15 phút; sai 20 lần trên một tài khoản khoá tài khoản đó 15 phút.
 
 Đổi mã: sửa `/etc/ai-worker.env`, `sudo systemctl restart ai-worker-webhook`, rồi đóng gói lại.
@@ -49,7 +49,7 @@ Mở `http://<IP-máy-chủ>:8788/` trên máy tính hoặc điện thoại (tro
 trong **Google Authenticator** (hoặc Microsoft Authenticator): bảng điều khiển vận hành kiểu trung tâm giám sát —
 danh sách người đang hoạt động, sơ đồ người -> Claude -> Gemini/ChatGPT/Gemma (hạt sáng chạy khi đang làm/giao việc;
 bấm vào thẻ để xem số liệu một người), bản đồ nhiệt chi phí 24 giờ, chỉ số, việc giao theo giờ cho từng AI,
-luồng sự kiện (đổi trạng thái, giao việc), biểu đồ 24 giờ. Cập nhật 10 giây một lần. Bảng chữ riêng: `/board`.
+luồng sự kiện (đổi trạng thái, giao việc), biểu đồ 24 giờ. Cập nhật mỗi giây. Bảng chữ riêng: `/board`.
 Trang cần thư mục `static/` cạnh `webhook.py` (install.sh tự chép); thiếu thì webhook tự quay về bảng chữ. Không cần cài plugin.
 
 Việc hằng ngày làm ở trang `/admin` (chỉ vai quản trị): tài khoản và mã QR, đổi vai, địa điểm, gói Team, phiên đang mở, nhật ký. Tạo, cấp lại, đổi vai, xoá tài khoản cần nhập lại mã OTP, có hiệu lực 5 phút. Không xoá hay hạ được quản trị cuối, không tự xoá được.
@@ -112,7 +112,7 @@ curl http://127.0.0.1:8788/health       # {"ok": true}
 ```
 
 Dữ liệu: `/opt/ai-worker/data/board.db` (SQLite), mỗi máy một dòng vài KB, ghi đè khi máy gửi lại. Các bảng và cách sao lưu: [docs/DATA-MODEL.vi.md](../docs/DATA-MODEL.vi.md).
-Máy im lặng quá 30 ngày thì dòng tự bị xoá. Mỗi người mỗi ngày một con số tổng (chi phí, token, số việc giao, văn phòng) được giữ tối đa 13 tháng, để `/board` so được các tuần và các tháng. Tải rất nhẹ: mỗi máy gửi tối đa một lần mỗi 30 giây khi số liệu đổi,
+Máy im lặng quá 30 ngày thì dòng tự bị xoá. Mỗi người mỗi ngày một con số tổng (chi phí, token, số việc giao, văn phòng) được giữ tối đa 13 tháng, để `/board` so được các tuần và các tháng. Tải rất nhẹ: mỗi máy gửi một hai giây sau khi số liệu đổi, nhiều nhất 2 giây một lần,
 ít nhất một lần mỗi 5 phút khi đang mở Claude.
 
 Cập nhật chương trình: chép bản mới đè lên rồi chạy lại `sudo bash install.sh` (giữ nguyên mã và dữ liệu).

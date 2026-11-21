@@ -28,6 +28,11 @@ webhook.py --forget-device <device-id> as the webhook's user, start it again.
 
   webhook.py --export-json <folder>    write the databases back as the JSON files of the version before SQLite
   webhook.py --forget-usage <email or name>    delete one person's totals per day (kept 13 months); run it as the webhook's user
+  webhook.py --revoke-device <device-id>    cut one computer off: its own key stops working and the shared key no longer sends for it
+  webhook.py --rotate-device-secret [--drop-old]    a new secret to sign computer keys with; every computer gets a new key (stop the webhook first)
+
+Each computer gets a key of its own (awd1.…) in the answer to its first send and uses it from then on; SHARED_KEY_MODE says what
+the shared INGEST_KEY may still do (allow, known-only, off).
 
 Use over weeks and months comes from one total per person per day, added up from the hours the computers already send. Before the
 first start on an older database the server copies it to board.db.schema-<old version>.bak next to it; see docs/OPERATIONS.md.
@@ -62,12 +67,18 @@ Only numbers are stored (sessions, tokens, money, tasks delegated); a computer n
 
   webhook.py --export-json <thư-mục>   ghi cơ sở dữ liệu ngược ra file JSON của bản trước SQLite
   webhook.py --forget-usage <email hoặc tên>   xoá tổng theo ngày của một người (giữ 13 tháng); chạy bằng tài khoản của webhook
+  webhook.py --revoke-device <mã-máy>   cắt một máy: khoá riêng của nó thôi có hiệu lực và khoá chung cũng không gửi cho nó được nữa
+  webhook.py --rotate-device-secret [--drop-old]   bí mật mới để ký khoá máy; mọi máy nhận khoá mới (dừng webhook trước)
+
+  Mỗi máy nhận khoá riêng (awd1.…) trong câu trả lời của lần gửi đầu và dùng nó từ đó; SHARED_KEY_MODE cho biết khoá chung
+  INGEST_KEY còn được làm gì (allow, known-only, off).
 
   Mức dùng theo tuần và theo tháng lấy từ một con số tổng cho mỗi người mỗi ngày, cộng từ số liệu theo giờ mà các máy vốn đã gửi. Trước
   lần chạy đầu trên cơ sở dữ liệu cũ, máy chủ chép nó thành board.db.schema-<phiên bản cũ>.bak nằm ngay cạnh; xem docs/OPERATIONS.vi.md.
 
   Chỉ lưu số liệu (số phiên, token, tiền, số việc giao); máy gửi không bao giờ gửi nội dung chat hay tên file.
 """
+import contextlib
 import csv
 import json
 import os
@@ -81,9 +92,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable, NamedTuple, Optional
 from urllib.parse import parse_qs, quote, urlparse
 
-from board import assets, chat, db, mcp, packages, projects, settings, tgapp
+from board import assets, chat, db, mcp, packages, projects, receiver, settings, tgapp
 from board.assets import RELEASE_NAME_RE, STATIC_DIR, STATIC_FILES, has_3d_page
-from board.devices import clean_delegations, clean_payload, key_matches, refuse_constant, save_ingest
+from board.devicekeys import DEVICE_KEYS, PREFIX
+from board.devices import BOOT_ID, DEVICES, NEED_FULL, SAVED, clean_delegations, clean_payload, key_matches, person_key, refuse_constant, save_ingest, send_kind
 from board.lang import REQUEST, lang_from, tx
 from board.login import SESSIONS
 from board.telegram import TELEGRAM
@@ -130,6 +142,9 @@ from board.security import (
 )
 from board.settings import (
     BIND_ADDR,
+    BUSY_READ_BYTES,
+    BUSY_REQUESTS,
+    BUSY_RETRY_SECONDS,
     CONNECTION_DEADLINE_SECONDS,
     DATA_DIR,
     KIND_EXTENSION,
@@ -179,8 +194,10 @@ from board.views import (
     history_loop,
     history_view,
     manage_account,
+    parse_scope,
     parse_team_csv,
     record_history,
+    VIEWS,
     role_view,
     totals_view,
     tv_action,
@@ -225,6 +242,10 @@ class Handler(BaseHTTPRequestHandler):
         # tiến trình bot Telegram của chính máy này cũng vậy, nó trình khoá riêng trên đường riêng
         if self.path == "/bot/telegram" and settings.TELEGRAM_ASK_ENABLED and self.from_this_machine() and key_matches(self.headers.get("Authorization", ""), settings.TELEGRAM_ASK_KEY):
             return False
+        # nor is the Go receiver of this machine on its internal paths
+        # bộ nhận Go của chính máy này trên các đường nội bộ của nó cũng vậy
+        if self.path.startswith("/internal/") and settings.RECEIVER_ENABLED and self.from_this_machine():
+            return False
         if SESSIONS.user_of(cookie, now) or not BOT.is_blocked(self.client_ip(), now):
             return False
         self.send_response(429)
@@ -238,7 +259,7 @@ class Handler(BaseHTTPRequestHandler):
         """quiet: a 401 or 404 that is an ordinary answer, not a sign of probing, so it is not counted against the IP.
         quiet: một 401 hay 404 là câu trả lời bình thường, không phải dấu hiệu dò, nên không tính vào IP."""
         b = json.dumps(body, ensure_ascii=False, allow_nan=False).encode()
-        if status in (401, 404) and self.path != "/ingest" and not quiet:
+        if status in (401, 404) and self.path not in ("/ingest", "/internal/ingest") and not quiet:
             BOT.record_error(self.client_ip(), time.time())
         self.send_response(status)
         for name, value in headers:
@@ -257,7 +278,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", cache_control)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Robots-Tag", "noindex, nofollow")
-        self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; form-action 'self'; frame-ancestors 'none'")
+        # the board's page may also reach the Go receiver's live feed, when it is set up (RECEIVER_LIVE_URL)
+        # trang của bảng còn được tới luồng số trực tiếp của bộ nhận Go, khi luồng đã được cài (RECEIVER_LIVE_URL)
+        connect = "'self' " + settings.RECEIVER_LIVE_URL if settings.live_enabled() else "'self'"
+        self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src %s; img-src 'self' data:; form-action 'self'; frame-ancestors 'none'" % connect)
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         if cookie:
@@ -311,26 +335,62 @@ class Handler(BaseHTTPRequestHandler):
         REQUEST.lang = lang_from(self.headers.get("Cookie", ""), self.headers.get("Accept-Language", ""))
 
     def do_GET(self):
-        self.set_request_lang()
-        if self.path != "/health" and self.bot_guard():
-            return
-        self.dispatch(find_get_route(self.path))
+        with LOAD.request():
+            self.set_request_lang()
+            if self.shed() or (self.path != "/health" and self.bot_guard()):
+                return
+            self.dispatch(find_get_route(self.path))
 
     def do_POST(self):
-        self.set_request_lang()
-        if self.path != "/ingest" and self.bot_guard():
-            return
-        # POST matches the whole string: a path with a query must not slip into another path's action
-        # POST so khớp cả chuỗi: đường có query không được lọt vào việc của đường khác
-        self.dispatch(POST_ROUTES.get(self.path))
+        with LOAD.request():
+            self.set_request_lang()
+            if self.shed() or (self.path != "/ingest" and self.bot_guard()):
+                return
+            # POST matches the whole string: a path with a query must not slip into another path's action
+            # POST so khớp cả chuỗi: đường có query không được lọt vào việc của đường khác
+            self.dispatch(POST_ROUTES.get(self.path))
 
     def do_DELETE(self):
         # only the MCP endpoint is ever asked with DELETE, by an AI tool closing a session this server never opened: it gets the 405 a GET gets
         # chỉ cổng MCP mới bị hỏi bằng DELETE, do công cụ AI đóng một phiên mà máy chủ này chưa từng mở: trả 405 như với GET
-        self.set_request_lang()
-        if self.bot_guard():
-            return
-        self.dispatch(GET_ROUTES.get(self.path) if self.path == "/mcp" else None)
+        with LOAD.request():
+            self.set_request_lang()
+            if self.shed() or self.bot_guard():
+                return
+            self.dispatch(GET_ROUTES.get(self.path) if self.path == "/mcp" else None)
+
+    def shed(self) -> bool:
+        """When the server is busy, answer a send or a request from someone not logged in with 503 at once, so it costs almost nothing
+        and the people looking at the board still get through. A computer sends again at its next round, 30 seconds later.
+        /health always answers, for whoever watches the server. True means the request has been answered.
+        Khi máy chủ đang bận, trả ngay 503 cho một lần gửi hay yêu cầu của người chưa đăng nhập, để nó gần như không tốn gì
+        và những người đang xem bảng vẫn vào được. Máy sẽ gửi lại ở vòng sau, 30 giây sau. /health luôn trả lời, cho người theo dõi máy chủ.
+        True nghĩa là yêu cầu đã được trả lời."""
+        path = self.path.split("?", 1)[0]
+        if path == "/health" or not LOAD.busy():
+            return False
+        sending = path in ("/ingest", "/projects/ingest")
+        if not sending and (self.headers.get("Authorization") or SESSIONS.user_of(self.headers.get("Cookie", ""), time.time())):
+            return False
+        LOAD.note_shed(time.time())
+        # a small body is read and dropped, so the computer reads this answer instead of finding the connection reset;
+        # a larger one is not read at all, so a busy server spends nothing on it, and the connection is closed after the answer
+        # thân nhỏ được đọc rồi bỏ, để máy đọc được câu trả lời này thay vì thấy kết nối bị cắt;
+        # thân lớn hơn thì không đọc, để máy chủ đang bận không tốn gì cho nó, và kết nối được đóng sau câu trả lời
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = 0
+        if 0 < n <= BUSY_READ_BYTES:
+            self.rfile.read(n)
+        self.close_connection = True
+        self.send_response(503)
+        self.send_header("Retry-After", str(BUSY_RETRY_SECONDS))
+        self.send_header("X-Robots-Tag", "noindex, nofollow")
+        self.send_header("Content-Length", "0")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        return True
 
     def dispatch(self, d: Optional["Route"]) -> None:
         # with MCP=0 the MCP paths are gone: 404, the same as a path that was never there
@@ -349,6 +409,10 @@ class Handler(BaseHTTPRequestHandler):
         # và cho dự án hay ứng dụng AI, chỉ có mặt khi có AI_PROJECTS=1
         if d and d.projects and not settings.PROJECTS_ENABLED:
             d = None
+        # and for the Go receiver's internal paths, which are there only with RECEIVER=1
+        # và cho các đường nội bộ của bộ nhận Go, chỉ có mặt khi có RECEIVER=1
+        if d and d.receiver and not settings.RECEIVER_ENABLED:
+            d = None
         if not d:
             return self.reply(404, {"error": tx("Not found")})
         y = self.gate(d)
@@ -359,11 +423,30 @@ class Handler(BaseHTTPRequestHandler):
         """The only permission gate, in order: send key or login, origin, role. None means a refusal has been sent.
         Cổng kiểm quyền duy nhất, theo thứ tự: mã gửi hoặc đăng nhập, nguồn gửi, vai. None nghĩa là đã trả lời từ chối."""
         now, cookie = time.time(), self.headers.get("Cookie", "")
+        self.receiver_ip = None
         if d.permission == PERM_INGEST_KEY:
-            if key_matches(self.headers.get("Authorization", ""), settings.INGEST_KEY):
-                return RequestCtx(None, None, cookie, now)
-            self.reply(401, {"error": "wrong ingest key"})
-            return None
+            return RequestCtx(None, None, cookie, now) if self.ingest_auth(self.headers.get("Authorization", ""), now) else None
+        if d.permission in (PERM_RECEIVER, PERM_RECEIVER_SEND):
+            # the Go receiver on this same machine, calling the webhook's port directly with the internal code of the file of secrets
+            # (board/receiver.py). Anything that came through the proxy, or with a wrong code, is told the path does not exist
+            # bộ nhận Go trên chính máy này, gọi thẳng cổng của webhook bằng mã nội bộ trong file bí mật (board/receiver.py).
+            # Mọi thứ đi qua proxy, hoặc mang mã sai, được báo là đường này không tồn tại
+            local = self.from_this_machine()
+            if not local or not key_matches(self.headers.get("Authorization", ""), DEVICE_KEYS.internal_code()):
+                self.reply(404, {"error": tx("Not found")}, quiet=local)
+                return None
+            if d.permission == PERM_RECEIVER:
+                return RequestCtx("receiver", None, "", now)
+            # a send the receiver passes on as it came: the address of the computer is what the receiver saw on its socket, and the
+            # computer's own Authorization is checked exactly as on /ingest
+            # một lần gửi bộ nhận chuyển nguyên văn: địa chỉ của máy là thứ bộ nhận thấy trên socket của nó, và Authorization của chính
+            # máy được kiểm đúng như ở /ingest
+            ip = (self.headers.get("X-Receiver-Client-Ip") or "").strip()
+            if not re.fullmatch(r"[0-9A-Fa-f.:]{2,45}", ip):
+                self.reply(400, {"error": "no client address"})
+                return None
+            self.receiver_ip = ip
+            return RequestCtx(None, None, "", now) if self.ingest_auth(self.headers.get("X-Receiver-Authorization", ""), now) else None
         if d.permission == PERM_DEVICE_KEY:
             # a paired browser extension: the key is in the Authorization header, cookies are ignored, the role is always wall
             # tiện ích trình duyệt đã ghép: khoá nằm trong header Authorization, bỏ qua cookie, vai luôn là treo tường
@@ -480,6 +563,25 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(403, {"error": tx("This account can only view")})
             return None
         return y
+
+    def ingest_auth(self, header: str, now: float) -> bool:
+        """A computer's own key (board/devicekeys.py) or the send key every package carries; which computer a key may send for is checked
+        in ingest, once the body says which computer this is. False means a refusal has been sent.
+        Khoá riêng của một máy (board/devicekeys.py) hoặc khoá gửi mà mọi gói cài đều mang; khoá được gửi cho máy nào thì kiểm ở ingest,
+        khi phần thân đã nói đây là máy nào. False nghĩa là đã trả lời từ chối."""
+        self.device_claims = None
+        token = header[7:].strip()[:200] if header.startswith("Bearer ") else ""
+        if token.startswith(PREFIX + "."):
+            claims, reason = DEVICE_KEYS.check(token, now)
+            if claims:
+                self.device_claims = claims
+                return True
+            self.reply(401, {"error": reason})
+            return False
+        if key_matches(header, settings.INGEST_KEY):
+            return True
+        self.reply(401, {"error": "wrong ingest key"})
+        return False
 
     def audit_request(self, y: "RequestCtx", **fields) -> None:
         AUDIT_LOG.write(actor=y.user, role=y.role, clientIp=self.client_ip(), path=self.path, **fields)
@@ -624,7 +726,7 @@ class Handler(BaseHTTPRequestHandler):
         token = self.bearer()
         TV.touch(token, self.client_ip(), y.now)
         TV_STATUS.mark_seen(TV.id_of(token), "", y.now)
-        self.reply_page(200, json.dumps(role_view(WALL, y.now), ensure_ascii=False).encode(), content_type="application/json; charset=utf-8")
+        self.reply_page(200, VIEWS.json(WALL, y.now), content_type="application/json; charset=utf-8")
 
     def ext_unpair(self, y: "RequestCtx") -> None:
         """The browser extension unpairs itself: its key stops working on the server at once, not only in the browser.
@@ -710,8 +812,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(429, {"error": tx("Too many tries. Try again in a minute.")}, quiet=True)
         TV_STATUS.mark_seen(TV.id_of(chat_key(telegram_id)), "", y.now)
         chat = TV.d.get(TV.id_of(chat_key(telegram_id)), {})
-        view = totals_view(y.now) if tgapp.totals_only(chat) else role_view(WALL, y.now)
-        self.reply_page(200, json.dumps(view, ensure_ascii=False).encode(), content_type="application/json; charset=utf-8")
+        b = json.dumps(totals_view(y.now), ensure_ascii=False).encode() if tgapp.totals_only(chat) else VIEWS.json(WALL, y.now)
+        self.reply_page(200, b, content_type="application/json; charset=utf-8")
 
     def get_tg_state(self, y: "RequestCtx") -> None:
         """The chat's own alert setting, for the window's settings tab: off until the chat turns it on (board/alerts.py).
@@ -847,13 +949,24 @@ class Handler(BaseHTTPRequestHandler):
         self.reply_page(200, b, content_type="application/json; charset=utf-8")
 
     def get_data(self, y: "RequestCtx") -> None:
-        d = role_view(y.role, y.now)
+        # every board of a role gets the same bytes, built at most once every VIEW_CACHE_SECONDS; a TV told to reload gets its own copy
+        # mọi bảng cùng vai nhận cùng một chuỗi byte, dựng nhiều nhất một lần mỗi VIEW_CACHE_SECONDS; TV được bảo tải lại thì nhận bản riêng
+        q = parse_qs(urlparse(self.path).query)
+        # ?scope= gives the whole organisation or one branch, a page at a time (board/views.py, scoped_view); without it, the whole board
+        # ?scope= cho cả tổ chức hoặc một chi nhánh, từng trang một (board/views.py, scoped_view); không có thì cả bảng
+        scope, page = None, 0
+        if "scope" in q:
+            scope = parse_scope(q["scope"][0])
+            if scope is None:
+                return self.reply(400, {"error": "unknown scope"})
+            page = int(q["page"][0][:6]) if q.get("page", [""])[0].isdigit() else 0
+        b = VIEWS.json(y.role, y.now) if scope is None else VIEWS.scoped_json(y.role, y.now, scope, page)
         token = SESSIONS.token_of(y.cookie)
         if token.startswith("tv_"):
-            ui_version = parse_qs(urlparse(self.path).query).get("ui", [""])[0]
+            ui_version = q.get("ui", [""])[0]
             if TV_STATUS.mark_seen(TV.id_of(token), ui_version if ui_version.isdigit() else "", y.now):
-                d["reload"] = True
-        b = json.dumps(d, ensure_ascii=False).encode()
+                d = VIEWS.view(y.role, y.now) if scope is None else VIEWS.scoped(y.role, y.now, scope, page)
+                b = json.dumps(dict(d, reload=True), ensure_ascii=False).encode()
         # a TV screen still in use is renewed; TV_CEILING_SECONDS is the cap, after that it must be paired again
         # màn hình TV còn dùng thì gia hạn; TV_CEILING_SECONDS là trần, tới đó phải ghép lại
         renewed = token.startswith("tv_") and TV.touch(token, self.client_ip(), y.now)
@@ -913,20 +1026,122 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {"error": "not JSON"})
         if not d:
             return self.reply(400, {"error": "invalid format"})
-        # the IP is written by the server, the sending device cannot claim one
-        # IP do máy chủ tự ghi, máy gửi không tự khai được
-        d["ip"] = self.client_ip()
-        device_count = db.data_db().rows("SELECT COUNT(*) FROM devices")[0][0]
-        rejection = INGEST_GATE.check(d, d["ip"], time.time(), device_count)
+        refusal = self.key_refusal(d["device"], time.time())
+        if refusal:
+            sys.stderr.write("rejected ingest from %s: %s\n" % (d["device"], refusal[1]))
+            return self.reply(refusal[0], {"error": refusal[1]})
+        # the IP is written by the server, the sending device cannot claim one; a send the Go receiver passes on carries what it saw
+        # IP do máy chủ tự ghi, máy gửi không tự khai được; lần gửi bộ nhận Go chuyển tới mang địa chỉ bộ nhận đã thấy
+        d["ip"] = self.receiver_ip or self.client_ip()
+        known_before = list(INGEST_GATE.identities.get(d["device"]) or [])
+        rejection = INGEST_GATE.check(d, d["ip"], time.time(), DEVICES.count())
         if rejection:
             sys.stderr.write("rejected ingest from %s at %s: %s\n" % (d["device"], d["ip"], rejection[1]))
             return self.reply(rejection[0], {"error": rejection[1]})
-        save_ingest(d, time.time())
+        outcome = save_ingest(d, time.time(), send_kind(raw))
         # the records of work handed to helpers go to the audit log, once each, and are not kept with the computer's numbers
         # biên bản giao việc vào nhật ký, mỗi cái một lần, và không giữ cùng số liệu của máy
         AUDIT_LOG.write_delegations(d["device"], d.get("name", ""), d.get("account", ""), clean_delegations(raw.get("delegations"), time.time() * 1000))
-        record_history()
-        self.reply(200, {"ok": True})
+        # only the person who just sent can have changed; history_loop still looks at everyone every 30 seconds for computers that went quiet
+        # chỉ người vừa gửi mới có thể đổi; history_loop vẫn xem mọi người mỗi 30 giây cho những máy đã im
+        if outcome == SAVED:
+            record_history(person_key(d))
+            # written here, not by the Go receiver: it drops the book it may hold for this computer (board/receiver.py)
+            # ghi ở đây, không phải do bộ nhận Go: nó bỏ sổ nó có thể đang giữ cho máy này (board/receiver.py)
+            receiver.POLICY.note_written(d["device"])
+        # which formats this server reads, the pace it wants, whether it needs the whole hour book, and which start of the server this is
+        # (docs/DATA-MODEL.md, "Format v: 2"). An older plugin reads only ok and deviceKey
+        # máy chủ này đọc được định dạng nào, muốn nhịp gửi ra sao, có cần cả sổ giờ không, và đây là lần khởi động nào của máy chủ
+        # (docs/DATA-MODEL.vi.md, "Định dạng v: 2"). Plugin cũ chỉ đọc ok và deviceKey
+        answer = {"ok": True, "accepts": [1, 2], "minGapMs": settings.INGEST_MIN_GAP_MS, "stateGapMs": settings.INGEST_STATE_GAP_MS,
+                  "maxGapMs": settings.INGEST_MAX_GAP_MS, "needFull": outcome == NEED_FULL, "boot": BOOT_ID}
+        # a computer that sent with the shared key gets its own key; one whose key is getting old gets a new one
+        # máy gửi bằng khoá chung nhận khoá riêng; máy có khoá sắp cũ nhận khoá mới
+        claims = self.device_claims
+        # an email or a name filled in for the first time changes the person (pid) the key was signed for: a new key carries the new one
+        # email hay tên lần đầu được điền làm đổi người (pid) mà khoá đã ký cho: khoá mới mang người mới
+        filled = bool(known_before) and known_before != list(INGEST_GATE.identities.get(d["device"]) or [])
+        if claims is None or filled or DEVICE_KEYS.needs_renewal(claims, time.time()):
+            answer["deviceKey"] = DEVICE_KEYS.issue(d["device"], d.get("account", ""), d.get("name", ""), time.time())
+        self.reply(200, answer)
+
+    def internal_rows(self, y: "RequestCtx") -> None:
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = 0
+        if n <= 0 or n > RECEIVER_BATCH_MAX_BYTES:
+            return self.reply(413, {"error": "too large"})
+        try:
+            answer = receiver.apply_rows(json.loads(self.rfile.read(n), parse_constant=refuse_constant), time.time())
+        except (ValueError, RecursionError):
+            return self.reply(400, {"error": "not JSON"})
+        if answer is None:
+            return self.reply(400, {"error": "not a batch"})
+        self.reply(200, answer)
+
+    def internal_policy(self, y: "RequestCtx") -> None:
+        q = parse_qs(urlparse(self.path).query)
+        since = (q.get("since") or ["0"])[0]
+        self.reply(200, receiver.POLICY.document(int(since) if since.isdigit() else 0, (q.get("boot") or [""])[0]))
+
+    def internal_devices(self, y: "RequestCtx") -> None:
+        q = parse_qs(urlparse(self.path).query)
+        limit = (q.get("limit") or ["1000"])[0]
+        self.reply(200, receiver.devices_page((q.get("after") or [""])[0], int(limit) if limit.isdigit() else 1000, (q.get("device") or [""])[0],
+                                              (q.get("whole") or [""])[0] == "1"))
+
+    def internal_people(self, y: "RequestCtx") -> None:
+        # the table the receiver joins its live numbers with: computer -> (code of the row, scope), the changes since a number
+        # bảng bộ nhận dùng để ghép số trực tiếp: máy -> (mã dòng, phạm vi), các thay đổi kể từ một số thứ tự
+        q = parse_qs(urlparse(self.path).query)
+        since, limit = (q.get("since") or ["0"])[0], (q.get("limit") or ["5000"])[0]
+        self.reply(200, receiver.PEOPLE.page(int(since) if since.isdigit() else 0, (q.get("boot") or [""])[0],
+                                             int(limit) if limit.isdigit() else 5000, time.time(), (q.get("loading") or [""])[0] == "1"))
+
+    def sse_ticket(self, y: "RequestCtx") -> None:
+        """A ticket for the board's live feed on the Go receiver (board/receiver.py, Tickets), for one scope of /data?scope=. Every role
+        that may read /data may read every scope, and the feed carries the same numbers for every role; there only when the feed is set up.
+        Vé cho luồng số trực tiếp của bảng trên bộ nhận Go (board/receiver.py, Tickets), cho một phạm vi của /data?scope=. Vai nào đọc
+        được /data thì đọc được mọi phạm vi, và luồng mang cùng các con số cho mọi vai; chỉ có khi luồng đã được cài."""
+        if not settings.live_enabled():
+            return self.reply(404, {"error": tx("Not found")})
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = -1
+        if n < 0 or n > 1024:
+            return self.reply(413, {"error": tx("Too large")})
+        try:
+            body = json.loads(self.rfile.read(n) or b"{}", parse_constant=refuse_constant) if n else {}
+        except ValueError:
+            body = None
+        scope = parse_scope(body.get("scope")) if isinstance(body, dict) and isinstance(body.get("scope"), str) else None
+        ticket = receiver.TICKETS.issue(SESSIONS.token_of(y.cookie), y.role, scope, y.now) if scope is not None else None
+        if ticket is None:
+            return self.reply(400, {"error": "unknown scope"})
+        self.reply(200, ticket)
+
+    def key_refusal(self, device: str, now: float):
+        """None when the key this request carries may send for this computer; else (HTTP code, reason).
+        A computer's own key sends only for that computer. The shared key sends only for a computer that has no key of its own yet,
+        and only as far as SHARED_KEY_MODE allows. A revoked computer is refused whatever it carries.
+        None khi khoá của yêu cầu này được gửi cho máy này; nếu không thì (mã HTTP, lý do).
+        Khoá riêng của một máy chỉ gửi cho đúng máy đó. Khoá chung chỉ gửi cho máy chưa có khoá riêng, và chỉ trong phạm vi
+        SHARED_KEY_MODE cho phép. Máy bị thu hồi bị từ chối dù mang khoá nào."""
+        claims = self.device_claims
+        if claims is not None:
+            return None if claims["device"] == device else (403, "this key belongs to another computer")
+        state = DEVICE_KEYS.state(device, now)
+        if state == "revoked":
+            return 403, "device revoked"
+        if state == "active":
+            return 401, "use this computer's own key"
+        if settings.SHARED_KEY_MODE == "off":
+            return 401, "the shared key is turned off"
+        if settings.SHARED_KEY_MODE == "known-only" and device not in INGEST_GATE.identities:
+            return 401, "the shared key no longer adds computers"
+        return None
 
     def tv_pair(self, y: "RequestCtx") -> None:
         """A TV that is not logged in asks for a code and asks whether it is approved. Always returns 200 so it is not counted as probing paths.
@@ -1188,6 +1403,22 @@ class Handler(BaseHTTPRequestHandler):
                 # the key goes back to this admin once; only its hash and first characters are kept
                 # khoá được trả cho quản trị này một lần; chỉ giữ băm và vài ký tự đầu
                 details, extra = {"action": "project-key-created", "tv": name, "id": key_id, "kind": KIND_PROJECT}, {"token": token, "id": key_id}
+            elif self.path in ("/admin/device-revoke", "/admin/device-forget"):
+                device = str(body.get("device") or "")
+                if not re.fullmatch(r"device-[a-z0-9]{1,40}", device):
+                    raise ValueError(tx("invalid computer"))
+                account, name = INGEST_GATE.identities.get(device, ["", ""])
+                if self.path == "/admin/device-revoke":
+                    # its key stops at once and the shared key no longer sends for it
+                    # khoá của máy thôi hiệu lực ngay và khoá chung cũng không gửi cho nó được nữa
+                    if not DEVICE_KEYS.revoke(device, time.time()):
+                        raise ValueError(tx("This computer has no key to revoke"))
+                    details = {"action": "device-revoked", "device": device, "personName": name, "personAccount": account}
+                else:
+                    # let it back: it enrols again with the shared key at its next send, as a new computer would
+                    # cho máy quay lại: ở lần gửi sau nó ghi danh lại bằng khoá chung, như một máy mới
+                    DEVICE_KEYS.forget(device)
+                    details = {"action": "device-forgotten", "device": device, "personName": name, "personAccount": account}
             elif self.path == "/admin/project-delete":
                 # only a project whose key is already revoked: a live project would only send again
                 # chỉ dự án đã thu hồi khoá: dự án còn khoá sẽ lại gửi tiếp
@@ -1386,6 +1617,47 @@ class Handler(BaseHTTPRequestHandler):
             sys.stderr.write("%s %s\n" % (self.address_string(), fmt % args))
 
 
+class Load:
+    """How many requests are being answered right now, and how many were turned away as busy: the server tells it in its log once a minute
+    while it turns requests away.
+    Bao nhiêu yêu cầu đang được trả lời lúc này, và bao nhiêu bị từ chối vì bận: máy chủ ghi vào nhật ký mỗi phút một lần
+    trong lúc đang từ chối yêu cầu."""
+
+    def __init__(self, limit: int):
+        self.limit = limit
+        self.lock = threading.Lock()
+        self.active = 0
+        self.turned_away = 0
+        self.told_at = 0.0
+
+    @contextlib.contextmanager
+    def request(self):
+        with self.lock:
+            self.active += 1
+        try:
+            yield
+        finally:
+            with self.lock:
+                self.active -= 1
+
+    def busy(self) -> bool:
+        # the request asking is counted in active already, so the others are active - 1
+        # yêu cầu đang hỏi đã nằm trong active, nên các yêu cầu khác là active - 1
+        with self.lock:
+            return self.active - 1 >= self.limit
+
+    def note_shed(self, now: float) -> None:
+        with self.lock:
+            self.turned_away += 1
+            if now - self.told_at < 60:
+                return
+            count, self.turned_away, self.told_at = self.turned_away, 0, now
+        sys.stderr.write("busy: %d requests at once, %d sends or requests from people not logged in answered 503 in the last minute\n" % (self.limit, count))
+
+
+LOAD = Load(BUSY_REQUESTS)
+
+
 class LimitedServer(ThreadingHTTPServer):
     """One thread per connection, with a ceiling: new connections past a limit are closed, and any connection is closed
     at the deadline, so slow senders cannot hold threads and memory for ever.
@@ -1448,6 +1720,12 @@ PERM_BOT_KEY = "bot-key"
 # a session of the board's window inside Telegram in the Authorization header, given on /tg/session: see board/tgapp.py
 # phiên của khung bảng bên trong Telegram trong header Authorization, cấp ở /tg/session: xem board/tgapp.py
 PERM_TG_SESSION = "tg-session"
+# the Go receiver of this machine with the internal code (board/receiver.py); PERM_RECEIVER_SEND also checks the computer's own key
+# bộ nhận Go của máy này với mã nội bộ (board/receiver.py); PERM_RECEIVER_SEND còn kiểm khoá của chính máy gửi
+PERM_RECEIVER, PERM_RECEIVER_SEND = "receiver", "receiver-send"
+# a batch of rows from the receiver: at most a few thousand rows of changed hours
+# một lô dòng từ bộ nhận: nhiều nhất vài nghìn dòng giờ đã đổi
+RECEIVER_BATCH_MAX_BYTES = 32 * 1024 * 1024
 # a request that carries one of these did not come straight from a program on this machine
 # yêu cầu mang một trong các header này thì không tới thẳng từ một chương trình trên máy này
 FORWARDED_HEADERS = ("X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Real-IP", "Forwarded", "Via", "Origin")
@@ -1498,6 +1776,9 @@ class Route(NamedTuple):
     # part of AI projects and applications: gone (404) unless AI_PROJECTS=1
     # thuộc dự án hay ứng dụng AI: biến mất (404) trừ khi AI_PROJECTS=1
     projects: bool = False
+    # part of the Go receiver's internal paths: gone (404) unless RECEIVER=1
+    # thuộc các đường nội bộ của bộ nhận Go: biến mất (404) trừ khi RECEIVER=1
+    receiver: bool = False
 
 
 # Every path of the server is listed here; one that is not here is 404. Add a new path to the permission table in test_webhook.py too.
@@ -1562,6 +1843,11 @@ GET_ROUTES = {
     "/mcp/connect": Route(Handler.get_mcp_connect, PERM_PUBLIC, mcp=True),
     "/mcp-connect.js": Route(Handler.get_mcp_connect_js, PERM_PUBLIC, mcp=True),
     **{path: Route(Handler.get_no_oauth, PERM_PUBLIC, mcp=True) for path in NO_OAUTH_PATHS},
+    # the Go receiver asks for the numbered policy and loads the hour books, from this machine only
+    # bộ nhận Go hỏi tài liệu chính sách và nạp sổ giờ, chỉ từ chính máy này
+    "/internal/policy": Route(Handler.internal_policy, PERM_RECEIVER, allow_query=True, receiver=True),
+    "/internal/devices": Route(Handler.internal_devices, PERM_RECEIVER, allow_query=True, receiver=True),
+    "/internal/people": Route(Handler.internal_people, PERM_RECEIVER, allow_query=True, receiver=True),
 }
 STATIC_ROUTE = Route(Handler.get_static, PERM_LOGIN)
 RELEASES_ROUTE = Route(Handler.get_release, PERM_INGEST_KEY)
@@ -1582,6 +1868,13 @@ POST_ROUTES = {
     # khoá của chính tiện ích trong header Authorization chỉ thu hồi khoá đó
     "/ext/unpair": Route(Handler.ext_unpair, PERM_DEVICE_KEY, origin_policy=ORIGIN_EXTENSION),
     "/ingest": Route(Handler.ingest, PERM_INGEST_KEY),
+    # the Go receiver writes its batches, and passes on as they came the sends it does not handle itself (docs/RECEIVER.md)
+    # bộ nhận Go ghi các lô của nó, và chuyển nguyên văn những lần gửi nó không tự xử lý (docs/RECEIVER.md)
+    "/internal/rows": Route(Handler.internal_rows, PERM_RECEIVER, receiver=True),
+    "/internal/ingest": Route(Handler.ingest, PERM_RECEIVER_SEND, receiver=True),
+    # a logged-in board asks for a ticket to the live feed of the Go receiver; only from the board's own page, only with the feed set up
+    # bảng đã đăng nhập xin vé vào luồng số trực tiếp của bộ nhận Go; chỉ từ chính trang của bảng, chỉ khi luồng đã được cài
+    "/sse/ticket": Route(Handler.sse_ticket, PERM_LOGIN, origin_policy=ORIGIN_REQUIRED, receiver=True),
     # an AI project or application sends the turns it measured, with a key an admin made; write-only
     # dự án hay ứng dụng AI gửi các lượt nó đã đo, bằng khoá quản trị đã tạo; chỉ ghi
     "/projects/ingest": Route(Handler.project_ingest, PERM_PROJECT_KEY, projects=True),
@@ -1590,6 +1883,8 @@ POST_ROUTES = {
     "/admin/project-key": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True, projects=True),
     "/admin/project-prices": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True, projects=True),
     "/admin/project-delete": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True, projects=True),
+    "/admin/device-revoke": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True),
+    "/admin/device-forget": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True),
     # an AI tool with a key an admin approved asks the board's numbers; read-only
     # công cụ AI có khoá đã được quản trị duyệt hỏi số liệu của bảng; chỉ đọc
     "/mcp": Route(Handler.mcp_post, PERM_MCP_KEY, mcp=True),
@@ -1644,8 +1939,32 @@ if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "--forget-device":
         with db.data_db().tx() as c:
             forgotten = c.execute("DELETE FROM identities WHERE device = ?", (sys.argv[2],)).rowcount
+        # its own key goes too, so the computer enrols again with the shared key at its next send
+        # khoá riêng của nó cũng bị bỏ, để máy ghi danh lại bằng khoá chung ở lần gửi sau
+        forgotten += DEVICE_KEYS.forget(sys.argv[2])
         print("forgot %s" % sys.argv[2] if forgotten else "no such device: %s" % sys.argv[2])
         sys.exit(0 if forgotten else 1)
+    if len(sys.argv) == 3 and sys.argv[1] == "--revoke-device":
+        # the computer's key stops working at once, and the shared key no longer sends for it; --forget-device lets it back
+        # khoá của máy thôi có hiệu lực ngay, và khoá chung cũng không gửi cho nó được nữa; --forget-device cho nó quay lại
+        revoked = DEVICE_KEYS.revoke(sys.argv[2], time.time())
+        if revoked:
+            AUDIT_LOG.write(action="device-revoked", device=sys.argv[2], actor="command line")
+        print("revoked %s" % sys.argv[2] if revoked else "no key to revoke for: %s" % sys.argv[2])
+        sys.exit(0 if revoked else 1)
+    if len(sys.argv) in (2, 3) and sys.argv[1] == "--rotate-device-secret" and sys.argv[2:] in ([], ["--drop-old"]):
+        # a new signing secret, and every computer gets a new key at its next send; --drop-old also stops the old keys at once, for a
+        # file of secrets that leaked: every computer then enrols again with the shared key. Run it with the webhook stopped
+        # một bí mật ký mới, và mọi máy nhận khoá mới ở lần gửi kế tiếp; --drop-old còn dừng ngay các khoá cũ, khi file bí mật bị lộ:
+        # khi đó mọi máy ghi danh lại bằng khoá chung. Chạy khi webhook đã dừng
+        drop_old = sys.argv[2:] == ["--drop-old"]
+        kid = DEVICE_KEYS.rotate(time.time(), drop_old)
+        AUDIT_LOG.write(action="device-secret-rotated", kid=kid, dropOld=drop_old, actor="command line")
+        if settings.RECEIVER_ENABLED:
+            receiver.write_secrets(time.time())
+        print("new signing secret %s; every computer gets a new key at its next send%s" % (
+            kid, "; old keys stop now, computers enrol again with the shared key" + (" (SHARED_KEY_MODE is off: none can)" if settings.SHARED_KEY_MODE == "off" else "") if drop_old else ""))
+        sys.exit(0)
     if len(sys.argv) == 3 and sys.argv[1] == "--forget-usage":
         forgotten = DAILY.forget(sys.argv[2])
         print("deleted %d daily rows of %s" % (forgotten, sys.argv[2]) if forgotten else "no daily rows for: %s" % sys.argv[2])
@@ -1673,6 +1992,7 @@ if __name__ == "__main__":
     print("Accounts: %d admin, %d wall display, %d view only" % (count.count(ADMIN), count.count(WALL), count.count(VIEWER)), flush=True)
     if ADMIN not in count:
         print("No admin yet, nobody can open /admin: sudo bash manage-otp.sh --rescue <name>", flush=True)
+    receiver.started()
     threading.Thread(target=history_loop, daemon=True).start()
     threading.Thread(target=daily_loop, daemon=True).start()
     LimitedServer((BIND_ADDR, PORT), Handler).serve_forever()

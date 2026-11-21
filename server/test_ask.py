@@ -273,6 +273,11 @@ class Answer(unittest.TestCase):
         expected = ["📊 AI Worker · 14:05", "", "👥 People in the team: 6", "🟢 Working 1 · 🟡 Waiting 3 · ⚪ Idle 1 · ⚫ Offline 1", "💰 Cost today: $16.25 · 7 days: $38.50"]
         self.assertEqual(say(ask.TEAM).split("\n"), expected)
         self.assertEqual(say(ask.TEAM, TOTALS).split("\n"), expected)
+    def test_team_says_when_someone_is_in_both_counts(self):
+        view = dict(WALL, people=[dict(p, working=1) if p["status"] == "waiting" and p["name"] == "Dazed" else p for p in WALL["people"]])
+        lines = say(ask.TEAM, view=view).split("\n")
+        self.assertEqual(lines[3:5], ["🟢 Working 2 · 🟡 Waiting 3 · ⚪ Idle 1 · ⚫ Offline 1", "📝 1 waiting in one session while another runs: counted in both."])
+        self.assertIn("📝 1 người đang chờ ở một phiên trong khi phiên khác vẫn chạy: được đếm ở cả hai.", say(ask.TEAM, view=view, language="vi"))  # i18n-allow
     def test_quota_lists_people_at_80_percent_or_more(self):
         self.assertEqual(say(ask.QUOTA).split("\n"), [
             "📊 AI Worker · 14:05",

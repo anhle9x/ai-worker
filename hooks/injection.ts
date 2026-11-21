@@ -44,7 +44,9 @@ export function findInjection(text: string): Injection[] {
   return out
 }
 
-function label(kind: string): string {
+/** The kind of text aimed at an AI, in the language in use. */
+/** Loại chữ nhắm vào AI, bằng ngôn ngữ đang dùng. */
+export function injectionLabel(kind: string): string {
   switch (kind) {
     case 'an order to ignore earlier instructions': return tx('an order to ignore earlier instructions')
     case 'a message dressed as the system prompt': return tx('a message dressed as the system prompt')
@@ -57,7 +59,7 @@ function label(kind: string): string {
 }
 
 function listed(found: Injection[]): string {
-  return found.map(f => (f.quote ? `${label(f.kind)} ("${f.quote}")` : label(f.kind))).join('; ')
+  return found.map(f => (f.quote ? `${injectionLabel(f.kind)} ("${f.quote}")` : injectionLabel(f.kind))).join('; ')
 }
 
 /** What Claude reads after the result: it is the page's text, not the person's request. */
@@ -69,5 +71,5 @@ export function injectionNote(found: Injection[], tool: string): string {
 /** The line the person sees: Claude read a page that tries to steer it, and was told not to follow it. */
 /** Dòng người dùng thấy: Claude đã đọc một trang cố lái nó, và đã được dặn không làm theo. */
 export function injectionToast(found: Injection[]): string {
-  return tx('A page Claude just read holds text aimed at AI ({list}). Claude was told not to follow it.', { list: found.map(f => label(f.kind)).join(', ') })
+  return tx('A page Claude just read holds text aimed at AI ({list}). Claude was told not to follow it.', { list: found.map(f => injectionLabel(f.kind)).join(', ') })
 }

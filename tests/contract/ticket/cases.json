@@ -1,0 +1,38 @@
+{
+ "comment": [
+  "Tickets of the board's live feed made by server/board/receiver.py make_ticket, checked by receiver/internal/feed; see docs/RECEIVER.md.",
+  "Vé của luồng số trực tiếp do make_ticket trong server/board/receiver.py làm, receiver/internal/feed kiểm; xem docs/RECEIVER.vi.md."
+ ],
+ "kid": "kidSampl",
+ "secret": "dGlja2V0cy1zYW1wbGUtc2VjcmV0LTMyLWJ5dGVzISE",
+ "cases": [
+  {
+   "role": "admin",
+   "scope": "org",
+   "sid": "sAmPlE-sid_00001",
+   "expires": 1900000000,
+   "ticket": "awt1.kidSampl.admin.b3Jn.sAmPlE-sid_00001.1900000000.QqNttPkOdF6BcTWPpKHP9MzdslEIk-rgvpPGBYDmVus"
+  },
+  {
+   "role": "wall",
+   "scope": "branch:hn-1",
+   "sid": "sAmPlE-sid_00002",
+   "expires": 1900000300,
+   "ticket": "awt1.kidSampl.wall.YnJhbmNoOmhuLTE.sAmPlE-sid_00002.1900000300.Nb7Ttrjnt7C-OBtAi7-jLSg1nJYh6a0LrVL6QsZDVkE"
+  },
+  {
+   "role": "viewer",
+   "scope": "branch:",
+   "sid": "sAmPlE-sid_00003",
+   "expires": 1900000600,
+   "ticket": "awt1.kidSampl.viewer.YnJhbmNoOg.sAmPlE-sid_00003.1900000600.KapSM1VoYE2H6MNUTfpI5JAb1DRcK99m_rggD9EiA7o"
+  },
+  {
+   "role": "wall",
+   "scope": "branch:Chi nhánh Đà Nẵng",
+   "sid": "sAmPlE-sid_00004",
+   "expires": 1900000900,
+   "ticket": "awt1.kidSampl.wall.YnJhbmNoOkNoaSBuaMOhbmggxJDDoCBO4bq1bmc.sAmPlE-sid_00004.1900000900.lFHRbmnVEHDBFIFuUx4SplpeXa4JRgp4npMHFYfyUPI"
+  }
+ ]
+}

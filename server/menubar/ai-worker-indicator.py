@@ -138,7 +138,7 @@ def sections(wall):
     everyone = [p for p in wall.get("people", []) if isinstance(p, dict)]
     online = [p for p in everyone if p.get("status") != "offline"]
     working = [{"name": str(p.get("name", "?"))[:40], "model": model_label(next(iter(p.get("models") or {}), ""))}
-               for p in online if p.get("working") and not p.get("waiting")]
+               for p in online if p.get("working")]
     quota = []
     for p in everyone:
         windows = [w for w in (p.get("quota") or {}).get("windows", []) if isinstance(w, dict) and isinstance(w.get("pct"), (int, float))]

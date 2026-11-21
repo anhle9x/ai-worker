@@ -1,0 +1,3399 @@
+{
+ "about": "Shared sample of /ingest formats v: 1 and v: 2. Made by make_cases.py; see docs/DATA-MODEL.md, \"Format v: 2\".",
+ "cases": [
+  {
+   "about": "A day of work: a first full send, spend and tasks in the same hour, a send with nothing new, the next hour, waiting on and off, work stopped.",
+   "expect": {
+    "device-ctra": {
+     "book": {
+      "ledger": {
+       "497546": {
+        "cacheRead": 9000,
+        "cacheWrite": 1500,
+        "input": 3000,
+        "output": 600,
+        "usd": 0.777777,
+        "usdMicro": 777777
+       },
+       "497547": {
+        "cacheRead": 9,
+        "cacheWrite": 1,
+        "input": 3,
+        "output": 0,
+        "usd": 1e-06,
+        "usdMicro": 1
+       }
+      },
+      "tasks": {
+       "497546": {
+        "chatgpt": 0,
+        "gemini": 1,
+        "gemma": 0
+       },
+       "497547": {
+        "chatgpt": 0,
+        "gemini": 0,
+        "gemma": 1
+       }
+      }
+     },
+     "days": {
+      "2026-10-05": {
+       "chatgpt": 0,
+       "gemini": 1,
+       "gemma": 1,
+       "tokensIn": 13513,
+       "tokensOut": 600,
+       "usdMicro": 777778
+      }
+     }
+    }
+   },
+   "name": "steady-day",
+   "steps": [
+    {
+     "at": 1791165600,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctra",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-a@example.com",
+      "device": "device-ctra",
+      "ledger": {
+       "497546": {
+        "cacheRead": 3000,
+        "cacheWrite": 500,
+        "input": 1000,
+        "output": 200,
+        "usd": 0.123456
+       }
+      },
+      "name": "Contract A",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791165600000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-a@example.com",
+      "device": "device-ctra",
+      "full": true,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 3000,
+         "cacheWrite": 500,
+         "input": 1000,
+         "output": 200,
+         "usdMicro": 123456
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract A",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165600000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791165602,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctra",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-a@example.com",
+      "device": "device-ctra",
+      "ledger": {
+       "497546": {
+        "cacheRead": 9000,
+        "cacheWrite": 1500,
+        "input": 3000,
+        "output": 600,
+        "usd": 0.777777
+       }
+      },
+      "name": "Contract A",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {
+       "497546": {
+        "chatgpt": 0,
+        "gemini": 1,
+        "gemma": 0
+       }
+      },
+      "updatedAt": 1791165602000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-a@example.com",
+      "device": "device-ctra",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 9000,
+         "cacheWrite": 1500,
+         "input": 3000,
+         "output": 600,
+         "usdMicro": 777777
+        }
+       },
+       "tasks": {
+        "497546": {
+         "chatgpt": 0,
+         "gemini": 1,
+         "gemma": 0
+        }
+       }
+      },
+      "name": "Contract A",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165602000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791165604,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctra",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-a@example.com",
+      "device": "device-ctra",
+      "ledger": {
+       "497546": {
+        "cacheRead": 9000,
+        "cacheWrite": 1500,
+        "input": 3000,
+        "output": 600,
+        "usd": 0.777777
+       }
+      },
+      "name": "Contract A",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {
+       "497546": {
+        "chatgpt": 0,
+        "gemini": 1,
+        "gemma": 0
+       }
+      },
+      "updatedAt": 1791165604000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-a@example.com",
+      "device": "device-ctra",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {},
+       "tasks": {}
+      },
+      "name": "Contract A",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165604000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791165604,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctra",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-a@example.com",
+      "device": "device-ctra",
+      "ledger": {
+       "497546": {
+        "cacheRead": 9000,
+        "cacheWrite": 1500,
+        "input": 3000,
+        "output": 600,
+        "usd": 0.777777
+       }
+      },
+      "name": "Contract A",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {
+       "497546": {
+        "chatgpt": 0,
+        "gemini": 1,
+        "gemma": 0
+       }
+      },
+      "updatedAt": 1791165604000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-a@example.com",
+      "device": "device-ctra",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {},
+       "tasks": {}
+      },
+      "name": "Contract A",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165604000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791169200,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctra",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-a@example.com",
+      "device": "device-ctra",
+      "ledger": {
+       "497546": {
+        "cacheRead": 9000,
+        "cacheWrite": 1500,
+        "input": 3000,
+        "output": 600,
+        "usd": 0.777777
+       },
+       "497547": {
+        "cacheRead": 9,
+        "cacheWrite": 1,
+        "input": 3,
+        "output": 0,
+        "usd": 1e-06
+       }
+      },
+      "name": "Contract A",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {
+       "497546": {
+        "chatgpt": 0,
+        "gemini": 1,
+        "gemma": 0
+       },
+       "497547": {
+        "chatgpt": 0,
+        "gemini": 0,
+        "gemma": 1
+       }
+      },
+      "updatedAt": 1791169200000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-a@example.com",
+      "device": "device-ctra",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497547": {
+         "cacheRead": 9,
+         "cacheWrite": 1,
+         "input": 3,
+         "output": 0,
+         "usdMicro": 1
+        }
+       },
+       "tasks": {
+        "497547": {
+         "chatgpt": 0,
+         "gemini": 0,
+         "gemma": 1
+        }
+       }
+      },
+      "name": "Contract A",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791169200000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791169202,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctra",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-a@example.com",
+      "device": "device-ctra",
+      "ledger": {
+       "497546": {
+        "cacheRead": 9000,
+        "cacheWrite": 1500,
+        "input": 3000,
+        "output": 600,
+        "usd": 0.777777
+       },
+       "497547": {
+        "cacheRead": 9,
+        "cacheWrite": 1,
+        "input": 3,
+        "output": 0,
+        "usd": 1e-06
+       }
+      },
+      "name": "Contract A",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {
+       "497546": {
+        "chatgpt": 0,
+        "gemini": 1,
+        "gemma": 0
+       },
+       "497547": {
+        "chatgpt": 0,
+        "gemini": 0,
+        "gemma": 1
+       }
+      },
+      "updatedAt": 1791169202000,
+      "v": 1,
+      "waiting": 1,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-a@example.com",
+      "device": "device-ctra",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {},
+       "tasks": {}
+      },
+      "name": "Contract A",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791169202000,
+      "v": 2,
+      "waiting": 1,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791169210,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctra",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-a@example.com",
+      "device": "device-ctra",
+      "ledger": {
+       "497546": {
+        "cacheRead": 9000,
+        "cacheWrite": 1500,
+        "input": 3000,
+        "output": 600,
+        "usd": 0.777777
+       },
+       "497547": {
+        "cacheRead": 9,
+        "cacheWrite": 1,
+        "input": 3,
+        "output": 0,
+        "usd": 1e-06
+       }
+      },
+      "name": "Contract A",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {
+       "497546": {
+        "chatgpt": 0,
+        "gemini": 1,
+        "gemma": 0
+       },
+       "497547": {
+        "chatgpt": 0,
+        "gemini": 0,
+        "gemma": 1
+       }
+      },
+      "updatedAt": 1791169210000,
+      "v": 1,
+      "waiting": 0,
+      "working": 0
+     },
+     "v2": {
+      "account": "contract-a@example.com",
+      "device": "device-ctra",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {},
+       "tasks": {}
+      },
+      "name": "Contract A",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791169210000,
+      "v": 2,
+      "waiting": 0,
+      "working": 0
+     }
+    }
+   ],
+   "v2Only": false
+  },
+  {
+   "about": "Two computers of the same person, each with its own book, interleaved.",
+   "expect": {
+    "device-ctrb1": {
+     "book": {
+      "ledger": {
+       "497546": {
+        "cacheRead": 4500,
+        "cacheWrite": 750,
+        "input": 1500,
+        "output": 300,
+        "usd": 0.300006,
+        "usdMicro": 300006
+       }
+      },
+      "tasks": {
+       "497546": {
+        "chatgpt": 3,
+        "gemini": 0,
+        "gemma": 0
+       }
+      }
+     },
+     "days": {
+      "2026-10-05": {
+       "chatgpt": 3,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 6750,
+       "tokensOut": 300,
+       "usdMicro": 300006
+      }
+     }
+    },
+    "device-ctrb2": {
+     "book": {
+      "ledger": {
+       "497546": {
+        "cacheRead": 4500,
+        "cacheWrite": 750,
+        "input": 1500,
+        "output": 300,
+        "usd": 0.300009,
+        "usdMicro": 300009
+       }
+      },
+      "tasks": {
+       "497546": {
+        "chatgpt": 3,
+        "gemini": 0,
+        "gemma": 0
+       }
+      }
+     },
+     "days": {
+      "2026-10-05": {
+       "chatgpt": 3,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 6750,
+       "tokensOut": 300,
+       "usdMicro": 300009
+      }
+     }
+    }
+   },
+   "name": "two-computers-one-person",
+   "steps": [
+    {
+     "at": 1791165600,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrb1",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-b@example.com",
+      "device": "device-ctrb1",
+      "ledger": {
+       "497546": {
+        "cacheRead": 1500,
+        "cacheWrite": 250,
+        "input": 500,
+        "output": 100,
+        "usd": 0.1
+       }
+      },
+      "name": "Contract B",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {
+       "497546": {
+        "chatgpt": 1,
+        "gemini": 0,
+        "gemma": 0
+       }
+      },
+      "updatedAt": 1791165600000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-b@example.com",
+      "device": "device-ctrb1",
+      "full": true,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 1500,
+         "cacheWrite": 250,
+         "input": 500,
+         "output": 100,
+         "usdMicro": 100000
+        }
+       },
+       "tasks": {
+        "497546": {
+         "chatgpt": 1,
+         "gemini": 0,
+         "gemma": 0
+        }
+       }
+      },
+      "name": "Contract B",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165600000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791166200,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrb2",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-b@example.com",
+      "device": "device-ctrb2",
+      "ledger": {
+       "497546": {
+        "cacheRead": 1500,
+        "cacheWrite": 250,
+        "input": 500,
+        "output": 100,
+        "usd": 0.100001
+       }
+      },
+      "name": "Contract B",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {
+       "497546": {
+        "chatgpt": 1,
+        "gemini": 0,
+        "gemma": 0
+       }
+      },
+      "updatedAt": 1791166200000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-b@example.com",
+      "device": "device-ctrb2",
+      "full": true,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 1500,
+         "cacheWrite": 250,
+         "input": 500,
+         "output": 100,
+         "usdMicro": 100001
+        }
+       },
+       "tasks": {
+        "497546": {
+         "chatgpt": 1,
+         "gemini": 0,
+         "gemma": 0
+        }
+       }
+      },
+      "name": "Contract B",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791166200000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791166800,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrb1",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-b@example.com",
+      "device": "device-ctrb1",
+      "ledger": {
+       "497546": {
+        "cacheRead": 3000,
+        "cacheWrite": 500,
+        "input": 1000,
+        "output": 200,
+        "usd": 0.200002
+       }
+      },
+      "name": "Contract B",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {
+       "497546": {
+        "chatgpt": 2,
+        "gemini": 0,
+        "gemma": 0
+       }
+      },
+      "updatedAt": 1791166800000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-b@example.com",
+      "device": "device-ctrb1",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 3000,
+         "cacheWrite": 500,
+         "input": 1000,
+         "output": 200,
+         "usdMicro": 200002
+        }
+       },
+       "tasks": {
+        "497546": {
+         "chatgpt": 2,
+         "gemini": 0,
+         "gemma": 0
+        }
+       }
+      },
+      "name": "Contract B",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791166800000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791167400,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrb2",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-b@example.com",
+      "device": "device-ctrb2",
+      "ledger": {
+       "497546": {
+        "cacheRead": 3000,
+        "cacheWrite": 500,
+        "input": 1000,
+        "output": 200,
+        "usd": 0.20000400000000002
+       }
+      },
+      "name": "Contract B",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {
+       "497546": {
+        "chatgpt": 2,
+        "gemini": 0,
+        "gemma": 0
+       }
+      },
+      "updatedAt": 1791167400000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-b@example.com",
+      "device": "device-ctrb2",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 3000,
+         "cacheWrite": 500,
+         "input": 1000,
+         "output": 200,
+         "usdMicro": 200004
+        }
+       },
+       "tasks": {
+        "497546": {
+         "chatgpt": 2,
+         "gemini": 0,
+         "gemma": 0
+        }
+       }
+      },
+      "name": "Contract B",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791167400000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791168000,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrb1",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-b@example.com",
+      "device": "device-ctrb1",
+      "ledger": {
+       "497546": {
+        "cacheRead": 4500,
+        "cacheWrite": 750,
+        "input": 1500,
+        "output": 300,
+        "usd": 0.300006
+       }
+      },
+      "name": "Contract B",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {
+       "497546": {
+        "chatgpt": 3,
+        "gemini": 0,
+        "gemma": 0
+       }
+      },
+      "updatedAt": 1791168000000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-b@example.com",
+      "device": "device-ctrb1",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 4500,
+         "cacheWrite": 750,
+         "input": 1500,
+         "output": 300,
+         "usdMicro": 300006
+        }
+       },
+       "tasks": {
+        "497546": {
+         "chatgpt": 3,
+         "gemini": 0,
+         "gemma": 0
+        }
+       }
+      },
+      "name": "Contract B",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791168000000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791168600,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrb2",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-b@example.com",
+      "device": "device-ctrb2",
+      "ledger": {
+       "497546": {
+        "cacheRead": 4500,
+        "cacheWrite": 750,
+        "input": 1500,
+        "output": 300,
+        "usd": 0.300009
+       }
+      },
+      "name": "Contract B",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {
+       "497546": {
+        "chatgpt": 3,
+        "gemini": 0,
+        "gemma": 0
+       }
+      },
+      "updatedAt": 1791168600000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-b@example.com",
+      "device": "device-ctrb2",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 4500,
+         "cacheWrite": 750,
+         "input": 1500,
+         "output": 300,
+         "usdMicro": 300009
+        }
+       },
+       "tasks": {
+        "497546": {
+         "chatgpt": 3,
+         "gemini": 0,
+         "gemma": 0
+        }
+       }
+      },
+      "name": "Contract B",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791168600000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    }
+   ],
+   "v2Only": false
+  },
+  {
+   "about": "Spend just before and just after local midnight lands on two days.",
+   "expect": {
+    "device-ctrc": {
+     "book": {
+      "ledger": {
+       "497560": {
+        "cacheRead": 300,
+        "cacheWrite": 50,
+        "input": 100,
+        "output": 20,
+        "usd": 0.999999,
+        "usdMicro": 999999
+       },
+       "497561": {
+        "cacheRead": 300,
+        "cacheWrite": 50,
+        "input": 100,
+        "output": 20,
+        "usd": 1.000001,
+        "usdMicro": 1000001
+       }
+      },
+      "tasks": {}
+     },
+     "days": {
+      "2026-10-05": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 450,
+       "tokensOut": 20,
+       "usdMicro": 999999
+      },
+      "2026-10-06": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 450,
+       "tokensOut": 20,
+       "usdMicro": 1000001
+      }
+     }
+    }
+   },
+   "name": "midnight",
+   "steps": [
+    {
+     "at": 1791219598,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrc",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-c@example.com",
+      "device": "device-ctrc",
+      "ledger": {
+       "497560": {
+        "cacheRead": 300,
+        "cacheWrite": 50,
+        "input": 100,
+        "output": 20,
+        "usd": 0.999999
+       }
+      },
+      "name": "Contract C",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791219598000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-c@example.com",
+      "device": "device-ctrc",
+      "full": true,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497560": {
+         "cacheRead": 300,
+         "cacheWrite": 50,
+         "input": 100,
+         "output": 20,
+         "usdMicro": 999999
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract C",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791219598000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791219601,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrc",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-c@example.com",
+      "device": "device-ctrc",
+      "ledger": {
+       "497560": {
+        "cacheRead": 300,
+        "cacheWrite": 50,
+        "input": 100,
+        "output": 20,
+        "usd": 0.999999
+       },
+       "497561": {
+        "cacheRead": 300,
+        "cacheWrite": 50,
+        "input": 100,
+        "output": 20,
+        "usd": 1.000001
+       }
+      },
+      "name": "Contract C",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791219601000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-c@example.com",
+      "device": "device-ctrc",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497561": {
+         "cacheRead": 300,
+         "cacheWrite": 50,
+         "input": 100,
+         "output": 20,
+         "usdMicro": 1000001
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract C",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791219601000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    }
+   ],
+   "v2Only": false
+  },
+  {
+   "about": "A send lost on the way: the next one carries the hours of both.",
+   "expect": {
+    "device-ctrd": {
+     "book": {
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.01,
+        "usdMicro": 10000
+       },
+       "497547": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.02,
+        "usdMicro": 20000
+       },
+       "497548": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.03,
+        "usdMicro": 30000
+       }
+      },
+      "tasks": {}
+     },
+     "days": {
+      "2026-10-05": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 135,
+       "tokensOut": 6,
+       "usdMicro": 60000
+      }
+     }
+    }
+   },
+   "name": "lost-send",
+   "steps": [
+    {
+     "at": 1791165600,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrd",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-d@example.com",
+      "device": "device-ctrd",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.01
+       }
+      },
+      "name": "Contract D",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791165600000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-d@example.com",
+      "device": "device-ctrd",
+      "full": true,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 10000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract D",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165600000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791169200,
+     "compare": false,
+     "delivered": false,
+     "device": "device-ctrd",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-d@example.com",
+      "device": "device-ctrd",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.01
+       },
+       "497547": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.02
+       }
+      },
+      "name": "Contract D",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791169200000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-d@example.com",
+      "device": "device-ctrd",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497547": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 20000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract D",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791169200000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791172800,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrd",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-d@example.com",
+      "device": "device-ctrd",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.01
+       },
+       "497547": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.02
+       },
+       "497548": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.03
+       }
+      },
+      "name": "Contract D",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791172800000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-d@example.com",
+      "device": "device-ctrd",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497547": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 20000
+        },
+        "497548": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 30000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract D",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791172800000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    }
+   ],
+   "v2Only": false
+  },
+  {
+   "about": "The server lost a computer's row (a restore from an old backup): a v: 2 send of changed hours only is answered needFull and nothing is kept; the full send that follows puts the whole book back.",
+   "expect": {
+    "device-ctre": {
+     "book": {
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.05,
+        "usdMicro": 50000
+       },
+       "497547": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.06,
+        "usdMicro": 60000
+       }
+      },
+      "tasks": {}
+     },
+     "days": {
+      "2026-10-05": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 90,
+       "tokensOut": 4,
+       "usdMicro": 110000
+      }
+     }
+    }
+   },
+   "name": "server-lost-the-row",
+   "steps": [
+    {
+     "at": 1791165600,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctre",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-e@example.com",
+      "device": "device-ctre",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.05
+       }
+      },
+      "name": "Contract E",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791165600000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-e@example.com",
+      "device": "device-ctre",
+      "full": true,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 50000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract E",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165600000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791169200,
+     "compare": false,
+     "delivered": true,
+     "device": "device-ctre",
+     "dropRowFirst": true,
+     "expectV2": "need-full",
+     "v1": {
+      "account": "contract-e@example.com",
+      "device": "device-ctre",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.05
+       },
+       "497547": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.06
+       }
+      },
+      "name": "Contract E",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791169200000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-e@example.com",
+      "device": "device-ctre",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497547": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 60000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract E",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791169200000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791169202,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctre",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-e@example.com",
+      "device": "device-ctre",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.05
+       },
+       "497547": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.06
+       }
+      },
+      "name": "Contract E",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791169202000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-e@example.com",
+      "device": "device-ctre",
+      "full": true,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 50000
+        },
+        "497547": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 60000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract E",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791169202000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    }
+   ],
+   "v2Only": false
+  },
+  {
+   "about": "Over eight days the plugin drops its oldest hours; v: 2 sends them as empty tables and the server drops them too. A blocks hour set then cleared goes the same way.",
+   "expect": {
+    "device-ctrf": {
+     "book": {
+      "ledger": {
+       "497594": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080002,
+        "usdMicro": 80002
+       },
+       "497618": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080003,
+        "usdMicro": 80003
+       },
+       "497642": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080004,
+        "usdMicro": 80004
+       },
+       "497666": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080005,
+        "usdMicro": 80005
+       },
+       "497690": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080006,
+        "usdMicro": 80006
+       },
+       "497714": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080007,
+        "usdMicro": 80007
+       },
+       "497738": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080008,
+        "usdMicro": 80008
+       },
+       "497762": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080009,
+        "usdMicro": 80009
+       }
+      },
+      "tasks": {}
+     },
+     "days": {
+      "2026-10-07": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 45,
+       "tokensOut": 2,
+       "usdMicro": 80002
+      },
+      "2026-10-08": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 45,
+       "tokensOut": 2,
+       "usdMicro": 80003
+      },
+      "2026-10-09": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 45,
+       "tokensOut": 2,
+       "usdMicro": 80004
+      },
+      "2026-10-10": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 45,
+       "tokensOut": 2,
+       "usdMicro": 80005
+      },
+      "2026-10-11": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 45,
+       "tokensOut": 2,
+       "usdMicro": 80006
+      },
+      "2026-10-12": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 45,
+       "tokensOut": 2,
+       "usdMicro": 80007
+      },
+      "2026-10-13": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 45,
+       "tokensOut": 2,
+       "usdMicro": 80008
+      },
+      "2026-10-14": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 45,
+       "tokensOut": 2,
+       "usdMicro": 80009
+      }
+     }
+    }
+   },
+   "name": "hours-leave-the-book",
+   "steps": [
+    {
+     "at": 1791165600,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrf",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-f@example.com",
+      "blocks": {
+       "497546": {
+        "secret": 2
+       }
+      },
+      "device": "device-ctrf",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.07
+       }
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791165600000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "full": true,
+      "hours": {
+       "blocks": {
+        "497546": {
+         "secret": 2
+        }
+       },
+       "ledger": {
+        "497546": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 70000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165600000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791165660,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrf",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.07
+       }
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791165660000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "full": false,
+      "hours": {
+       "blocks": {
+        "497546": {}
+       },
+       "ledger": {},
+       "tasks": {}
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165660000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791252000,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrf",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.07
+       },
+       "497570": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080001
+       }
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791252000000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497570": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 80001
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791252000000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791338400,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrf",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.07
+       },
+       "497570": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080001
+       },
+       "497594": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080002
+       }
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791338400000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497594": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 80002
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791338400000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791424800,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrf",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.07
+       },
+       "497570": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080001
+       },
+       "497594": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080002
+       },
+       "497618": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080003
+       }
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791424800000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497618": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 80003
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791424800000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791511200,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrf",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.07
+       },
+       "497570": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080001
+       },
+       "497594": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080002
+       },
+       "497618": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080003
+       },
+       "497642": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080004
+       }
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791511200000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497642": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 80004
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791511200000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791597600,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrf",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.07
+       },
+       "497570": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080001
+       },
+       "497594": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080002
+       },
+       "497618": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080003
+       },
+       "497642": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080004
+       },
+       "497666": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080005
+       }
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791597600000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497666": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 80005
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791597600000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791684000,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrf",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.07
+       },
+       "497570": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080001
+       },
+       "497594": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080002
+       },
+       "497618": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080003
+       },
+       "497642": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080004
+       },
+       "497666": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080005
+       },
+       "497690": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080006
+       }
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791684000000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497690": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 80006
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791684000000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791770400,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrf",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.07
+       },
+       "497570": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080001
+       },
+       "497594": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080002
+       },
+       "497618": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080003
+       },
+       "497642": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080004
+       },
+       "497666": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080005
+       },
+       "497690": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080006
+       },
+       "497714": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080007
+       }
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791770400000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497714": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 80007
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791770400000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791856800,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrf",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "ledger": {
+       "497570": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080001
+       },
+       "497594": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080002
+       },
+       "497618": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080003
+       },
+       "497642": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080004
+       },
+       "497666": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080005
+       },
+       "497690": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080006
+       },
+       "497714": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080007
+       },
+       "497738": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080008
+       }
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791856800000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {},
+        "497738": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 80008
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791856800000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791943200,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrf",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "ledger": {
+       "497594": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080002
+       },
+       "497618": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080003
+       },
+       "497642": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080004
+       },
+       "497666": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080005
+       },
+       "497690": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080006
+       },
+       "497714": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080007
+       },
+       "497738": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080008
+       },
+       "497762": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.080009
+       }
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791943200000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-f@example.com",
+      "device": "device-ctrf",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497570": {},
+        "497762": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 80009
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract F",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791943200000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    }
+   ],
+   "v2Only": false
+  },
+  {
+   "about": "Dollar amounts a v: 1 plugin adds up in floating point turn into exactly the same usdMicro.",
+   "expect": {
+    "device-ctrg": {
+     "book": {
+      "ledger": {
+       "497546": {
+        "cacheRead": 126,
+        "cacheWrite": 18,
+        "input": 42,
+        "output": 6,
+        "usd": 34.933333,
+        "usdMicro": 34933333
+       }
+      },
+      "tasks": {}
+     },
+     "days": {
+      "2026-10-05": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 186,
+       "tokensOut": 6,
+       "usdMicro": 34933333
+      }
+     }
+    }
+   },
+   "name": "money-in-dollars",
+   "steps": [
+    {
+     "at": 1791165600,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrg",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-g@example.com",
+      "device": "device-ctrg",
+      "ledger": {
+       "497546": {
+        "cacheRead": 21,
+        "cacheWrite": 3,
+        "input": 7,
+        "output": 1,
+        "usd": 0.1
+       }
+      },
+      "name": "Contract G",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791165600000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-g@example.com",
+      "device": "device-ctrg",
+      "full": true,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 21,
+         "cacheWrite": 3,
+         "input": 7,
+         "output": 1,
+         "usdMicro": 100000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract G",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165600000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791165602,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrg",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-g@example.com",
+      "device": "device-ctrg",
+      "ledger": {
+       "497546": {
+        "cacheRead": 42,
+        "cacheWrite": 6,
+        "input": 14,
+        "output": 2,
+        "usd": 0.30000000000000004
+       }
+      },
+      "name": "Contract G",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791165602000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-g@example.com",
+      "device": "device-ctrg",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 42,
+         "cacheWrite": 6,
+         "input": 14,
+         "output": 2,
+         "usdMicro": 300000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract G",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165602000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791165604,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrg",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-g@example.com",
+      "device": "device-ctrg",
+      "ledger": {
+       "497546": {
+        "cacheRead": 63,
+        "cacheWrite": 9,
+        "input": 21,
+        "output": 3,
+        "usd": 0.6000000000000001
+       }
+      },
+      "name": "Contract G",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791165604000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-g@example.com",
+      "device": "device-ctrg",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 63,
+         "cacheWrite": 9,
+         "input": 21,
+         "output": 3,
+         "usdMicro": 600000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract G",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165604000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791165606,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrg",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-g@example.com",
+      "device": "device-ctrg",
+      "ledger": {
+       "497546": {
+        "cacheRead": 84,
+        "cacheWrite": 12,
+        "input": 28,
+        "output": 4,
+        "usd": 0.6000010000000001
+       }
+      },
+      "name": "Contract G",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791165606000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-g@example.com",
+      "device": "device-ctrg",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 84,
+         "cacheWrite": 12,
+         "input": 28,
+         "output": 4,
+         "usdMicro": 600001
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract G",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165606000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791165608,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrg",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-g@example.com",
+      "device": "device-ctrg",
+      "ledger": {
+       "497546": {
+        "cacheRead": 105,
+        "cacheWrite": 15,
+        "input": 35,
+        "output": 5,
+        "usd": 1.6
+       }
+      },
+      "name": "Contract G",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791165608000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-g@example.com",
+      "device": "device-ctrg",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 105,
+         "cacheWrite": 15,
+         "input": 35,
+         "output": 5,
+         "usdMicro": 1600000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract G",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165608000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791165610,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrg",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-g@example.com",
+      "device": "device-ctrg",
+      "ledger": {
+       "497546": {
+        "cacheRead": 126,
+        "cacheWrite": 18,
+        "input": 42,
+        "output": 6,
+        "usd": 34.933333000000005
+       }
+      },
+      "name": "Contract G",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791165610000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-g@example.com",
+      "device": "device-ctrg",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 126,
+         "cacheWrite": 18,
+         "input": 42,
+         "output": 6,
+         "usdMicro": 34933333
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract G",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165610000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    }
+   ],
+   "v2Only": false
+  },
+  {
+   "about": "A computer whose clock is 25 minutes ahead: its hours follow its own clock.",
+   "expect": {
+    "device-ctrh": {
+     "book": {
+      "ledger": {
+       "497547": {
+        "cacheRead": 60,
+        "cacheWrite": 10,
+        "input": 20,
+        "output": 4,
+        "usd": 0.09,
+        "usdMicro": 90000
+       }
+      },
+      "tasks": {}
+     },
+     "days": {
+      "2026-10-05": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 90,
+       "tokensOut": 4,
+       "usdMicro": 90000
+      }
+     }
+    }
+   },
+   "name": "clock-ahead",
+   "steps": [
+    {
+     "at": 1791168000,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrh",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-h@example.com",
+      "device": "device-ctrh",
+      "ledger": {
+       "497547": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.04
+       }
+      },
+      "name": "Contract H",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791169500000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-h@example.com",
+      "device": "device-ctrh",
+      "full": true,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497547": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 40000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract H",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791169500000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791168600,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrh",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-h@example.com",
+      "device": "device-ctrh",
+      "ledger": {
+       "497547": {
+        "cacheRead": 60,
+        "cacheWrite": 10,
+        "input": 20,
+        "output": 4,
+        "usd": 0.09
+       }
+      },
+      "name": "Contract H",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791170100000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-h@example.com",
+      "device": "device-ctrh",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497547": {
+         "cacheRead": 60,
+         "cacheWrite": 10,
+         "input": 20,
+         "output": 4,
+         "usdMicro": 90000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract H",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791170100000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    }
+   ],
+   "v2Only": false
+  },
+  {
+   "about": "A second full send within the hour (a new Claude Code session) is merged hour by hour: the book is the same.",
+   "expect": {
+    "device-ctri": {
+     "book": {
+      "ledger": {
+       "497546": {
+        "cacheRead": 60,
+        "cacheWrite": 10,
+        "input": 20,
+        "output": 4,
+        "usd": 0.023,
+        "usdMicro": 23000
+       }
+      },
+      "tasks": {}
+     },
+     "days": {
+      "2026-10-05": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 90,
+       "tokensOut": 4,
+       "usdMicro": 23000
+      }
+     }
+    }
+   },
+   "name": "full-again-soon",
+   "steps": [
+    {
+     "at": 1791165600,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctri",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-i@example.com",
+      "device": "device-ctri",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.011
+       }
+      },
+      "name": "Contract I",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791165600000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-i@example.com",
+      "device": "device-ctri",
+      "full": true,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 11000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract I",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165600000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791167400,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctri",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-i@example.com",
+      "device": "device-ctri",
+      "ledger": {
+       "497546": {
+        "cacheRead": 60,
+        "cacheWrite": 10,
+        "input": 20,
+        "output": 4,
+        "usd": 0.023
+       }
+      },
+      "name": "Contract I",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791167400000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-i@example.com",
+      "device": "device-ctri",
+      "full": true,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 60,
+         "cacheWrite": 10,
+         "input": 20,
+         "output": 4,
+         "usdMicro": 23000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract I",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791167400000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    }
+   ],
+   "v2Only": false
+  },
+  {
+   "about": "Two v: 2 sends of one computer arrive in the wrong order (two sessions on one computer): the older one is dropped as stale and the newer book stays. v: 1 has no such guard, so this case is for v: 2 only.",
+   "expect": {
+    "device-ctrj": {
+     "book": {
+      "ledger": {
+       "497546": {
+        "cacheRead": 90,
+        "cacheWrite": 15,
+        "input": 30,
+        "output": 6,
+        "usd": 0.02,
+        "usdMicro": 20000
+       }
+      },
+      "tasks": {}
+     },
+     "days": {
+      "2026-10-05": {
+       "chatgpt": 0,
+       "gemini": 0,
+       "gemma": 0,
+       "tokensIn": 135,
+       "tokensOut": 6,
+       "usdMicro": 20000
+      }
+     }
+    }
+   },
+   "name": "out-of-order",
+   "steps": [
+    {
+     "at": 1791165600,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrj",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-j@example.com",
+      "device": "device-ctrj",
+      "ledger": {
+       "497546": {
+        "cacheRead": 30,
+        "cacheWrite": 5,
+        "input": 10,
+        "output": 2,
+        "usd": 0.01
+       }
+      },
+      "name": "Contract J",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791165600000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-j@example.com",
+      "device": "device-ctrj",
+      "full": true,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 30,
+         "cacheWrite": 5,
+         "input": 10,
+         "output": 2,
+         "usdMicro": 10000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract J",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165600000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791165604,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrj",
+     "expectV2": "saved",
+     "v1": {
+      "account": "contract-j@example.com",
+      "device": "device-ctrj",
+      "ledger": {
+       "497546": {
+        "cacheRead": 90,
+        "cacheWrite": 15,
+        "input": 30,
+        "output": 6,
+        "usd": 0.02
+       }
+      },
+      "name": "Contract J",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "tasks": {},
+      "updatedAt": 1791165604000,
+      "v": 1,
+      "waiting": 0,
+      "working": 1
+     },
+     "v2": {
+      "account": "contract-j@example.com",
+      "device": "device-ctrj",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 90,
+         "cacheWrite": 15,
+         "input": 30,
+         "output": 6,
+         "usdMicro": 20000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract J",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165604000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    },
+    {
+     "at": 1791165605,
+     "compare": true,
+     "delivered": true,
+     "device": "device-ctrj",
+     "expectV2": "stale",
+     "v1": null,
+     "v2": {
+      "account": "contract-j@example.com",
+      "device": "device-ctrj",
+      "full": false,
+      "hours": {
+       "blocks": {},
+       "ledger": {
+        "497546": {
+         "cacheRead": 60,
+         "cacheWrite": 10,
+         "input": 20,
+         "output": 4,
+         "usdMicro": 15000
+        }
+       },
+       "tasks": {}
+      },
+      "name": "Contract J",
+      "openSessions": 1,
+      "pluginVersion": "0.50.0",
+      "updatedAt": 1791165602000,
+      "v": 2,
+      "waiting": 0,
+      "working": 1
+     }
+    }
+   ],
+   "v2Only": true
+  }
+ ],
+ "tzHours": 7
+}

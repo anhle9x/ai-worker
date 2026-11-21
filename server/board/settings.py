@@ -13,6 +13,15 @@ SERVER_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PORT = int(os.environ.get("PORT", "8788"))
 BIND_ADDR = os.environ.get("BIND_ADDR", "127.0.0.1")
 INGEST_KEY = os.environ.get("INGEST_KEY", "")
+# What the shared INGEST_KEY may still do now that each computer gets a key of its own (board/devicekeys.py):
+# allow: any computer without a key of its own may send with it, and gets its own key in the answer (the default);
+# known-only: only computers the server already knows, so a leaked package cannot add new ones;
+# off: nobody sends with it any more (the plugin's updates still download with it).
+# Khoá chung INGEST_KEY còn được làm gì khi mỗi máy đã có khoá riêng (board/devicekeys.py):
+# allow: máy nào chưa có khoá riêng cũng gửi được bằng nó, và nhận khoá riêng trong câu trả lời (mặc định);
+# known-only: chỉ những máy máy chủ đã biết, để một gói cài bị lộ không thêm được máy mới;
+# off: không ai gửi bằng nó nữa (bản cập nhật của plugin vẫn tải bằng nó).
+SHARED_KEY_MODE = os.environ.get("SHARED_KEY_MODE", "allow") if os.environ.get("SHARED_KEY_MODE", "allow") in ("allow", "known-only", "off") else "allow"
 # Log in with Telegram (optional): the bot's token and its @username without the @, both from @BotFather. Off while either is empty.
 # The token can sign a login for anyone, so it stays in the env file like INGEST_KEY, never in git.
 # Đăng nhập bằng Telegram (tuỳ chọn): khoá của bot và tên @ của bot không có @, cả hai lấy từ @BotFather. Tắt khi thiếu một trong hai.
@@ -32,6 +41,15 @@ MAX_BODY_BYTES = 256 * 1024
 MAX_CONNECTIONS = int(os.environ.get("MAX_CONNECTIONS", "256"))
 MAX_CONNECTIONS_PER_IP = 16
 CONNECTION_DEADLINE_SECONDS = 120
+# Requests being answered at once past which the server is busy: then a send, or a request from someone not logged in, gets 503 at once
+# with Retry-After, instead of waiting behind the others until everything times out. Logged-in people and keyed devices are still answered.
+# Số yêu cầu đang được trả lời cùng lúc mà quá mức đó thì máy chủ đang bận: khi đó một lần gửi, hay yêu cầu của người chưa đăng nhập, nhận 503
+# ngay kèm Retry-After, thay vì xếp hàng sau các yêu cầu khác cho tới khi tất cả hết giờ. Người đã đăng nhập và thiết bị có khoá vẫn được trả lời.
+BUSY_REQUESTS = max(1, int(os.environ.get("BUSY_REQUESTS", "32")))
+BUSY_RETRY_SECONDS = 30
+# the most of a turned-away request's body the server still reads, so the sender gets the 503; past it the connection is just closed
+# phần thân nhiều nhất của yêu cầu bị từ chối mà máy chủ vẫn đọc, để máy gửi nhận được 503; quá mức đó thì chỉ đóng kết nối
+BUSY_READ_BYTES = 16 * 1024
 # Request headers are held in memory before any login check, so keep them small.
 # Header của yêu cầu nằm trong bộ nhớ trước mọi bước kiểm đăng nhập, nên giữ ở mức nhỏ.
 http.client._MAXLINE = 8190
@@ -203,8 +221,62 @@ FAIL_WINDOW_SECONDS = 15 * 60
 # Wrong entries per account: stops guessing from many addresses without letting a stranger lock the whole site.
 # Số lần sai theo từng tài khoản: chặn đoán từ nhiều địa chỉ mà người lạ không khoá được cả trang.
 MAX_FAILS_PER_ACCOUNT = 20
-# limits on sending data: per IP per 10 minutes, new devices per IP per day, total number of devices
-# giới hạn gửi số liệu: mỗi IP / 10 phút, máy mới mỗi IP / ngày, tổng số máy
-INGEST_PER_IP = 300
+# limits on sending data: each computer has a bucket of INGEST_BURST sends that refills INGEST_PER_SECOND a second (the plugin sends
+# at most every 2 seconds), new devices per IP per day, total number of devices; nothing per address, since a whole office can share one
+# giới hạn gửi số liệu: mỗi máy một xô INGEST_BURST lượt gửi, tự đầy lại INGEST_PER_SECOND lượt mỗi giây (plugin gửi nhiều nhất 2 giây
+# một lần), máy mới mỗi IP mỗi ngày, tổng số máy; không giới hạn theo địa chỉ, vì cả văn phòng có thể đi chung một địa chỉ
+INGEST_BURST = max(1, int(os.environ.get("INGEST_BURST", "20")))
+INGEST_PER_SECOND = max(0.01, float(os.environ.get("INGEST_PER_SECOND", "1")))
+# what /ingest tells a computer about its pace (format v: 2, docs/DATA-MODEL.md): the shortest gap between sends of numbers and of state,
+# and the longest silence allowed; the board shows a computer silent for 12 minutes as offline, so the longest gap stays well below that
+# những gì /ingest dặn máy về nhịp gửi (định dạng v: 2, docs/DATA-MODEL.vi.md): khoảng cách ngắn nhất giữa hai lần gửi số và gửi trạng thái,
+# và khoảng im lâu nhất được phép; bảng coi máy im 12 phút là ngoại tuyến, nên khoảng im lâu nhất phải dưới mức đó nhiều
+INGEST_MIN_GAP_MS = min(max(1000, int(os.environ.get("INGEST_MIN_GAP_MS", "2000"))), 120_000)
+INGEST_STATE_GAP_MS = min(max(1000, int(os.environ.get("INGEST_STATE_GAP_MS", "2000"))), 120_000)
+INGEST_MAX_GAP_MS = min(max(30_000, int(os.environ.get("INGEST_MAX_GAP_MS", "240000"))), 300_000)
+# a computer may replace its whole hour book (full: true) once in this many seconds unless the server asked; a send above that is merged
+# hour by hour instead, so nothing is lost
+# một máy được thay cả sổ giờ (full: true) một lần trong ngần này giây nếu máy chủ không yêu cầu; gửi dày hơn thì được ghép từng giờ,
+# nên không mất số nào
+FULL_BOOK_SECONDS = 3600
+# a v: 2 send stamped up to this much older than what the server holds arrived out of order and is dropped; further back is a clock put back
+# gói v: 2 có giờ cũ hơn bản máy chủ đang giữ trong khoảng này là tới sai thứ tự và bị bỏ; cũ hơn nữa là đồng hồ bị chỉnh lùi
+REORDER_WINDOW_MS = 60_000
 NEW_DEVICES_PER_IP = 10
-MAX_DEVICES = 300
+# MAX_DEVICES counts computers, not people: a laptop, a desktop and a connector are three. Above the default, measure first (docs/BENCHMARK.md).
+# MAX_DEVICES đếm máy, không đếm người: laptop, máy bàn và bộ nối là ba. Trên mức mặc định thì đo trước (docs/BENCHMARK.md).
+MAX_DEVICES = min(max(1, int(os.environ.get("MAX_DEVICES", "300"))), 200000)
+# The optional receiver written in Go (receiver/, docs/RECEIVER.md) for large organisations: RECEIVER=1 opens the paths it uses on this
+# machine (/internal/...) and writes the file of secrets it reads; off, those paths are 404 and nothing is written, as for a small company.
+# Bộ nhận tuỳ chọn viết bằng Go (receiver/, docs/RECEIVER.vi.md) cho tổ chức lớn: RECEIVER=1 mở các đường nó dùng trên máy này
+# (/internal/...) và ghi file bí mật nó đọc; tắt thì các đường đó là 404 và không ghi gì, như với công ty nhỏ.
+RECEIVER_ENABLED = os.environ.get("RECEIVER", "0").strip() == "1"
+RECEIVER_SECRETS_FILE = os.environ.get("RECEIVER_SECRETS_FILE", "").strip() or os.path.join(KEYS_DIR, "receiver-secrets.json")
+# the share of sends the receiver also hands over as they came, for this server to clean again and compare (the third check of docs/RECEIVER.md)
+# phần trăm số lần gửi mà bộ nhận cũng chuyển nguyên văn, để máy chủ này làm sạch lại và so (lớp đối chiếu thứ ba của docs/RECEIVER.vi.md)
+RECEIVER_CHECK_PERCENT = min(max(0.0, float(os.environ.get("RECEIVER_CHECK_PERCENT", "1"))), 100.0)
+# how often at most the table of people the receiver asks for (/internal/people) is built again, in seconds
+# bảng người bộ nhận hỏi (/internal/people) được dựng lại nhiều nhất bao lâu một lần, tính bằng giây
+RECEIVER_PEOPLE_SECONDS = max(0.0, float(os.environ.get("RECEIVER_PEOPLE_SECONDS", "").strip() or "5"))
+# The live feed of the board from the receiver (docs/RECEIVER.md, section 3): RECEIVER_LIVE_URL is the receiver's address as the boards
+# reach it (https://ingest.example.com), RECEIVER_BOARD_ORIGIN the board's own (https://board.example.com), the only page the receiver lets
+# open the feed. Both, with RECEIVER=1, open POST /sse/ticket and add the receiver to the pages' connect-src; either missing, neither happens.
+# Luồng số trực tiếp của bảng từ bộ nhận (docs/RECEIVER.vi.md, mục 3): RECEIVER_LIVE_URL là địa chỉ của bộ nhận như các bảng tới được
+# (https://ingest.example.com), RECEIVER_BOARD_ORIGIN là địa chỉ của chính bảng (https://board.example.com), trang duy nhất bộ nhận cho mở
+# luồng. Có cả hai, cùng RECEIVER=1, thì mở POST /sse/ticket và thêm bộ nhận vào connect-src của các trang; thiếu một thì không có gì.
+def _origin(v: str) -> str:
+    v = v.strip().rstrip("/")
+    return v if re.fullmatch(r"https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?", v) else ""
+
+
+RECEIVER_LIVE_URL = _origin(os.environ.get("RECEIVER_LIVE_URL", ""))
+RECEIVER_BOARD_ORIGIN = _origin(os.environ.get("RECEIVER_BOARD_ORIGIN", ""))
+# how long a ticket for the live feed lives, in seconds; the feed it opened ends with it, and the board asks for a new one
+# vé của luồng số trực tiếp sống bao lâu, tính bằng giây; luồng nó mở kết thúc cùng nó, và bảng xin vé mới
+TICKET_SECONDS = 300
+
+
+def live_enabled() -> bool:
+    """Whether the live feed is set up: the receiver is on and both addresses are given.
+    Luồng số trực tiếp đã được cài chưa: bộ nhận đang bật và có đủ hai địa chỉ."""
+    return RECEIVER_ENABLED and bool(RECEIVER_LIVE_URL) and bool(RECEIVER_BOARD_ORIGIN)

@@ -59,6 +59,9 @@ PEOPLE = (
     ("Phúc", "ct", "working", "claude-fable-5-2", 0, 48, 39),  # i18n-allow
     ("Quỳnh", "ct", "offline", "claude-sonnet-5-5", 0, 5, 11),  # i18n-allow
 )
+# the people (by place in PEOPLE) who wait in one session while another runs, so the demo shows someone counted both waiting and working
+# những người (theo vị trí trong PEOPLE) đang chờ ở một phiên trong khi phiên khác chạy, để bản thử có người được đếm cả chờ lẫn làm
+ALSO_WORKING = (6,)
 
 
 # sample people who also use another coding tool, reported by the connector: index in PEOPLE, tool, open sessions, working, waiting
@@ -111,8 +114,8 @@ def sample_reports(now: float, plugin_version: str = "1.0.0", seed: int = 7) -> 
         last_seen = now - 26 * 3600 if state == "offline" else now
         reports.append({
             "v": 1, "device": "device-demo%02d" % i, "name": name, "account": email_of(i), "updatedAt": int(last_seen * 1000),
-            "openSessions": 0 if state == "offline" else rnd.randint(1, 3), "working": 1 if state == "working" else 0, "waiting": 1 if state == "waiting" else 0,
-            "models": {model: rnd.randint(2, 9)}, "ledger": ledger, "tasks": tasks,
+            "openSessions": 0 if state == "offline" else rnd.randint(2 if i in ALSO_WORKING else 1, 3), "working": 1 if state == "working" or i in ALSO_WORKING else 0,
+            "waiting": 1 if state == "waiting" else 0, "models": {model: rnd.randint(2, 9)}, "ledger": ledger, "tasks": tasks,
             # one person is a version behind, so the board shows how an old plugin looks
             # một người chậm một phiên bản, để bảng cho thấy plugin cũ hiện ra sao
             "pluginVersion": "0.9.0" if i == 7 else plugin_version,

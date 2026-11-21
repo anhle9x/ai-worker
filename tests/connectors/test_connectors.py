@@ -43,14 +43,15 @@ class Board(http.server.BaseHTTPRequestHandler):
 
     reports = []
     status = 200
+    answer = b"{}"
 
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
         Board.reports.append({"path": self.path, "key": self.headers.get("Authorization"), "body": body.decode("utf-8")})
         self.send_response(Board.status)
-        self.send_header("Content-Length", "2")
+        self.send_header("Content-Length", str(len(Board.answer)))
         self.end_headers()
-        self.wfile.write(b"{}")
+        self.wfile.write(Board.answer)
 
     def log_message(self, *args):
         pass
@@ -92,6 +93,7 @@ class Hook(unittest.TestCase):
             f.write("url=%s\nkey=%s\nname=Tool Person\naccount=tool@example.com\n" % (URL, KEY))
         Board.reports.clear()
         Board.status = 200
+        Board.answer = b"{}"
 
     def event(self, tool: str, event: str, **fields) -> str:
         return run_hook(self.folder, tool, event, fields)
@@ -232,6 +234,31 @@ class Hook(unittest.TestCase):
         self.event("codex", "tool", session_id="s")
         self.last_tools({"codex": {"openSessions": 1, "working": 1, "waiting": 0}})
         self.assertTrue(wait_for(lambda: not os.path.exists(error_file)))
+
+    def test_the_key_the_board_gives_is_kept_privately_used_next_and_dropped_when_refused(self):
+        own = "awd1.kid1.org1.pid1.rk1.device-x.1795000000.sig1"
+        Board.answer = json.dumps({"ok": True, "deviceKey": own}).encode()
+        self.event("codex", "prompt", session_id="s")
+        key_file = os.path.join(self.folder, "device-key")
+        self.assertTrue(wait_for(lambda: os.path.exists(key_file)))
+        with open(key_file, encoding="utf-8") as f:
+            self.assertEqual(f.read().strip(), own)
+        if not WINDOWS:
+            self.assertEqual(os.stat(key_file).st_mode & 0o077, 0)
+        self.assertEqual(Board.reports[-1]["key"], "Bearer " + KEY)
+        Board.answer = b"{}"
+        # a second session changes the counts, so the connector sends again
+        # một phiên thứ hai làm đổi số, nên bộ nối gửi lại
+        self.event("codex", "prompt", session_id="t")
+        self.assertTrue(wait_for(lambda: Board.reports[-1]["key"] == "Bearer " + own))
+        # the board refuses that key: it is dropped, and the next send goes with the package's key to get a new one
+        # bảng từ chối khoá đó: nó bị bỏ, và lần gửi sau đi bằng khoá của gói để xin khoá mới
+        Board.status = 401
+        self.event("codex", "prompt", session_id="u")
+        self.assertTrue(wait_for(lambda: not os.path.exists(key_file)))
+        Board.status = 200
+        self.event("codex", "prompt", session_id="v")
+        self.assertTrue(wait_for(lambda: Board.reports[-1]["key"] == "Bearer " + KEY))
 
     def test_nothing_is_sent_again_while_nothing_changed(self):
         self.event("codex", "prompt", session_id="s")

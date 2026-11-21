@@ -104,6 +104,25 @@ class Summary(unittest.TestCase):
             with self.subTest(line=line):
                 self.assertIn(line, text.split("\n"))
 
+    def test_someone_waiting_while_another_session_runs_is_in_both_counts(self):
+        # Nga waits for an answer in one session while two others run: waiting and working both, and the line says so
+        # Nga đang chờ trả lời ở một phiên trong khi hai phiên khác chạy: cả đang chờ lẫn đang làm, và dòng của Nga nói rõ
+        view = dict(WALL, people=[dict(p, working=2) if p["name"] == "Nga" else p for p in WALL["people"]])
+        lines = mcp.summarize(view, mcp.SCOPE_PEOPLE, AT).split("\n")
+        for line in (
+            "Team: 3 people, 2 working, 1 waiting for an answer, 0 idle, 1 offline. Cost today 12.50, last 7 days 40.00.",
+            mcp.BOTH_NOTE,
+            "- Da Nang | 1 | 1 | 1 | 10.64 | 29.69",
+            "- Nga | Da Nang | waiting for an answer, another session working | 27 | 10.64 | 29.69 | 96 | - | Opus 5.5",
+        ):
+            with self.subTest(line=line):
+                self.assertIn(line, lines)
+        # a session that waits and none that runs: waiting only
+        # một phiên đang chờ và không phiên nào chạy: chỉ đang chờ
+        self.assertTrue(mcp.in_state(dict(WALL["people"][1], working=0), "waiting"))
+        self.assertFalse(mcp.in_state(dict(WALL["people"][1], working=0), "working"))
+        self.assertFalse(mcp.in_state(dict(WALL["people"][2], working=3), "working"))
+
     def test_an_empty_or_broken_view_does_not_raise(self):
         self.assertIn("Team: 0 people", mcp.summarize({}, mcp.SCOPE_PEOPLE, AT))
         self.assertIn("Team: 0 people", mcp.summarize(None, mcp.SCOPE_PEOPLE, AT))

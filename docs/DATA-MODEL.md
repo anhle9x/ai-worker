@@ -14,6 +14,7 @@ Settings named here (`DATA_DIR`, `KEYS_DIR`, limits) are in `server/board/settin
 | `data/board.db.schema-N.bak` | Next to `board.db`, only after an upgrade that changed the schema | `ai-worker`, `600` | A full copy of `board.db` as it was at schema version `N`, made by the server before it upgraded. The server deletes it after 30 days |
 | `keys/accounts.db` (with `-wal`, `-shm`) | `/opt/ai-worker/keys/` | `ai-worker`, `600`, folder `700` | Accounts and their OTP secrets |
 | `/etc/ai-worker.env` | | `root`, `600` | Settings and the `INGEST_KEY` |
+| `keys/receiver-secrets.json` | `/opt/ai-worker/keys/`, only with `RECEIVER=1` | `ai-worker`, `600` | What the optional Go receiver reads: the secrets that sign computer keys and the code of the internal paths. Written again at every start ([RECEIVER.md](RECEIVER.md)) |
 
 The accounts are in their own file, in their own folder, so a backup of the numbers never carries the login secrets. The systemd service may write only to these two folders (`ProtectSystem=strict`, `ReadWritePaths`).
 
@@ -23,8 +24,11 @@ The accounts are in their own file, in their own folder, so a backup of the numb
 
 | Table | Content | Written when | Kept |
 |---|---|---|---|
-| `devices` | One row per computer for the plugin, and one more for the connector for Codex, Cursor and Gemini CLI where it is installed: the latest numbers in `body` (section 3), `seen_at` = when the server received them | Each send, at most every 30 seconds | Deleted 30 days after `seen_at` (`KEEP_DAYS`) |
+| `devices` | One row per computer for the plugin, and one more for the connector for Codex, Cursor and Gemini CLI where it is installed: the latest numbers in `body` (section 3) without the hour book, `seen_at` = when the server received them | On a send that changes more than its time, and at least once a minute while the computer sends (`STATE_REWRITE_SECONDS`) | Deleted 30 days after `seen_at` (`KEEP_DAYS`), with its rows of `device_hours` and `device_days` |
+| `device_hours` | The hour book of each computer, one row per hour and kind (`ledger`, `tasks`, `blocks`): the hour (hours since 1970, UTC), the kind, the computer, and that hour's numbers as JSON in `body`. The key starts with the hour, so the newest hours of every computer sit together at the end of the table; a second index reads one computer's hours. Since schema version 6 | A send writes only the hours that changed | The newest 240 hours of each kind (`MAX_HOURS_PER_DEVICE`), and while the computer is in `devices` |
+| `device_days` | One row per computer per local day (the day follows `TZ_OFFSET`): money in millionths of a dollar, tokens in and out, tasks given to Gemini, ChatGPT and Gemma, added up from that day's rows of `device_hours`. The board and the daily totals read these instead of adding up the hours again. Since schema version 6 | With the hours of that day | As long as that day has hours in `device_hours` |
 | `identities` | `device → account, name` of the first send | A new computer's first send | Until removed with `--forget-device` |
+| `device_keys` | `device → when its newest key of its own was issued, when it was revoked`. Never the key itself: keys are checked by their signature (`server/board/devicekeys.py`) | A key issued, renewed or revoked | Until removed with `--forget-device` |
 | `history` | One row each time a person's state changes: time, person, state, tasks delegated | State changes | 24 hours (rewind button) |
 | `daily` | One row per person per day (the day follows `TZ_OFFSET`): name, account email, the office the person was in when the day closed, cost in dollars, tokens in and out, tasks given to Gemini, ChatGPT and Gemma. Added up from `ledger` and `tasks` of that person's computers (section 3); no computer sends anything new for it | Every 5 minutes the last 7 days are counted again and written over; an older day is left as it was last written | The current month and the 12 before it (`DAILY_KEEP_MONTHS` = 13), then deleted by the server. `webhook.py --forget-usage` deletes one person's rows sooner |
 | `screens` | Paired TV screens, menu bar icons, browser extensions, keys for AI tools (kind `mcp`), keys for AI projects and applications (kind `project`, with `keyStart` too) and Telegram chats approved to ask the board (kind `telegram`): hash of the key, name, owner, kind, expiry; the rest in `body`. A key for an AI tool also holds what it may read (`scope`: `people` or `totals`) and its first 12 characters (`keyStart`), so an admin can tell rows apart. A Telegram chat holds its `scope` too, and the Telegram user's number and @name (`telegramId`, `telegramUser`); that number is what stands in for its key. A chat an admin allowed the window inside Telegram has `app: true`; a chat that turned alerts on has `notify`, `notifyMinutes` and `notifyLang` | Pairing, use, rename, revoke | 30 days, renewed while in use, 1 year at most |
@@ -34,7 +38,7 @@ The accounts are in their own file, in their own folder, so a backup of the numb
 | `delegations_seen` | The computer's id and the record's id of each `ai-delegation` row already written, so a record a computer sends again on its next beats is written once | On each send that holds a new record | 4 days (`SEEN_DAYS`) |
 | `project_turns` | Each turn an AI project or application sent (only with `AI_PROJECTS=1`): the project (the id of its key), `turn_id`, time, UTC day, environment, and the turn in the meter's line format, cleaned to the known fields: times, outcome, and per model the provider, the model name, calls, errors, retries and token counts. Never a question, an answer, a user or an error message; the meter does not have them | Each send to `/projects/ingest`; a turn sent again is ignored | 30 days (`PROJECT_TURN_KEEP_DAYS`), or until an admin deletes a revoked project's numbers |
 | `project_daily` | One row per project, UTC day, environment and model: the project's name, turns, calls, errors, retries, turns not measured and token counts; a row with no provider and no model counts each turn once. Money is never stored: it is worked out from the tokens and the price file when someone looks | With each new turn | The current month and the 12 before it, like `daily`, or until an admin deletes a revoked project's numbers |
-| `meta` | When the old JSON files were moved in, and how many rows; the first day the daily totals cover (`daily_since`); the fingerprint of the newest audit row (`audit_head`) | Once; `audit_head` on every audit row | Always |
+| `meta` | When the old JSON files were moved in, and how many rows; the first day the daily totals cover (`daily_since`); the fingerprint of the newest audit row (`audit_head`); the offset from UTC, in seconds, `device_days` counted its days in (`device_days_tz`: when `TZ_OFFSET` changes, the server counts `device_days` again at its next start) | Once; `audit_head` on every audit row | Always |
 
 `accounts.db`:
 
@@ -51,11 +55,11 @@ The window inside Telegram (`TELEGRAM_APP=1`) sends nothing through Telegram's s
 
 ## 3. Record of one computer
 
-`devices.body`, version `v: 1`. The server cleans every field before writing and again when reading (`clean_payload` in `devices.py`): unknown fields are dropped, text is cut to a fixed length and numbers are checked.
+`devices.body`, version `v: 1`, with `ledger`, `tasks` and `blocks` in rows of `device_hours` since schema version 6 (`read_book` in `devices.py` puts them together again, and `--export-json` writes the record whole, as before). The server cleans every field before writing and again when it loads a row into memory (`clean_payload` and `DeviceCache` in `devices.py`); the board, the history and the daily totals read the cleaned copy kept in memory, which is written together with the tables and loaded again when another program changes the file: unknown fields are dropped, text is cut to a fixed length and numbers are checked. The memory holds each computer's record without its hour book, its rows of `device_days`, and only its hours near its last send: 48 hours of `ledger` and `tasks`, 8 days of `blocks`. All the SQL of these three tables is in `server/board/devicestore.py`.
 
 | Field | Meaning |
 |---|---|
-| `device` | Random id `device-[a-z0-9]{1,40}` made by the plugin |
+| `device` | Random id `device-[a-z0-9]{1,40}` made by the plugin. A new install makes 16 letters and digits from secure randomness, as the connector does; an id made by an older version (8) is kept |
 | `name`, `account`, `enteredAccount` | Declared name and Claude account email |
 | `ip`, `lanIp`, `ipHistory` | Sending IP (taken from the connection), internal IP, the last 10 IPs of 30 days. The history is built by the server, never sent by the computer |
 | `hardwareMark` | One-way hash of the computer's own id; computers with the same mark count as one; never shown |
@@ -73,6 +77,29 @@ The window inside Telegram (`TELEGRAM_APP=1`) sends nothing through Telegram's s
 
 **Never stored:** chat content, questions, file names, project names.
 
+### Format v: 2
+
+A newer plugin may send `v: 2` instead of `v: 1`. The server reads both, for as long as any computer sends `v: 1`; what it keeps is always the `v: 1` record above, so the board, the history and the daily totals do not know which format a computer used. The shared sample in `tests/contract/ingest-v2/` (inputs and the results they must give) and `server/test_contract.py` hold the two formats to the same board; a receiver written in another language plays the same file.
+
+- **The state** (`name`, `account`, session counts, `models`, `quota`, `pluginVersion` and the rest) has the same fields as `v: 1` and is sent in full every time.
+- **The hours** are in `hours: {ledger, tasks, blocks}` and hold only the hours that changed since the server last accepted a send. Each hour is the whole value of that hour, not what was added, and replaces it; an hour not sent stays as it was; an hour sent as an empty table is removed (it left the computer's 8 days). Sending the same hour twice gives the same result, so no sequence number is needed (`merge_hours` in `devices.py`, a pure function another receiver copies).
+- **`full: true`** means `hours` holds the computer's whole book and replaces it. Unless the server asked for it, a computer may do that once an hour (`FULL_BOOK_SECONDS`); a full book sent sooner is merged hour by hour, which loses nothing.
+- **Money** is `usdMicro`, a whole number of millionths of a dollar. A `v: 1` send has only dollars (`usd`); the server turns them into `usdMicro` (rounded) and adds every total up in whole numbers, so the sums are exact and the same in any order and any language. The row keeps `usd` beside it for older versions of the server.
+- **Limits:** the same cleaning as `v: 1`, plus: at most 240 hours of each kind, none more than a day ahead of the server's clock, none older than 240 hours.
+- **Out of order:** a `v: 2` send stamped up to a minute older than what the server holds (`REORDER_WINDOW_MS`; two sessions of one computer sending at once) is dropped. Further back is taken as a clock put back, and saved.
+- **One computer, one write at a time:** reading the row kept, merging and writing happen under one lock, so two sends of one computer at the same moment never lose each other's hours.
+
+The answer to every send, in both formats (an older plugin reads only `ok` and `deviceKey`):
+
+| Field | Meaning |
+|---|---|
+| `accepts` | The formats this server reads: `[1, 2]`. A plugin sends `v: 2` only to a server that says so; an older server answers only `{"ok": true}` |
+| `minGapMs`, `stateGapMs` | The shortest gap between sends of numbers and of state: 2 seconds by default (`INGEST_MIN_GAP_MS`, `INGEST_STATE_GAP_MS`) |
+| `maxGapMs` | Send at least this often even when nothing changed: 4 minutes (`INGEST_MAX_GAP_MS`, at most 5), well under the 12 minutes after which a computer shows as offline |
+| `needFull` | `true` when a `v: 2` send of changed hours came from a computer the server has no book for (a new computer, a lost or broken row): nothing of it was kept, and the next send must be `full: true` |
+| `boot` | A new random value each time the server starts. A plugin that sees it change sends its latest hours again, in case the last seconds before a crash were not written |
+| `deviceKey` | As before: this computer's own key, when it sent with the shared key or its key is getting old |
+
 ### Totals per person per day
 
 A computer holds its hours for 8 days, and its row leaves the server 30 days after its last send. To compare one week or month with another, the server keeps a longer memory of one thing only: a total per person per day, in the table `daily`.
@@ -86,12 +113,12 @@ A computer holds its hours for 8 days, and its row leaves the server 30 days aft
 
 ## 4. How the database is used
 
-- **One connection per file, behind a lock.** The web server answers each request in its own thread; all of them share one connection and take turns. At most 300 computers, each sending at most every 30 seconds, is about 10 writes a second at the very most.
+- **One connection per file, behind a lock.** The web server answers each request in its own thread; all of them share one connection and take turns. At 300 computers, each sending at most every 2 seconds, that is at most about 150 writes a second; docs/BENCHMARK.md has the measured ceiling.
 - **Transactions.** Every change is one transaction: all of it is written, or nothing. A store keeps its table as a dict in memory and writes only the rows that changed.
 - **WAL mode.** Reading does not wait for writing. `synchronous=NORMAL` for the numbers, `FULL` for accounts.
-- **Schema versions.** `PRAGMA user_version` holds the version. At start the server runs the missing upgrade steps in order. A database newer than the program is refused, so an older version cannot run on newer data by mistake. `board.db` is at version 3 since the records of work handed to helpers (version 2 brought the daily totals); `accounts.db` is at version 1.
+- **Schema versions.** `PRAGMA user_version` holds the version. At start the server runs the missing upgrade steps in order. A database newer than the program is refused, so an older version cannot run on newer data by mistake. `board.db` is at version 6 since the hour books moved into `device_hours` and `device_days` (version 5 brought keys of their own for computers, 4 AI projects, 3 the records of work handed to helpers, 2 the daily totals). A step may be a Python function run in the upgrade's transaction: version 6 takes each record's book out of its `devices` row, writes its hours and days, and leaves a row it cannot read as it was. The secrets that sign those keys live in the `meta` table of `accounts.db`.
 - **A copy before every upgrade.** Before it upgrades a database that already exists, the server copies it to `<file>.schema-<old version>.bak` next to it (mode `600`), checks that the copy opens and holds the old version, and writes one line to the service log. If the copy cannot be made, it upgrades nothing and stops with a message. The server deletes the copy after 30 days. Going back with it: [OPERATIONS.md](OPERATIONS.md), section 5.
-- **Old SQL only.** No `UPSERT`, `RETURNING` or JSON functions, so the server runs on older Linux too.
+- **Old SQL where it counts.** No `RETURNING` and no JSON function of SQLite: the JSON is read and written by Python. A row written over another uses `INSERT ... ON CONFLICT ... DO UPDATE` when SQLite has it (3.24, 2018), and an `UPDATE` then an `INSERT` on an older one, so the server still runs on older Linux. Never `INSERT OR REPLACE` in the new tables: it deletes the row first.
 - **Not on a network folder.** WAL needs a local disk; do not put `DATA_DIR` on NFS.
 
 ### What SQLite does not change

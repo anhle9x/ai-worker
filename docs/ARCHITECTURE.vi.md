@@ -62,13 +62,16 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | F23 | Câu trả lời của trợ lý được kiểm trước khi Claude dùng: bí mật, chữ nhắm vào AI và lệnh không hoàn tác được; Claude nhận lời nhắc kèm câu trả lời, người dùng nhận thông báo, và lần chặn được đếm | `hooks/answers.ts`; phần xử lý `tool.call` trong `hooks/register.tsx` |
 | F24 | Một dự án hay ứng dụng AI do nhóm tự làm tự đo chi phí và tốc độ của nó, với bất kỳ hãng LLM nào: mỗi lượt người dùng một dòng gồm thời gian và số token hãng trả về, theo từng model, không bao giờ có câu hỏi, câu trả lời, mã người dùng hay thông báo lỗi; token không lấy được ghi là chưa biết, không ghi 0. Báo cáo tính tiền theo bảng giá có ghi nguồn và ngày lấy, cộng file giá riêng của người dùng; model chưa có giá ghi "chưa có giá" thay vì đoán, model chạy trên máy của nhóm không cộng tiền API. Không gửi gì lên máy chủ | `skills/ai-cost-report/meter/ai_meter.py`, `skills/ai-cost-report/meter/ai-meter.cjs`, `skills/ai-cost-report/FORMAT.md`, `skills/ai-cost-report/report.py`, `skills/ai-cost-report/prices.json` |
 | F25 | Dự án hay ứng dụng AI gửi số nó đã đo lên bảng bằng khoá riêng do quản trị tạo: chỉ ghi, từ chối khi gửi từ trình duyệt, mỗi lượt được làm sạch bằng chính code của báo cáo và chỉ giữ một lần; chỉ khi có `AI_PROJECTS=1`. Quản trị và người xem đọc báo cáo theo dự án và khoảng ngày, tải về dạng HTML hay CSV; màn treo tường, cổng MCP và Telegram không xem được | `server/board/projects.py`, `server/board/costreport.py` (bản sao của `skills/ai-cost-report/report.py`); `project_ingest`, `PERM_PROJECT_KEY` trong `server/webhook.py`; `page_projects` trong `server/board/pages.py`; phần gửi của bộ đo trong `skills/ai-cost-report/meter/` |
+| F26 | `/ingest` đọc định dạng `v: 1` và `v: 2`: `v: 2` chỉ mang các giờ đã đổi, mỗi giờ thay giờ cũ, hoặc cả sổ khi `full: true`; tiền là số nguyên `usdMicro`; câu trả lời cho biết các định dạng đọc được, nhịp gửi, `needFull` và mã lần khởi động của máy chủ. Hai định dạng giữ cùng một bản ghi, và bộ dữ liệu mẫu chung buộc chúng ra cùng một bảng | `clean_payload`, `merge_hours`, `save_ingest` trong `server/board/devices.py`; `Handler.ingest` trong `server/webhook.py`; `tests/contract/ingest-v2/`, `server/test_contract.py` |
+| F27 | Bộ nhận tuỳ chọn bằng Go nhận các lần gửi của máy có khoá riêng trên một địa chỉ riêng qua TLS, làm sạch như máy chủ làm, trả lời ngay và trao chúng cho máy chủ theo lô có số thứ tự; mọi lần gửi khác nó chuyển nguyên văn cho máy chủ, kèm địa chỉ thật của máy. Nó giữ trạng thái và tổng hôm nay của từng máy và cộng chúng theo từng dòng của bảng và từng chi nhánh, như bảng làm (số trực tiếp), rồi gửi chúng tới các bảng ở `/live`, mỗi giây dựng một lần cho mỗi phạm vi dùng chung cho mọi bảng, bằng vé máy chủ cấp cho bảng đã đăng nhập; trang bảng khi đó đọc từng phạm vi một và đặt số lên từng dòng theo mã của nó. Máy chủ ghi các lô, cấp cho bộ nhận một tài liệu chính sách có số thứ tự, các sổ giờ và bảng mã dòng cùng chi nhánh của từng máy, và ghi cho nó một file bí mật | `receiver/`; `server/board/receiver.py`; các đường `/internal/` và `/sse/ticket` trong `server/webhook.py`; `server/static/page.js`; [RECEIVER.vi.md](RECEIVER.vi.md) |
+| F28 | Các file của một repo có thể khiến công cụ AI chạy lệnh hay làm khác đi (hook, quyền rộng, chương trình phụ và biến trong `.claude/settings*.json`, server MCP trong `.mcp.json`, chữ nhắm vào AI hay lệnh nguy hiểm trong `CLAUDE.md`/`AGENTS.md`, lệnh tắt, trợ lý con và skill) được nêu cho người dùng và Claude khi một phiên bắt đầu ở đó: chỉ những gì mới hoặc đã đổi kể từ lần xem trước, không bao giờ chặn; repo thấy lần đầu mà mọi file đều cũ hơn 14 ngày được ghi nhớ lặng lẽ, chỉ bằng dấu vân tay | `hooks/repoconfig.ts`; `checkRepoConfig`, `session.start` và `prompt.compose` trong `hooks/register.tsx` |
 
 ### Giới hạn máy chủ áp dụng
 
 | Giới hạn | Mức |
 |---|---|
 | Kích thước một lần gửi | 256 KB |
-| Số lần gửi mỗi IP | 300 trong 10 phút |
+| Số lần gửi mỗi máy | Dồn 20 lần, sau đó mỗi giây một lần |
 | Máy mới | 10 mỗi IP mỗi ngày, tổng 300 |
 | Đăng nhập sai | 5 mỗi IP và 20 mỗi tài khoản, trong 15 phút |
 | Kết nối | Tổng 256, 16 mỗi IP, mỗi kết nối 120 giây |
@@ -272,7 +275,7 @@ sequenceDiagram
   participant A as Quản trị
   T->>W: POST /tv/request-code
   W-->>T: Mã 8 số, hiệu lực 10 phút, khoá trong cookie
-  loop Mỗi 10 giây
+  loop Mỗi giây
     T->>W: POST /tv/poll
     W-->>T: pending
   end
@@ -463,12 +466,12 @@ flowchart TD
 |---|---|---|
 | Một bảng đường dẫn, một cổng (định tuyến bằng bảng, một điểm kiểm duy nhất) | Mọi đường dẫn nằm trong `GET_ROUTES` hoặc `POST_ROUTES` kèm quyền. `Handler.gate` là nơi duy nhất kiểm quyền. Đường không có trong bảng trả 404 | Đường mới không thể quên kiểm quyền; có test giữ bảng quyền |
 | Danh sách cho phép ở chiều ra (lọc trường theo vai) | `role_view` chỉ chép các trường đã liệt kê cho từng vai | Trường mới vẫn ẩn cho tới khi có người chọn hiện nó |
-| Danh sách cho phép ở chiều vào (dựng lại, không tin dữ liệu vào) | `clean_payload` dựng lại mỗi lần gửi từ danh sách trường cố định, và dựng lại khi đọc file | Dữ liệu xấu hay file hỏng không tới được trang |
+| Danh sách cho phép ở chiều vào (dựng lại, không tin dữ liệu vào) | `clean_payload` dựng lại mỗi lần gửi từ danh sách trường cố định, và dựng lại khi một dòng được nạp từ bảng vào bộ nhớ | Dữ liệu xấu hay file hỏng không tới được trang |
 | Lớp nhỏ để giữ trạng thái (lớp cơ sở dùng chung, mỗi quy tắc một chủ) | `Store` giữ một bảng trong bộ nhớ và ghi các dòng đã đổi trong một giao dịch; `Accounts`, `TvStore`, `RevokedKeys`, `DocumentStore` xây trên đó. `LoginGate`, `IngestGate`, `BotBlocker` mỗi lớp giữ một nhóm giới hạn | Mỗi quy tắc ở một chỗ và thử riêng được |
 | Tách logic thuần khỏi đọc ghi (functional core, imperative shell) | `hooks/*.ts` là hàm thuần; `register.tsx` là file duy nhất dùng giao diện `$` của app | Thử được logic mà không cần chạy app |
 | Tin chữ ký, không tin máy chủ (signed manifest) | Máy kiểm manifest có chữ ký bằng khoá trong chính gói của nó | Chiếm được máy chủ vẫn chưa tới được máy nhân viên |
 | Tiếng Anh trong mã, tiếng Việt trong từ điển (message catalog) | `tx("...")` tra `*.vi.js`, `webhook_vi.py`, `lang.vi.ts`; script thanh menu dùng `server/menubar/vi.json`, tiện ích dùng `extensions/manager/_locales/` | Chữ có một nguồn; `tests/check-i18n.py` tìm chỗ còn thiếu |
-| Máy chủ không dùng thư viện ngoài | Chỉ dùng thư viện chuẩn của Python | Không phải cài, cập nhật hay rà soát thêm gì |
+| Máy chủ không dùng thư viện ngoài | Chỉ dùng thư viện chuẩn của Python; bộ nhận tuỳ chọn chỉ dùng thư viện chuẩn của Go | Không phải cài, cập nhật hay rà soát thêm gì |
 | Mỗi cửa một loại khoá (khoá gắn với kênh) | Khoá cho cổng MCP chỉ được tra bằng `TvStore.find(..., mcp=True)`, và mọi lần tra khác đều bỏ qua loại khoá này | Khoá lộ từ cấu hình của một công cụ AI không mở được trang nào, và khoá của TV hay tiện ích không mở được cổng MCP |
 
 ### Lưu trữ: SQLite
@@ -494,7 +497,8 @@ Mỗi lần đẩy code còn chạy `.github/workflows/test-install.yml`: trên 
 
 ## 6. Giới hạn đã biết
 
-- **Mã gửi dùng chung.** Ai có gói cài đều có `INGEST_KEY`, nên nhân viên có thể gửi số sai dưới một tên chưa gắn với máy nào. Gói bị lộ thì đổi mã và cài lại.
+- **Khoá chung, để ghi danh.** Mỗi máy nhận khoá riêng (`awd1.…`) ở lần gửi đầu, và từ đó chỉ khoá đó được gửi cho máy; `--revoke-device` cắt một máy. Việc ghi danh vẫn dùng `INGEST_KEY` mà mọi gói cài đều mang, nên nhân viên vẫn ghi danh được một máy bịa dưới một tên chưa gắn với máy nào. Khi mọi máy đã có khoá riêng, `SHARED_KEY_MODE=known-only` hoặc `off` đóng chỗ đó.
+- **Số máy.** `MAX_DEVICES` là 300 máy, khoảng 100 tới 150 người, và một tiến trình trên một máy nhận mọi lần gửi. Mức trần đã đo và việc tiếp theo: [BENCHMARK.vi.md](BENCHMARK.vi.md). Lần gửi bị giới hạn theo từng máy (một xô 20 lượt, tự đầy lại một lượt mỗi giây), nên các máy đi chung một địa chỉ công cộng không chặn lẫn nhau.
 - **HTTP khi không có proxy.** Kết nối chỉ được mã hoá khi đi qua Caddy hoặc nginx.
 - **Người có sudo trên máy chủ** đọc được mọi số liệu và tự cấp được tài khoản. Nên giữ ít người.
 - **Chuỗi của nhật ký** bắt được một dòng bị sửa hay bị xoá bằng tay, không bắt được người viết lại được cả cơ sở dữ liệu lẫn `audit_head`: thỉnh thoảng hãy ghi lại dấu vân tay trang Quản trị hiện. Bước kiểm bí mật và kiểm trang dựa vào hình dạng của khoá và câu chữ của lệnh, nên bí mật không có hình dạng quen, hay lệnh viết kiểu khác, vẫn lọt.

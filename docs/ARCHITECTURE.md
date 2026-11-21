@@ -62,13 +62,16 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | F23 | A helper's answer is checked before Claude uses it for secrets, text aimed at an AI and commands that cannot be undone; Claude gets a note beside the answer, the person a notice, and the stop is counted | `hooks/answers.ts`; the `tool.call` handler in `hooks/register.tsx` |
 | F24 | An AI project or application a team built measures its own cost and speed, with any LLM provider: one line per user turn with times and the token counts the provider returned, per model, never a prompt, an answer, a user id or an error message; tokens it did not get are written as unknown, never as zero. The report prices them from a price file that names its source and day, plus the user's own price file; a model with no price says "no price" rather than guess, and a model on the team's own machines adds no API cost. Nothing is sent to the server | `skills/ai-cost-report/meter/ai_meter.py`, `skills/ai-cost-report/meter/ai-meter.cjs`, `skills/ai-cost-report/FORMAT.md`, `skills/ai-cost-report/report.py`, `skills/ai-cost-report/prices.json` |
 | F25 | An AI project or application sends what it measured to the board with a key of its own that an admin made: write-only, refused from a browser, each turn cleaned by the report's own code and kept once; only with `AI_PROJECTS=1`. Admins and viewers read the report by project and days and download it as HTML or CSV; the wall display, the MCP endpoint and Telegram do not | `server/board/projects.py`, `server/board/costreport.py` (a copy of `skills/ai-cost-report/report.py`); `project_ingest`, `PERM_PROJECT_KEY` in `server/webhook.py`; `page_projects` in `server/board/pages.py`; the sending part of the meters in `skills/ai-cost-report/meter/` |
+| F26 | `/ingest` reads format `v: 1` and `v: 2`: `v: 2` carries only the hours that changed, each replacing its hour, or the whole book with `full: true`; money in whole `usdMicro`; the answer gives the formats read, the pace, `needFull` and the server's start id. Both formats keep the same record, and a shared sample holds them to the same board | `clean_payload`, `merge_hours`, `save_ingest` in `server/board/devices.py`; `Handler.ingest` in `server/webhook.py`; `tests/contract/ingest-v2/`, `server/test_contract.py` |
+| F27 | The optional receiver in Go takes the sends of computers that have a key of their own on an address of its own over TLS, cleans them as the server does, answers at once and hands them to the server in numbered batches; any other send it passes to the server as it came, with the computer's real address. It keeps each computer's state and today's totals and adds them up per row of the board and per branch, as the board does (the live numbers), and sends them to the boards on `/live`, built once a second per scope for every board, with a ticket the server gives a logged-in board; the board's page then reads one scope at a time and puts the numbers on each row by its code. The server writes the batches, gives the receiver a numbered policy, the hour books and the table of each computer's row code and branch, and writes it a file of secrets | `receiver/`; `server/board/receiver.py`; the `/internal/` paths and `/sse/ticket` in `server/webhook.py`; `server/static/page.js`; [RECEIVER.md](RECEIVER.md) |
+| F28 | A repository's files that can make an AI tool run commands or act differently (hooks, broad permissions, helper programs and variables in `.claude/settings*.json`, MCP servers in `.mcp.json`, text aimed at an AI or dangerous commands in `CLAUDE.md`/`AGENTS.md`, slash commands, agents and skills) are named to the person and to Claude when a session starts there: only what is new or changed since the last look, never blocked; a repository first seen whose files are all older than 14 days is remembered quietly, by fingerprints only | `hooks/repoconfig.ts`; `checkRepoConfig`, `session.start` and `prompt.compose` in `hooks/register.tsx` |
 
 ### Limits the server enforces
 
 | Limit | Value |
 |---|---|
 | Size of one send | 256 KB |
-| Sends per IP | 300 per 10 minutes |
+| Sends per computer | 20 at once, then one a second |
 | New devices | 10 per IP per day, 300 in total |
 | Wrong logins | 5 per IP and 20 per account, in 15 minutes |
 | Connections | 256 in total, 16 per IP, 120 seconds each |
@@ -272,7 +275,7 @@ sequenceDiagram
   participant A as Admin
   T->>W: POST /tv/request-code
   W-->>T: 8-digit code, valid 10 minutes, key in a cookie
-  loop Every 10 seconds
+  loop Every second
     T->>W: POST /tv/poll
     W-->>T: pending
   end
@@ -463,12 +466,12 @@ flowchart TD
 |---|---|---|
 | One route table, one gate (table-driven routing, single entry check) | Every path is in `GET_ROUTES` or `POST_ROUTES` with its permission. `Handler.gate` is the only permission check. A path that is not listed is 404 | A new path cannot forget its check; a test keeps a table of permissions |
 | Allow-list on the way out (field projection by role) | `role_view` copies only the fields listed for a role | A new field stays hidden until someone chooses to show it |
-| Allow-list on the way in (rebuild, do not trust input) | `clean_payload` rebuilds each send from a fixed list of fields, and again whenever a file is read | A bad send or a damaged file cannot reach the pages |
+| Allow-list on the way in (rebuild, do not trust input) | `clean_payload` rebuilds each send from a fixed list of fields, and again when a row is loaded from the table into memory | A bad send or a damaged file cannot reach the pages |
 | Small classes for state (shared base class, one owner per rule) | `Store` keeps a table in memory and writes changed rows in one transaction; `Accounts`, `TvStore`, `RevokedKeys` and `DocumentStore` build on it. `LoginGate`, `IngestGate`, `BotBlocker` each own one set of limits | Each rule lives in one place and can be tested alone |
 | Pure logic apart from input and output (functional core, imperative shell) | `hooks/*.ts` are pure functions; `register.tsx` is the only file using the app's `$` interface | The logic can be tested without running the app |
 | Trust the signature, not the server (signed manifest) | The computer checks a signed manifest with keys in its own package | Taking over the server is not enough to reach staff computers |
 | English in the code, Vietnamese in dictionaries (message catalog) | `tx("...")` looks up `*.vi.js`, `webhook_vi.py`, `lang.vi.ts`; the menu bar scripts use `server/menubar/vi.json` and the extension `extensions/manager/_locales/` | One source of text; `tests/check-i18n.py` finds what is missing |
-| No outside libraries on the server | Only the Python standard library | Nothing extra to install, update or audit |
+| No outside libraries on the server | Only the Python standard library; the optional receiver only the Go standard library | Nothing extra to install, update or audit |
 | One kind of key per door (channel-bound credentials) | A key for the MCP endpoint is looked up only with `TvStore.find(..., mcp=True)`, and every other lookup leaves such keys out | A key that leaks from an AI tool's settings opens no page, and a TV's or an extension's key does not open the MCP endpoint |
 
 ### Storage: SQLite
@@ -494,7 +497,8 @@ Each push also runs `.github/workflows/test-install.yml`: on Ubuntu it builds th
 
 ## 6. Known limits
 
-- **Shared send key.** Everyone in the install package has `INGEST_KEY`, so a staff member can send false numbers under a name not yet tied to a device. If a package leaks, change the key and reinstall.
+- **Shared send key, for enrolling.** Each computer gets a key of its own (`awd1.…`) at its first send, and from then on only that key sends for it; `--revoke-device` cuts one computer off. Enrolling still uses `INGEST_KEY`, which every install package carries, so a staff member can still enrol a made-up computer under a name not yet tied to one. Once every computer has its own key, `SHARED_KEY_MODE=known-only` or `off` closes that.
+- **How many computers.** `MAX_DEVICES` is 300 computers, about 100 to 150 people, and one process on one machine takes the sends. Measured ceilings and what comes next: [BENCHMARK.md](BENCHMARK.md). Sends are limited per computer (a bucket of 20 that refills one a second), so computers behind one shared public address do not stop each other.
 - **HTTP without a proxy.** The connection is encrypted only behind Caddy or nginx.
 - **People with sudo on the server** can read all numbers and issue accounts for themselves. Keep them few.
 - **The audit log's chain** catches a row changed or taken out by hand, not someone who can rewrite the whole database and `audit_head` together: note the fingerprint the Admin page shows now and then. The secret and page checks go by the shape of keys and the wording of orders, so a secret with no known shape, or an order worded otherwise, passes.

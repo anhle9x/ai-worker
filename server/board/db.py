@@ -31,8 +31,30 @@ KEYS_BACKUP_KEEP_DAYS = 7
 # keys/legacy-json/accounts.json, tài khoản của bản trước SQLite, chứa khoá OTP dạng thường: xoá sau ngần này ngày kể từ lúc chuyển vào
 LEGACY_ACCOUNTS_KEEP_DAYS = 30
 
+def split_hour_books(c) -> None:
+    """Step 6: take each good record's hour book out of its devices row into device_hours, add up its days into device_days, and keep the
+    rest of the row as it was. A row the board cannot read is left whole. Runs inside the upgrade's transaction: if it fails, nothing changed.
+    Bước 6: lấy sổ giờ của mỗi bản ghi tốt ra khỏi dòng devices sang device_hours, cộng các ngày của nó vào device_days, và giữ nguyên
+    phần còn lại của dòng. Dòng bảng không đọc được thì để nguyên. Chạy trong giao dịch của lần nâng: hỏng thì không gì đổi."""
+    from board import devices, devicestore
+    now = time.time()
+    for device, body in c.execute("SELECT device, body FROM devices").fetchall():
+        try:
+            d = json.loads(body)
+        except (ValueError, RecursionError):
+            continue
+        cleaned = devices.clean_payload(d, now) if isinstance(d, dict) else None
+        if not cleaned or cleaned["device"] != device:
+            continue
+        devices.write_book(c, device, devices.book_of(cleaned))
+        devicestore.set_body(c, device, dumps({k: v for k, v in d.items() if k not in devices.HOUR_KINDS}))
+    devicestore.set_days_zone(c, devices.zone_seconds())
+
+
 # Each step upgrades the schema by one version, in one transaction. Never change a step that has shipped: add a new one.
+# A step is a list of SQL statements; an item may also be a Python function given the connection, run in the same transaction.
 # Mỗi bước nâng lược đồ lên một phiên bản, trong một giao dịch. Không sửa bước đã phát hành: thêm bước mới.
+# Một bước là danh sách câu SQL; một mục cũng có thể là hàm Python nhận kết nối, chạy trong cùng giao dịch.
 DATA_STEPS = [
     [
         "CREATE TABLE devices (device TEXT PRIMARY KEY, account TEXT NOT NULL DEFAULT '', name TEXT NOT NULL DEFAULT '', seen_at INTEGER NOT NULL, body TEXT NOT NULL)",
@@ -79,6 +101,30 @@ DATA_STEPS = [
         "retries INTEGER NOT NULL DEFAULT 0, unmeasured INTEGER NOT NULL DEFAULT 0, input INTEGER NOT NULL DEFAULT 0, output INTEGER NOT NULL DEFAULT 0, "
         "cache_read INTEGER NOT NULL DEFAULT 0, cache_write INTEGER NOT NULL DEFAULT 0, cache_write_long INTEGER NOT NULL DEFAULT 0, "
         "PRIMARY KEY (project, day, env, provider, model))",
+    ],
+    # version 5: which computers have a key of their own and which were revoked (board/devicekeys.py). Only the time of the newest key
+    # and of a revocation: the keys themselves are never stored, they are checked by their signature
+    # phiên bản 5: máy nào đã có khoá riêng và máy nào bị thu hồi (board/devicekeys.py). Chỉ có lúc cấp khoá mới nhất và lúc thu hồi:
+    # bản thân khoá không bao giờ được lưu, chúng được kiểm bằng chữ ký
+    [
+        "CREATE TABLE device_keys (device TEXT PRIMARY KEY, iat INTEGER NOT NULL, revoked_at INTEGER NOT NULL DEFAULT 0)",
+    ],
+    # version 6: a computer's hour book leaves its devices row for rows of its own, one per hour and kind, with the key starting with the
+    # hour, so a send writes only the hours that changed and the newest hours sit together at the end of the table; and its totals per local
+    # day (the day follows TZ_OFFSET, written in meta). split_hour_books moves the books of version 5 in the same transaction
+    # phiên bản 6: sổ giờ của một máy rời dòng devices sang các dòng riêng, mỗi giờ mỗi loại một dòng, khoá bắt đầu bằng giờ, để một lần
+    # gửi chỉ ghi các giờ đã đổi và các giờ mới nhất nằm cạnh nhau ở cuối bảng; và tổng của nó theo từng ngày địa phương (ngày tính theo
+    # TZ_OFFSET, ghi trong meta). split_hour_books chuyển sổ của phiên bản 5 sang, trong cùng giao dịch
+    [
+        "CREATE TABLE device_hours (hour INTEGER NOT NULL, kind TEXT NOT NULL, device TEXT NOT NULL, body TEXT NOT NULL, "
+        "PRIMARY KEY (hour, kind, device)) WITHOUT ROWID",
+        "CREATE INDEX device_hours_device ON device_hours (device, kind, hour)",
+        "CREATE INDEX device_hours_blocks ON device_hours (hour) WHERE kind = 'blocks'",
+        "CREATE TABLE device_days (day TEXT NOT NULL, device TEXT NOT NULL, usd_micro INTEGER NOT NULL DEFAULT 0, tokens_in INTEGER NOT NULL DEFAULT 0, "
+        "tokens_out INTEGER NOT NULL DEFAULT 0, gemini INTEGER NOT NULL DEFAULT 0, chatgpt INTEGER NOT NULL DEFAULT 0, gemma INTEGER NOT NULL DEFAULT 0, "
+        "PRIMARY KEY (day, device)) WITHOUT ROWID",
+        "CREATE INDEX device_days_device ON device_days (device, day)",
+        split_hour_books,
     ],
 ]
 KEYS_STEPS = [
@@ -139,7 +185,10 @@ class Database:
         for n in range(version, len(steps)):
             with self.tx() as c:
                 for sql in steps[n]:
-                    c.execute(sql)
+                    if callable(sql):
+                        sql(c)
+                    else:
+                        c.execute(sql)
                 c.execute("PRAGMA user_version=%d" % (n + 1))
 
     def _backup_before_upgrade(self, version: int, target: int) -> None:
@@ -426,8 +475,11 @@ def export_json(out_dir: str) -> list:
             f.write(text)
         written.append(rel)
 
+    from board import devices
     for device, seen_at, body in data.rows("SELECT device, seen_at, body FROM devices"):
-        write("data/%s.json" % device, body)
+        # the hour book lives in rows of its own since schema version 6: put it back into the record, as the old file had it
+        # sổ giờ nằm ở các dòng riêng từ lược đồ phiên bản 6: đặt nó lại vào bản ghi, như file cũ đã có
+        write("data/%s.json" % device, devices.whole_record(device, body))
         os.utime(os.path.join(out_dir, "data", device + ".json"), (seen_at, seen_at))
     write("data/identities.json", dumps({k: [a, n] for k, a, n in data.rows("SELECT device, account, name FROM identities")}))
     write("data/history.jsonl", "".join(dumps({"at": at, "name": n, "account": a, "status": s, "delegating": json.loads(g) if g else None}) + "\n"

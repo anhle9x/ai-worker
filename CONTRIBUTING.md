@@ -13,14 +13,14 @@ Thank you for helping. Bug reports, fixes, translations and documents are all we
 ## Rules of this repository
 
 - **Two languages.** Code, comments and messages are in English, and every comment and docstring has an English line followed by a Vietnamese line. Vietnamese text lives only in comments, docstrings or `*.vi.*` files. Every document has an English `.md` and a Vietnamese `.vi.md`.
-- **No outside library on the server.** The server uses Python's standard library only, Python 3.8 or newer.
+- **No outside library on the server.** The server uses Python's standard library only, Python 3.8 or newer. The optional receiver in `receiver/` uses Go's standard library only, and its cleaning copies the server's: change both ([docs/RECEIVER.md](docs/RECEIVER.md)).
 - **No private data.** Never commit real names, emails, addresses, keys or company numbers. `packaging/check-clean.sh` checks this.
 - **Every server path has a permission.** A new path goes into the route table in `server/webhook.py` and into the permission table in `server/test_webhook.py`.
 - **A schema change is a new step.** Add a step to `DATA_STEPS` or `KEYS_STEPS` in `server/board/db.py`; never edit a step that has shipped.
 
 ## Checks to run
 
-Run all eleven from the repository root before sending a change. GitHub Actions runs the same ones.
+Run all twelve from the repository root before sending a change. GitHub Actions runs the same ones.
 
 ```bash
 claude plugin test .
@@ -39,7 +39,11 @@ bash tests/test-check-clean.sh
 uvx ruff check .
 ```
 
-The first block ends inside `server/`, so go back to the repository root before the second one. Without `uv`, the last one is `pipx run ruff check .`. `python3 tests/check-i18n.py --comments` also checks that every comment has an English line followed by a Vietnamese line.
+```bash
+cd receiver && go test ./...
+```
+
+The first block ends inside `server/`, so go back to the repository root before the second one. Without `uv`, the ruff check is `pipx run ruff check .`. The last block needs Go 1.22 or later and `python3`, and ends inside `receiver/`. `python3 tests/check-i18n.py --comments` also checks that every comment has an English line followed by a Vietnamese line.
 
 `bash packaging/check-clean.sh` is not in this list: it looks for private data in the folder it runs in, so it belongs on what gets published. In a checkout that holds your own `packaging/company.json` it reports that file, and that is expected.
 

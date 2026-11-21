@@ -89,7 +89,7 @@
     } else {
       const people = s.people || []
       const waiting = people.filter(p => p.waiting).sort((a, b) => ((s.seen[a.name] || {}).since || now) - ((s.seen[b.name] || {}).since || now))
-      const working = people.filter(p => p.working && !p.waiting)
+      const working = people.filter(p => p.working)
       $('summary').textContent = t('summary', [String(waiting.length), String(working.length)])
       $('waiting-list').replaceChildren(...(waiting.length ? waiting.map(p => item(p.name, waited((s.seen[p.name] || {}).since || now, now))) : [empty(t('nobodyWaiting'))]))
       $('working-list').replaceChildren(...(working.length ? working.map(p => item(p.name)) : [empty(t('nobodyWorking'))]))

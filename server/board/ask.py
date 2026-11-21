@@ -21,6 +21,7 @@ from board.summary import (
     Snapshot,
     clean_name,
     count,
+    in_state,
     minutes_waiting,
     money,
     num,
@@ -275,9 +276,13 @@ def _team(snap: Snapshot, with_people: bool, now_ms: float) -> list:
     # cùng các chấm như trên bảng: xanh là đang làm, vàng là đang chờ
     words = {"working": tx("Working {n}", n=count(people, "working")), "waiting": tx("Waiting {n}", n=count(people, "waiting")),
              "open": tx("Idle {n}", n=count(people, "open")), "offline": tx("Offline {n}", n=count(people, "offline"))}
+    # a person waiting in one session while another runs is in both counts: say so, or the four numbers look like more people than there are
+    # người đang chờ ở một phiên trong khi phiên khác chạy nằm ở cả hai số: nói rõ, kẻo bốn con số trông như nhiều người hơn thực tế
+    both = sum(1 for p in people if in_state(p, "waiting") and in_state(p, "working"))
     return [
         "%s %s" % (ICONS[TEAM], tx("People in the team: {n}", n=len(people))),
         " · ".join("%s %s" % (dot, words[state]) for state, dot in STATE_DOTS),
+    ] + (["%s %s" % (NOTE, tx("{n} waiting in one session while another runs: counted in both.", n=both))] if both else []) + [
         _cost_line(people),
     ]
 

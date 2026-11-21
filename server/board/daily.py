@@ -4,7 +4,7 @@ Mức dùng của từng người theo từng ngày, giữ nhiều tháng: dựn
 import threading
 from datetime import date, datetime, timedelta
 
-from board.devices import person_key, person_name
+from board.devices import hours_of, person_key, person_name
 from board.settings import DAILY_CHART_WEEKS, DAILY_KEEP_MONTHS, DAILY_RECOUNT_DAYS, LOCAL_TZ
 
 WORKERS = ("gemini", "chatgpt", "gemma")
@@ -36,23 +36,20 @@ def totals_by_day(devices: list, now: float) -> dict:
         if not isinstance(m, dict) or m.get("v") != 1:
             continue
         key = person_key(m)
-        for field in ("ledger", "tasks"):
-            table = m.get(field)
-            for hour, v in (table.items() if isinstance(table, dict) else ()):
-                try:
-                    day = datetime.fromtimestamp(int(hour) * 3600, LOCAL_TZ).date()
-                except (ValueError, OverflowError, OSError):
-                    continue
-                if not first <= day <= today or not isinstance(v, dict):
-                    continue
-                r = out.setdefault(day.isoformat(), {}).setdefault(key, {"name": person_name(m), "account": str(m.get("account") or ""), **dict.fromkeys(NUMBERS, 0)})
-                if field == "ledger":
-                    r["usd"] += float(v.get("usd") or 0)
-                    r["tokensIn"] += int(v.get("input") or 0) + int(v.get("cacheRead") or 0) + int(v.get("cacheWrite") or 0)
-                    r["tokensOut"] += int(v.get("output") or 0)
-                else:
-                    for worker in WORKERS:
-                        r[worker] += int(v.get(worker) or 0)
+        # each computer's hours come added up per day once (hours_of), so this goes through days, not hours
+        # giờ của mỗi máy đã được cộng theo ngày một lần (hours_of), nên ở đây đi qua từng ngày chứ không phải từng giờ
+        for day, v in hours_of(m)["days"].items():
+            if not first <= day <= today:
+                continue
+            r = out.setdefault(day.isoformat(), {}).setdefault(key, {"name": person_name(m), "account": str(m.get("account") or ""), **dict.fromkeys(NUMBERS, 0)})
+            # money is added up in whole usdMicro and turned into dollars once below, so the sum does not depend on the order of the computers
+            # tiền được cộng bằng số nguyên usdMicro rồi đổi ra đô la một lần ở dưới, để tổng không phụ thuộc thứ tự các máy
+            r["usd"] += v["usdMicro"]
+            for number in NUMBERS[1:]:
+                r[number] += v[number]
+    for people in out.values():
+        for r in people.values():
+            r["usd"] = r["usd"] / 1_000_000
     return out
 
 

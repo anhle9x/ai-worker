@@ -97,6 +97,8 @@ Before sending anything to ChatGPT or Gemini, Claude asks you, unless a permissi
 
 Before Claude runs `git commit`, the lines the commit adds are read the same way. If one holds what looks like a secret, you are asked first, with the file and the line but not the value: once a secret is in git it stays in the history, even if a later commit takes it out. And when a web page or a search result Claude reads holds text aimed at an AI (an order to ignore earlier instructions, to hide something from you, or to send keys somewhere), you see a short notice and Claude is told it is the page's text, not your request.
 
+When you open Claude in a repository whose files set up the AI themselves, you see one line about what is new: for example `.mcp.json declares an MCP server "helper" that runs node tools/server.js`, or `.claude/settings.json lets Claude run any command without asking (Bash(*))`. These files come with a clone or a pull. If you did not add them, open them and check before you go on; Claude is told the same and asks you before it runs something because of them. Nothing is blocked. You are told once per change: the next session in the same repository says nothing until one of these files changes, and a repository you have had for more than 14 days says nothing the first time.
+
 To sign in later: open Terminal or PowerShell and type `codex login` (ChatGPT) or `agy` (Gemini).
 
 ### 1.5 Updates
@@ -192,7 +194,7 @@ The board only opens from the company network.
 
 ### 2.2 The dashboard
 
-It updates by itself every 10 seconds:
+It updates by itself every second:
 
 - **Status bar at the top:** how many people are working, waiting and idle, and warnings such as someone near their quota.
 - **Diagram:** each person linked to Claude and the helper assistants; moving dots mean work is happening or being handed over. **Click a person** to see their numbers.
@@ -204,6 +206,8 @@ It updates by itself every 10 seconds:
 - **Detail board** (`/board`): the same numbers as a table, with the Plugin column showing which computers are not on the latest version. Below the table, **Use by week and month** starts with charts: the team's cost per week for the last 12 weeks and per month for up to 13 months, then a small row of columns for each office, all on one scale. A striped column is a week or month that is not whole: the current one, or the one the numbers start in. Point at a column, or tap it on a phone, to see its dates and exact amount. Under the charts, a table shows the cost of this week and this month for the whole team, each office and each person, next to last week and last month. ▲ and ▼ compare with the same number of days before, so a Wednesday is measured against Monday to Wednesday of last week. A dash means the server had no numbers yet for that time. Wall screens do not have this part.
 
 Colours: green is working, yellow is waiting for an answer, light blue is idle, grey is offline.
+
+A person often has several sessions at once. Someone waiting for an answer in one session while another session runs is shown yellow, but counted both as waiting and as working: they are in the **Waiting** and the **Working** tab of the small window, and in both numbers on the board, in Telegram and in the office_board tool. So "working" and "waiting" can add up to more than the people online.
 
 A person who uses Codex, Cursor or Gemini CLI has one more line under their name with each tool they have open and what it is doing. For those tools, waiting means the tool asked for an approval or ended its turn with a question; their cost, tokens and quota are not known, so someone who uses only those tools has no cost on the board.
 
@@ -336,6 +340,7 @@ Personal plans (Pro, Max) are not in that report.
 - **Audit log:** logins, changes and refusals for the chosen month. Kept 12 months; the page shows the newest 300 lines. **Log check** above it says whether any line was changed or taken out of the database by hand, and shows the last fingerprint: note it down now and then to compare later.
 - **Stopped by ai-worker:** how many times, across the team in the last 7 days, a key or password was kept from ChatGPT or Gemini, a commit or a risky command was asked about, or a page that tried to steer Claude was flagged. Counts only, never what it was.
 - **Keys for AI tools not used for 30 days** are listed above the table in **Paired devices and keys**; revoke the ones nobody needs.
+- **Computers and their keys** lists every staff computer that has its own key. When a computer is lost, stolen or its owner leaves, click **Revoke** on its row and enter your OTP: it stops sending at once, and the key in the install package cannot bring it back. **Let back** lets it enrol again.
 
 ### 3.7 Menu bar downloads
 

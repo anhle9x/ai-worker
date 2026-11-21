@@ -96,6 +96,7 @@ function Send-Report {
     [IO.File]::WriteAllText($deviceFile, $device + "`n", $Utf8)
   }
   $sentFile = Join-Path $Dir 'sent'
+  $keyFile = Join-Path $Dir 'device-key'
   $errorFile = Join-Path $Dir 'last-error'
   $mutex = New-Object Threading.Mutex($false, (Lock-Name 'send'))
   $held = $false
@@ -124,11 +125,24 @@ function Send-Report {
       $code = ''
       try {
         try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
-        $answer = Invoke-WebRequest -UseBasicParsing -Method Post -Uri ($cfg['url'] + '/ingest') -Headers @{ Authorization = 'Bearer ' + $cfg['key'] } `
+        # this computer's own key once the server has given it one, else the key of the install package
+        # khoá riêng của máy này khi máy chủ đã cấp, nếu không thì khoá của gói cài
+        $sendKey = $cfg['key']
+        if (Test-Path -LiteralPath $keyFile) {
+          $own = ([IO.File]::ReadAllText($keyFile)).Trim()
+          if ($own -like 'awd1.*') { $sendKey = $own }
+        }
+        $answer = Invoke-WebRequest -UseBasicParsing -Method Post -Uri ($cfg['url'] + '/ingest') -Headers @{ Authorization = 'Bearer ' + $sendKey } `
           -ContentType 'application/json' -Body ([Text.Encoding]::UTF8.GetBytes($json)) -TimeoutSec 8
         $code = [string][int]$answer.StatusCode
+        # a key of its own in the answer: kept in this user's folder, used from the next send on
+        # khoá riêng trong câu trả lời: cất trong thư mục của người dùng này, dùng từ lần gửi sau
+        if ($answer.Content -match '"deviceKey": *"(awd1\.[A-Za-z0-9._-]+)"') { [IO.File]::WriteAllText($keyFile, $Matches[1] + "`n", $Utf8) }
       } catch {
         try { $code = [string][int]$_.Exception.Response.StatusCode } catch { $code = '' }
+        # its own key refused (too old, or the server was set up again): drop it, so the next send asks for a new one
+        # khoá riêng bị từ chối (quá cũ, hoặc máy chủ được cài lại): bỏ nó, để lần gửi sau xin khoá mới
+        if ($code -eq '401' -and $sendKey -ne $cfg['key'] -and (Test-Path -LiteralPath $keyFile)) { Remove-Item -LiteralPath $keyFile -Force }
       }
       if ($code -eq '200') {
         [IO.File]::WriteAllText($sentFile, ('{0} {1}' -f $now, $signature) + "`n", $Utf8)

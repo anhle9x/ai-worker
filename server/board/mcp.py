@@ -24,6 +24,7 @@ from board.summary import (  # noqa: F401
     SMALL_OFFICE,
     clean_name,
     count,
+    in_state,
     minutes_waiting,
     model_label,
     money,
@@ -43,7 +44,7 @@ SUPPORTED_VERSIONS = MODERN_VERSIONS + LEGACY_VERSIONS
 SERVER_NAME = "ai-worker-board"
 # the version of what this endpoint offers, shown to the client: raise it when the tool list or a tool's output changes
 # phiên bản của những gì cổng này đưa ra, hiện cho client: tăng lên khi danh sách công cụ hoặc kết quả của một công cụ thay đổi
-SERVER_VERSION = "1.0.0"
+SERVER_VERSION = "1.1.0"
 TOOL_NAME = "board_summary"
 MAX_REQUEST_BYTES = 16 * 1024
 # the tool list and the server's description change only with a new server version
@@ -88,6 +89,8 @@ TOOL = {
 }
 
 STATE = {"working": "working", "waiting": "waiting for an answer", "open": "idle", "offline": "offline"}
+ALSO_WORKING = "waiting for an answer, another session working"
+BOTH_NOTE = "Someone waiting in one session while another runs counts as both working and waiting, so these can add up to more than the people."
 NO_OFFICE = "no office (mobile or not assigned)"
 SMALL_OFFICES = "small offices (fewer than %d people each)" % SMALL_OFFICE
 TOTALS_ONLY = ("People: this key reads totals only. Each person's numbers exist on the board, but this key may not see them; "
@@ -113,6 +116,12 @@ def _office_row(name: str, here: list) -> str:
     return "- %s | %d | %d | %d | %s | %s" % (name, len(here), count(here, "working"), count(here, "waiting"), money(total(here, "usdToday")), money(total(here, "usd7d")))
 
 
+def _state_words(p: dict) -> str:
+    """A person's state in words, and that another session runs when the person waits in one.
+    Trạng thái của một người bằng chữ, kèm việc một phiên khác đang chạy khi người đó đang chờ ở một phiên."""
+    return ALSO_WORKING if state_of(p) == "waiting" and in_state(p, "working") else STATE[state_of(p)]
+
+
 def _or_dash(v) -> str:
     return "-" if v is None else str(v)
 
@@ -133,6 +142,7 @@ def summarize(view, scope: str, now_ms: float) -> str:
         "Team: %d people, %d working, %d waiting for an answer, %d idle, %d offline. Cost today %s, last 7 days %s." % (
             len(people), count(people, "working"), count(people, "waiting"), count(people, "open"), count(people, "offline"),
             money(total(people, "usdToday")), money(total(people, "usd7d"))),
+        BOTH_NOTE,
     ]
     tasks = view.get("tasks24") if isinstance(view, dict) else None
     if isinstance(tasks, list) and len(tasks) == 3:
@@ -147,7 +157,7 @@ def summarize(view, scope: str, now_ms: float) -> str:
         lines += ["", "People (office | state | minutes waiting | cost today | cost 7 days | quota used in 5 hours % | quota used in 7 days % | model):"]
         for p, place in zip(people, snap.places):
             lines.append("- %s | %s | %s | %s | %s | %s | %s | %s | %s" % (
-                clean_name(p.get("name")), place or NO_OFFICE, STATE[state_of(p)], _or_dash(minutes_waiting(p, now_ms)), money(num(p.get("usdToday"))), money(num(p.get("usd7d"))),
+                clean_name(p.get("name")), place or NO_OFFICE, _state_words(p), _or_dash(minutes_waiting(p, now_ms)), money(num(p.get("usdToday"))), money(num(p.get("usd7d"))),
                 _or_dash(quota_pct(p, "five_hour")), _or_dash(quota_pct(p, "seven_day")), top_model(p)))
     return "\n".join(lines)
 

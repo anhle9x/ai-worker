@@ -50,9 +50,12 @@ Trên bảng tổng, máy im 12 phút hiện ngoại tuyến, im một ngày th�
 | Mọi máy ngoại tuyến | Caddy dừng, chứng chỉ hết hạn, hoặc IP văn phòng đổi | `systemctl status caddy`; sửa danh sách IP trong file Caddy rồi `systemctl reload caddy` |
 | Thiếu một máy | IP của máy nằm ngoài danh sách, hoặc máy cài gói cũ | Nhờ người đó gõ `/office`; tìm IP của máy trong nhật ký truy cập Caddy |
 | Nhật ký báo `401 wrong ingest key` | Gói cài được đóng với `INGEST_KEY` khác | Đóng lại gói với khoá hiện tại và cài lại cho máy đó |
+| Nhật ký báo `use this computer's own key` | Máy đã có khoá riêng nhưng lại gửi bằng khoá chung, thường do dữ liệu plugin trên máy bị xoá | `--forget-device <mã máy>` (như với máy đổi chủ); máy ghi danh lại ở lần gửi sau |
+| Một máy phải ngừng gửi (mất, bị lấy, nghỉ việc) | | Trên trang Quản trị, mục **Máy nhân viên và khoá riêng**, bấm **Thu hồi** ở dòng của máy đó; hoặc bằng lệnh `sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --revoke-device <mã máy>`: khoá của máy thôi hiệu lực ngay và khoá chung cũng không gửi cho nó được nữa |
+| Mọi máy phải nhận khoá mới (bí mật ký khoá đã cũ, hoặc file bí mật bị lộ) | | Dừng webhook, chạy `sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --rotate-device-secret`, rồi bật lại: mọi máy nhận khoá mới ở lần gửi kế tiếp, khoá cũ vẫn dùng được cho tới lúc đó. Với `--drop-old` các khoá cũ thôi hiệu lực ngay và mọi máy ghi danh lại bằng khoá chung ([RECEIVER.vi.md](RECEIVER.vi.md), mục 6) |
 | Nhật ký báo `409 this device is linked to another person` | Máy đổi người dùng | `sudo systemctl stop ai-worker-webhook`, rồi `sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --forget-device <mã máy>`, rồi bật lại dịch vụ |
-| Nhật ký báo `429 too many submissions` | Một địa chỉ gửi quá nhiều, thường do vòng lặp hoặc nhiều máy chung một IP | Kiểm địa chỉ đó; giới hạn là 300 lần mỗi 10 phút mỗi IP |
-| Nhật ký báo `507 device limit reached` | Đã đủ 300 máy | Chờ máy cũ tự rơi khỏi danh sách sau 30 ngày, hoặc nâng `MAX_DEVICES` trong code |
+| Nhật ký báo `429 too many submissions` | Một máy gửi quá nhiều, thường do vòng lặp | Kiểm máy đó; mỗi máy được gửi dồn 20 lần, sau đó mỗi giây một lần |
+| Nhật ký báo `507 device limit reached` | Đã đủ 300 máy | Chờ máy cũ tự rơi khỏi danh sách sau 30 ngày, hoặc nâng `MAX_DEVICES` trong `/etc/ai-worker.env` sau khi đo ([BENCHMARK.vi.md](BENCHMARK.vi.md)) |
 | Đăng nhập báo nhập sai quá nhiều lần | Sai OTP 5 lần trong 15 phút | Chờ 15 phút; kiểm đồng hồ điện thoại đang để tự động |
 | TV báo lâu chưa thấy | TV tắt hoặc mất mạng | Bật TV; nếu TV đòi mã thì ghép lại trên `/admin` |
 | Nhân viên không nhận bản cập nhật | Plugin cũ hơn 0.23.0, kiểm chữ ký hỏng, hoặc thư mục plugin có `.git` | Xem mục 5 |
@@ -152,6 +155,8 @@ Sau đó chạy `sudo bash install.sh` trong thư mục `server/` cũ (lệnh n�
 Quay lui thì mất gì: mọi thứ đã ghi vào `board.db` sau khi nâng, như tổng theo ngày, các dòng nhật ký quản trị, màn hình hay khoá đã ghép và địa điểm đã đặt tên từ lúc đó. Bảng trực tiếp đầy lại sau vài phút, vì mỗi lần gửi máy nào cũng gửi kèm 8 ngày theo giờ gần nhất. Tài khoản không bị đụng tới.
 
 Máy chủ xoá `board.db.schema-1.bak` 30 ngày sau khi nâng (nhật ký: `deleted the upgrade backup ...`). Đây là một bản sao đầy đủ số liệu của mọi người: giữ kín như `board.db`, và chỉ chép đi nơi khác trước khi hết 30 ngày nếu cần giữ lâu hơn.
+
+Mọi lần đổi lược đồ sau đó cũng vậy, với số phiên bản của lần đó trong tên file. Bản giữ sổ giờ ở các dòng riêng (`device_hours`, `device_days`, xem [DATA-MODEL.vi.md](DATA-MODEL.vi.md)) nâng `board.db` từ lược đồ phiên bản 5 lên 6, nên bản sao của nó là `board.db.schema-5.bak`: dùng tên đó trong các bước trên. Lần nâng chạy trong một giao dịch, nên hỏng giữa chừng thì cơ sở dữ liệu vẫn ở phiên bản 5 và dịch vụ dừng, lỗi ghi trong nhật ký.
 
 #### Quay lui sau khi khoá OTP đã niêm phong
 

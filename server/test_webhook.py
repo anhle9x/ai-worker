@@ -29,7 +29,10 @@ from datetime import date, datetime, timedelta
 
 TMP = tempfile.mkdtemp(prefix="test-webhook-")
 os.environ.update(INGEST_KEY="test", DATA_DIR=os.path.join(TMP, "data"), KEYS_DIR=os.path.join(TMP, "keys"),
-                  BRANCHES_FILE=os.path.join(TMP, "missing.json"), OTP="", OTP_KEY_FILE=os.path.join(TMP, "no-otp.key"))
+                  BRANCHES_FILE=os.path.join(TMP, "missing.json"), OTP="", OTP_KEY_FILE=os.path.join(TMP, "no-otp.key"),
+                  # every request builds the board afresh, so a test sees what it just changed
+                  # mỗi yêu cầu dựng bảng mới, để test thấy ngay thứ nó vừa đổi
+                  VIEW_CACHE_SECONDS="0")
 os.makedirs(os.environ["DATA_DIR"])
 
 import telegram_bot  # noqa: E402
@@ -38,7 +41,7 @@ import test_mcp  # noqa: E402
 import test_telegram_bot  # noqa: E402
 import webhook as w  # noqa: E402
 import webhook_vi  # noqa: E402
-from board import ask, assets, chat, daily, db, devices, lang, login, mcp, packages, pages, security, settings, stores, views  # noqa: E402
+from board import ask, assets, chat, daily, db, devicekeys, devices, lang, login, mcp, packages, pages, security, settings, stores, views  # noqa: E402
 
 NOW = time.time()
 EMAIL = "an@example.com"
@@ -68,15 +71,18 @@ def tearDownModule():
 
 
 def stored_device(device: str) -> dict:
-    """The row of a device exactly as stored, not cleaned again on reading.
-    Dòng của một máy đúng như đã lưu, không làm sạch lại khi đọc."""
+    """The row of a device exactly as stored, not cleaned again on reading, with its hour rows put back in it as export_json does.
+    Dòng của một máy đúng như đã lưu, không làm sạch lại khi đọc, với các dòng giờ của nó đặt lại vào như export_json làm."""
     rows = db.data_db().rows("SELECT body FROM devices WHERE device = ?", (device,))
-    return json.loads(rows[0][0])
+    return json.loads(devices.whole_record(device, rows[0][0]))
 
 
 def drop_device(device: str) -> None:
     with db.data_db().tx() as c:
         c.execute("DELETE FROM devices WHERE device = ?", (device,))
+    # written past save_device, so the devices kept in memory are read again
+    # ghi không qua save_device, nên các máy giữ trong bộ nhớ được đọc lại
+    devices.DEVICES.forget()
 
 
 def all_audit_rows() -> list:
@@ -113,6 +119,20 @@ class RoleViews(unittest.TestCase):
         self.assertTrue(all("lanIps" not in p and "enteredAccounts" not in p for p in d["people"]))
         self.assertIn("An", [p["name"] for p in d["people"]])
 
+    def test_wall_codes_stay_the_same_after_a_restart(self):
+        """The code that stands for an email on the wall comes from a secret kept in the keys database: a restarted server
+        (a new DeviceKeys reading the same file) gives the same code, and the code is not a plain hash of the email.
+        Mã thay email trên màn treo tường lấy từ bí mật giữ trong cơ sở dữ liệu khoá: máy chủ khởi động lại
+        (một DeviceKeys mới đọc cùng file) cho cùng mã, và mã không phải bản băm trần của email."""
+        before = views.alias(EMAIL)
+        self.assertRegex(before, r"\A[0-9a-f]{10}\Z")
+        self.assertEqual(devicekeys.DeviceKeys().alias(EMAIL), before)
+        self.assertNotEqual(before, hashlib.sha256(EMAIL.encode()).hexdigest()[:10])
+        self.assertNotEqual(views.alias("binh@example.com"), before)
+        self.assertEqual(views.alias(""), "")
+        d = views.role_view(security.WALL, NOW)
+        self.assertIn(before, [p["account"] for p in d["people"]])
+
     def test_wall_still_tells_people_apart(self):
         d = views.role_view(security.WALL, NOW)
         aliases = [p["account"] for p in d["people"]]
@@ -124,9 +144,105 @@ class RoleViews(unittest.TestCase):
         Thêm trường vào dữ liệu gốc mà chưa khai cho từng vai thì test này đỏ."""
         original = views._raw_data(NOW)
         self.assertEqual(set(original), views.COMMON_FIELDS_DECLARED)
-        self.assertEqual(set(original["people"][0]), views.PERSON_FIELDS_DECLARED)
+        # the code of the row is there only with the Go receiver
+        # mã dòng chỉ có khi có bộ nhận Go
+        self.assertEqual(set(original["people"][0]), views.PERSON_FIELDS_DECLARED - {"row"})
+        settings.RECEIVER_ENABLED = True
+        try:
+            self.assertEqual(set(views._raw_data(NOW)["people"][0]), views.PERSON_FIELDS_DECLARED)
+        finally:
+            settings.RECEIVER_ENABLED = False
         self.assertEqual(set(original["branches"][0]), views.BRANCH_FIELDS_DECLARED)
         self.assertEqual({k for x in original["teamDays"] for k in x}, views.TEAM_DAY_FIELDS)
+
+    def test_the_code_of_a_row(self):
+        """With RECEIVER=1 each person has the code of their row: the same for every role and after a restart, apart for each person,
+        not the wall's code for the email nor a plain hash, and never an email on the wall. Without it, /data is what it was.
+        Với RECEIVER=1 mỗi người có mã dòng: như nhau cho mọi vai và sau khi khởi động lại, khác nhau cho từng người, không trùng mã
+        thay email trên màn treo tường cũng không phải bản băm trần, và không bao giờ có email trên màn treo tường. Không bật thì /data
+        như trước."""
+        off = {role: views.role_view(role, NOW) for role in (security.ADMIN, security.VIEWER, security.WALL)}
+        settings.RECEIVER_ENABLED = True
+        try:
+            on = {role: views.role_view(role, NOW) for role in off}
+        finally:
+            settings.RECEIVER_ENABLED = False
+        for role in off:
+            self.assertNotIn('"row"', json.dumps(off[role]))
+            self.assertEqual([{k: v for k, v in p.items() if k != "row"} for p in on[role]["people"]], off[role]["people"], role)
+            self.assertEqual({k: v for k, v in on[role].items() if k != "people"}, {k: v for k, v in off[role].items() if k != "people"}, role)
+        rows = [p["row"] for p in on[security.ADMIN]["people"]]
+        self.assertEqual(len(set(rows)), 2)
+        for row in rows:
+            self.assertRegex(row, r"\A[0-9a-f]{12}\Z")
+        self.assertEqual([p["row"] for p in on[security.WALL]["people"]], rows)
+        self.assertEqual([p["row"] for p in on[security.VIEWER]["people"]], rows)
+        key = devices.person_key(devices.read_device("device-an"))
+        self.assertIn(devicekeys.DeviceKeys().row_code(key), rows)
+        self.assertNotIn(hashlib.sha256(key.encode()).hexdigest()[:12], rows)
+        self.assertNotIn(views.alias(EMAIL), [r[:10] for r in rows])
+        self.assertNotIn("@example.com", json.dumps(on[security.WALL]))
+
+    def test_someone_waiting_while_another_session_runs_is_in_both_counts(self):
+        """A person waiting in one session while another runs counts as waiting and as working, in the totals of a branch and in the
+        totals a chat reads; so working + waiting may pass the people online.
+        Người đang chờ ở một phiên trong khi phiên khác chạy được đếm là đang chờ và đang làm, trong tổng của chi nhánh và trong tổng một
+        chat đọc; nên đang làm + đang chờ có thể vượt số người trực tuyến."""
+        row = {"branch": "hn", "status": "waiting", "openSessions": 2, "working": 1, "waiting": 1, "usdToday": 0, "tokensIn": 0, "tokensOut": 0}
+        d = {"branches": [{"id": "hn"}], "people": [row, dict(row, status="working", waiting=0), dict(row, status="waiting", working=0),
+                                                   dict(row, status="offline", working=1, waiting=1)],
+             "updatedAt": 0, "usdRate": 0, "tzOffsetHours": 7, "tasks24": [], "teamDays": [], "role": "wall", "uiVersion": "x"}
+        hn = views.branch_totals(d)[0]
+        self.assertEqual((hn["people"], hn["online"], hn["working"], hn["waiting"]), (4, 3, 2, 2))
+        views.VIEWS.view = lambda role, now: d
+        try:
+            t = views.totals_view(0)["totals"]
+        finally:
+            del views.VIEWS.view
+        self.assertEqual((t["working"], t["waiting"]), (2, 2))
+
+    def test_scopes(self):
+        """/data?scope=: a branch gives its people only, a page at a time by name; the whole organisation gives the totals of each branch,
+        and its people only up to PAGE_PEOPLE; each from the view of the same role.
+        /data?scope=: một chi nhánh chỉ cho người của nó, từng trang theo tên; cả tổ chức cho tổng của từng chi nhánh, và người của nó chỉ
+        tới PAGE_PEOPLE; mỗi phần lấy từ khung nhìn của cùng vai."""
+        wall = views.role_view(security.WALL, NOW)
+        hanoi = next(b["id"] for b in wall["branches"] if b["name"] == "Hanoi")
+        self.assertEqual(views.parse_scope("org"), "org")
+        self.assertEqual(views.parse_scope("branch:" + hanoi), "branch:" + hanoi)
+        self.assertEqual(views.parse_scope("branch:"), "branch:")
+        for bad in ("", "branch:nowhere", "Org", "hanoi"):
+            self.assertIsNone(views.parse_scope(bad), bad)
+        org = views.scoped_view(wall, "org", 0)
+        self.assertEqual(org["people"], wall["people"])
+        self.assertEqual(org["peopleTotal"], 2)
+        totals = {t["id"]: t for t in org["branchTotals"]}
+        self.assertEqual(set(totals), {hanoi, ""})
+        self.assertEqual(set(totals[hanoi]), views.BRANCH_TOTAL_FIELDS)
+        self.assertEqual((totals[hanoi]["people"], totals[""]["people"]), (1, 1))
+        self.assertEqual(org["branchTotals"][-1]["id"], "")
+        self.assertEqual(set(org) - set(wall), {"scope", "peopleTotal", "branchTotals"})
+        self.assertTrue(set(org) - set(wall) <= views.SCOPE_FIELDS)
+        mine = views.scoped_view(wall, "branch:" + hanoi, 0)
+        self.assertEqual([p["branch"] for p in mine["people"]], [hanoi])
+        self.assertEqual((mine["page"], mine["pages"], mine["peopleTotal"]), (0, 1, 1))
+        self.assertEqual(views.scoped_view(wall, "branch:", 0)["people"][0]["name"], "An")
+        self.assertNotIn("@example.com", json.dumps([org, mine]))
+        # past PAGE_PEOPLE: the whole organisation gives totals only, a branch gives pages in the order of the names
+        # quá PAGE_PEOPLE: cả tổ chức chỉ cho tổng, một chi nhánh cho các trang theo thứ tự tên
+        many = dict(wall, people=[dict(wall["people"][0], name="P%d" % i, branch=hanoi) for i in (3, 1, 4, 0, 2)])
+        old = views.PAGE_PEOPLE
+        views.PAGE_PEOPLE = 2
+        try:
+            self.assertEqual(views.scoped_view(many, "org", 0)["people"], [])
+            self.assertEqual(views.scoped_view(many, "org", 0)["branchTotals"][0]["people"], 5)
+            pages = [views.scoped_view(many, "branch:" + hanoi, n) for n in range(4)]
+        finally:
+            views.PAGE_PEOPLE = old
+        self.assertEqual([[p["name"] for p in x["people"]] for x in pages], [["P0", "P1"], ["P2", "P3"], ["P4"], ["P4"]])
+        self.assertEqual({x["pages"] for x in pages}, {3})
+        self.assertEqual([x["page"] for x in pages], [0, 1, 2, 2])
+        self.assertEqual(pages[0]["pageNames"], [["P0", "P1"], ["P2", "P3"], ["P4", "P4"]])
 
     def test_unknown_field_does_not_leak(self):
         original = views._raw_data
@@ -198,6 +314,22 @@ class ViaHttp(unittest.TestCase):
 
     def test_history_by_role(self):
         self.assertNotIn("@example.com", json.dumps(self.fetch("/history", "wall")))
+
+    def test_data_by_scope(self):
+        """/data?scope= goes through the same view of the role; a scope that does not exist is refused; plain /data has no scope part.
+        /data?scope= đi qua cùng khung nhìn của vai; phạm vi không có thì bị từ chối; /data không có phạm vi thì không có phần phạm vi."""
+        self.assertFalse(set(self.fetch("/data", "adm")) & views.SCOPE_FIELDS)
+        for name in ("adm", "viewer", "wall"):
+            org = self.fetch("/data?scope=org", name)
+            self.assertEqual(org["scope"], "org")
+            self.assertEqual(sum(t["people"] for t in org["branchTotals"]), len(org["people"]))
+            none = self.fetch("/data?scope=branch:&page=9", name)
+            self.assertEqual((none["page"], none["pages"]), (0, 1))
+        self.assertNotIn("@example.com", json.dumps(self.fetch("/data?scope=org", "wall")))
+        self.assertIn("@example.com", json.dumps(self.fetch("/data?scope=org", "adm")))
+        with self.assertRaises(urllib.error.HTTPError) as err:
+            self.fetch("/data?scope=branch:nowhere", "adm")
+        self.assertEqual(err.exception.code, 400)
 
     def test_not_logged_in(self):
         with self.assertRaises(urllib.error.HTTPError) as err:
@@ -410,6 +542,14 @@ class ConnectorReports(unittest.TestCase):
         # hạn mức, chi phí, token, việc đã giao và phiên bản plugin: mỗi ô một gạch, vì chỉ plugin đếm những thứ đó
         self.assertEqual(row.count('<span class="off">—</span>'), 5)
 
+    def test_the_board_page_shows_sessions_waiting_and_running_at_once(self):
+        devices.save_device(devices.clean_payload(self.connector(20, name="Both Ways", account="", tools={"codex": {"openSessions": 1, "waiting": 1}, "cursor": {"openSessions": 2, "working": 2}}), NOW))
+        self.addCleanup(drop_device, "device-conn1")
+        b = pages.page_board("adm", NOW).decode()
+        row = b[b.index("Both Ways"):]
+        row = row[:row.index("</tr>")]
+        self.assertIn('<span class="waiting">waiting for reply (1)</span> · <span class="working">working (2)</span>', row)
+
     def test_the_board_page_names_no_tool_for_a_person_on_claude_code_only(self):
         self.assertEqual(pages.tools_note({"claude": {"openSessions": 2, "working": 1, "waiting": 0}}), "")
         self.assertEqual(pages.tools_note({}), "")
@@ -475,6 +615,9 @@ class RoutePermissions(unittest.TestCase):
         "/admin/data": (401, 403, 403, 200, 403),
         "/admin/data?month=2026-11": (401, 403, 403, 200, 403),
         "/data": (401, 200, 200, 200, 200),
+        "/data?scope=org": (401, 200, 200, 200, 200),
+        "/data?scope=branch:&page=3": (401, 200, 200, 200, 200),
+        "/data?scope=nowhere": (401, 400, 400, 400, 400),
         "/history": (401, 200, 200, 200, 200),
         "/mini": (200, 200, 200, 200, 200),
         "/mini?h=wrong": (303, 303, 303, 303, 303),
@@ -514,6 +657,11 @@ class RoutePermissions(unittest.TestCase):
         # the page that asks for a key is open like the TV pairing page: it gives nothing out until an admin approves its code
         # trang xin khoá mở như trang ghép TV: không cấp gì cho tới khi quản trị duyệt mã của nó
         "/mcp/connect": (200, 200, 200, 200, 200),
+        # the Go receiver's paths are off in the tests, and never open to a login anyway
+        # đường của bộ nhận Go tắt khi chạy thử, và dù sao cũng không bao giờ mở cho phiên đăng nhập
+        "/internal/policy": (404, 404, 404, 404, 404),
+        "/internal/devices?after=": (404, 404, 404, 404, 404),
+        "/internal/people?since=0": (404, 404, 404, 404, 404),
         # AI projects and applications are off in these tests (AI_PROJECTS is not 1): their paths answer as if they were not there.
         # test_projects.py turns them on and pins who may open them
         # dự án hay ứng dụng AI tắt trong các test này (AI_PROJECTS không phải 1): các đường của nó trả lời như không có.
@@ -540,9 +688,10 @@ class RoutePermissions(unittest.TestCase):
         "/missing": (404, 404, 404, 404, 404),
     }
     POST_ADMIN = ("/locations", "/team-csv", "/team-sale", "/admin/confirm", "/admin/accounts", "/admin/sessions",
-                     "/admin/tv-view", "/admin/tv-approve", "/admin/tv-revoke", "/admin/tv-rename", "/admin/tv-reload", "/admin/tv-app")
+                     "/admin/tv-view", "/admin/tv-approve", "/admin/tv-revoke", "/admin/tv-rename", "/admin/tv-reload", "/admin/tv-app",
+                     "/admin/device-revoke", "/admin/device-forget")
     NEEDS_OTP_CONFIRM = ("/admin/accounts", "/admin/sessions", "/admin/tv-view", "/admin/tv-approve",
-                        "/admin/tv-revoke", "/admin/tv-rename", "/admin/tv-app")
+                        "/admin/tv-revoke", "/admin/tv-rename", "/admin/tv-app", "/admin/device-revoke", "/admin/device-forget")
 
     @classmethod
     def setUpClass(cls):
@@ -1112,7 +1261,15 @@ class RoutePermissions(unittest.TestCase):
                                                                        "/mini/handoff", "/mini/settings", "/mini/unpair", "/mini/pair",
                                                                        "/ext/request-code", "/ext/poll", "/ext/unpair", "/telegram/start", "/telegram/unlink",
                                                                        "/mcp", "/mcp/request-code", "/mcp/poll", "/bot/telegram", "/tg/session", "/tg/unpair", "/tg/settings",
-                                                                       "/projects/ingest", "/admin/project-key", "/admin/project-prices", "/admin/project-delete"})
+                                                                       "/projects/ingest", "/admin/project-key", "/admin/project-prices", "/admin/project-delete",
+                                                                       "/internal/rows", "/internal/ingest", "/sse/ticket"})
+
+    def test_the_live_feeds_ticket_is_not_there_while_the_receiver_is_off(self):
+        # off in the tests, for every role and every origin; test_receiver.LiveTickets turns it on and pins who gets one
+        # tắt khi chạy thử, với mọi vai và mọi nguồn; test_receiver.LiveTickets bật nó lên và chốt ai được cấp
+        for token in self.token:
+            with self.subTest(token=token):
+                self.assertEqual(self.call("POST", "/sse/ticket", token, '{"scope": "org"}', Origin=self.origin)[0], 404)
 
     def test_the_telegram_bots_path_is_not_there_until_it_is_turned_on(self):
         self.assertFalse(settings.TELEGRAM_ASK_ENABLED)
@@ -2693,7 +2850,8 @@ class SecurityLimits(unittest.TestCase):
     def setUp(self):
         security.BOT.__init__()
         login.SESSIONS.fails, login.SESSIONS.account_fails, login.SESSIONS.used_step = {}, {}, {}
-        views.INGEST_GATE.ingest_times, views.INGEST_GATE.new_devices = {}, {}
+        views.INGEST_GATE.buckets, views.INGEST_GATE.new_devices = {}, {}
+        self.keys = getattr(self, "keys", {})
         login.SESSIONS.sessions["tok-sec"] = ("adm", time.time() + 3600)
 
     def call(self, method, path, body=None, headers=None):
@@ -2706,7 +2864,21 @@ class SecurityLimits(unittest.TestCase):
             conn.close()
 
     def ingest(self, raw):
-        return self.call("POST", "/ingest", raw, {"Authorization": "Bearer " + "k" * 40, "Content-Type": "application/json"})[0]
+        """Sends like the plugin: with the shared key until the server hands the computer its own key, then with that key.
+        Gửi như plugin: bằng khoá chung cho tới khi máy chủ trao cho máy khoá riêng, rồi bằng khoá đó."""
+        try:
+            device = json.loads(raw).get("device")
+        except (ValueError, AttributeError):
+            device = None
+        key = self.keys.get(device, "k" * 40)
+        status, body = self.call("POST", "/ingest", raw, {"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+        try:
+            given = json.loads(body).get("deviceKey")
+        except (ValueError, AttributeError):
+            given = None
+        if given and device:
+            self.keys[device] = given
+        return status
 
     def report(self, **fields):
         base = {"v": 1, "device": "device-sec", "name": "Sec", "account": "sec@example.com", "updatedAt": int(time.time() * 1000)}
@@ -2749,11 +2921,15 @@ class SecurityLimits(unittest.TestCase):
     def test_the_plugin_makes_device_ids_the_server_takes(self):
         # 0.24 plugins made may-... ids and every send got 400: the id the plugin builds must pass the server's rule
         # plugin 0.24 tạo mã may-... và mọi lần gửi bị 400: mã plugin tạo ra phải qua được quy tắc của máy chủ
-        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "hooks", "register.tsx"), encoding="utf-8") as f:
+        # newDeviceId in hooks/team.ts: its prefix and length, the longest one included, must pass
+        # newDeviceId trong hooks/team.ts: tiền tố và độ dài của nó, kể cả mã dài nhất, phải qua được
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "hooks", "team.ts"), encoding="utf-8") as f:
             source = f.read()
-        prefix = re.search(r"const id = `([a-z]+-)\$\{", source).group(1)
-        self.assertTrue(settings.DEVICE_NAME_RE.match(prefix + "a1b2c3d4"), prefix)
-        self.assertEqual(self.ingest(json.dumps(self.report(device=prefix + "a1b2c3d4"))), 200)
+        prefix = re.search(r"return '([a-z]+-)' \+ Array\.from", source).group(1)
+        length = int(re.search(r"DEVICE_ID_LENGTH = (\d+)", source).group(1))
+        made = prefix + ("a1b2c3d4" * 8)[:length]
+        self.assertTrue(settings.DEVICE_NAME_RE.match(made), made)
+        self.assertEqual(self.ingest(json.dumps(self.report(device=made))), 200)
         self.assertEqual(self.ingest(json.dumps(self.report(device="may-a1b2c3d4"))), 400)
 
     def test_the_device_limit_counts_the_database(self):
@@ -2779,6 +2955,7 @@ class SecurityLimits(unittest.TestCase):
         with db.data_db().tx() as c:
             c.execute("INSERT OR REPLACE INTO devices VALUES (?, ?, ?, ?, ?)", ("device-oldbad", "", "Old", int(time.time()), body))
             c.execute("INSERT OR REPLACE INTO devices VALUES (?, ?, ?, ?, ?)", ("device-broken", "", "", int(time.time()), "{not json"))
+        devices.DEVICES.forget()
         self.addCleanup(drop_device, "device-oldbad")
         self.addCleanup(drop_device, "device-broken")
         self.pages_still_work()
@@ -2814,6 +2991,10 @@ class SecurityLimits(unittest.TestCase):
         for field, value in report.items():
             if field == "assistants":
                 self.assertEqual(stored[field]["gemma"], "gemma4:26b")
+            elif field == "ledger":
+                # money is also kept as a whole number of millionths of a dollar
+                # tiền còn được giữ thêm dưới dạng số nguyên phần triệu đô la
+                self.assertEqual(stored[field], {hour: dict(value[hour], usdMicro=1_500_000)})
             else:
                 self.assertEqual(stored[field], value, field)
 
@@ -3872,6 +4053,8 @@ class PageMatchesServer(unittest.TestCase):
             "/admin/project-key": body_reads(branch("/admin/project-key")),
             "/admin/project-prices": body_reads(branch("/admin/project-prices")),
             "/admin/project-delete": body_reads(branch("/admin/project-delete")),
+            "/admin/device-revoke": body_reads(action.split('elif self.path in ("/admin/device-revoke", "/admin/device-forget"):')[1].split("elif self.path")[0]),
+            "/admin/device-forget": body_reads(action.split('elif self.path in ("/admin/device-revoke", "/admin/device-forget"):')[1].split("elif self.path")[0]),
         }
         seen = set()
         for m in re.finditer(r"(?:post|submit)\('(/[\w/-]+)',\s*(\{|\w+)", self.admin_js):
@@ -4603,6 +4786,624 @@ class Delegations(unittest.TestCase):
 def stores_tz():
     from board.settings import LOCAL_TZ
     return LOCAL_TZ
+
+
+class DeviceCacheAndViews(unittest.TestCase):
+    """The devices kept in memory always match the table, and the board kept for a few seconds per role never gives one role another's fields.
+    Các máy giữ trong bộ nhớ luôn khớp với bảng, và bảng giữ vài giây cho mỗi vai không bao giờ đưa cho vai này các trường của vai khác."""
+
+    DEVICES = ("device-c1", "device-c2", "device-c3")
+
+    @classmethod
+    def setUpClass(cls):
+        seed()
+
+    def tearDown(self):
+        for device in self.DEVICES:
+            drop_device(device)
+        os.environ["VIEW_CACHE_SECONDS"] = "0"
+
+    def report(self, device, **fields):
+        hour = str(int(time.time() // 3600))
+        base = {"v": 1, "device": device, "name": "Cache", "account": "cache@example.com", "updatedAt": int(time.time() * 1000), "openSessions": 1,
+                "working": 1, "ledger": {hour: {"usd": 1.5, "input": 10, "output": 2}}, "tasks": {hour: {"gemini": 1}},
+                "quota": {"readAt": int(time.time() * 1000), "windows": [{"kind": "five_hour", "pct": 40, "resetsAt": int((time.time() + 3600) * 1000)}]}}
+        return dict(base, **fields)
+
+    def send(self, device, **fields):
+        devices.save_ingest(devices.clean_payload(self.report(device, **fields), time.time()), time.time())
+
+    def from_table(self) -> dict:
+        out = {}
+        for device, body in db.data_db().rows("SELECT device, body FROM devices"):
+            try:
+                cleaned = devices.clean_payload(json.loads(body), time.time())
+            except ValueError:
+                cleaned = None
+            if cleaned:
+                # the hour book is in rows of its own (schema version 6), not in what the cache keeps
+                # sổ giờ nằm ở các dòng riêng (lược đồ phiên bản 6), không trong thứ bộ nhớ đệm giữ
+                for kind in devices.HOUR_KINDS:
+                    cleaned.pop(kind, None)
+                out[device] = cleaned
+        return out
+
+    def in_memory(self) -> dict:
+        return {m["device"]: m for m in devices.read_all_devices()}
+
+    def test_cleaning_twice_changes_nothing(self):
+        once = devices.clean_payload(self.report("device-c1", lanIp="10.0.0.1", subagents={"Explore": 1}), time.time())
+        self.assertEqual(devices.clean_payload(json.loads(json.dumps(once)), time.time() + 3600), once)
+
+    def test_the_cache_matches_the_table_after_many_sends(self):
+        rnd = random.Random(5)
+        for _ in range(60):
+            self.send(rnd.choice(self.DEVICES), working=rnd.randint(0, 1), waiting=rnd.randint(0, 1), lanIp="10.0.0.%d" % rnd.randint(1, 5))
+        self.assertEqual(self.in_memory(), self.from_table())
+        before = self.in_memory()
+        devices.DEVICES.forget()
+        self.assertEqual(self.in_memory(), before)
+
+    def test_a_write_by_another_program_is_seen(self):
+        self.send("device-c1")
+        self.assertIn("device-c1", self.in_memory())
+        other = sqlite3.connect(db.data_db().path)
+        try:
+            other.execute("DELETE FROM devices WHERE device = 'device-c1'")
+            other.commit()
+        finally:
+            other.close()
+        self.assertNotIn("device-c1", self.in_memory())
+        self.assertEqual(self.in_memory(), self.from_table())
+
+    def test_a_device_past_its_days_leaves_both(self):
+        old = int(time.time()) - (settings.KEEP_DAYS + 1) * 86400
+        devices.DEVICES.save(devices.clean_payload(self.report("device-c1"), time.time()), old)
+        self.assertNotIn("device-c1", self.in_memory())
+        self.assertEqual(db.data_db().rows("SELECT COUNT(*) FROM devices WHERE device = 'device-c1'"), [(0,)])
+
+    def test_the_count_includes_a_broken_row_as_the_table_does(self):
+        self.send("device-c1")
+        with db.data_db().tx() as c:
+            c.execute("INSERT OR REPLACE INTO devices VALUES (?, ?, ?, ?, ?)", ("device-c2", "", "", int(time.time()), "{not json"))
+        devices.DEVICES.forget()
+        self.assertEqual(devices.DEVICES.count(), db.data_db().rows("SELECT COUNT(*) FROM devices")[0][0])
+        self.assertNotIn("device-c2", self.in_memory())
+
+    def test_one_persons_devices(self):
+        self.send("device-c1")
+        self.send("device-c2")
+        self.send("device-c3", name="Other")
+        key = devices.person_key(self.report("device-c1"))
+        self.assertEqual([m["device"] for m in devices.DEVICES.of_person(key)], ["device-c1", "device-c2"])
+        # a device that moves to another person leaves the first one
+        # máy chuyển sang người khác thì rời khỏi người trước
+        self.send("device-c2", name="Other")
+        self.assertEqual([m["device"] for m in devices.DEVICES.of_person(key)], ["device-c1"])
+
+    def test_a_send_that_changes_state_writes_history_at_once(self):
+        key = devices.person_key(self.report("device-c1"))
+        self.send("device-c1", working=1, waiting=0)
+        views.record_history(key)
+        self.send("device-c1", working=0, waiting=1)
+        views.record_history(key)
+        mine = [r for r in views.HISTORY.rows if r["name"] == "Cache"]
+        self.assertEqual(mine[-1]["status"], "waiting")
+        # the same state sent again adds no row
+        # gửi lại đúng trạng thái đó thì không thêm dòng
+        count = len(views.HISTORY.rows)
+        self.send("device-c1", working=0, waiting=1)
+        views.record_history(key)
+        self.assertEqual(len(views.HISTORY.rows), count)
+
+    def test_many_threads_sending_and_reading(self):
+        errors = []
+
+        def work(n):
+            try:
+                for i in range(25):
+                    self.send(self.DEVICES[(n + i) % 3], working=i % 2)
+                    devices.read_all_devices()
+                    devices.DEVICES.count()
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=work, args=(n,)) for n in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(errors, [])
+        self.assertEqual(self.in_memory(), self.from_table())
+
+    def test_the_board_is_built_once_per_role_within_the_window(self):
+        os.environ["VIEW_CACHE_SECONDS"] = "2"
+        built = []
+        original = views.role_view
+
+        def counting(role, now, every_branch=False):
+            built.append(role)
+            return original(role, now, every_branch)
+
+        views.role_view = counting
+        try:
+            t = time.time() + 1000
+            views.VIEWS.json(security.WALL, t)
+            views.VIEWS.json(security.WALL, t + 1)
+            views.VIEWS.json("someone-unknown", t + 1)
+            self.assertEqual(built, [security.WALL])
+            views.VIEWS.json(security.ADMIN, t + 1)
+            views.VIEWS.json(security.WALL, t + 2.5)
+            self.assertEqual(built, [security.WALL, security.ADMIN, security.WALL])
+            os.environ["VIEW_CACHE_SECONDS"] = "0"
+            views.VIEWS.json(security.WALL, t + 2.6)
+            views.VIEWS.json(security.WALL, t + 2.6)
+            self.assertEqual(len(built), 5)
+        finally:
+            views.role_view = original
+
+    def test_a_role_never_gets_another_roles_board(self):
+        os.environ["VIEW_CACHE_SECONDS"] = "60"
+        t = time.time() + 2000
+        admin = views.VIEWS.json(security.ADMIN, t)
+        self.assertIn(EMAIL.encode(), admin)
+        for role in (security.WALL, "someone-unknown"):
+            wall = views.VIEWS.json(role, t)
+            self.assertNotIn(EMAIL.encode(), wall)
+            self.assertEqual(json.loads(wall)["role"], security.WALL)
+        viewer = json.loads(views.VIEWS.json(security.VIEWER, t))
+        self.assertEqual(viewer["role"], security.VIEWER)
+        # a copy given out may get a key of its own without touching what the next request gets
+        # bản sao đưa ra được thêm khoá riêng mà không đụng tới thứ yêu cầu sau nhận
+        views.VIEWS.view(security.WALL, t)["reload"] = True
+        self.assertNotIn("reload", views.VIEWS.view(security.WALL, t))
+
+
+class BusyServer(unittest.TestCase):
+    """A busy server answers sends and people who are not logged in with 503 at once, and still answers people looking at the board.
+    Máy chủ đang bận trả ngay 503 cho lần gửi và người chưa đăng nhập, và vẫn trả lời những người đang xem bảng."""
+
+    @classmethod
+    def setUpClass(cls):
+        seed()
+        stores.ACCOUNTS.d = {"accounts": {"adm": {"role": security.ADMIN, "secret": ""}}}
+        login.SESSIONS.sessions["tok-busy"] = ("adm", NOW + 3600)
+        cls.server = w.LimitedServer(("127.0.0.1", 0), w.Handler)
+        cls.port = cls.server.server_address[1]
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+
+    def setUp(self):
+        security.BOT.__init__()
+        self.saved = w.LOAD.limit
+        # with a limit of 1, any other request being answered makes the server busy
+        # với giới hạn 1, chỉ cần một yêu cầu khác đang được trả lời là máy chủ đã bận
+        w.LOAD.limit = 1
+
+    def tearDown(self):
+        w.LOAD.limit = self.saved
+
+    def call(self, method, path, body=None, headers=None):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        try:
+            conn.request(method, path, body, headers or {})
+            r = conn.getresponse()
+            return r.status, dict(r.getheaders()), r.read()
+        finally:
+            conn.close()
+
+    def while_busy(self, *call):
+        # one request held open the whole time stands for the crowd
+        # một yêu cầu được giữ suốt thời gian đó đứng thay cho đám đông
+        with w.LOAD.request():
+            return self.call(*call)
+
+    def test_a_send_gets_503_with_retry_after(self):
+        body = json.dumps({"v": 1, "device": "device-busy", "name": "Busy", "updatedAt": int(time.time() * 1000)})
+        status, headers, _ = self.while_busy("POST", "/ingest", body, {"Authorization": "Bearer test", "Content-Type": "application/json"})
+        self.assertEqual(status, 503)
+        self.assertEqual(headers.get("Retry-After"), str(settings.BUSY_RETRY_SECONDS))
+        self.assertIsNone(devices.read_device("device-busy"))
+
+    def test_a_large_body_is_not_read_when_busy(self):
+        # a body past BUSY_READ_BYTES is never sent in full: the server answers from the headers and closes
+        # thân quá BUSY_READ_BYTES không bao giờ được gửi hết: máy chủ trả lời từ phần header rồi đóng
+        conn = socket.create_connection(("127.0.0.1", self.port), timeout=10)
+        try:
+            with w.LOAD.request():
+                conn.sendall(b"POST /ingest HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer test\r\nContent-Type: application/json\r\n"
+                             b"Content-Length: %d\r\n\r\n" % (settings.BUSY_READ_BYTES * 8))
+                answer = conn.recv(200)
+        finally:
+            conn.close()
+        self.assertTrue(answer.startswith(b"HTTP/1.0 503") or answer.startswith(b"HTTP/1.1 503"), answer)
+
+    def test_someone_not_logged_in_gets_503(self):
+        self.assertEqual(self.while_busy("GET", "/data")[0], 503)
+        self.assertEqual(self.while_busy("POST", "/login", "account=x&code=1", {"Content-Type": "application/x-www-form-urlencoded"})[0], 503)
+
+    def test_people_logged_in_and_health_still_get_through(self):
+        self.assertEqual(self.while_busy("GET", "/data", None, {"Cookie": "session=tok-busy"})[0], 200)
+        self.assertEqual(self.while_busy("GET", "/health")[0], 200)
+
+    def test_not_busy_answers_as_usual(self):
+        self.assertEqual(self.call("GET", "/data")[0], 401)
+        self.assertEqual(w.LOAD.active, 0)
+
+    def test_the_log_says_it_once_a_minute(self):
+        load = w.Load(1)
+        written = io.StringIO()
+        with contextlib.redirect_stderr(written):
+            for t in (100.0, 101.0, 150.0, 161.0):
+                load.note_shed(t)
+        self.assertEqual(written.getvalue().count("busy:"), 2)
+        self.assertIn(" 3 sends", written.getvalue())
+
+
+class HoursAddedUpOnce(unittest.TestCase):
+    """The hourly numbers added up once per send give the same board and the same daily totals as going through every hour each time.
+    Số liệu theo giờ cộng một lần cho mỗi lần gửi cho ra cùng bảng và cùng tổng theo ngày như cách đi qua từng giờ mỗi lần."""
+
+    def tearDown(self):
+        for i in range(6):
+            drop_device("device-hours%d" % i)
+
+    def computers(self, now):
+        rnd = random.Random(9)
+        hour = int(now // 3600)
+        out = []
+        for i in range(6):
+            ledger, tasks = {}, {}
+            # 9 days back and up to a day ahead, as a computer with a wrong clock may send
+            # lùi 9 ngày và tới một ngày sau, như máy lệch đồng hồ có thể gửi
+            for back in range(-24, 9 * 24, rnd.choice((1, 2, 3))):
+                usd = round(rnd.uniform(0, 3), 2)
+                ledger[str(hour - back)] = {"usd": usd, "input": rnd.randint(0, 9000), "output": rnd.randint(0, 900), "cacheRead": rnd.randint(0, 50000), "cacheWrite": rnd.randint(0, 900)}
+                if rnd.random() < 0.4:
+                    tasks[str(hour - back)] = {"gemini": rnd.randint(0, 3), "chatgpt": rnd.randint(0, 2), "gemma": rnd.randint(0, 4)}
+            # two people, three computers each, so rows add up several computers
+            # hai người, mỗi người ba máy, để mỗi dòng cộng nhiều máy
+            out.append({"v": 1, "device": "device-hours%d" % i, "name": "Hours%d" % (i % 2), "account": "hours@example.com", "updatedAt": int(now * 1000),
+                        "openSessions": 1, "ledger": ledger, "tasks": tasks})
+        return out
+
+    @staticmethod
+    def by_hand(devices_list, now):
+        """Every hour, every time: the way the board added them up before.
+        Từng giờ, mỗi lần: cách bảng đã cộng trước đây."""
+        today = datetime.fromtimestamp(now, settings.LOCAL_TZ).date()
+        people = {}
+        for m in devices_list:
+            r = people.setdefault(devices.person_key(m), {"usdToday": 0.0, "usd7d": 0.0, "tokensIn": 0, "tokensOut": 0, "tasks": [0, 0, 0], "costByHour": {}, "tasksByHour": {}})
+            for hour, v in m["ledger"].items():
+                day = datetime.fromtimestamp(int(hour) * 3600, settings.LOCAL_TZ).date()
+                if day >= today - timedelta(days=6):
+                    r["usd7d"] += v["usd"]
+                if int(hour) * 3600 > now - 86400:
+                    r["costByHour"][int(hour)] = r["costByHour"].get(int(hour), 0.0) + v["usd"]
+                if day == today:
+                    r["usdToday"] += v["usd"]
+                    r["tokensIn"] += v["input"] + v["cacheRead"] + v["cacheWrite"]
+                    r["tokensOut"] += v["output"]
+            for hour, v in m["tasks"].items():
+                if int(hour) * 3600 > now - 86400:
+                    counts = r["tasksByHour"].setdefault(int(hour), [0, 0, 0])
+                    for i, worker in enumerate(("gemini", "chatgpt", "gemma")):
+                        counts[i] += v[worker]
+                if datetime.fromtimestamp(int(hour) * 3600, settings.LOCAL_TZ).date() == today:
+                    for i, worker in enumerate(("gemini", "chatgpt", "gemma")):
+                        r["tasks"][i] += v[worker]
+        return people
+
+    def same(self, rows, expected):
+        self.assertEqual({r["key"] for r in rows}, set(expected))
+        for r in rows:
+            e = expected[r["key"]]
+            for field in ("usdToday", "usd7d"):
+                self.assertAlmostEqual(r[field], e[field], places=9)
+            self.assertEqual((r["tokensIn"], r["tokensOut"], r["tasks"], r["tasksByHour"]), (e["tokensIn"], e["tokensOut"], e["tasks"], e["tasksByHour"]))
+            self.assertEqual(set(r["costByHour"]), set(e["costByHour"]))
+            for hour, usd in e["costByHour"].items():
+                self.assertAlmostEqual(r["costByHour"][hour], usd, places=9)
+
+    def test_the_board_adds_up_as_before(self):
+        now = time.time()
+        raw = self.computers(now)
+        expected = self.by_hand(raw, now)
+        # dicts the cache does not hold, and the cleaned ones it does
+        # các dict bộ nhớ đệm không giữ, và các dict đã làm sạch mà nó giữ
+        self.same(devices.group_by_person(raw, now), expected)
+        for m in raw:
+            devices.save_device(m)
+        kept = [m for m in devices.read_all_devices() if m["device"].startswith("device-hours")]
+        self.assertTrue(all(devices.DEVICES.holds(m) for m in kept))
+        self.same(devices.group_by_person(kept, now), expected)
+        # the same summary is right an hour and a day later, since it does not depend on the time it was made
+        # cùng bản cộng vẫn đúng sau một giờ và một ngày, vì nó không phụ thuộc lúc được làm
+        for later in (now + 3600, now + 86400):
+            self.same(devices.group_by_person(kept, later), self.by_hand(raw, later))
+
+    def test_the_daily_totals_add_up_as_before(self):
+        now = time.time()
+        raw = self.computers(now)
+        today = datetime.fromtimestamp(now, settings.LOCAL_TZ).date()
+        first = today - timedelta(days=settings.DAILY_RECOUNT_DAYS - 1)
+        expected = {}
+        for m in raw:
+            for field in ("ledger", "tasks"):
+                for hour, v in m[field].items():
+                    day = datetime.fromtimestamp(int(hour) * 3600, settings.LOCAL_TZ).date()
+                    if not first <= day <= today:
+                        continue
+                    r = expected.setdefault(day.isoformat(), {}).setdefault(devices.person_key(m), dict.fromkeys(daily.NUMBERS, 0))
+                    if field == "ledger":
+                        r["usd"] += v["usd"]
+                        r["tokensIn"] += v["input"] + v["cacheRead"] + v["cacheWrite"]
+                        r["tokensOut"] += v["output"]
+                    else:
+                        for worker in daily.WORKERS:
+                            r[worker] += v[worker]
+        got = daily.totals_by_day(raw, now)
+        self.assertEqual({d: set(p) for d, p in got.items()}, {d: set(p) for d, p in expected.items()})
+        for day, people in expected.items():
+            for key, numbers in people.items():
+                for number, value in numbers.items():
+                    self.assertAlmostEqual(got[day][key][number], value, places=9)
+
+    def test_a_day_by_arithmetic_is_the_day_of_the_clock(self):
+        for hour in (0, 1, 23, 24, 470000, 491234, 500017):
+            self.assertEqual(devices.local_day_of_hour(hour), datetime.fromtimestamp(hour * 3600, settings.LOCAL_TZ).date())
+
+
+class PersonRowsKept(unittest.TestCase):
+    """A person's row kept between builds of the board is always the row a fresh count would give.
+    Dòng của một người được giữ giữa các lần dựng bảng luôn đúng là dòng mà một lần đếm mới sẽ cho."""
+
+    def tearDown(self):
+        for device in ("device-kept1", "device-kept2", "device-kepttool"):
+            drop_device(device)
+
+    def fresh(self, now):
+        # whole records read from the tables are not held by the cache, so they are always counted afresh, hour by hour
+        # bản ghi đầy đủ đọc từ các bảng không nằm trong bộ nhớ đệm, nên luôn được đếm lại từ đầu, từng giờ một
+        return devices.group_by_person([devices.read_device(m["device"]) for m in self.kept()], now)
+
+    def kept(self):
+        return [m for m in devices.read_all_devices() if m["device"].startswith("device-kept")]
+
+    def check(self, now):
+        self.assertEqual(devices.group_by_person(self.kept(), now), self.fresh(now))
+
+    def test_kept_rows_match_a_fresh_count_over_time(self):
+        now = time.time()
+        hour = str(int(now // 3600))
+        quota = {"readAt": int(now * 1000), "windows": [{"kind": "five_hour", "pct": 60, "resetsAt": int((now + 1800) * 1000)}]}
+        devices.save_device({"v": 1, "device": "device-kept1", "name": "Kept", "account": "kept@example.com", "updatedAt": int(now * 1000), "openSessions": 1,
+                             "working": 1, "ledger": {hour: {"usd": 2.0, "input": 5, "output": 1}}, "quota": quota})
+        devices.save_device({"v": 1, "device": "device-kept2", "name": "Kept", "account": "kept@example.com", "updatedAt": int((now - 600) * 1000), "openSessions": 1})
+        devices.save_device({"v": 1, "device": "device-kepttool", "name": "Kept", "account": "kept@example.com", "updatedAt": int(now * 1000),
+                             "tools": {"codex": {"openSessions": 1, "working": 1, "waiting": 0}}})
+        # past each moment that changes the row: a computer going quiet, the quota resetting, the connector's work going stale,
+        # the next hour, the next day, a computer going quiet for good
+        # qua từng thời điểm làm dòng đổi: một máy im, hạn mức làm mới, việc của bộ nối hết mới, giờ kế tiếp, ngày kế tiếp, máy im hẳn
+        for later in (0, 1, 200, 1799, 1801, 1900, 3700, 7300, 86400 + 60):
+            self.check(now + later)
+        # a send replaces the device, so the next build counts that person again
+        # lần gửi thay máy, nên lần dựng sau đếm lại người đó
+        before = devices.group_by_person(self.kept(), now + 5)[0]["working"]
+        devices.save_device({"v": 1, "device": "device-kept1", "name": "Kept", "account": "kept@example.com", "updatedAt": int((now + 6) * 1000), "openSessions": 1, "waiting": 1})
+        after = devices.group_by_person(self.kept(), now + 7)[0]
+        self.assertNotEqual((before, 0), (after["working"], after["waiting"]))
+        self.check(now + 7)
+
+    def test_a_row_given_out_can_be_written_without_touching_the_kept_one(self):
+        now = time.time()
+        devices.save_device({"v": 1, "device": "device-kept1", "name": "Kept", "account": "kept@example.com", "updatedAt": int(now * 1000), "openSessions": 1})
+        devices.group_by_person(self.kept(), now)[0]["shared"] = "changed"
+        self.assertIsNot(devices.group_by_person(self.kept(), now)[0]["shared"], "changed")
+
+
+class SendsPerComputer(unittest.TestCase):
+    """Sends are limited per computer, not per address: a whole office behind one address keeps sending, one computer that loops does not.
+    Lần gửi bị giới hạn theo máy, không theo địa chỉ: cả văn phòng chung một địa chỉ vẫn gửi được, một máy chạy vòng lặp thì không."""
+
+    def setUp(self):
+        self.gate = devices.IngestGate(db.data_db())
+
+    def send(self, device, at, ip="203.0.113.7"):
+        return self.gate.check({"device": device, "account": device + "@example.com", "name": device}, ip, at, 0)
+
+    def test_one_computer_that_loops_is_stopped_and_comes_back(self):
+        at = 1_000_000.0
+        answers = [self.send("device-loop", at) for _ in range(settings.INGEST_BURST + 1)]
+        self.assertEqual(answers[:-1], [None] * settings.INGEST_BURST)
+        self.assertEqual(answers[-1], (429, "too many submissions"))
+        # a few seconds later its bucket has refilled a little
+        # vài giây sau xô của nó đã đầy lại một ít
+        self.assertIsNone(self.send("device-loop", at + 3 / settings.INGEST_PER_SECOND))
+
+    def test_many_computers_behind_one_address_all_send(self):
+        at = 2_000_000.0
+        names = ["device-office%03d" % i for i in range(200)]
+        # the computers were known before; only new ones are limited per address
+        # các máy đã được biết từ trước; chỉ máy mới bị giới hạn theo địa chỉ
+        for name in names:
+            self.gate.identities[name] = [name + "@example.com", name]
+        # every computer sends every 2 seconds for 10 minutes, all from the same address
+        # mỗi máy gửi 2 giây một lần trong 10 phút, tất cả từ cùng một địa chỉ
+        refused = sum(1 for step in range(300) for name in names if self.send(name, at + 2 * step) is not None)
+        self.assertEqual(refused, 0)
+
+    def test_new_computers_from_one_address_are_still_limited(self):
+        at = 3_000_000.0
+        answers = [self.send("device-new%02d" % i, at + i) for i in range(settings.NEW_DEVICES_PER_IP + 1)]
+        self.assertEqual(answers[-1], (429, "too many new devices from one address"))
+        for i in range(settings.NEW_DEVICES_PER_IP):
+            self.gate.identities.pop("device-new%02d" % i, None)
+            with db.data_db().tx() as c:
+                c.execute("DELETE FROM identities WHERE device = ?", ("device-new%02d" % i,))
+
+
+class DeviceKeys(unittest.TestCase):
+    """Each computer gets a key of its own at its first send; from then on only that key sends for it, and an admin can cut it off.
+    Mỗi máy nhận khoá riêng ở lần gửi đầu; từ đó chỉ khoá đó được gửi cho máy, và quản trị cắt được máy đó."""
+
+    SHARED = "s" * 40
+
+    @classmethod
+    def setUpClass(cls):
+        cls.saved_key = settings.INGEST_KEY
+        settings.INGEST_KEY = cls.SHARED
+        cls.server = w.LimitedServer(("127.0.0.1", 0), w.Handler)
+        cls.port = cls.server.server_address[1]
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        settings.INGEST_KEY = cls.saved_key
+        cls.server.shutdown()
+        cls.server.server_close()
+
+    def setUp(self):
+        security.BOT.__init__()
+        views.INGEST_GATE.buckets, views.INGEST_GATE.new_devices = {}, {}
+        self.saved_mode = settings.SHARED_KEY_MODE
+        self.devices = []
+
+    def tearDown(self):
+        settings.SHARED_KEY_MODE = self.saved_mode
+        for device in self.devices:
+            devicekeys.DEVICE_KEYS.forget(device)
+            drop_device(device)
+            views.INGEST_GATE.identities.pop(device, None)
+            with db.data_db().tx() as c:
+                c.execute("DELETE FROM identities WHERE device = ?", (device,))
+
+    def send(self, device, key, **fields):
+        if device not in self.devices:
+            self.devices.append(device)
+        body = json.dumps(dict({"v": 1, "device": device, "name": "Key " + device[-2:], "account": device + "@example.com", "updatedAt": int(time.time() * 1000)}, **fields))
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        try:
+            conn.request("POST", "/ingest", body, {"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+            r = conn.getresponse()
+            return r.status, json.loads(r.read() or b"{}")
+        finally:
+            conn.close()
+
+    def enrol(self, device):
+        status, answer = self.send(device, self.SHARED)
+        self.assertEqual(status, 200)
+        return answer["deviceKey"]
+
+    def test_the_first_send_gets_a_key_and_then_only_that_key_sends(self):
+        key = self.enrol("device-k01")
+        parts = key.split(".")
+        self.assertEqual((len(parts), parts[0], parts[5]), (8, "awd1", "device-k01"))
+        # the key carries no email, name or address
+        # khoá không mang email, tên hay địa chỉ
+        self.assertNotIn("example.com", key)
+        status, again = self.send("device-k01", key)
+        self.assertEqual((status, again["ok"], "deviceKey" in again), (200, True, False))
+        self.assertEqual(self.send("device-k01", self.SHARED), (401, {"error": "use this computer's own key"}))
+        # only the time of the newest key is stored, never the key
+        # chỉ lưu lúc cấp khoá mới nhất, không bao giờ lưu khoá
+        rows = db.data_db().rows("SELECT * FROM device_keys WHERE device = 'device-k01'")
+        self.assertEqual(len(rows[0]), 3)
+        self.assertNotIn(key, json.dumps(rows))
+
+    def test_a_key_sends_only_for_its_own_computer(self):
+        key = self.enrol("device-k02")
+        self.enrol("device-k03")
+        self.assertEqual(self.send("device-k03", key), (403, {"error": "this key belongs to another computer"}))
+
+    def test_a_changed_or_made_up_key_is_refused(self):
+        key = self.enrol("device-k04")
+        for bad in (key[:-2] + ("AA" if not key.endswith("AA") else "BB"), key.replace("device-k04", "device-k05"),
+                    "awd1.x.y.z.w.device-k04.1795000000.sig", "awd1." + "a" * 300):
+            status, answer = self.send("device-k04", bad)
+            self.assertEqual(status, 401, bad)
+        self.assertEqual(self.send("device-k04", key)[0], 200)
+
+    def test_an_expired_key_is_refused_and_the_computer_can_enrol_again(self):
+        old = devicekeys.DEVICE_KEYS.issue("device-k06", "device-k06@example.com", "Key 06", time.time() - (devicekeys.KEY_DAYS + 1) * 86400)
+        self.devices.append("device-k06")
+        self.assertEqual(self.send("device-k06", old), (401, {"error": "device key expired"}))
+        self.assertEqual(devicekeys.DEVICE_KEYS.state("device-k06", time.time()), "expired")
+        self.assertTrue(self.enrol("device-k06").startswith("awd1."))
+
+    def test_an_old_key_gets_a_new_one_in_the_answer(self):
+        old = devicekeys.DEVICE_KEYS.issue("device-k07", "device-k07@example.com", "Key 07", time.time() - (devicekeys.RENEW_AFTER_DAYS + 1) * 86400)
+        self.devices.append("device-k07")
+        status, answer = self.send("device-k07", old)
+        self.assertEqual(status, 200)
+        self.assertNotEqual(answer["deviceKey"], old)
+        status, again = self.send("device-k07", answer["deviceKey"])
+        self.assertEqual((status, again["ok"], "deviceKey" in again), (200, True, False))
+
+    def test_a_revoked_computer_is_refused_whatever_it_carries_until_it_is_forgotten(self):
+        key = self.enrol("device-k08")
+        self.assertTrue(devicekeys.DEVICE_KEYS.revoke("device-k08", time.time()))
+        self.assertEqual(self.send("device-k08", key), (401, {"error": "device revoked"}))
+        self.assertEqual(self.send("device-k08", self.SHARED), (403, {"error": "device revoked"}))
+        devicekeys.DEVICE_KEYS.forget("device-k08")
+        self.assertTrue(self.enrol("device-k08").startswith("awd1."))
+
+    def test_the_shared_key_can_be_narrowed_and_turned_off(self):
+        self.enrol("device-k09")
+        devicekeys.DEVICE_KEYS.forget("device-k09")
+        settings.SHARED_KEY_MODE = "known-only"
+        self.assertEqual(self.send("device-k10", self.SHARED), (401, {"error": "the shared key no longer adds computers"}))
+        self.assertEqual(self.send("device-k09", self.SHARED)[0], 200)
+        devicekeys.DEVICE_KEYS.forget("device-k09")
+        settings.SHARED_KEY_MODE = "off"
+        self.assertEqual(self.send("device-k09", self.SHARED), (401, {"error": "the shared key is turned off"}))
+
+    def admin(self, path, body, confirmed=True):
+        stores.ACCOUNTS.d = {"accounts": {"adm": {"role": security.ADMIN, "secret": ""}}}
+        login.SESSIONS.sessions["tok-key-adm"] = ("adm", time.time() + 3600)
+        if confirmed:
+            login.SESSIONS.confirmed_at["tok-key-adm"] = time.time()
+        else:
+            login.SESSIONS.confirmed_at.pop("tok-key-adm", None)
+        origin = "http://127.0.0.1:%d" % self.port
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        try:
+            conn.request("POST", path, json.dumps(body), {"Cookie": "session=tok-key-adm", "Origin": origin, "Content-Type": "application/json"})
+            r = conn.getresponse()
+            return r.status, json.loads(r.read() or b"{}")
+        finally:
+            conn.close()
+
+    def test_an_admin_revokes_a_computer_from_the_page_and_lets_it_back(self):
+        key = self.enrol("device-k12")
+        listed = {c["device"]: c for c in views.computer_keys(time.time())["computers"]}
+        self.assertEqual((listed["device-k12"]["state"], listed["device-k12"]["account"]), ("active", "device-k12@example.com"))
+        # without the OTP typed again the action is refused
+        # chưa nhập lại OTP thì thao tác bị từ chối
+        self.assertNotEqual(self.admin("/admin/device-revoke", {"device": "device-k12"}, confirmed=False)[0], 200)
+        self.assertEqual(self.send("device-k12", key)[0], 200)
+        self.assertEqual(self.admin("/admin/device-revoke", {"device": "device-k12"})[0], 200)
+        self.assertEqual(self.send("device-k12", key), (401, {"error": "device revoked"}))
+        self.assertEqual(views.computer_keys(time.time())["revoked"] >= 1, True)
+        self.assertEqual(all_audit_rows()[-1]["action"], "device-revoked")
+        self.assertNotEqual(self.admin("/admin/device-revoke", {"device": "../etc"})[0], 200)
+        self.assertEqual(self.admin("/admin/device-forget", {"device": "device-k12"})[0], 200)
+        self.assertTrue(self.enrol("device-k12").startswith("awd1."))
+
+    def test_updates_still_download_with_either_key(self):
+        key = self.enrol("device-k11")
+        for token in (self.SHARED, key):
+            conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+            try:
+                conn.request("GET", "/releases/latest.json", headers={"Authorization": "Bearer " + token})
+                self.assertEqual(conn.getresponse().status, 200)
+            finally:
+                conn.close()
 
 
 if __name__ == "__main__":

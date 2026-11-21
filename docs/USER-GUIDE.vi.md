@@ -97,6 +97,8 @@ Trước khi gửi gì sang ChatGPT hay Gemini, Claude hỏi bạn, trừ khi đ
 
 Trước khi Claude chạy `git commit`, các dòng commit thêm vào cũng được đọc như vậy. Dòng nào có thứ trông như bí mật thì bạn được hỏi trước, kèm file và dòng nhưng không kèm giá trị: bí mật đã vào git thì ở lại trong lịch sử, kể cả khi commit sau bỏ nó đi. Còn khi một trang web hay kết quả tìm kiếm Claude đọc có chữ nhắm vào AI (lệnh bỏ qua hướng dẫn trước, giấu bạn điều gì, hay gửi khoá đi đâu đó), bạn thấy một thông báo ngắn và Claude được báo đó là chữ của trang, không phải yêu cầu của bạn.
 
+Khi bạn mở Claude trong một repo có file tự cấu hình AI, bạn thấy một dòng về những gì mới: ví dụ `.mcp.json khai báo server MCP "helper" chạy lệnh node tools/server.js`, hay `.claude/settings.json cho Claude chạy mọi lệnh mà không hỏi (Bash(*))`. Các file này đến cùng một lần clone hay pull. Nếu không phải bạn thêm, hãy mở ra xem trước khi làm tiếp; Claude cũng được báo như vậy và hỏi bạn trước khi chạy gì vì chúng. Không có gì bị chặn. Mỗi thay đổi chỉ báo một lần: phiên sau trong cùng repo không nói gì cho tới khi một file trong số đó đổi, và repo bạn đã có hơn 14 ngày thì lần đầu cũng không nói gì.
+
 Đăng nhập sau: mở Terminal hoặc PowerShell, gõ `codex login` (ChatGPT) hoặc `agy` (Gemini).
 
 ### 1.5 Cập nhật
@@ -192,7 +194,7 @@ Bảng tổng chỉ mở được từ mạng công ty.
 
 ### 2.2 Bảng tổng
 
-Trang tự cập nhật 10 giây một lần:
+Trang tự cập nhật mỗi giây:
 
 - **Dải trạng thái trên cùng:** bao nhiêu người đang làm, đang chờ, đang rảnh, và các cảnh báo như có người gần hết hạn mức.
 - **Sơ đồ:** mỗi người nối với Claude và các trợ lý phụ; hạt sáng chạy nghĩa là đang làm hoặc đang giao việc. **Bấm vào một người** để xem số liệu của người đó.
@@ -204,6 +206,8 @@ Trang tự cập nhật 10 giây một lần:
 - **Bảng chi tiết** (`/board`): cùng số liệu dạng bảng, có cột Plugin cho biết máy nào chưa lên bản mới nhất. Bên dưới bảng, phần **Mức dùng theo tuần và theo tháng** mở đầu bằng biểu đồ: chi phí của cả đội theo tuần trong 12 tuần gần nhất và theo tháng trong tối đa 13 tháng, rồi mỗi văn phòng một hàng cột nhỏ, tất cả cùng một thang đo. Cột sọc là tuần hoặc tháng chưa trọn: tuần, tháng hiện tại, hoặc tuần, tháng bắt đầu có số liệu. Rê chuột vào một cột, hoặc chạm vào nó trên điện thoại, để xem ngày tháng và số tiền chính xác. Dưới biểu đồ là bảng cho thấy chi phí tuần này và tháng này của cả đội, từng văn phòng và từng người, đặt cạnh tuần trước và tháng trước. ▲ và ▼ là so với cùng số ngày trước đó, nên ngày thứ Tư được đem so với thứ Hai tới thứ Tư của tuần trước. Dấu gạch nghĩa là lúc đó máy chủ chưa có số liệu. Màn hình treo tường không có phần này.
 
 Màu: xanh lá là đang làm, vàng là đang chờ trả lời, xanh nhạt là đang rảnh, xám là không kết nối.
+
+Một người thường mở nhiều phiên cùng lúc. Ai đang chờ trả lời ở một phiên trong khi phiên khác vẫn chạy thì hiện màu vàng, nhưng được đếm cả đang chờ lẫn đang làm: có tên ở cả thẻ **Đang chờ** và thẻ **Đang làm** của khung nhỏ, và nằm trong cả hai con số trên bảng, trong Telegram và trong công cụ office_board. Vì vậy số "đang làm" cộng số "đang chờ" có thể lớn hơn số người đang trực tuyến.
 
 Người dùng Codex, Cursor hoặc Gemini CLI có thêm một dòng dưới tên, ghi từng công cụ đang mở và nó đang làm gì. Với các công cụ này, đang chờ nghĩa là công cụ xin duyệt hoặc kết thúc lượt bằng một câu hỏi; chi phí, token và hạn mức của chúng không biết được, nên người chỉ dùng các công cụ đó không có số chi phí trên bảng.
 
@@ -336,6 +340,7 @@ Gói cá nhân (Pro, Max) không có trong báo cáo này.
 - **Nhật ký:** đăng nhập, thay đổi và các lần bị từ chối trong tháng đã chọn. Giữ 12 tháng; trang hiện 300 dòng mới nhất. Dòng **Kiểm nhật ký** phía trên cho biết có dòng nào bị sửa hay bị xoá khỏi cơ sở dữ liệu bằng tay không, và hiện dấu vân tay cuối: thỉnh thoảng ghi lại để so về sau.
 - **ai-worker đã chặn:** trên cả team trong 7 ngày qua, bao nhiêu lần khoá hay mật khẩu không được gửi sang ChatGPT hay Gemini, bao nhiêu commit hay lệnh rủi ro được hỏi lại, bao nhiêu trang tìm cách lái Claude bị cảnh báo. Chỉ số đếm, không bao giờ có nội dung.
 - **Khoá cho công cụ AI không dùng 30 ngày** được liệt kê phía trên bảng ở mục **Thiết bị và khoá đã ghép**; thu hồi khoá nào không ai cần.
+- **Máy nhân viên và khoá riêng** liệt kê mọi máy nhân viên đã có khoá riêng. Khi một máy bị mất, bị lấy, hay người dùng nghỉ việc, bấm **Thu hồi** ở dòng của máy đó rồi nhập OTP: máy dừng gửi ngay, và khoá trong gói cài cũng không đưa nó quay lại được. **Cho gửi lại** để máy ghi danh lại.
 
 ### 3.7 File cài biểu tượng thanh menu
 

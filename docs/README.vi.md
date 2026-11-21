@@ -22,6 +22,8 @@ Toàn bộ tài liệu AI Worker, xếp theo mục đích. Mỗi tài liệu có
 | | [employee-notice.vi.md](employee-notice.vi.md): thông báo cho nhân viên về dữ liệu được thu | Nhân sự, quản lý |
 | | [chat-preferences.vi.md](chat-preferences.vi.md): gợi ý thiết lập chat Claude | Nhân viên |
 | **V. Kiểm thử** | [TEST-PLAN.vi.md](TEST-PLAN.vi.md): test tự động, kiểm tay, danh sách kiểm trước khi phát hành | Lập trình viên, quản trị |
+| | [BENCHMARK.vi.md](BENCHMARK.vi.md): một máy chủ gánh được bao nhiêu máy, có số đo, và vượt mức đó thì làm gì | Quản trị, lập trình viên |
+| | [RECEIVER.vi.md](RECEIVER.vi.md): bộ nhận tuỳ chọn bằng Go cho tổ chức lớn, cách nó trao lần gửi cho máy chủ, cách dựng lên | Quản trị, lập trình viên |
 | **VI. Vận hành khai thác** | [OPERATIONS.vi.md](OPERATIONS.vi.md): kiểm tra hằng ngày, sự cố, sao lưu, nâng cấp và quay về bản cũ, chính sách nhật ký, hồ sơ triển khai | Quản trị |
 | | [SECURITY.vi.md](../SECURITY.vi.md): những gì được bảo vệ, báo lỗi bảo mật | Mọi người |
 | **Dự án** | [CHANGELOG.md](../CHANGELOG.md), [CONTRIBUTING.vi.md](../CONTRIBUTING.vi.md), [CODE_OF_CONDUCT.vi.md](../CODE_OF_CONDUCT.vi.md), [SUPPORT.vi.md](../SUPPORT.vi.md) | Người đóng góp |

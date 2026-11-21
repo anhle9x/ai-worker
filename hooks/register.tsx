@@ -12,7 +12,7 @@ import type { EngineInterface, Register, ToolCallResult } from 'claude-code'
 import type { Activity, BlockKind, Job, Ledger, TeamState, Usage, WorkerId } from '../types'
 import { applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, staleSessionFiles } from './activity'
 import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextNoteForClaude, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
-import { answerModel, buildMachineSummary, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
+import { answerModel, buildMachineSummary, deviceKeyIn, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
 import type { ShareConfig } from './team'
 import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT, findHostApp, parseLinuxHost, parseWindowsHost, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
 import { AGY_BRAIN, IMAGE_DIR, IMAGE_SCHEMA, IMAGE_SETTLE_MS, OLLAMA_URL, PROMPT_LEVEL_SCHEMA, PROMPT_SCHEMA, WORKER_TIMEOUT_MS, imageArgv, imageTargets, newImages, safeImageName, sendingNeedsAsking, sendingRefusal, agyArgv, codexArgv, codexInput, isBatchLauncher, delegationRules, gemmaAnswer, gemmaRequest, mcpConfigured, ownTools, pickGemma } from './workers'
@@ -26,6 +26,8 @@ import { dangerNote, dangerQuestion, destructiveCommand } from './guard'
 import { findSecrets, secretRefusal } from './secrets'
 import { commitIn, commitQuestion, diffCommand, newFileDiffCommand, secretsInDiff, untrackedCommand } from './commitscan'
 import { OUTSIDE_TEXT_TOOL, findInjection, injectionNote, injectionToast } from './injection'
+import { findRepoConfig, readRepoFiles, rememberRepo, repoKey, repoNews, repoNote, repoToast } from './repoconfig'
+import type { RepoSeen } from './repoconfig'
 import { answerFlags, answerNote, answerToast, checkAnswer } from './answers'
 import { addDelegation, delegationTool, makeDelegation, newSalt, promptHash, recentDelegations } from './delegations'
 import { handoffSection, newestNotes, noteName } from './handoff'
@@ -289,6 +291,7 @@ async function save($: EngineInterface, s: TeamState) {
     const body = JSON.stringify({ ...s, name, updatedAt: now, seenAt: now })
     await $.fs.write(`${dir}/sessions/${id}.js`, `window.__aiWorkerIn && window.__aiWorkerIn(${JSON.stringify(id)}, ${body});\n`)
     if (now - listedAt > LIST_EVERY_MS) await list($, true)
+    shareAfterChange($, now)
   } catch {
     // the browser view is optional; the pane still works
     // trang trình duyệt là tuỳ chọn; khung vẫn chạy
@@ -453,10 +456,39 @@ const MERGE_EVERY_MS = 60_000
 /** A machine whose file is older than this shows as offline on the board. */
 /** Máy có file cũ hơn mức này sẽ hiện là ngoại tuyến trên bảng. */
 const OFFLINE_MS = 12 * 60_000
-let sharedSig = ''
 let boardCleared = false
-let sharedAt = 0
 let mergedAt = 0
+/** The last send that reached the server or the folder, kept in the plugin's store so every session on this computer sees it: three open sessions do not send the same change three times. */
+/** Lần gửi gần nhất đã tới máy chủ hay thư mục, giữ trong kho của plugin để mọi phiên trên máy này cùng thấy: ba phiên đang mở không gửi cùng một thay đổi ba lần. */
+const SHARED_KEY = 'sharedLast'
+/** The key of its own the server gave this computer (awd1.…), kept in the plugin's store, never in config.js where the office page reads. */
+/** Khoá riêng máy chủ cấp cho máy này (awd1.…), giữ trong kho của plugin, không bao giờ trong config.js nơi trang văn phòng đọc được. */
+const DEVICE_KEY = 'deviceKey'
+/** A change is sent this long after it is saved, so the changes a turn makes together (cost, then state) leave in one send. */
+/** Một thay đổi được gửi sau khi lưu chừng này, để các thay đổi một lượt làm cùng lúc (chi phí, rồi trạng thái) đi chung một lần gửi. */
+const SHARE_GATHER_MS = 1_000
+/** The least time between two sends prompted by changes; the heartbeat still sends every 30 seconds when nothing changes. */
+/** Khoảng cách ít nhất giữa hai lần gửi do có thay đổi; khi không có gì đổi, nhịp tim vẫn gửi mỗi 30 giây. */
+const SHARE_MIN_MS = 2_000
+let shareStartedAt = 0
+let shareSoon: { cancel(): void } | undefined
+
+/** A change was saved: send it within a few seconds instead of waiting for the next heartbeat, so the board shows it at once. Changes that come close together leave in one send, at most one every SHARE_MIN_MS. */
+/** Một thay đổi vừa được lưu: gửi nó trong vài giây thay vì chờ nhịp tim kế tiếp, để bảng hiện ngay. Các thay đổi đến sát nhau đi chung một lần gửi, nhiều nhất một lần mỗi SHARE_MIN_MS. */
+function shareAfterChange($: EngineInterface, now: number) {
+  if (shareSoon || share === SHARE_OFF || !share.enabled) return
+  const wait = Math.max(SHARE_GATHER_MS, SHARE_MIN_MS - (now - shareStartedAt))
+  shareSoon = $.clock.after(wait, () => {
+    shareSoon = undefined
+    void (async () => {
+      // another send (the heartbeat, the start of the session) may have gone out meanwhile: keep the gap from that one too
+      // một lần gửi khác (nhịp tim, lúc mở phiên) có thể đã đi trong lúc chờ: giữ khoảng cách với cả lần đó
+      const now = await $.clock.now()
+      if (now - shareStartedAt < SHARE_MIN_MS) shareAfterChange($, now)
+      else await shareTeam($)
+    })()
+  })
+}
 let account: { at: number; email: string } | undefined
 // someone may sign out and in with another account: read it again every few minutes
 // có thể ai đó đăng xuất rồi đăng nhập tài khoản khác: đọc lại mỗi vài phút
@@ -470,7 +502,9 @@ async function machineId($: EngineInterface): Promise<string> {
   // máy chủ chỉ nhận device-...; bản trước 0.25.0 tạo mã may-... bị từ chối: giữ nguyên phần đuôi
   if (typeof had === 'string' && /^device-[a-z0-9]{1,40}$/.test(had)) return had
   const old = typeof had === 'string' ? /^may-([a-z0-9]{1,40})$/.exec(had) : null
-  const id = `device-${old ? old[1] : Math.random().toString(36).slice(2, 10)}`
+  // an id already made is kept, whatever its length: a new id would show the same computer twice on the board
+  // mã đã tạo thì giữ, dài ngắn thế nào cũng vậy: mã mới sẽ làm cùng một máy hiện hai lần trên bảng
+  const id = old ? `device-${old[1]}` : newDeviceId()
   await $.store.set('deviceId', id)
   return id
 }
@@ -529,6 +563,7 @@ let sharing = false
 async function shareTeam($: EngineInterface) {
   if (sharing) return
   sharing = true
+  shareStartedAt = await $.clock.now()
   try {
     await shareOnce($)
   } finally {
@@ -721,19 +756,28 @@ async function shareOnce($: EngineInterface) {
       // biên bản giao việc chỉ gửi vào nhật ký của máy chủ, không bao giờ ghi vào thư mục người khác đọc được
       }, viaWeb ? recentDelegations(sessions, now) : [])
       const sig = summarySignature(summary)
-      if (sig !== sharedSig || now - sharedAt > SHARE_EVERY_MS) {
+      const last = ((await $.store.get(SHARED_KEY).catch(() => undefined)) ?? {}) as { sig?: string; at?: number }
+      if (sig !== last.sig || now - (last.at ?? 0) > SHARE_EVERY_MS) {
         if (viaWeb) {
+          // this computer's own key once the server has given it one, else the key of the install package
+          // khoá riêng của máy này khi máy chủ đã cấp, nếu không thì khoá của gói cài
+          const own = await $.store.get(DEVICE_KEY).catch(() => undefined)
+          const key = typeof own === 'string' && own.startsWith('awd1.') ? own : share.ingestKey
           const r = await $.http.fetch(`${share.webhook}/ingest`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${share.ingestKey}` },
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
             body: JSON.stringify(summary),
           })
+          // its own key refused (too old, or the server was set up again): drop it, so the next send asks for a new one
+          // khoá riêng bị từ chối (quá cũ, hoặc máy chủ được cài lại): bỏ nó, để lần gửi sau xin khoá mới
+          if (r.status === 401 && key !== share.ingestKey) await $.store.delete(DEVICE_KEY).catch(() => undefined)
           if (!r.ok) throw new Error(`webhook ${r.status}`)
+          const given = deviceKeyIn(r.text)
+          if (given) await $.store.set(DEVICE_KEY, given)
         } else {
           await $.fs.write(`${folder}/${device}.json`, JSON.stringify(summary))
         }
-        sharedSig = sig
-        sharedAt = now
+        await $.store.set(SHARED_KEY, { sig, at: now })
         if (viaWeb) await noteShare($, dir, now)
       }
     } catch (err) {
@@ -1672,6 +1716,41 @@ async function readHandoffNotes($: EngineInterface) {
 }
 const SHELL_TOOL = /^(Bash|PowerShell)$/
 
+// what Claude is told about the repository's AI settings, and the root it was read for; read when the session starts
+// and again when /cd moves the session to another root
+// điều Claude được báo về các thiết lập AI của repo, và gốc đã đọc; đọc khi phiên bắt đầu và đọc lại khi /cd đưa
+// phiên sang gốc khác
+const REPO_SEEN_KEY = 'repoConfigSeen'
+let repoConfigNote: string | undefined
+let repoConfigRoot: string | undefined
+
+/** Looks at the AI settings a repository carries and tells the person and Claude what is new or changed since the last look. Never blocks. */
+/** Xem các thiết lập AI mà repo mang theo và báo người dùng cùng Claude những gì mới hoặc đã đổi kể từ lần xem trước. Không bao giờ chặn. */
+async function checkRepoConfig($: EngineInterface, root: string): Promise<void> {
+  repoConfigRoot = root
+  repoConfigNote = undefined
+  try {
+    const home = ((await $.env.get('HOME')) || (await $.env.get('USERPROFILE')) || '').replace(/[\\/]+$/, '')
+    // the home folder's .claude is the person's own settings, not a repository's
+    // .claude ở thư mục nhà là thiết lập của chính người dùng, không phải của một repo
+    const bare = root.replace(/[\\/]+$/, '')
+    if (!bare || bare === home) return
+    const found = findRepoConfig(await readRepoFiles($, bare))
+    const key = repoKey(bare)
+    const seen = ((await $.store.get(REPO_SEEN_KEY).catch(() => undefined)) ?? {}) as RepoSeen
+    const at = await $.clock.now()
+    const news = repoNews(found, seen[key]?.marks, at)
+    const before = seen[key]?.marks ?? []
+    if (found.length !== before.length || found.some(f => !before.includes(f.mark))) await $.store.set(REPO_SEEN_KEY, rememberRepo(seen, key, found, at))
+    if (!news.length) return
+    repoConfigNote = repoNote(news)
+    await Promise.resolve($.ui.toast(repoToast(news))).catch(() => undefined)
+  } catch {
+    // a repository that cannot be read is not checked
+    // repo không đọc được thì không kiểm
+  }
+}
+
 /** /office: the dashboard in the browser, or the side panel when no browser opens. */
 /** /office: bảng trong trình duyệt, hoặc khung bên cạnh khi không mở được trình duyệt. */
 async function runOffice($: EngineInterface): Promise<{ text: string }> {
@@ -1744,6 +1823,7 @@ export const register: Register = on => {
     }
     if (viaMcp) await tuckOwnTools($)
     await readHandoffNotes($)
+    await checkRepoConfig($, await $.session.root().catch(() => e.cwd))
     // a manager's computer already paired with the board: Claude can read it from the first message
     // máy của quản lý đã ghép với bảng: Claude đọc được bảng ngay từ tin nhắn đầu
     if ((await readPairing($)).token) await registerBoardTool($)
@@ -1755,6 +1835,8 @@ export const register: Register = on => {
   // khi nào giao việc cho trợ lý nào: chỉ trên máy mà plugin tự phục vụ các công cụ
   on('prompt.compose', async ($, e, next) => {
     const r = await next(e)
+    const root = await $.session.root().catch(() => repoConfigRoot)
+    if (root && root !== repoConfigRoot) await checkRepoConfig($, root)
     const text = own && !viaMcp ? delegationRules(own) : undefined
     const extra = [
       { id: 'ai-worker:tech-rules', text: techRules(), scope: 'session' as const },
@@ -1763,6 +1845,7 @@ export const register: Register = on => {
       // chỉ gói công ty mới có những thứ này
       ...(share.enabled ? [{ id: 'ai-worker:work-rules', text: sharedRules(), scope: 'session' as const }] : []),
       ...(handoffNotes ? [{ id: 'ai-worker:handoff-notes', text: handoffNotes, scope: 'session' as const }] : []),
+      ...(repoConfigNote ? [{ id: 'ai-worker:repo-config', text: repoConfigNote, scope: 'session' as const }] : []),
     ]
     return { ...r, sections: [...r.sections, ...extra] }
   })

@@ -402,6 +402,32 @@ export function buildMachineSummary(
 
 /** The same summary ignoring when it was written: rewrite the shared file only when this changes. */
 /** Cùng bản tóm tắt đó bỏ qua lúc nó được ghi: chỉ ghi lại file chung khi cái này đổi. */
+/** Letters a device id is made of, and how many follow `device-`: 36^16 ids, so a million computers do not meet by chance. */
+/** Các ký tự làm nên mã máy, và số ký tự sau `device-`: 36^16 mã, nên một triệu máy không tình cờ trùng nhau. */
+const DEVICE_ID_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789'
+export const DEVICE_ID_LENGTH = 16
+
+/** A new random device id, from the engine's secure randomness when it has one (as the connector makes it). */
+/** Một mã máy ngẫu nhiên mới, lấy từ nguồn ngẫu nhiên an toàn của engine khi có (như bộ nối tạo). */
+export function newDeviceId(random: () => number = Math.random): string {
+  const bytes = new Uint8Array(DEVICE_ID_LENGTH)
+  const c = (globalThis as { crypto?: { getRandomValues?: (a: Uint8Array) => Uint8Array } }).crypto
+  if (c?.getRandomValues) c.getRandomValues(bytes)
+  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(random() * 256)
+  return 'device-' + Array.from(bytes, b => DEVICE_ID_CHARS[b % DEVICE_ID_CHARS.length]).join('')
+}
+
+/** The computer's own key in the server's answer to a send, when there is one: only a well-formed `awd1.` key is taken. */
+/** Khoá riêng của máy trong câu trả lời của máy chủ cho một lần gửi, nếu có: chỉ nhận khoá `awd1.` đúng dạng. */
+export function deviceKeyIn(answer: string): string | undefined {
+  try {
+    const key = (JSON.parse(answer) as { deviceKey?: unknown }).deviceKey
+    return typeof key === 'string' && /^awd1(\.[A-Za-z0-9_-]{1,64}){7}$/.test(key) ? key : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export function summarySignature(m: MachineSummary): string {
   return JSON.stringify({ ...m, updatedAt: 0 })
 }

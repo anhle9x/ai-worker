@@ -38,7 +38,7 @@ Because anyone with the install package has the key, the webhook also blocks by 
 - **each device is tied to one person**: the first send writes `device-... → account + name` to the `identities` table; the same device sending
   under another person's name is refused (409, written to the log). When a computer goes to someone else: stop the service, run
   `sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --forget-device <device-id>`, start the service;
-- at most 300 sends per 10 minutes and 10 new devices per day for each IP, 300 devices in total;
+- each computer may send 20 times at once, then once a second; 10 new devices per day for each IP; 300 devices in total (`MAX_DEVICES`);
 - OTP login: 5 wrong tries from one IP lock that IP for 15 minutes; 20 wrong tries on one account lock that account for 15 minutes.
 
 To change the key: edit `/etc/ai-worker.env`, run `sudo systemctl restart ai-worker-webhook`, then rebuild the package.
@@ -49,7 +49,7 @@ Open `http://<server-IP>:8788/` on a computer or phone (inside a network allowed
 from **Google Authenticator** (or Microsoft Authenticator). It is an operations dashboard in the style of a monitoring center:
 a list of people who are active, a diagram person -> Claude -> Gemini/ChatGPT/Gemma (light beads move while work is done or delegated;
 click a card to see one person's numbers), a 24-hour cost heat map, indicators, tasks delegated per hour to each AI,
-an event stream (state changes, delegation), and a 24-hour chart. It updates every 10 seconds. The separate text board is at `/board`.
+an event stream (state changes, delegation), and a 24-hour chart. It updates every second. The separate text board is at `/board`.
 The page needs the `static/` folder next to `webhook.py` (install.sh copies it); without it the webhook falls back to the text board. No plugin is needed.
 
 Daily work is done on the `/admin` page (admin role only): accounts and QR codes, role changes, locations, the Team plan, open sessions, the log. Creating, reissuing, changing the role of and deleting an account needs the OTP code again, valid for 5 minutes. The last admin cannot be deleted or demoted, and nobody can delete themselves.
@@ -112,7 +112,7 @@ curl http://127.0.0.1:8788/health       # {"ok": true}
 ```
 
 Data: `/opt/ai-worker/data/board.db` (SQLite), one row of a few KB per computer, overwritten when the computer sends again. Tables and backup: [docs/DATA-MODEL.md](../docs/DATA-MODEL.md).
-A computer silent for over 30 days has its row deleted by itself. One total per person per day (cost, tokens, tasks delegated, office) stays for up to 13 months, so `/board` can compare weeks and months. The load is very light: each computer sends at most once every 30 seconds when its numbers change,
+A computer silent for over 30 days has its row deleted by itself. One total per person per day (cost, tokens, tasks delegated, office) stays for up to 13 months, so `/board` can compare weeks and months. The load is very light: each computer sends a second or two after its numbers change, at most once every 2 seconds,
 and at least once every 5 minutes while Claude is open.
 
 To update the program: copy the new version over the old one and run `sudo bash install.sh` again (the key and data are kept).

@@ -1,0 +1,154 @@
+# The receiver in Go (optional, for large organisations)
+
+[Tiếng Việt](RECEIVER.vi.md) | English <!-- i18n-allow -->
+
+A small company does not need this page: the Python server takes every send itself. The receiver in `receiver/` is a second program, written with the Go standard library only, for an organisation with many thousands of computers. It takes the computers' sends on an address of its own over TLS, answers them at once, and hands them to the Python server in batches. Python stays the record: logins, roles, the board, the history and the SQLite files are unchanged.
+
+**What this first stage does and does not do.** It takes sends correctly and gives Python the same records Python would have written itself; tests hold the two to that. It also serves the boards their live numbers, per branch or for the whole organisation, on `/live` (section 3, "The live feed"), and the board's page opens that feed when it is set up. Whether it reaches 100,000 computers within 5 seconds is measured on Linux at the end of this stage. The plugin does not send to the receiver yet either: no computer goes this way until a later plugin learns the receiver's address from the server (`ingestUrls`).
+
+## 1. How a send goes
+
+| The send | What the receiver does |
+|---|---|
+| With the computer's own key (`awd1.…`), not due for renewal | Checks the key, cleans the send, puts it on the hours of today it holds for that computer, answers, and puts it on the one row that waits for Python for that computer |
+| With the shared `INGEST_KEY`, with a key due for renewal (older than 30 days, or issued before `--rotate-device-secret`), or bytes the receiver is not sure Python reads the same way | Passes it to Python as it came, with the computer's real address; Python's answer goes back with the receiver's `boot` in place of Python's |
+
+- The name and the account the computer claims are dropped; Python fills them from the person the computer enrolled as (`identities`).
+- The receiver never trusts an `X-Forwarded-For` from the computer: it gives Python the address of the socket.
+- The records of work handed to helpers, the IP history and the history of the board are written by Python, as for a send on `/ingest`.
+- A computer that Python asks for its whole book (`needFull`), one sent out of order, or a whole book sent again within an hour is handled exactly as Python does (`save_ingest`).
+- The answer to a send has the same fields as Python's, with the receiver's own `boot`: rows not yet written are lost if the receiver stops, and a computer that sees `boot` change sends its latest hours again.
+
+## 2. What the receiver copies from Python, and how they are kept the same
+
+The cleaning of a send is the boundary of what reaches the board. The receiver copies it from `server/board/devices.py`: `clean_payload`, `clean_delegations`, `merge_hours`, `save_ingest`'s choices, money in whole `usdMicro`, and the totals per day of `add_up_hours`. Four details matter and are copied on purpose:
+
+- the order of the keys of a JSON table, and a key that comes twice keeping its first place and its last value (a Python `dict`);
+- a number without a dot or an exponent is a whole number, any other is a float, and the two stay apart;
+- `round` rounds half to even (`math.RoundToEven`);
+- hours are text keys, sorted by their number with a stable sort.
+
+Anything the receiver is not sure Python reads the same way (a lone half of a UTF-16 pair, a byte order mark, NaN, a nesting deeper than 200) goes to Python as it came.
+
+Three checks keep the two the same:
+
+1. **The shared sample** `tests/contract/ingest-v2/cases.json`, played by the Python server (`server/test_contract.py`) and by the receiver (`receiver/internal/clean/contract_test.go`).
+2. **A random test with Python as the judge**: `tests/contract/ingest-v2/fuzz_judge.py` makes random sends and cleans them with the server's own code; the Go test cleans the same bytes and must get the same, keys in the same order. `FUZZ_SEED` and `FUZZ_COUNT` change the seed and the number.
+3. **While it runs**, the receiver hands `RECEIVER_CHECK_PERCENT` of the sends (default 1) to Python as they came as well; Python cleans them again and counts any difference (`checked`, `mismatches` in the policy below, and a line in the log).
+
+Python also cleans every row again when it writes it, so its own cleaning stays the boundary.
+
+The live numbers (`receiver/internal/live`) copy what the board makes of a person: `is_fresh`, `status_of`, and the parts of `group_by_person` and `_raw_data` behind `status`, `openSessions`, `working`, `waiting`, `delegating`, `tools`, `usdToday`, `tokensIn`, `tokensOut`, `tasks` and `updatedAt`. A fourth check holds them to it: `receiver/internal/ingest/live_test.go` runs the real Python server inside `tests/contract/ingest-v2/view_judge.py`, plays the shared sample through the receiver (moved to a few days ago, each run a person of its own), and after each step compares the receiver's rows with `role_view` from that server's memory, at the moment of the send, just before and after the computer goes offline, and on the next day; a second test does the same for every status, a connector with two tools and the totals of each branch.
+
+## 3. Between the receiver and Python
+
+The receiver calls the Python server on this machine (`RECEIVER_WEBHOOK`, default `http://127.0.0.1:8788`). The paths below exist only with `RECEIVER=1`, only for a direct call from this machine (no forwarding header) and only with the internal code from the file of secrets; anything else gets 404, as if the path were not there.
+
+| Path | What |
+|---|---|
+| `POST /internal/rows` | A batch: `{"src", "boot", "seq", "rows": [...]}`. Each row is `{"k": ["m", device], "at": ms, "kind", "ip", "v", "raw"?}`: `kind` is `v1`, `hours`, `full` (what the receiver applied) or `delegations` (only the records of work, for a send whose numbers were not written); `v` is the cleaned send in the format it came in. Since protocol 2 (`proto` in the policy) a batch holds at most one row per computer: the sends of a computer between two batches are put together into one row, the newest state with every hour sent since (the later value of an hour wins, an empty one still removes it, changed hours after a whole book go on that book) and the records of work of all of them, so Python writes once what it would have written send by send. A row of kind `check` carries one send as it came (`raw`) and as the receiver cleaned it (`v`), for the third check only: Python compares them and writes nothing (at most 1,000 wait, past that they are dropped). Python writes the whole batch in one transaction, each row behind a savepoint of its own, and answers `{"ok", "seq", "needFull": [...], "unknown": [...], "incomplete": [...], "bad": [...]}`: `bad` names rows that failed and were left out alone (the receiver reads that computer's book again), `incomplete` computers whose person has no email or no name yet (the receiver passes on their next send that carries one, so Python fills it in and issues a key for the new person). The receiver keeps the batch until its `seq` is answered and sends that same batch again otherwise, never changed; the sends that come meanwhile wait for the next one. A batch with a `seq` already written is answered and not written twice. While Python does not answer, at most one row per computer waits, plus the batch on its way, and every send is still answered 200 |
+| `POST /internal/ingest` | A send passed on as it came, at most 16 at once: past that the computer is told at once to come back (503 with `Retry-After`). The computer's `Authorization` is in `X-Receiver-Authorization` and its address in `X-Receiver-Client-Ip`; Python checks the key exactly as on `/ingest` |
+| `GET /internal/policy?since=<seq>&boot=<boot>` | The numbered policy, asked every 15 seconds: revoked computers, `renewBefore`, the pace the computers are told, `SHARED_KEY_MODE`, the limits, and `written`, the computers Python wrote itself since `since` (the receiver drops the book it holds for them). `reset: true` after another start of Python: the receiver drops every book. `proto: 2` is the version of this protocol |
+| `GET /internal/devices?after=<device>&limit=<n>` or `?device=<id>` | The hours of today and later of each computer, a page at a time when the receiver starts, or one computer's when it is needed: the receiver keeps no more. Each record also has the state the live numbers need (`openSessions`, `working`, `waiting`, `delegating`, and `tools` for the connector), and no name, email or address. `&whole=1` with `device` gives that computer's whole book, for the tests that compare the receiver with Python |
+| `GET /internal/people?since=<seq>&boot=<boot>&limit=<n>` | The table of people (below): what changed since `since`, in the order of the changes, at most `limit` (5,000) at a time: `{"boot", "reset", "seq", "more", "people": [{"device", "row", "scope"}], "gone": [...]}`. Asked when the receiver starts and every 15 seconds, so a person who moves to another branch is in the right place within 10 to 25 seconds. While `more` is true the receiver asks again with `since=seq`, adding `&loading=1` while it loads the whole table after a `reset` (another start of Python, or a number Python can no longer answer from: it then drops the table it holds) |
+
+### The file of secrets
+
+With `RECEIVER=1` the Python server writes `KEYS_DIR/receiver-secrets.json` (or `RECEIVER_SECRETS_FILE`) at every start and at every `--rotate-device-secret`: written to a temporary file and renamed, readable by the server's account only (0600).
+
+```json
+[
+ {"kid": "…", "alg": "HS256", "org": "…", "secret": "…", "since": 0},
+ {"kid": "internal", "alg": "internal", "secret": "…"},
+ {"kid": "…", "alg": "ticket", "secret": "…"}
+]
+```
+
+The signing secrets come newest first; an older one stays while a key it signed may still be alive. The last one signs the tickets of the live feed (below): a secret of its own, never a computer key's, so a ticket cannot be used as a key or a key as a ticket; `--rotate-device-secret` turns it too. The receiver reads the file again when it changes, and when a key names a `kid` it does not know (at most every 10 seconds). Whoever holds this file can make a key for any computer and send numbers as it, but cannot read any data: keep it on the server, and run the receiver as the same account as the webhook.
+
+### Rows and scopes
+
+The receiver sends the board live numbers per branch. For that, each person on the board has the code of their row, and the board can be read one branch at a time:
+
+- **The code of a row** (`row` on each person of `/data`, only with `RECEIVER=1`): 12 characters, an HMAC of the person (`person_key`: the account and the name) with the same secret as the wall's code for an email (`wall_alias_secret` in the keys database) under another label. It is the same for every role, after a restart and in every process, and gives back neither the email nor the name, so the live numbers can be put on the right row without the wall ever seeing an email. People are joined on this code, never on the `pid` inside a computer's key.
+- **The live numbers** (`receiver/internal/live`): the receiver keeps each computer's state as its last send left it (the time, the session counts, the connector's counts per tool, the tasks being handed to helpers) and its totals per local day, and adds them up at a given second into one row per code, as the board does: `row`, `branch` (its scope), `status`, `openSessions`, `working`, `waiting`, `delegating`, `tools`, `usdToday` (rounded as the board rounds it, with `usdMicroToday` beside it), `tokensIn`, `tokensOut`, `tasks`, `updatedAt`; and per branch the fields of `branchTotals`. A computer is on a row only once the table of people names it. When Python writes a computer itself (a send passed on, `written` in the policy, a row it left out or did not take), the receiver reads that computer's record again after the next batch or policy, unless rows of it still wait, so the live numbers never go back to an older state; after another start of Python it reads every book again. The live feed below sends these numbers to the boards.
+- **The table of people**: each computer → (the code of its person's row, the scope that row is in: the id of its branch, or `""` for none). Python builds it from what the board shows, at most every `RECEIVER_PEOPLE_SECONDS`, when the receiver asks; every change has a number of its own. It holds no name, no email and no address.
+- **`/data?scope=`** (any logged-in role, with or without `RECEIVER`): `scope=org` is the whole organisation, with `branchTotals` (for each branch and `""`: people, online, working, waiting, open sessions, cost today, tokens; a person waiting in one session while another runs is counted in both working and waiting) and its people only while there are 500 or fewer; `scope=branch:<id>` is one branch (`branch:` alone: the people in no branch), 500 people a page in the order of their names, `&page=<n>` from 0, with `page`, `pages`, `peopleTotal` and `pageNames` (the first and last name of each page). Both are cut from the same view of the same role as plain `/data`, which stays as it was: without `RECEIVER` and with any number of people, it is byte for byte what it was before.
+
+### The live feed
+
+The board gets its numbers from the receiver as they change, instead of asking the Python server every second. Python still says who may see what: names, emails and addresses still come only from `/data`, and the feed carries only numbers and the code of each row.
+
+1. **The ticket.** The board's page asks the Python server `POST /sse/ticket` with `{"scope": "org"}` or `{"scope": "branch:<id>"}` (any scope `/data?scope=` takes; every role that may read `/data` may read every scope). Only a logged-in session, only from the board's own page (the `Origin` must be there and be the board's), only with `RECEIVER=1` and both `RECEIVER_LIVE_URL` and `RECEIVER_BOARD_ORIGIN` set; otherwise 404. The answer is `{"ticket", "scope", "expiresAt", "live", "snap"}`. A ticket is `awt1.<kid>.<role>.<scope in base64url>.<sid>.<expiry in seconds>.<signature>`, an HMAC-SHA256 with the tickets' secret of the file of secrets. It lives 5 minutes. The `sid` is made from the session with that secret: it gives back neither the session nor the name.
+2. **The feed.** The page opens `GET <RECEIVER_LIVE_URL>/live?t=<ticket>&scope=<scope>` with `EventSource`, or `GET …/live/snap?…` for the same numbers once as JSON. The receiver checks the signature, the expiry, that the scope asked is the ticket's, that the `Origin` is `RECEIVER_BOARD_ORIGIN` (which only the answer lets read it), and that the session is still open; otherwise 401 or 403, or 503 while it has no policy from Python yet.
+3. **The events.** `hello` (`scope`, `role`, `expiresAt`, `beatMs`, `tickMs`), then `snap` with the whole scope, then every second at most `d` with the rows that changed, each with its whole value, and `gone`, the codes of the rows that left. A branch carries its people's rows (`rows`, the fields of the live numbers above); the whole organisation carries the totals of each branch only (`branches`, the fields of `branchTotals`). A quiet feed gets a comment every 15 seconds so proxies keep it open. At the end of the ticket the receiver sends `bye` (`{"why": "expired"}`) and closes: the page asks a new ticket and opens again, and gets the whole scope again.
+4. **Logging out.** The receiver asks the policy every 15 seconds; it names in `endedSessions` the sessions given a ticket that still lives but are no longer open (logged out, expired, their account or TV screen removed, their role changed). The receiver ends their feeds with `bye` (`{"why": "ended"}`) at the next tick, so a feed is cut within about 20 seconds of logging out. `boardOrigins` in the policy is the board's origin.
+5. **Built once, read by every board.** Each second the receiver adds up every computer once, and builds each scope that a board reads (or asked on `/live/snap` in the last 30 seconds) once, for every board of that scope: the JSON of each row is made once, and a board keeps only the number of the last change it sent. A board that reads slowly therefore holds no queue: it gets, when it can take it, what changed since; one write may wait 10 seconds, after which the feed is cut. A board further behind than the rows that left two minutes ago gets the whole scope again. At most 5,000 feeds are open at once (503 past that).
+6. **Timeouts.** A send has 30 seconds to be read and answered (`ReadTimeout`, `WriteTimeout`); a feed sets its own deadlines in their place, so it is not cut at 30 seconds.
+7. **The board's page** (`server/static/page.js`, drawn by `ops.js`). At start it asks a ticket for its scope: a 404 (no `RECEIVER`, or no `RECEIVER_LIVE_URL` and `RECEIVER_BOARD_ORIGIN`: a small company) and the page asks plain `/data` every second as it always did. Otherwise it reads one scope at a time, chosen in a picker at the top of the list (**Whole organisation**, each branch, **Not in a branch**, and the page of a branch of more than 500 people, offered by its first and last name) and kept in the address (`?scope=branch:<id>&page=<n>`), so a reload or a TV screen stays on it. The whole organisation shows the totals of each branch: one card per branch in place of the diagram, one row per branch in the list, the counts and the cost of the organisation added up from them; a card or a row opens that branch. A branch shows its people as the board always did. The page asks `/data?scope=` every 20 seconds for the names and the rest of the board (the 24-hour charts, the events, the models), opens the feed with its ticket, and puts the numbers of each `d` over the person with the same `row` (or the branch with the same `id`); a row of the feed that is not on the page is left out, and a row in `gone` loses its numbers until the next `/data` says whether the person is still there. On `bye` it asks a new ticket and opens again; on an error it waits 1 second, then twice as long each time, at most 30. While the whole organisation still lists its people (500 or fewer) the page keeps asking `/data?scope=org` every second and opens no feed, since the feed of the whole organisation carries only the totals of the branches.
+
+With `RECEIVER_LIVE_URL` set, the board's pages allow that address in `connect-src` of their `Content-Security-Policy`; without it they are as before. The feed goes straight to the receiver, not through Caddy. The tickets are held to the same format by a shared sample (`tests/contract/ticket/cases.json`, made by the server, checked by `receiver/internal/feed`), and the receiver also checks tickets that the server's own code gave (`keys_judge.py`).
+
+## 4. Settings
+
+On the Python server (`/etc/ai-worker.env`):
+
+| Setting | What |
+|---|---|
+| `RECEIVER` | `1` opens the paths above and writes the file of secrets. Empty: off |
+| `RECEIVER_SECRETS_FILE` | Where the file goes; empty is `receiver-secrets.json` in `KEYS_DIR` |
+| `RECEIVER_CHECK_PERCENT` | Percent of sends the receiver also hands over as they came, for the third check (default 1) |
+| `RECEIVER_PEOPLE_SECONDS` | How often at most the table of people is built again, in seconds (default 5; the receiver asks every 15) |
+| `RECEIVER_LIVE_URL` | The receiver's address as the boards reach it, for example `https://ingest.example.com`: it goes into the tickets' answer and the pages' `connect-src`. Empty: no live feed |
+| `RECEIVER_BOARD_ORIGIN` | The board's own address, for example `https://board.example.com`: the only page the receiver lets open the feed. Empty: no live feed |
+
+On the receiver (its environment):
+
+| Setting | What |
+|---|---|
+| `RECEIVER_LISTEN` | `IP:port` to listen on. Required, and the IP must be said: the receiver never listens on every address by default |
+| `RECEIVER_TLS_CERT`, `RECEIVER_TLS_KEY` | The certificate (full chain) and its private key, as files. Read again when they change, so a renewal needs no restart |
+| `RECEIVER_SECRETS_FILE` | The file of secrets above. Required |
+| `RECEIVER_WEBHOOK` | The Python server on this machine; only `http://127.0.0.1:…`, `http://[::1]:…` or `http://localhost:…` |
+| `RECEIVER_BATCH_MS` | How often the rows go to Python: 1000 (the default) for a small organisation, 5000 to 10000 for a large one |
+
+The receiver speaks HTTP/1.1 only (HTTP/2 costs more here), waits at most 10 seconds for the headers of a request, reads at most 256 KB of a body, and keeps an idle connection 5 minutes, a little longer than a quiet computer's 4 minutes between sends.
+
+## 5. Setting it up
+
+Where it listens was decided with the design: a **second public IP on the same server, port 443 of that IP**. The receiver and Python stay on one machine, so the file of secrets and the internal paths stay local; port 443 gets through company proxies; moving the receiver to a machine of its own later is a change of DNS.
+
+1. At the server's provider, add a second public IP to the server.
+2. In the Caddyfile, add `default_bind <first IP>` so Caddy keeps to the first IP. Caddy's automatic HTTP-to-HTTPS server does not follow that option, so also add an empty `http://` site bound to the first IP (see caddyserver.com/docs/caddyfile/options).
+3. Add a DNS A record for `ingest.<your domain>` pointing to the second IP.
+4. Get a certificate for that name with an outside tool, checked over DNS (nobody listens on port 80 of the second IP).
+5. Open port 443 of the second IP in the firewall.
+6. Build the receiver (`cd receiver && go build -o /opt/ai-worker/ai-worker-receiver .`), set `RECEIVER=1`, `RECEIVER_LIVE_URL=https://ingest.<your domain>` and `RECEIVER_BOARD_ORIGIN=https://<the board's domain>` in `/etc/ai-worker.env` and restart the webhook, then run the receiver with systemd as the `ai-worker` account with `AmbientCapabilities=CAP_NET_BIND_SERVICE`, never as root.
+7. Once every computer has its own key, set `SHARED_KEY_MODE` to `known-only` or `off`.
+
+Not known yet: whether your provider gives a second IP, and at what price (otherwise port 8443, then measure how many computers it stops); whether the receiver and Python together fit in 4 vCPU (the next measurement says).
+
+## 6. Turning the signing secret
+
+```bash
+sudo systemctl stop ai-worker-webhook
+```
+
+```bash
+sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys RECEIVER=1 python3 /opt/ai-worker/webhook.py --rotate-device-secret
+```
+
+```bash
+sudo systemctl start ai-worker-webhook
+```
+
+A new secret signs every key from then on, and every computer gets a new key at its next send; the old secret still checks keys until 90 days have passed. If the file of secrets leaked, add `--drop-old`: the old keys stop at once and every computer enrols again with the shared key, so `SHARED_KEY_MODE` must not be `off` while they do. The receiver reads the new file by itself.
+
+## 7. Known limits of this stage
+
+- Whether 100,000 computers stay within 5 seconds is not measured yet: the measurement on Linux comes at the end of this stage.
+- The table of people is built from the whole board each time the receiver asks: what that costs at 100,000 computers is measured with the rest on Linux.
+- The live feed adds up every computer once a second, instead of keeping the sums up to date as the sends come. Measured on a Mac with an M-series chip at 100,000 computers, 500 people a branch: one pass 83 ms; one second with every branch and the whole organisation read by a board 175 ms in all, half of it making the JSON of the rows. The measurement on Linux (4 vCPU) decides whether the sums must be kept as the sends come.
+- On the page of the whole organisation without its people, the 24-hour charts, the models and the quotas are empty: they are counted per person, so they show on the page of each branch.
+- An amount above a billion dollars in one hour, sent only as `usd`, is held to the cent differently by Python when it cleans the row again; the third check reports it.
+- The receiver holds of each computer only the time of its last send and its hours of today, as three numbers an hour: measured at 100,000 computers with all 24 hours each, 261 MB of Go's heap (about 2.6 KB a computer; 739 MB taken from the system). The whole book is Python's.

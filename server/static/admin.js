@@ -12,6 +12,7 @@
     'account-create': tx('Create account'), 'account-reissue': tx('Reissue key'), 'account-role': tx('Change role'), 'account-delete': tx('Delete account'), 'end-session': tx('End session'),
     'tv-request-code': tx('Screen asked for code'), 'tv-refused': tx('Code request refused'), 'tv-view': tx('Viewed screen request'), 'tv-approve': tx('Approved screen'), 'tv-joined': tx('Screen joined board'), 'tv-revoke': tx('Revoked screen'), 'tv-self-exit': tx('Screen exited by itself'), 'tv-unpaired-itself': tx('Paired device unpaired itself'), 'tv-reload': tx('Reloaded screen remotely'), 'tv-rename': tx('Renamed screen'), 'tv-ip-changed': tx('Screen changed IP'), 'tv-renewed': tx('Renewed screen'),
     'tv-revoked-key-used': tx('Revoked device asked again'), 'mcp-rate-limited': tx('Key for an AI tool asked too often'),
+    'device-revoked': tx('Revoked a computer\'s key'), 'device-forgotten': tx('Let a computer enrol again'),
     'account-telegram-unlink': tx('Unlink Telegram'), 'telegram-link': tx('Link Telegram'), 'telegram-unlink': tx('Unlink Telegram'), 'telegram-link-failed': tx('Telegram link failed'),
     'telegram-app-on': tx('Allowed a chat the window'), 'telegram-app-off': tx('Stopped a chat\'s window'), 'telegram-app-open': tx('Chat opened the window'), 'telegram-app-refused': tx('Window refused'),
   }
@@ -322,6 +323,44 @@
     }))
     box.append(line)
     return box
+  }
+
+  // Computers with a key of their own: each sends its numbers with it after its first send. Revoking one stops it at once.
+  // Máy có khoá riêng: mỗi máy gửi số liệu bằng khoá đó từ sau lần gửi đầu. Thu hồi một máy làm nó dừng ngay.
+  function computersSection() {
+    const k = snapshot.computerKeys || { computers: [], total: 0, active: 0, revoked: 0, sharedKeyMode: 'allow' }
+    const p = section(tx('Computers and their keys'), tx('Each computer gets a key of its own at its first send and sends only with it from then on. Revoke a lost or stolen computer, or one whose owner left: it stops at once.'))
+    const modes = {
+      allow: tx('The key in the install package still enrols any new computer.'),
+      'known-only': tx('The key in the install package no longer adds new computers.'),
+      off: tx('The key in the install package no longer sends at all.'),
+    }
+    p.append(o('div', 'qt-row', tx('{active} with a key, {revoked} revoked.', { active: k.active, revoked: k.revoked }) + ' ' + (modes[k.sharedKeyMode] || '')))
+    if (!k.computers.length) return p
+    const board = o('table', 'qt-table small')
+    const head = o('tr')
+    for (const c of [tx('Person'), tx('Computer'), tx('Key issued'), tx('State'), '']) head.append(o('th', '', c))
+    board.append(head)
+    const states = { active: tx('Sending with its key'), expired: tx('Key too old, enrols again at its next send'), revoked: tx('Revoked') }
+    for (const x of k.computers) {
+      const h = o('tr', x.state === 'revoked' ? 'qt-bad-row' : '')
+      const who = x.name || x.account || '—'
+      const act = o('td')
+      if (x.state === 'revoked') {
+        act.append(button(tx('Let back'), () => {
+          if (confirm(tx('Let {device} of {name} send again? It enrols with the key in the install package at its next send.', { device: x.device, name: who }))) post('/admin/device-forget', { device: x.device }, () => toast(tx('{device} may send again', { device: x.device })))
+        }))
+      } else {
+        act.append(button(tx('Revoke'), () => {
+          if (confirm(tx('Revoke {device} of {name}? It stops sending at once, and the key in the install package cannot bring it back until you let it back.', { device: x.device, name: who }))) post('/admin/device-revoke', { device: x.device }, () => toast(tx('Revoked {device}', { device: x.device })))
+        }))
+      }
+      h.append(o('td', '', who), o('td', '', x.device), o('td', '', dateTime(x.issuedAt)), o('td', '', x.state === 'revoked' && x.revokedAt ? states.revoked + ' · ' + dateTime(x.revokedAt) : states[x.state] || x.state), act)
+      board.append(h)
+    }
+    p.append(addLabel(board))
+    if (k.total > k.computers.length) p.append(o('small', '', tx('Showing {shown} of {total}.', { shown: k.computers.length, total: k.total })))
+    return p
   }
 
   // AI projects and applications: an admin makes the key a project sends its measurements with, and may paste prices of their own.
@@ -871,7 +910,7 @@
     backLink.href = '/'
     head.append(o('h1', '', tx('Admin')), o('span', '', viewerName), I18n.switcher(), backLink)
     const column = o('div', 'qt-column')
-    column.append(accountsSection(), tvSection(), ...(snapshot.projectsOn ? [projectsSection()] : []), ...(snapshot.mcpCalls.length ? [mcpCallsSection()] : []), menubarSection(), locationsSection(), teamSection(), sessionsSection(), ...(snapshot.blocked7d ? [blockedSection()] : []), ...((snapshot.delegations || []).length ? [delegationsSection()] : []), auditSection())
+    column.append(accountsSection(), tvSection(), computersSection(), ...(snapshot.projectsOn ? [projectsSection()] : []), ...(snapshot.mcpCalls.length ? [mcpCallsSection()] : []), menubarSection(), locationsSection(), teamSection(), sessionsSection(), ...(snapshot.blocked7d ? [blockedSection()] : []), ...((snapshot.delegations || []).length ? [delegationsSection()] : []), auditSection())
     root.replaceChildren(head, notice, column)
   }
 

@@ -30,6 +30,7 @@ GitHub Actions runs `.github/workflows/test-install.yml` on every push. In a pri
 | Alerts to Telegram chats: each wait once, the gap, the hourly cap, quiet hours, sessions left open, names only for a chat that reads each person, the first line naming nobody, the chat's language and minutes; `/alerts` and the window's settings; the log; the bot sending them protected with the window's button | `test_webhook.py`, classes `AlertRules` and `TelegramAlerts`; `test_telegram_bot.py`, class `MenuButtons` |
 | The bot's service after install: off by default, its own user and settings file, the network limit, removal | `tests/linux/test-server.sh`, part S5 |
 | What each role receives (no email or IP for wall) | `test_webhook.py` |
+| The optional receiver in Go: the shared sample in both formats, random sends cleaned the same as Python cleans them (keys in order, whole numbers apart from floats), its key check against keys the server issued, sends through the receiver ending in the same book on the real Python server with the name it knows and the real address, a batch sent twice written once, TLS with HTTP/1.1 only and a renewed certificate read again; on the server, the internal paths (404 unless `RECEIVER=1`, from this machine and with the internal code), the file of secrets, the policy, the books by page, the third check and turning the signing secret; the shared sample played through the receiver into the real Python server, each send in a batch of its own and all of them put together into one row per computer, Python ending with the book and the days the sample expects; the rows of one computer put together as Python would write them one by one; Python away a minute while every computer sends, every send answered 200 and at most one row per computer waiting; the hours held as numbers adding up the same; check rows compared and never written, and the hours of today the receiver loads | `receiver/` (`go test ./...`), `server/test_receiver.py` |
 | Pairing TV, menu bar and extension; revoke; expiry | `test_webhook.py`, `check-extension.js`, menu bar tests |
 | A computer cannot send for another person; send limits | `test_webhook.py` |
 | Office labels and pins on the maps: pins that meet are drawn side by side; with many offices the labels with no free place are hidden; no label covers another label, another office's pin or the list of offices, none leaves the frame | `tests/check-map-layout.js` |
@@ -37,7 +38,7 @@ GitHub Actions runs `.github/workflows/test-install.yml` on every push. In a pri
 | Text for ChatGPT or Gemini: asked about in a permission mode that asks nothing, kept on the computer on a no, sent without a question only under an allow rule | `tests/sending.test.ts`, `tests/workers.test.ts` |
 | Handoff notes told to a new session: only files the skill would write, the newest five by name and date, nothing on a computer with none, no note opened by the plugin | `tests/handoff.test.ts` |
 | The question before a command that destroys work: which commands are caught and which are left alone, an allowed command turned into a question for a person, a denied one left denied, the switch in `config.js` | `tests/guard.test.ts` |
-| What leaves or enters the computer: secrets in text for ChatGPT or Gemini (also through a separate ai-workers server), secrets on the lines a commit adds, pages that speak to an AI, the 80% context note for Claude, block counts in the device report | `tests/secrets.test.ts`, `commitscan.test.ts`, `injection.test.ts`, `nudges.test.ts`, `sending.test.ts`, `team.test.ts` |
+| What leaves or enters the computer: secrets in text for ChatGPT or Gemini (also through a separate ai-workers server), secrets on the lines a commit adds, pages that speak to an AI, a repository's own AI settings, the 80% context note for Claude, block counts in the device report | `tests/secrets.test.ts`, `commitscan.test.ts`, `injection.test.ts`, `repoconfig.test.ts`, `nudges.test.ts`, `sending.test.ts`, `team.test.ts` |
 | The server side of the protections: the audit log's fingerprint chain (a changed, a removed and a newest row taken out), block counts cleaned and added up for admins and viewers only, keys for AI tools unused for 30 days | `test_webhook.py`, classes `AuditChain`, `BlockCounts`, `UnusedKeys` |
 | `/ai-worker:voice`: the right settings page and steps for a Mac, Windows and Linux; steps by hand when the page does not open; nothing else is run | `tests/voice.test.ts` |
 | The demo with sample people: starts, opens with the code it prints, ignores a real board's settings, deletes its data when stopped | `test_demo.py` |
@@ -47,13 +48,14 @@ GitHub Actions runs `.github/workflows/test-install.yml` on every push. In a pri
 | No prompt, chat or secret file content leaves the machine | `tests/activity.test.ts`, `tests/edits.test.ts`, `tests/team.test.ts`, `tests/office.test.tsx` |
 | Helper assistants: Gemma model choice, safe arguments for Codex | `tests/workers.test.ts` |
 | SQLite storage: moving the old JSON files in, schema version, file modes, many threads at once, backup, export back to JSON; an older database is copied before it is upgraded, the copy opens and the older program runs on it, and no copy means no upgrade | `test_webhook.py` (`DatabaseStorage`), `tests/linux/test-server.sh` |
+| The hour books in rows of their own (schema version 6): a `board.db` of schema version 5 gives the same board, history, totals per day and export after the upgrade, rows it cannot read stay as they were and the copy of version 5 is kept; random sends of both formats leave exactly the book `merge_hours` and `replace_hours` give, the days in `device_days` and in memory, also after a restart and with an SQLite older than 3.24; a send that changes nothing writes nothing; a new `TZ_OFFSET` counts the days again | `server/test_hour_rows.py` |
 | Totals per person per day: hours added into days, counting again without adding twice, 13 months then deleted, weeks and months read back; the charts of cost per week and per month; only admin and viewer get them | `test_webhook.py` (`DailyTotals`, `UsageByRole`) |
 | Language choice and fallback | `tests/lang.test.ts` |
 | No private word, address or key in the package | `tests/test-check-clean.sh` with `packaging/check-clean.sh` |
 
 ## 2. Run locally
 
-Run all eleven before calling a change done. CI runs the same ones. Run each at the repository root.
+Run all twelve before calling a change done. CI runs the same ones. Run each at the repository root.
 
 ```bash
 claude plugin test .
@@ -105,6 +107,26 @@ uvx ruff check .
 
 Correct result of each of these eight: exit code 0. Without `uv`, the last one is `pipx run ruff check .`.
 
+```bash
+cd receiver && go test ./...
+```
+
+Correct result: `ok` for every package. It needs Go 1.22 or later and `python3`: the receiver's tests run the server's own code as the judge. Go back to the repository root afterwards.
+
+### Load test
+
+Not one of the twelve: it takes about 20 minutes and its numbers depend on the computer. Run it before a release that changes how the server takes a send or builds the board, and compare with [BENCHMARK.md](BENCHMARK.md).
+
+```bash
+python3 tests/load/load_test.py --json load.json
+```
+
+```bash
+python3 tests/load/load_test.py --scale 300,1000,3000,5000,10000
+```
+
+Correct result: the first ends with a table and exit code 0, which means no office run had an error; the second shows one send taking about the same time at every size. `--quick` checks in about 15 seconds that the test itself still runs. It only ever talks to the server it started on 127.0.0.1.
+
 `bash packaging/check-clean.sh` is not in this list: it looks for private data in the folder it runs in, so it belongs on what gets published, where its correct result is `Clean.` In a checkout that holds your own `packaging/company.json` it reports that file, and that is expected.
 
 ## 3. Checks that still need a person
@@ -145,3 +167,4 @@ Automatic tests use fake servers and fake browsers. Before a release that touche
 - `hooks/register.tsx` and `web/ops.js` (copied to `server/static/ops.js`) have no direct tests of their own yet.
 - No automatic test on a real Mac.
 - No automatic test on Ubuntu Wayland; it is checked by hand.
+- The load test has run on a Mac only, not yet on a Linux server like the ones the board is installed on, and it plays each computer from its own made-up address, so it does not show the limit of sends per address that computers behind one shared address would meet.

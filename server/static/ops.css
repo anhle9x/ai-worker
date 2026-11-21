@@ -311,3 +311,20 @@ body.wall .o-stage.o-in>*{animation:o-fade .5s ease}
 @media (prefers-reduced-motion:reduce){body.wall .o-stage>*{transition:none}body.wall .o-stage.o-scan::before,body.wall .o-stage.o-in>*{animation:none}}
 body.wall .o-i,body.wall .o-zoom,body.wall .o-mode-bar,body.wall .o-bd-kind{display:none}
 body.wall .o-ring{display:block}
+
+/* one scope at a time (the receiver's live feed): the picker of scope and page, and the cards of the branches of the whole organisation */
+/* từng phạm vi một (luồng số trực tiếp của bộ nhận): ô chọn phạm vi và trang, và thẻ các chi nhánh của cả tổ chức */
+.o-scope{display:flex;flex:none;gap:6px;min-width:0;margin:0 0 8px}
+.o-scope[hidden]{display:none}
+.o-scope select{flex:1 1 0;min-width:0;font:inherit;font-size:11px;color:var(--o-fg);background:rgba(9,20,28,.9);border:1px solid var(--o-border);border-radius:6px;padding:4px 6px;color-scheme:dark;cursor:pointer}
+.o-scope select:hover,.o-scope select:focus-visible{border-color:var(--o-cyan);outline:none}
+.o-org{display:none}
+.o-stage.o-org-on:not(.map) .o-org{position:absolute;inset:0;z-index:2;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));align-content:start;gap:10px;padding:4px;overflow:auto;background:var(--o-bg)}
+.o-stage.o-org-on:not(.map)>canvas{visibility:hidden}
+.o-org-card{display:flex;flex-direction:column;gap:4px;text-align:left;font:inherit;font-size:12px;color:var(--o-fg);background:var(--o-cell);border:1px solid var(--o-border);border-radius:8px;padding:10px 12px;cursor:pointer}
+.o-org-card:hover,.o-org-card:focus-visible{background:rgba(94,230,240,.08);outline:none}
+.o-org-card b{display:flex;align-items:center;gap:8px;color:#e8fbff;letter-spacing:.06em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.o-org-card i{flex:none;width:8px;height:8px;border-radius:50%}
+.o-org-card span{color:var(--o-cyan);font-size:14px;font-weight:700}
+.o-org-card small{color:var(--o-muted);font-size:10.5px;white-space:normal}
+.o-models-note{color:var(--o-muted);font-size:11px;line-height:1.5}

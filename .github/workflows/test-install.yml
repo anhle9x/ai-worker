@@ -34,7 +34,15 @@ jobs:
         run: npx -y @anthropic-ai/claude-code@2.1.319 plugin test .
       - name: Test the server
         working-directory: server
-        run: python3 -m unittest test_webhook test_demo test_mcp test_ask test_telegram_bot test_projects
+        run: python3 -m unittest test_webhook test_demo test_mcp test_ask test_telegram_bot test_projects test_contract test_receiver test_hour_rows
+      # the optional receiver in Go: the shared sample, the random test with Python as the judge, and the receiver against the real Python server
+      # bộ nhận tuỳ chọn bằng Go: bộ mẫu chung, bài thử ngẫu nhiên có Python làm trọng tài, và bộ nhận chạy với máy chủ Python thật
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: receiver/go.mod
+      - name: Test the Go receiver
+        working-directory: receiver
+        run: go vet ./... && go test ./...
       - name: Test the connector for Codex, Cursor and Gemini CLI
         run: python3 tests/connectors/test_connectors.py
       - name: Test the meter for AI projects and applications, and its report

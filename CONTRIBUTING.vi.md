@@ -13,14 +13,14 @@ Cảm ơn bạn đã giúp. Báo lỗi, sửa lỗi, dịch và viết tài li�
 ## Quy tắc của repo
 
 - **Hai ngôn ngữ.** Code, chú thích và thông báo viết tiếng Anh; mỗi chú thích và docstring có một dòng tiếng Anh rồi một dòng tiếng Việt. Chữ tiếng Việt chỉ nằm trong chú thích, docstring hoặc file `*.vi.*`. Mỗi tài liệu có bản tiếng Anh `.md` và bản tiếng Việt `.vi.md`.
-- **Máy chủ không dùng thư viện ngoài.** Chỉ thư viện chuẩn của Python, từ Python 3.8 trở lên.
+- **Máy chủ không dùng thư viện ngoài.** Chỉ thư viện chuẩn của Python, từ Python 3.8 trở lên. Bộ nhận tuỳ chọn trong `receiver/` chỉ dùng thư viện chuẩn của Go, và bước làm sạch của nó chép từ máy chủ: sửa cả hai ([docs/RECEIVER.vi.md](docs/RECEIVER.vi.md)).
 - **Không có dữ liệu riêng.** Không commit tên thật, email, địa chỉ, khoá hay số liệu công ty. `packaging/check-clean.sh` kiểm việc này.
 - **Mọi đường dẫn máy chủ đều có quyền.** Đường mới thêm vào bảng đường dẫn trong `server/webhook.py` và bảng quyền trong `server/test_webhook.py`.
 - **Đổi lược đồ là thêm bước mới.** Thêm bước vào `DATA_STEPS` hoặc `KEYS_STEPS` trong `server/board/db.py`; không sửa bước đã phát hành.
 
 ## Các bước kiểm
 
-Chạy đủ mười một bước từ thư mục gốc repo trước khi gửi thay đổi. GitHub Actions chạy đúng các bước này.
+Chạy đủ mười hai bước từ thư mục gốc repo trước khi gửi thay đổi. GitHub Actions chạy đúng các bước này.
 
 ```bash
 claude plugin test .
@@ -39,7 +39,11 @@ bash tests/test-check-clean.sh
 uvx ruff check .
 ```
 
-Khối lệnh đầu kết thúc ở trong `server/`, nên quay về thư mục gốc repo trước khi chạy khối thứ hai. Không có `uv` thì lệnh cuối là `pipx run ruff check .`. `python3 tests/check-i18n.py --comments` kiểm thêm việc mỗi chú thích có một dòng tiếng Anh rồi một dòng tiếng Việt.
+```bash
+cd receiver && go test ./...
+```
+
+Khối lệnh đầu kết thúc ở trong `server/`, nên quay về thư mục gốc repo trước khi chạy khối thứ hai. Không có `uv` thì lệnh ruff là `pipx run ruff check .`. Khối cuối cần Go 1.22 trở lên và `python3`, và kết thúc ở trong `receiver/`. `python3 tests/check-i18n.py --comments` kiểm thêm việc mỗi chú thích có một dòng tiếng Anh rồi một dòng tiếng Việt.
 
 `bash packaging/check-clean.sh` không nằm trong danh sách này: nó tìm dữ liệu riêng trong thư mục đang chạy, nên dùng cho phần sẽ được công bố. Ở bản checkout có file `packaging/company.json` của riêng bạn, nó sẽ báo file đó, và như vậy là đúng.
 

@@ -197,7 +197,7 @@
       const people = api.people()
       if (people.length !== personCount) layoutPeople(people.length)
       const maxUsd = Math.max(...people.map(p => p.usdToday), 1e-9)
-      const counts = people.filter(p => p.status === 'working').length
+      const counts = people.filter(api.isWorking).length
       const delegatingByHelper = [0, 1, 2].map(k => people.filter(p => (p.delegating || [])[k] > 0))
       const selected = api.selectedIndex()
       people.forEach((p, i) => {

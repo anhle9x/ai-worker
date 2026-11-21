@@ -280,6 +280,7 @@ VI = {
     "Working {n}": "Đang làm {n}",
     "Waiting {n}": "Đang chờ {n}",
     "Idle {n}": "Rảnh {n}",
+    "{n} waiting in one session while another runs: counted in both.": "{n} người đang chờ ở một phiên trong khi phiên khác vẫn chạy: được đếm ở cả hai.",
     "Offline {n}": "Ngoại tuyến {n}",
     "Nobody has used {pct}% of a quota.": "Chưa ai dùng tới {pct}% hạn mức.",
     "Used {pct}% of a quota or more: {n}": "Đã dùng từ {pct}% hạn mức trở lên: {n}",
@@ -380,4 +381,6 @@ VI = {
     "no price": "chưa có giá",
     "◂ Dashboard": "◂ Bảng điều khiển",
     "Detail board": "Bảng chi tiết",
+    "invalid computer": "mã máy không hợp lệ",
+    "This computer has no key to revoke": "Máy này chưa có khoá để thu hồi",
 }

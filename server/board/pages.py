@@ -1196,10 +1196,13 @@ def page_board(viewer_name: str, now: float, role: str = WALL) -> bytes:
         stale_count = len(physical_devices(r)) - device_count if r.get("devices") else 0
         if not r["online"]:
             status_text = '<span class="off">%s</span>' % html.escape(tx("offline"))
-        elif r["waiting"]:
-            status_text = '<span class="waiting">%s</span>' % html.escape(tx("waiting for reply ({n})", n=r["waiting"]))
-        elif r["working"]:
-            status_text = '<span class="working">%s</span>' % html.escape(tx("working ({n})", n=r["working"]))
+        elif r["waiting"] or r["working"]:
+            # sessions waiting and sessions running can be open at once: show both
+            # phiên đang chờ và phiên đang chạy có thể cùng mở: hiện cả hai
+            status_text = " · ".join(part for part in (
+                '<span class="waiting">%s</span>' % html.escape(tx("waiting for reply ({n})", n=r["waiting"])) if r["waiting"] else "",
+                '<span class="working">%s</span>' % html.escape(tx("working ({n})", n=r["working"])) if r["working"] else "",
+            ) if part)
         else:
             status_text = html.escape(tx("{n} sessions open", n=r["openSessions"])) if r["openSessions"] else '<span class="off">%s</span>' % html.escape(tx("idle"))
         status_text += tools_note(r["tools"])

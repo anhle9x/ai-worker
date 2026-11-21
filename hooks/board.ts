@@ -31,7 +31,7 @@ export function boardToolDescription(): string {
 }
 
 type Person = {
-  name?: unknown; branch?: unknown; status?: unknown; waitingSince?: unknown; usdToday?: unknown; usd7d?: unknown
+  name?: unknown; branch?: unknown; status?: unknown; working?: unknown; waitingSince?: unknown; usdToday?: unknown; usd7d?: unknown
   quota?: { windows?: { kind?: unknown; pct?: unknown }[] } | null; models?: Record<string, unknown> | null
 }
 type Board = { updatedAt?: unknown; tzOffsetHours?: unknown; tasks24?: unknown; people?: Person[]; branches?: { id?: unknown; name?: unknown }[] }
@@ -39,6 +39,8 @@ type Board = { updatedAt?: unknown; tzOffsetHours?: unknown; tasks24?: unknown; 
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
 const money = (v: number): string => v.toFixed(2)
 const STATE: Record<string, string> = { working: 'working', waiting: 'waiting for an answer', open: 'idle', offline: 'offline' }
+const ALSO_WORKING = 'waiting for an answer, another session working'
+const BOTH_NOTE = 'Someone waiting in one session while another runs counts as both working and waiting, so these can add up to more than the people.'
 
 /** `claude-fable-5-2` reads as `Fable 5.2`; any other name is kept as it is. */
 /** `claude-fable-5-2` đọc thành `Fable 5.2`; tên khác thì giữ nguyên. */
@@ -57,7 +59,10 @@ export function summarizeBoard(data: Board, now: number): string {
   for (const b of Array.isArray(data.branches) ? data.branches : []) if (typeof b.id === 'string') offices.set(b.id, String(b.name ?? b.id))
   const officeOf = (p: Person) => offices.get(String(p.branch ?? '')) ?? 'no office (mobile or not assigned)'
   const state = (p: Person) => (typeof p.status === 'string' && STATE[p.status] ? p.status : 'offline')
-  const count = (list: Person[], s: string) => list.filter(p => state(p) === s).length
+  // a person waiting in one session while another runs is counted both waiting and working, as server/board/summary.py in_state does
+  // người đang chờ ở một phiên trong khi phiên khác chạy được đếm cả đang chờ lẫn đang làm, như in_state trong server/board/summary.py
+  const isIn = (p: Person, s: string) => state(p) === s || (s === 'working' && state(p) === 'waiting' && num(p.working) > 0)
+  const count = (list: Person[], s: string) => list.filter(p => isIn(p, s)).length
   const sum = (list: Person[], k: 'usdToday' | 'usd7d') => list.reduce((a, p) => a + num(p[k]), 0)
   const offset = num(data.tzOffsetHours)
   const at = num(data.updatedAt) || now
@@ -66,6 +71,7 @@ export function summarizeBoard(data: Board, now: number): string {
   const lines = [
     `AI Worker board at ${stamp} (UTC${offset >= 0 ? '+' : ''}${offset}). Amounts are US dollars at API prices.`,
     `Team: ${people.length} people, ${count(people, 'working')} working, ${count(people, 'waiting')} waiting for an answer, ${count(people, 'open')} idle, ${count(people, 'offline')} offline. Cost today ${money(sum(people, 'usdToday'))}, last 7 days ${money(sum(people, 'usd7d'))}.`,
+    BOTH_NOTE,
   ]
   if (tasks.length === 3) lines.push(`Tasks handed to helper assistants in the last 24 hours: Gemini ${tasks[0]}, ChatGPT ${tasks[1]}, Gemma ${tasks[2]}.`)
   const names = [...new Set(people.map(officeOf))]
@@ -86,7 +92,7 @@ export function summarizeBoard(data: Board, now: number): string {
       }
       const top = Object.entries(p.models ?? {}).sort((a, b) => num(b[1]) - num(a[1]))[0]
       lines.push(
-        `- ${String(p.name ?? '?')} | ${officeOf(p)} | ${STATE[state(p)]} | ${waited} | ${money(num(p.usdToday))} | ${money(num(p.usd7d))} | ${quota('five_hour')} | ${quota('seven_day')} | ${top ? modelLabel(top[0]) : '-'}`,
+        `- ${String(p.name ?? '?')} | ${officeOf(p)} | ${state(p) === 'waiting' && isIn(p, 'working') ? ALSO_WORKING : STATE[state(p)]} | ${waited} | ${money(num(p.usdToday))} | ${money(num(p.usd7d))} | ${quota('five_hour')} | ${quota('seven_day')} | ${top ? modelLabel(top[0]) : '-'}`,
       )
     }
   }
