@@ -137,7 +137,11 @@ function Send-Report {
         $code = [string][int]$answer.StatusCode
         # a key of its own in the answer: kept in this user's folder, used from the next send on
         # khoá riêng trong câu trả lời: cất trong thư mục của người dùng này, dùng từ lần gửi sau
-        if ($answer.Content -match '"deviceKey": *"(awd1\.[A-Za-z0-9._-]+)"') { [IO.File]::WriteAllText($keyFile, $Matches[1] + "`n", $Utf8) }
+        # an answer without a text Content-Type comes as bytes, not a string: read it as UTF-8 either way, like the sh connector
+        # câu trả lời không có Content-Type dạng chữ thì tới dưới dạng byte, không phải chuỗi: luôn đọc thành UTF-8, như bộ nối sh
+        $body = $answer.Content
+        if ($body -is [byte[]]) { $body = $Utf8.GetString($body) }
+        if ([string]$body -match '"deviceKey": *"(awd1\.[A-Za-z0-9._-]+)"') { [IO.File]::WriteAllText($keyFile, $Matches[1] + "`n", $Utf8) }
       } catch {
         try { $code = [string][int]$_.Exception.Response.StatusCode } catch { $code = '' }
         # its own key refused (too old, or the server was set up again): drop it, so the next send asks for a new one

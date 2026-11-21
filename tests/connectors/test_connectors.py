@@ -49,6 +49,8 @@ class Board(http.server.BaseHTTPRequestHandler):
         body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
         Board.reports.append({"path": self.path, "key": self.headers.get("Authorization"), "body": body.decode("utf-8")})
         self.send_response(Board.status)
+        # no Content-Type on purpose: PowerShell then hands the hook the answer as bytes, so the test covers that case too
+        # cố ý không gửi Content-Type: khi đó PowerShell đưa câu trả lời cho hook dưới dạng byte, nên bài test thử cả trường hợp đó
         self.send_header("Content-Length", str(len(Board.answer)))
         self.end_headers()
         self.wfile.write(Board.answer)
