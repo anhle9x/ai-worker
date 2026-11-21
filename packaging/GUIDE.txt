@@ -122,6 +122,8 @@ UPDATE TO A NEW VERSION
 Unzip the new version and run the installer again. Your changes in config.js are kept.
 
 UNINSTALL
+Windows: double-click UNINSTALL-Windows.bat in this folder and answer y (installed from AI-Worker-Plugin.msi: Settings > Apps > AI Worker plugin).
+Mac, Linux, or by hand:
    claude plugin uninstall ai-worker@ai-worker
    claude plugin marketplace remove ai-worker
 then delete the claude-plugins-ai-worker folder (or the folder you kept in Option 2).

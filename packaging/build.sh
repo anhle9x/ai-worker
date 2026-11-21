@@ -47,6 +47,10 @@ for f in i18n.js ops.vi.js ops.js ops.css ops3d.js; do
 done
 cp "$ROOT/packaging/INSTALL-Mac.command" "$ROOT/packaging/INSTALL-Windows.bat" "$ROOT/packaging/INSTALL-Linux.sh" \
   "$ROOT/packaging/GUIDE.txt" "$ROOT/packaging/GUIDE.vi.txt" "$PKG/"
+# Removing it on Windows: UNINSTALL-Windows.bat asks, then runs the same uninstall.cmd as AI-Worker-Plugin.msi
+# Gỡ trên Windows: UNINSTALL-Windows.bat hỏi lại, rồi chạy đúng uninstall.cmd của AI-Worker-Plugin.msi
+cp "$ROOT/packaging/UNINSTALL-Windows.bat" "$PKG/"
+cp "$ROOT/packaging/windows-msi/uninstall.cmd" "$SETUP/"
 # For Codex, Cursor and Gemini CLI: these start the connector's installer, which sits in the plugin folder (connectors/)
 # Cho Codex, Cursor và Gemini CLI: các file này chạy bộ cài của bộ nối, nằm trong thư mục plugin (connectors/)
 cp "$ROOT/packaging/INSTALL-Other-Tools-Mac.command" "$ROOT/packaging/INSTALL-Other-Tools-Windows.bat" "$ROOT/packaging/INSTALL-Other-Tools-Linux.sh" "$PKG/"
@@ -89,7 +93,7 @@ if c.get("viewCode"): sys.exit(13)
 fi
 # Windows needs CRLF for .bat files
 # Windows cần CRLF cho file .bat
-perl -pi -e 's/\r?\n/\r\n/' "$PKG/INSTALL-Windows.bat" "$PKG/INSTALL-Other-Tools-Windows.bat" "$SETUP/INSTALL-DevTools-Windows.bat" "$SETUP/install-deps.ps1" "$SETUP/ask-name.ps1" "$SETUP/install-desktop.ps1" "$SETUP/helpers.ps1" "$SETUP/lang.ps1" "$SETUP/check-network.ps1"
+perl -pi -e 's/\r?\n/\r\n/' "$PKG/INSTALL-Windows.bat" "$PKG/UNINSTALL-Windows.bat" "$SETUP/uninstall.cmd" "$PKG/INSTALL-Other-Tools-Windows.bat" "$SETUP/INSTALL-DevTools-Windows.bat" "$SETUP/install-deps.ps1" "$SETUP/ask-name.ps1" "$SETUP/install-desktop.ps1" "$SETUP/helpers.ps1" "$SETUP/lang.ps1" "$SETUP/check-network.ps1"
 # PowerShell 5 (built into Windows) reads Vietnamese in a .ps1 correctly only when the file has a UTF-8 BOM
 # PowerShell 5 (có sẵn trên Windows) chỉ đọc đúng tiếng Việt trong .ps1 khi file có BOM UTF-8
 for f in ask-name install-desktop helpers lang check-network install-deps; do

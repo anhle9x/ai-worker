@@ -119,6 +119,8 @@ CẬP NHẬT BẢN MỚI
 Giải nén bản mới và chạy lại file cài. Phần tuỳ chỉnh trong config.js được giữ nguyên.
 
 GỠ CÀI
+Windows: bấm đúp UNINSTALL-Windows.bat trong thư mục này và trả lời y (cài từ AI-Worker-Plugin.msi: Settings > Apps > AI Worker plugin).
+Mac, Linux, hoặc gỡ bằng tay:
    claude plugin uninstall ai-worker@ai-worker
    claude plugin marketplace remove ai-worker
 rồi xoá thư mục claude-plugins-ai-worker (hoặc thư mục đã giữ lại ở Cách 2).

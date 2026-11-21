@@ -133,7 +133,9 @@ Updates never overwrite `config.js`. Pages in the browser also have an **EN / VI
 
 ### 1.8 Uninstall
 
-In Terminal or PowerShell:
+On Windows, double-click `UNINSTALL-Windows.bat` in the unzipped package and answer `y`. The window ends with "Done. If Claude Code is open: quit it completely and open it again." It unregisters the plugin and deletes the plugin folder; your name and history in `%USERPROFILE%\.local\share\ai-worker` stay. Installed from `AI-Worker-Plugin.msi`: Settings > Apps > **AI Worker plugin** > Uninstall does the same.
+
+On a Mac or Linux, or by hand, in Terminal or PowerShell:
 
 ```bash
 claude plugin uninstall ai-worker@ai-worker

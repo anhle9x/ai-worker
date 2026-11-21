@@ -133,7 +133,9 @@ Cập nhật không bao giờ ghi đè `config.js`. Các trang trên trình duy�
 
 ### 1.8 Gỡ cài đặt
 
-Trong Terminal hoặc PowerShell:
+Trên Windows, bấm đúp `UNINSTALL-Windows.bat` trong thư mục đã giải nén và trả lời `y`. Cửa sổ kết thúc bằng "Xong. Nếu Claude Code đang mở: thoát hẳn rồi mở lại." Việc này bỏ đăng ký plugin và xoá thư mục plugin; họ tên và lịch sử của bạn trong `%USERPROFILE%\.local\share\ai-worker` được giữ. Cài từ `AI-Worker-Plugin.msi` thì vào Settings > Apps > **AI Worker plugin** > Uninstall, kết quả như nhau.
+
+Trên Mac hay Linux, hoặc gỡ bằng tay, trong Terminal hoặc PowerShell:
 
 ```bash
 claude plugin uninstall ai-worker@ai-worker

@@ -170,5 +170,41 @@ Check $k 'exit 0' { param($k) $k.ExitCode -eq 0 }
 Check $k 'prints the Vietnamese sign-in line' { param($k) $k.Out -match 'Claude đã đăng nhập: lan@example.com' } # i18n-allow
 Check $k 'saves the language vi' { param($k) ($k.User | ConvertFrom-Json).language -eq 'vi' }
 
+# UNINSTALL-Windows.bat on a computer set up by case $name: $answer is typed at "Remove it? (y/N)"
+# UNINSTALL-Windows.bat trên máy đã cài ở tình huống $name: $answer là câu gõ vào "Remove it? (y/N)"
+function Remove-Case([string]$name, [string]$answer) {
+  $userHome = Join-Path $root $name
+  $folder = Join-Path $root "package-$name"
+  $stdin = Join-Path $root "stdin-remove-$name.txt"
+  [IO.File]::WriteAllText($stdin, ("$answer`r`n" + ("`r`n" * 5)), (New-Object Text.UTF8Encoding $false))
+  Remove-Item -ErrorAction SilentlyContinue "$userHome\commands.log"
+  $envMap = @{ AI_WORKER_LANG = 'en'; USERPROFILE = $userHome; APPDATA = "$userHome\AppData\Roaming"; LOCALAPPDATA = "$userHome\AppData\Local"; Path = "$fake;C:\Windows\System32;C:\Windows;C:\Windows\System32\WindowsPowerShell\v1.0" }
+  $saved = @{}
+  foreach ($k in $envMap.Keys) { $saved[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $envMap[$k]) }
+  try {
+    $outFile = Join-Path $root "out-remove-$name.txt"
+    $p = Start-Process cmd.exe -ArgumentList '/d', '/c', "`"$folder\UNINSTALL-Windows.bat`"" -RedirectStandardInput $stdin `
+      -RedirectStandardOutput $outFile -RedirectStandardError (Join-Path $root "err-remove-$name.txt") -NoNewWindow -PassThru
+    if (-not $p.WaitForExit(120000)) { & taskkill.exe /T /F /PID $p.Id | Out-Null; $exitCode = 'HUNG' } else { $exitCode = $p.ExitCode }
+  } finally { foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) } }
+  return [pscustomobject]@{
+    Name = $name; ExitCode = $exitCode; Out = (Get-Content -Raw -ErrorAction SilentlyContinue $outFile); User = ''; Home = $userHome
+    Cmds = $(if (Test-Path "$userHome\commands.log") { Get-Content -Raw "$userHome\commands.log" } else { '' })
+  }
+}
+
+Write-Host '== W10 UNINSTALL-Windows.bat: answering no changes nothing, answering y removes the plugin and keeps user.json'
+$null = Run 'w10' @{ HasCmd = $true; LoggedIn = 'lan@example.com'; Company = $true; Answers = @('Lan') }
+$k = Remove-Case 'w10' ''
+Check $k 'no: exit 0' { param($k) $k.ExitCode -eq 0 }
+Check $k 'no: the plugin folder stays' { param($k) Test-Path (Join-Path $k.Home 'claude-plugins-ai-worker\ai-worker\.claude-plugin\plugin.json') }
+Check $k 'no: claude is not asked to uninstall' { param($k) $k.Cmds -notmatch 'plugin uninstall' }
+$k = Remove-Case 'w10' 'y'
+Check $k 'y: exit 0' { param($k) $k.ExitCode -eq 0 }
+Check $k 'y: unregisters the plugin and the marketplace' { param($k) $k.Cmds -match 'plugin uninstall ai-worker@ai-worker' -and $k.Cmds -match 'plugin marketplace remove ai-worker' }
+Check $k 'y: the plugin folder with company.json is gone' { param($k) -not (Test-Path (Join-Path $k.Home 'claude-plugins-ai-worker')) }
+Check $k 'y: user.json stays' { param($k) Test-Path (Join-Path $k.Home '.local\share\ai-worker\user.json') }
+Check $k 'y: says done' { param($k) $k.Out -match 'Done\. If Claude Code is open' }
+
 if ($errors) { Write-Host "$errors checks FAILED"; exit 1 }
 Write-Host 'All passed.'
