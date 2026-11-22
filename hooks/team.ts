@@ -367,7 +367,7 @@ export function buildMachineSummary(
     if (s.seenAt && now - s.seenAt < OPEN_MS) {
       openSessions++
       if (typeof s.model === 'string' && s.model) models[s.model] = (models[s.model] ?? 0) + 1
-      for (const a of s.subagents ?? []) if (/^[A-Za-z0-9:_.-]{1,40}$/.test(a.name)) subagents[a.name] = (subagents[a.name] ?? 0) + 1
+      for (const a of s.subagents ?? []) if (/^[A-Za-z0-9:_.-][A-Za-z0-9:_. ()-]{0,39}$/.test(a.name)) subagents[a.name] = (subagents[a.name] ?? 0) + 1
       if (s.asking) waiting++
       else if (s.claudeBusySince) working++
       // a job left open by a session that crashed stops counting after a while

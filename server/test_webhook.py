@@ -3069,6 +3069,17 @@ class SecurityLimits(unittest.TestCase):
             else:
                 self.assertEqual(stored[field], value, field)
 
+    def test_a_subagent_is_listed_with_its_model(self):
+        # the plugin names a subagent by its type and model; markup or a name too long is still dropped
+        # plugin gọi trợ lý con theo loại và mô hình; mã HTML hay tên quá dài vẫn bị bỏ
+        report = self.report(device="device-sub", name="Sub", account="sub@example.com", working=1, openSessions=1,
+                             subagents={"Explore (Haiku 4.5)": 1, "Sonnet 5.5": 1, "<b>x</b>": 1, " lead": 1, "x" * 41: 1})
+        self.assertEqual(self.ingest(json.dumps(report)), 200)
+        cookie = {"Cookie": "session=tok-sec"}
+        people = json.loads(self.call("GET", "/data", None, cookie)[1])["people"]
+        sub = next(p for p in people if p["account"] == "sub@example.com")
+        self.assertEqual(sub["subagents"], [{"name": "Explore (Haiku 4.5)", "count": 1}, {"name": "Sonnet 5.5", "count": 1}])
+
     def test_a_device_without_a_name_stays_with_its_person(self):
         self.assertEqual(self.ingest(json.dumps(self.report(device="device-keep", name="Keep", account="keep@example.com"))), 200)
         self.assertEqual(self.ingest(json.dumps({"v": 1, "device": "device-keep", "updatedAt": int(time.time() * 1000)})), 200)

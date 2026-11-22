@@ -133,6 +133,26 @@ export type View = {
   secs?: number
 }
 
+/** Agent types that say nothing about the helper beyond its model. */
+/** Các loại trợ lý con không nói gì thêm ngoài mô hình của nó. */
+const PLAIN_AGENTS = new Set(['general-purpose', 'fork', 'claude', 'teammate'])
+
+/**
+ * The name a subagent goes by on the office and the board: its model (`claude-sonnet-5-5` or `sonnet` reads as
+ * `Sonnet 5.5` or `Sonnet`), after its type when the type says something (`Explore (Haiku 4.5)`).
+ */
+/** Tên một trợ lý con hiện trên văn phòng và bảng tổng: mô hình của nó (`claude-sonnet-5-5` hay `sonnet` đọc thành `Sonnet 5.5` hay `Sonnet`), đứng sau loại của nó khi loại đó có nghĩa (`Explore (Haiku 4.5)`). */
+export function assistantName(type: string, model?: string): string {
+  const id = (model ?? '').trim().toLowerCase()
+  const cap = (w: string) => w[0]!.toUpperCase() + w.slice(1)
+  // a date after the version is not a minor number: claude-haiku-4-5-20251001
+  // ngày sau số phiên bản không phải số phụ: claude-haiku-4-5-20251001
+  const m = /^claude-([a-z]{3,12})-(\d{1,2})(?:-(\d{1,2})(?!\d))?/.exec(id)
+  const named = m ? `${cap(m[1]!)} ${m[2]}${m[3] ? '.' + m[3] : ''}` : /^[a-z]{3,12}$/.test(id) && id !== 'inherit' ? cap(id) : ''
+  if (!named) return type
+  return PLAIN_AGENTS.has(type) || !type ? named : `${type} (${named})`
+}
+
 const secsBetween = (from: number, to: number) => Math.max(0, Math.round((to - from) / 1000))
 
 export function workerView(s: TeamState, id: WorkerId, now: number): View {

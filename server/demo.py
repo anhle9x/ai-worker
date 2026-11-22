@@ -121,7 +121,7 @@ def sample_reports(now: float, plugin_version: str = "1.0.0", seed: int = 7) -> 
             "pluginVersion": "0.9.0" if i == 7 else plugin_version,
             "lanIp": "192.168.%d.%d" % ([o[0] for o in OFFICES].index(office) + 1, 20 + i),
             "delegating": {"gemini": 1} if i in (0, 5) else ({"gemma": 1} if i == 3 else ({"chatgpt": 1} if i == 8 else {})),
-            "subagents": {"Explore": 1} if i in (1, 10) else {},
+            "subagents": {"Explore (Haiku 4.5)": 1} if i == 1 else ({"Sonnet 5.5": 1} if i == 10 else {}),
             "assistants": {"chatgpt": i % 2 == 0, "gemini": i % 3 != 1, "gemma": "gemma4:26b" if i % 4 != 2 else ""},
             "quota": {"readAt": int(now * 1000), "windows": [{"kind": "five_hour", "pct": five_hour, "resetsAt": int((now + 3600 * 2.5) * 1000)},
                                                               {"kind": "seven_day", "pct": seven_day, "resetsAt": int((now + 86400 * 3) * 1000)}]},

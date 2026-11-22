@@ -954,7 +954,7 @@
       // events: compare the status with the previous time
       // sự kiện: so trạng thái với lần trước
       const current = {}
-      for (const p of people) current[p.name + '|' + p.account] = { s: p.status, g: (p.delegating || []).map(v => v > 0) }
+      for (const p of people) current[p.name + '|' + p.account] = { s: p.status, g: (p.delegating || []).map(v => v > 0), a: (p.subagents || []).map(a => a.name) }
       if (!previous) {
         addEvent('b-info', `OPERATIONS MATRIX ONLINE · ${headcount()} NODES`, COLORS.cyan)
         for (const p of people) if (p.status !== 'offline') addEvent(STATUS_INFO[p.status].label, `${p.name} · ${STATUS_INFO[p.status].name}`)
@@ -970,6 +970,10 @@
               if (on && !a.g[i]) addEvent('b-ai', `${p.name} >> ${HELPERS[i].name} · HAND-OFF`)
               if (!on && a.g[i]) addEvent('b-ok', `${HELPERS[i].name} → ${p.name} · TASK COMPLETE`)
             })
+            // Claude's own subagents by name and model, "Explore (Haiku 4.5)"
+            // các trợ lý con của chính Claude theo tên và mô hình, "Explore (Haiku 4.5)"
+            for (const n of b.a) if (!a.a.includes(n)) addEvent('b-ai', `${p.name} >> ${n} · HAND-OFF`)
+            for (const n of a.a) if (!b.a.includes(n)) addEvent('b-ok', `${n} → ${p.name} · TASK COMPLETE`)
           }
         }
       }

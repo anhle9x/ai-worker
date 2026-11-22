@@ -2,10 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.50.5 - 2026-11-22
 
 ### Fixed
 - The guides told Mac users to right-click a blocked installer and choose Open. Since macOS 15 that no longer lets an unsigned file through; they now say System Settings > Privacy & Security > Open Anyway (the installer guides in the package, the user guide and the wall screen notes).
+- When Claude handed work to one of its own subagents, the office said only "Delegate to assistant" and the board listed the agent type (`general-purpose`), never which model did the work. The office now says "Handing work to Sonnet 5.5" or "Handing work to Explore (Haiku 4.5)" with the model the subagent really runs on, and the board's assistants line uses the same name. The board's event log also writes a HAND-OFF and a TASK COMPLETE line for these subagents, as it did only for Gemini, ChatGPT and Gemma, and the menu bar app's Working tab adds the helpers each person is waiting on ("Opus 5.5 → Gemini, Explore (Haiku 4.5)").
 
 ## 0.50.4 - 2026-11-22
 

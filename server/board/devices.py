@@ -1250,7 +1250,7 @@ def _build_person_row(group: list, now: float, today, since_7_days) -> dict:
             sub_agents = m.get("subagents")
             if isinstance(sub_agents, dict):
                 for agent_name, agent_count in list(sub_agents.items())[:10]:
-                    if isinstance(agent_name, str) and re.fullmatch(r"[A-Za-z0-9:_.-]{1,40}", agent_name) and isinstance(agent_count, int) and 0 < agent_count <= 50:
+                    if isinstance(agent_name, str) and re.fullmatch(r"[A-Za-z0-9:_.-][A-Za-z0-9:_. ()-]{0,39}", agent_name) and isinstance(agent_count, int) and 0 < agent_count <= 50:
                         r["subagents"][agent_name] = r["subagents"].get(agent_name, 0) + agent_count
             delegating = m.get("delegating") or {}
             if isinstance(delegating, dict):

@@ -34,7 +34,7 @@ import { handoffSection, newestNotes, noteName } from './handoff'
 import type { HandoffNote } from './handoff'
 import type { VoiceSystem } from './voice'
 import type { SkillLine } from './help'
-import { BADGE_MS, BRAND, FX_MS, WORKERS, applyConfig, setInstalled, buildOfficeSvg, clockLabel, dayLabel, formatSecs, workerView } from './office'
+import { BADGE_MS, BRAND, FX_MS, WORKERS, applyConfig, setInstalled, buildOfficeSvg, clockLabel, dayLabel, formatSecs, workerView, assistantName } from './office'
 import type { OfficeConfig } from './office'
 
 const PANE = 'ai-worker'
@@ -150,6 +150,13 @@ function claudeLabel(tool: string): string {
   if (/firecrawl|search/i.test(tool)) return tx('Web search')
   if (/Browser|browser|playwright|chrome/.test(tool)) return tx('Use browser')
   return tx('Working')
+}
+/** What Claude is doing while it starts a subagent: the helper by its type and the model asked for, when the call names one. */
+/** Claude đang làm gì khi khởi tạo một trợ lý con: trợ lý theo loại và mô hình được yêu cầu, khi lệnh gọi có nêu. */
+function agentLabel(args: Record<string, unknown>): string {
+  const type = typeof args.subagent_type === 'string' ? args.subagent_type.trim().slice(0, 40) : ''
+  const name = assistantName(type || 'general-purpose', typeof args.model === 'string' ? args.model : undefined)
+  return name === 'general-purpose' ? tx('Delegate to assistant') : tx('Handing work to {worker}', { worker: name })
 }
 const WORKER_NAME: Record<WorkerId, string> = { claude: 'Claude', gemini: 'Gemini', chatgpt: 'ChatGPT', gemma: 'Gemma' }
 
@@ -1511,13 +1518,17 @@ function isLively(s: TeamState, now: number): boolean {
 const ASSISTANTS_EVERY_MS = 5000
 let assistantsAt = 0
 
+/** The model each subagent runs on, by its id, as its spawn answered: the engine's list does not say. */
+/** Mô hình mà mỗi trợ lý con chạy, theo mã của nó, như lúc khởi tạo trả lời: danh sách của engine không nói. */
+const agentModels = new Map<string, string>()
+
 async function refreshAssistants($: EngineInterface, now: number) {
   assistantsAt = now
   try {
     const agents = await $.agent.list()
     const currentAgents = agents
       .filter(a => a.status === 'pending' || a.status === 'running' || a.status === 'waiting')
-      .map(a => ({ name: a.type, description: a.description.slice(0, 80) }))
+      .map(a => ({ name: assistantName(a.type, agentModels.get(a.id)), description: a.description.slice(0, 80) }))
       .slice(0, 20)
     const s = await read($, team)
     if (JSON.stringify(s.subagents ?? []) !== JSON.stringify(currentAgents)) await commit($, st => ({ ...st, subagents: currentAgents }))
@@ -2101,6 +2112,22 @@ export const register: Register = on => {
     return secret ? { decision: 'ask' as const, reason: secret } : verdict
   })
 
+  // a subagent's model is known once it starts: the office and the board name it by that
+  // mô hình của trợ lý con được biết khi nó bắt đầu: văn phòng và bảng tổng gọi nó theo đó
+  on('agent.spawn', async ($, e, next) => {
+    const ran = await next(e)
+    if (ran.deny !== undefined || !ran.agentId || !ran.model) return ran
+    agentModels.set(ran.agentId, ran.model)
+    if (agentModels.size > 200) agentModels.delete(agentModels.keys().next().value!)
+    if (!e.parentAgentId) {
+      const label = tx('Handing work to {worker}', { worker: assistantName(e.subagentType, ran.model) })
+      await commit($, st => (st.claudeBusySince === undefined ? st : { ...st, claudeTool: label }))
+    }
+    await refreshAssistants($, await $.clock.now())
+    ensureTicker($)
+    return ran
+  })
+
   on('tool.call', async ($, e, next) => {
     if (!e.agentId) {
       const args = e as unknown as Record<string, unknown>
@@ -2131,7 +2158,7 @@ export const register: Register = on => {
     const op = name ? OPS[name] : undefined
     if (!op) {
       if (!e.agentId) {
-        const label = claudeLabel(e.tool)
+        const label = e.tool === 'Agent' ? agentLabel(e as unknown as Record<string, unknown>) : claudeLabel(e.tool)
         const s = await read($, team)
         if (s.claudeTool !== label) await commit($, st => ({ ...st, claudeTool: label }))
       }

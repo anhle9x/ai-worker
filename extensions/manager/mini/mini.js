@@ -211,7 +211,12 @@
       working.forEach(function (p) {
         var model = Object.keys(p.models || {})[0] || ''
         var m = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?/.exec(model)
-        list.appendChild(row('work', p.name, m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) + ' ' + m[2] + (m[3] ? '.' + m[3] : '') : model))
+        // the helpers this person has handed work to right now, by name: Gemini, ChatGPT, Gemma, then Claude's own subagents
+        // các trợ lý người này đang giao việc lúc này, theo tên: Gemini, ChatGPT, Gemma, rồi các trợ lý con của Claude
+        var helpers = ['Gemini', 'ChatGPT', 'Gemma'].filter(function (_, k) { return ((p.delegating || [])[k] || 0) > 0 })
+          .concat((p.subagents || []).map(function (a) { return a.name + (a.count > 1 ? ' \u00d7' + a.count : '') }))
+        var label = m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) + ' ' + m[2] + (m[3] ? '.' + m[3] : '') : model
+        list.appendChild(row('work', p.name, label + (helpers.length ? ' \u2192 ' + helpers.join(', ') : '')))
       })
       if (!working.length) list.appendChild(empty(t('Nobody is working')))
     } else if (tab === 'quota') {

@@ -83,7 +83,7 @@ export type Delegation = {
 export type TeamState = {
   /** A newer signed plugin is on the server; `tuDong` false when this machine cannot check signatures, so it only says so. */
   update?: { version: string; auto: boolean }
-  /** Subagents running now: `ten` is the agent type, `moTa` the task. Only the type ever leaves this machine. */
+  /** Subagents running now: `name` is the agent type with its model (`Explore (Haiku 4.5)`), `description` the task. Only the name ever leaves this machine. */
   subagents?: { name: string; description: string }[]
   jobs: Job[]
   /** What ai-worker stopped or put to the person, newest last: only the kind and the time ever leave this machine. */

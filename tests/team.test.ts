@@ -20,12 +20,12 @@ test('only the type of a running subagent leaves the machine, never its task', (
   const m = buildMachineSummary(
     [
       { ...open, subagents: [{ name: 'general-purpose', description: 'Review customer A contract' }, { name: 'Explore', description: 'x' }] },
-      { ...open, subagents: [{ name: 'general-purpose', description: 'y' }, { name: 'odd <name>', description: 'z' }] },
+      { ...open, subagents: [{ name: 'general-purpose', description: 'y' }, { name: 'odd <name>', description: 'z' }, { name: 'Explore (Haiku 4.5)', description: 'w' }, { name: ' leading space', description: 'v' }] },
       { ...open, seenAt: NOW - OPEN_MS - 1, subagents: [{ name: 'planner', description: 'session already closed' }] },
     ],
     undefined, NOW, who,
   )
-  expect(m.subagents).toEqual({ 'general-purpose': 2, Explore: 1 })
+  expect(m.subagents).toEqual({ 'general-purpose': 2, Explore: 1, 'Explore (Haiku 4.5)': 1 })
   expect(JSON.stringify(m)).not.toContain('contract')
   expect(buildMachineSummary([open], undefined, NOW, who).subagents).toBeUndefined()
 })

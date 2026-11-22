@@ -1,5 +1,6 @@
 import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
+import { assistantName } from '../hooks/office'
 
 const PANE = {
   plugin: 'ai-worker',
@@ -134,4 +135,37 @@ test('edits are listed, and a secrets file keeps no lines', async ($, on) => {
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect(await ui.find({ type: 'Text', text: /Files Claude edited: 2 times/ })).toBeDefined()
   await ui.unmount()
+})
+
+test('a subagent is named by its type and model, not just as an assistant', async ($, on) => {
+  engine(on)
+  let seen = ''
+  on('session.cwd', () => ({ value: '/' }))
+  on('env.get', () => ({ value: undefined }))
+  on('turn.start', () => ({ turnId: 't1' }))
+  on('agent.spawn', () => ({ model: 'claude-haiku-4-5-20251001', agentId: 'a1' }))
+  on('tool.call', async (_, e) => {
+    if (e.tool === 'Agent') {
+      await $.agent.spawn({ prompt: 'Find where the office is drawn', subagentType: 'Explore', description: 'Find the drawing' })
+      const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+      seen = (await ui.find({ type: 'Text', text: /Explore/ }))?.text ?? ''
+      await ui.unmount()
+    }
+    return { result: 'ok' }
+  })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start({ text: 'Where is the office drawn?', turnId: 't1' })
+  await $.tool.call({ tool: 'Agent', subagent_type: 'Explore', description: 'Find the drawing', prompt: 'Find where the office is drawn' })
+  expect(seen).toContain('Explore (Haiku 4.5)')
+})
+
+test('assistantName reads the model the way the board shows it', () => {
+  expect(assistantName('Explore', 'claude-haiku-4-5-20251001')).toBe('Explore (Haiku 4.5)')
+  expect(assistantName('general-purpose', 'claude-sonnet-5-5')).toBe('Sonnet 5.5')
+  expect(assistantName('general-purpose', 'sonnet')).toBe('Sonnet')
+  expect(assistantName('fork', 'claude-opus-5-5[1m]')).toBe('Opus 5.5')
+  expect(assistantName('Plan', 'claude-sonnet-4-20250514')).toBe('Plan (Sonnet 4)')
+  expect(assistantName('Explore')).toBe('Explore')
+  expect(assistantName('Explore', 'inherit')).toBe('Explore')
+  expect(assistantName('general-purpose', 'some/odd model')).toBe('general-purpose')
 })
