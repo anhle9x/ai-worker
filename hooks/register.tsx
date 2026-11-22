@@ -14,7 +14,7 @@ import { applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, 
 import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextNoteForClaude, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
 import { answerModel, buildMachineSummary, deviceKeyIn, refusalAfter, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
 import type { ShareConfig } from './team'
-import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT, findHostApp, parseLinuxHost, parseWindowsHost, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
+import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT, WINDOWS_CLAUDE_SCRIPT, UNIX_CLAUDE_SCRIPT, claudeCandidate, isClaudeCodeVersion, findHostApp, parseLinuxHost, parseWindowsHost, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
 import { AGY_BRAIN, IMAGE_DIR, IMAGE_SCHEMA, IMAGE_SETTLE_MS, OLLAMA_URL, PROMPT_LEVEL_SCHEMA, PROMPT_SCHEMA, WORKER_TIMEOUT_MS, imageArgv, imageTargets, newImages, safeImageName, sendingNeedsAsking, sendingRefusal, agyArgv, codexArgv, codexInput, isBatchLauncher, delegationRules, gemmaAnswer, gemmaRequest, mcpConfigured, ownTools, pickGemma } from './workers'
 import type { OwnWorkers } from './workers'
 import { pageLanguageScript, setLang, tx } from './lang'
@@ -1286,6 +1286,51 @@ async function pollNewVersion($: EngineInterface, now: number) {
   await $.store.set(UPDATE_KEY, { ...saved, checkedAt: succeeded ? now : now - UPDATE_EVERY_MS + UPDATE_RETRY_MS })
 }
 
+/** PowerShell running the script in AIW_SCRIPT: the command line only names that variable. */
+/** PowerShell chạy script trong AIW_SCRIPT: dòng lệnh chỉ nêu tên biến đó. */
+const WINDOWS_POWERSHELL = ['powershell', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', 'Invoke-Expression $env:AIW_SCRIPT']
+
+/** The Claude Code that runs this plugin (it answers `--version` as Claude Code), else `claude` on the PATH; undefined when neither does. */
+/** Claude Code đang chạy plugin này (nó trả lời `--version` là Claude Code), nếu không thì `claude` trong PATH; undefined khi không cái nào như vậy. */
+async function claudeCodeProgram($: EngineInterface): Promise<string | undefined> {
+  const found: string[] = []
+  try {
+    const r = (await $.env.get('OS')) === 'Windows_NT'
+      ? await $.process.run(WINDOWS_POWERSHELL, { env: { AIW_SCRIPT: WINDOWS_CLAUDE_SCRIPT }, timeoutMs: 30_000 })
+      : await $.process.run(['/bin/sh', '-c', UNIX_CLAUDE_SCRIPT])
+    const program = r.exitCode === 0 ? claudeCandidate(r.stdout) : undefined
+    if (program) found.push(program)
+  } catch {
+    // the PATH is still tried
+    // vẫn thử PATH
+  }
+  found.push('claude')
+  for (const program of found) {
+    const v = await $.process.run([program, '--version'], { timeoutMs: 15_000 }).catch(() => undefined)
+    if (v?.exitCode === 0 && isClaudeCodeVersion(v.stdout)) return program
+  }
+  return undefined
+}
+
+/**
+ * Claude Code loads the plugin from its own copy, made when the plugin was installed, not from the folder /update
+ * replaces: has it copy that folder again, the way `/plugin` updates a plugin. False when that could not be done.
+ */
+/** Claude Code nạp plugin từ bản chép riêng của nó, làm lúc cài plugin, không phải từ thư mục mà /update thay: nhờ nó chép lại thư mục đó, như cách `/plugin` cập nhật một plugin. False khi không làm được. */
+async function refreshClaudeCopy($: EngineInterface): Promise<boolean> {
+  const program = await claudeCodeProgram($)
+  if (!program) return false
+  for (const args of [['plugin', 'marketplace', 'update', 'ai-worker'], ['plugin', 'update', 'ai-worker@ai-worker']]) {
+    const r = await $.process.run([program, ...args], { timeoutMs: 120_000 }).catch(() => undefined)
+    if (r?.exitCode !== 0) return false
+  }
+  return true
+}
+
+/** What /update says when Claude Code could not take the new version in by itself. */
+/** Điều /update nói khi Claude Code không tự nhận được bản mới. */
+const refreshByHand = () => tx('If the old version still runs after that, type /plugin, choose ai-worker and update it, then reopen the app.')
+
 /**
  * The Claude desktop app this session runs in, with the command that closes it and opens it again;
  * undefined in a terminal, an editor, or when the app cannot be told for certain.
@@ -1299,7 +1344,7 @@ async function findRestartTarget($: EngineInterface): Promise<{ pid: number; app
       // and nothing read from the machine is ever part of a command line
       // mỗi script đi trong một biến và dòng lệnh chỉ nêu tên biến đó: không cách đặt dấu nháy nào làm hỏng được,
       // và không thứ gì đọc từ máy trở thành một phần dòng lệnh
-      const powershell = ['powershell', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', 'Invoke-Expression $env:AIW_SCRIPT']
+      const powershell = WINDOWS_POWERSHELL
       const found = await $.process.run(powershell, { env: { AIW_SCRIPT: WINDOWS_FIND_SCRIPT }, timeoutMs: 30_000 })
       const host = found.exitCode === 0 ? parseWindowsHost(found.stdout) : undefined
       if (!host) return undefined
@@ -1367,6 +1412,14 @@ async function installUpdate($: EngineInterface): Promise<{ text: string; versio
   const { m, signature, text } = await checkNewVersion($)
   if (text) return { text }
   if (!m) return { text: tx('This computer already has the latest version.') }
+  // an earlier /update already put it in, and this app still runs the old one until it is reopened: do not download it again
+  // một lần /update trước đã cài nó, và app này vẫn chạy bản cũ cho tới khi mở lại: không tải lại nữa
+  const onDisk = await $.fs.read(`${root}/.claude-plugin/plugin.json`).then(t => (JSON.parse(t) as { version?: unknown }).version, () => undefined)
+  if (onDisk === m.version) {
+    const taken = await refreshClaudeCopy($)
+    const text = tx('Version {version} is already installed, but the Claude app is still running the old one. Quit the Claude app completely (Mac: Cmd+Q; Windows: right-click the Claude icon next to the clock, then Exit) and open it again.', { version: m.version })
+    return { text: taken ? text : `${text}\n${refreshByHand()}`, version: m.version }
+  }
   if (signature !== 'valid') return { text: tx('Version {version} is available, but this computer cannot check its signature, so it will not install it. Ask your admin for the install package.', { version: m.version }) }
   const win = (await $.env.get('OS')) === 'Windows_NT'
   const newDir = `${root}.new`
@@ -1407,7 +1460,8 @@ async function installUpdate($: EngineInterface): Promise<{ text: string; versio
   const saved = ((await $.store.get(UPDATE_KEY)) as { checkedAt?: number } | undefined) ?? {}
   await $.store.set(UPDATE_KEY, { ...saved, date: m.date })
   await commit($, s => ({ ...s, update: undefined }))
-  return { text: tx('Updated to version {version}. Quit the Claude app completely (Mac: Cmd+Q; Windows: right-click the Claude icon next to the clock, then Exit) and open it again to use the new version.', { version: m.version }), version: m.version }
+  const taken = await refreshClaudeCopy($)
+  return { text: tx('Updated to version {version}. Quit the Claude app completely (Mac: Cmd+Q; Windows: right-click the Claude icon next to the clock, then Exit) and open it again to use the new version.', { version: m.version }) + (taken ? '' : `\n${refreshByHand()}`), version: m.version }
 }
 
 /** Copies the browser view's page and drawing code next to the session files. */

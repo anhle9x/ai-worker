@@ -131,6 +131,8 @@ export const VI: Record<string, string> = {
   'The update on the server has a wrong signature, so it was not installed. Tell your admin.': 'Bản cập nhật trên máy chủ sai chữ ký nên không được cài. Hãy báo người quản trị.',
   'Thinking': 'Suy nghĩ',
   'This computer already has the latest version.': 'Máy này đang ở bản mới nhất.',
+  'If the old version still runs after that, type /plugin, choose ai-worker and update it, then reopen the app.': 'Nếu sau đó vẫn chạy bản cũ, gõ /plugin, chọn ai-worker và cập nhật, rồi mở lại app.',
+  'Version {version} is already installed, but the Claude app is still running the old one. Quit the Claude app completely (Mac: Cmd+Q; Windows: right-click the Claude icon next to the clock, then Exit) and open it again.': 'Bản {version} đã được cài, nhưng app Claude vẫn đang chạy bản cũ. Thoát hẳn app Claude (Mac: Cmd+Q; Windows: bấm chuột phải vào biểu tượng Claude cạnh đồng hồ, chọn Exit) rồi mở lại.',
   'This computer has no Gemma yet (Ollama is not installed or the model is not downloaded).': 'Máy này chưa có Gemma (Ollama chưa cài hoặc chưa tải mô hình).',
   'This computer has no server set up, so it cannot update.': 'Máy này chưa cấu hình máy chủ nên không cập nhật được.',
   'This is a source code folder, so it does not update itself.': 'Đây là thư mục mã nguồn nên không tự cập nhật.',

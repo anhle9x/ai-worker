@@ -70,7 +70,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           PRIVATE: ${{ github.event.repository.private }}
           BEFORE: ${{ github.event.before }}
-          WINDOWS_PATHS: '^(\.github/workflows/|\.claude-plugin/|packaging/|connectors/|server/menubar/|tests/connectors/|tests/menubar/|tests/windows/)'
+          WINDOWS_PATHS: '^(hooks/update\.ts$|\.github/workflows/|\.claude-plugin/|packaging/|connectors/|server/menubar/|tests/connectors/|tests/menubar/|tests/windows/)'
         run: |
           if [ "$EVENT" != "push" ] || [ "$PRIVATE" != "true" ]; then
             windows=true
@@ -146,6 +146,18 @@ jobs:
       - name: Test-install the cases
         shell: pwsh
         run: pwsh -NoProfile -File tests/windows/test-install.ps1 -Package "$env:RUNNER_TEMP\package\AI-Worker"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # the scripts that close and reopen the Claude app after /update, in the Windows PowerShell 5 the plugin uses
+      # các script đóng rồi mở lại app Claude sau /update, trong Windows PowerShell 5 mà plugin dùng
+      - name: Test reopening the Claude app after /update
+        shell: powershell
+        run: |
+          node --experimental-strip-types tests/windows/dump-restart-scripts.mjs "$env:RUNNER_TEMP"
+          if ($LASTEXITCODE) { exit 1 }
+          powershell -NoProfile -ExecutionPolicy Bypass -File tests/windows/test-restart.ps1 -Scripts "$env:RUNNER_TEMP"
+          if ($LASTEXITCODE) { exit 1 }
       # the same test file drives the PowerShell hook and installer here
       # cùng file test đó ở đây chạy hook và bộ cài bản PowerShell
       - name: Test the connector for Codex, Cursor and Gemini CLI

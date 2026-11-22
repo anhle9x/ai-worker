@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { buildHelp, skillLine } from '../hooks/help'
-import { findHostApp, parseLinuxHost, parseWindowsHost, hasSigningKeys, parseHash, parseSignatureResult, parseManifest, shouldOfferUpdate } from '../hooks/update'
+import { claudeCandidate, isClaudeCodeVersion, findHostApp, parseLinuxHost, parseWindowsHost, hasSigningKeys, parseHash, parseSignatureResult, parseManifest, shouldOfferUpdate } from '../hooks/update'
 import { DEVICE_ID_LENGTH, OPEN_MS, REFUSED_FIRST_MS, REFUSED_MAX_MS, buildMachineSummary, deviceKeyIn, refusalAfter, newDeviceId, hardwareMark, parseHardwareId, sha256Hex, isLanIp, mergeShare, mergeTeam, parseLanIp, parseSessionFile, readShareConfig, summarySignature, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, answerModel, toQuota, quotaWarning } from '../hooks/team'
 
 const H = 3_600_000
@@ -336,6 +336,33 @@ test('the Windows app is read only from a whole answer of the find script', () =
   expect(parseWindowsHost(`4\t${app}\t${stub}`)).toBeUndefined()
   expect(parseWindowsHost(`5516\t${app}\tclaude.exe`)).toBeUndefined()
   expect(parseWindowsHost(`5516\t${app}\tC:\\x\\run.cmd`)).toBeUndefined()
+})
+
+test('only Claude Code itself is asked to take in the updated plugin', () => {
+  const store = 'C:\\Users\\an\\AppData\\Local\\Claude-Data\\claude_pzs8sxrjxfjjc\\claude-code\\2.1.330\\9424831ad51c\\claude.exe'
+  expect(claudeCandidate(`${store}\r\n`)).toBe(store)
+  expect(claudeCandidate('/Users/an/.local/share/claude/versions/2.1.330\n')).toBe('/Users/an/.local/share/claude/versions/2.1.330')
+  // never the desktop app's own program, which might open a second window, and never a bare name
+  // không bao giờ là chương trình của chính app desktop, thứ có thể mở thêm một cửa sổ, và không bao giờ là một tên trần
+  expect(claudeCandidate('C:\\Program Files\\WindowsApps\\Claude_6.28899.6.0_x64__pzs8sxrjxfjjc\\app\\Claude.exe')).toBeUndefined()
+  expect(claudeCandidate('C:\\Users\\an\\AppData\\Local\\AnthropicClaude\\app-1.0.0\\claude.exe')).toBeUndefined()
+  expect(claudeCandidate('/Applications/Claude.app/Contents/MacOS/Claude')).toBeUndefined()
+  expect(claudeCandidate('claude')).toBeUndefined()
+  expect(claudeCandidate('')).toBeUndefined()
+  expect(isClaudeCodeVersion('2.1.330 (Claude Code)\n')).toBe(true)
+  expect(isClaudeCodeVersion('v22.23.4')).toBe(false)
+  expect(isClaudeCodeVersion('2.1.330 (Claude Code)\nsomething else')).toBe(false)
+})
+
+test('the Store app is opened again only by its own entry in the shell', () => {
+  const app = 'C:\\Program Files\\WindowsApps\\Claude_6.28899.6.0_x64__pzs8sxrjxfjjc\\app\\Claude.exe'
+  const entry = 'shell:AppsFolder\\Claude_pzs8sxrjxfjjc!Claude'
+  expect(parseWindowsHost(`8120\t${app}\t${entry}\r\n`)).toEqual({ pid: 8120, app, launcher: entry })
+  // another package family, an entry with something after the app id, or a protocol link are refused
+  // họ gói khác, mục có thêm gì sau mã app, hay một liên kết giao thức đều bị từ chối
+  expect(parseWindowsHost(`8120\t${app}\tshell:AppsFolder\\Other_pzs8sxrjxfjjc!Claude`)).toBeUndefined()
+  expect(parseWindowsHost(`8120\t${app}\t${entry} & calc`)).toBeUndefined()
+  expect(parseWindowsHost(`8120\t${app}\tclaude://`)).toBeUndefined()
 })
 
 test('a skill is listed by its name and the first sentence of its description', () => {

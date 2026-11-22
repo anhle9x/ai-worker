@@ -2,6 +2,13 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.6 - 2026-11-22
+
+### Fixed
+- On Windows, `/update` now offers to close and reopen the Claude app installed from the Microsoft Store (MSIX), as it does on a Mac and for the app installed from claude.ai. Until now it left that app out and only said to quit and reopen it by hand. The app is recognised by its package (`Claude_pzs8sxrjxfjjc`, signed by the Store or by Anthropic, not a folder registered in developer mode) and opened again through the Start menu entry Windows registered for it. Tried on GitHub with stand-in data; closing and reopening the real Store app is tried by hand.
+- On computers set up with the installer, `/update` replaced the plugin folder, but Claude Code kept loading its own copy made at install time, so the app went on running the old version however often it was reopened, and every `/update` installed the same version again. `/update` now has Claude Code take the new folder in, the way `/plugin` updates a plugin (`claude plugin marketplace update ai-worker`, then `claude plugin update ai-worker@ai-worker`), with the Claude Code that runs the plugin, so it works with the Store app too, whose `claude` command is not on the PATH. If that fails, it says to update ai-worker in `/plugin`.
+- Typing `/update` again before reopening the Claude app downloaded and installed the same version again, and could stop at "Could not unpack the new version". It now says the version is already installed and the app is still running the old one, and offers to reopen the app.
+
 ## 0.50.5 - 2026-11-22
 
 ### Fixed

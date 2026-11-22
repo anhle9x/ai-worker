@@ -137,18 +137,38 @@ export const LINUX_RESTART_SCRIPT =
 /** Chạy $0 (một script) với $1 và $2 trong một phiên riêng, không có đầu vào hay đầu ra, rồi trả về ngay. */
 export const LINUX_DETACH = 'setsid -f /bin/sh -c "$0" sh "$1" "$2" </dev/null >/dev/null 2>&1'
 
+/** The package family of the Claude app from the Microsoft Store (MSIX): its name and Anthropic's publisher id. */
+/** Họ gói của app Claude cài từ Microsoft Store (MSIX): tên gói và mã nhà phát hành Anthropic. */
+export const STORE_FAMILY = 'Claude_pzs8sxrjxfjjc'
+
 /**
  * On Windows (PowerShell): prints `<pid>\t<program>\t<launcher>` for the Claude desktop app this shell runs in, or
  * nothing. The app is the topmost ancestor whose program is the product "Claude" with a valid Anthropic signature,
  * wherever it is installed. A parent older than its child is the real parent (Windows reuses process ids). The
- * launcher is the installer's own stub next to an `app-<version>` folder when there is one. A Store-style package
- * (WindowsApps) is left out: how to open it again has not been tried.
+ * launcher is the installer's own stub next to an `app-<version>` folder when there is one.
+ * The app from the Microsoft Store runs from WindowsApps, whose files are not read: its program must sit at the
+ * package's own `app\Claude.exe` for the family STORE_FAMILY, and when Windows can list the person's packages, the
+ * package must be signed by the Store or its publisher (not a folder registered in developer mode) and name that
+ * program. Its launcher is `shell:AppsFolder\<family>!<app id>`, which only opens what Windows registered under that family.
  */
-/** Trên Windows (PowerShell): in ra `<pid>\t<chương trình>\t<lệnh mở>` của app Claude desktop mà shell này chạy trong đó, hoặc không in gì. App là tổ tiên trên cùng có chương trình là sản phẩm "Claude" với chữ ký Anthropic hợp lệ, cài ở đâu cũng được. Tiến trình cha phải cũ hơn tiến trình con mới là cha thật (Windows dùng lại mã tiến trình). Lệnh mở là file khởi động của bộ cài nằm cạnh thư mục `app-<phiên bản>` khi có. Gói kiểu Store (WindowsApps) bị bỏ qua: chưa thử cách mở lại nó. */
+/** Trên Windows (PowerShell): in ra `<pid>\t<chương trình>\t<lệnh mở>` của app Claude desktop mà shell này chạy trong đó, hoặc không in gì. App là tổ tiên trên cùng có chương trình là sản phẩm "Claude" với chữ ký Anthropic hợp lệ, cài ở đâu cũng được. Tiến trình cha phải cũ hơn tiến trình con mới là cha thật (Windows dùng lại mã tiến trình). Lệnh mở là file khởi động của bộ cài nằm cạnh thư mục `app-<phiên bản>` khi có. App cài từ Microsoft Store chạy trong WindowsApps, nơi không đọc file: chương trình của nó phải nằm đúng ở `app\Claude.exe` của gói thuộc họ STORE_FAMILY, và khi Windows liệt kê được các gói của người dùng thì gói phải do Store hoặc nhà phát hành ký (không phải thư mục đăng ký ở chế độ nhà phát triển) và khai đúng chương trình đó. Lệnh mở của nó là `shell:AppsFolder\<họ gói>!<mã app>`, chỉ mở thứ Windows đã đăng ký dưới họ gói đó. */
 export const WINDOWS_FIND_SCRIPT = [
   "$ErrorActionPreference = 'Stop'",
   "if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') { exit }",
   'function Signed($f) { $s = Get-AuthenticodeSignature -LiteralPath $f; return ($s.Status -eq \'Valid\' -and $s.SignerCertificate.Subject -match \'O="Anthropic, PBC"\') }',
+  // $looked: whether Windows listed the packages; $pkgs: what it listed, with each package's apps
+  // $looked: Windows có liệt kê được các gói không; $pkgs: những gì nó liệt kê, kèm các app của từng gói
+  'function StoreLauncher($exe, $looked, $pkgs) {',
+  `  if ($exe -notmatch '\\\\WindowsApps\\\\${STORE_FAMILY.split('_')[0]}_[0-9.]+_[a-z0-9]+__${STORE_FAMILY.split('_')[1]}\\\\app\\\\Claude\\.exe$') { return $null }`,
+  `  if (-not $looked) { return 'shell:AppsFolder\\${STORE_FAMILY}!Claude' }`,
+  '  foreach ($k in $pkgs) {',
+  `    if ($k.PackageFamilyName -ne '${STORE_FAMILY}' -or $k.IsDevelopmentMode -or @('Store', 'Developer') -notcontains [string]$k.SignatureKind) { continue }`,
+  "    $root = ([string]$k.InstallLocation).TrimEnd('\\') + '\\'",
+  '    if (-not $exe.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { continue }',
+  `    foreach ($a in $k.Apps) { if (($root + $a.Executable) -eq $exe -and $a.Id -match '^[A-Za-z0-9.]+$') { return 'shell:AppsFolder\\${STORE_FAMILY}!' + $a.Id } }`,
+  '  }',
+  '  return $null',
+  '}',
   '$all = @{}; Get-CimInstance Win32_Process | ForEach-Object { $all[[int]$_.ProcessId] = $_ }',
   '$chain = @(); $child = $all[[int]$PID]',
   'for ($n = 0; $n -lt 64 -and $child; $n++) {',
@@ -159,21 +179,70 @@ export const WINDOWS_FIND_SCRIPT = [
   '[array]::Reverse($chain)',
   'foreach ($p in $chain) {',
   '  $exe = $p.ExecutablePath',
-  "  if (-not $exe -or $exe -like '*\\WindowsApps\\*') { continue }",
-  "  if ((Get-Item -LiteralPath $exe).VersionInfo.ProductName -ne 'Claude' -or -not (Signed $exe)) { continue }",
-  '  $launcher = $exe; $dir = Split-Path -Parent $exe',
-  "  if ((Split-Path -Leaf $dir) -like 'app-*') {",
-  '    $stub = Join-Path (Split-Path -Parent $dir) (Split-Path -Leaf $exe)',
-  '    if ((Test-Path -LiteralPath $stub) -and (Signed $stub)) { $launcher = $stub }',
+  '  if (-not $exe) { continue }',
+  "  if ($exe -like '*\\WindowsApps\\*') {",
+  // a failure here (no Appx module, a package context that refuses) must not stop the walk
+  // lỗi ở đây (không có module Appx, ngữ cảnh gói từ chối) không được làm dừng việc dò
+  '    try {',
+  "      $pkgs = @(Get-AppxPackage -Name Claude | ForEach-Object { [pscustomobject]@{ PackageFamilyName = $_.PackageFamilyName; SignatureKind = [string]$_.SignatureKind; IsDevelopmentMode = $_.IsDevelopmentMode; InstallLocation = $_.InstallLocation; Apps = @((Get-AppxPackageManifest $_).Package.Applications.Application | ForEach-Object { [pscustomobject]@{ Id = $_.Id; Executable = $_.Executable } }) } })",
+  '      $looked = $true',
+  '    } catch { $pkgs = @(); $looked = $false }',
+  '    $launcher = StoreLauncher $exe $looked $pkgs',
+  '    if (-not $launcher) { continue }',
+  '  } else {',
+  "    if ((Get-Item -LiteralPath $exe).VersionInfo.ProductName -ne 'Claude' -or -not (Signed $exe)) { continue }",
+  '    $launcher = $exe; $dir = Split-Path -Parent $exe',
+  "    if ((Split-Path -Leaf $dir) -like 'app-*') {",
+  '      $stub = Join-Path (Split-Path -Parent $dir) (Split-Path -Leaf $exe)',
+  '      if ((Test-Path -LiteralPath $stub) -and (Signed $stub)) { $launcher = $stub }',
+  '    }',
   '  }',
   '  [Console]::Out.Write("$($p.ProcessId)`t$exe`t$launcher"); exit',
   '}',
 ].join('\n')
 
-/** What WINDOWS_FIND_SCRIPT printed: the app's process and the program that opens it again. */
-/** Kết quả WINDOWS_FIND_SCRIPT in ra: tiến trình của app và chương trình mở lại nó. */
+/**
+ * On Windows (PowerShell): prints the program of the nearest of this shell's three closest ancestors named
+ * `claude.exe` that is not the desktop app's own program (WindowsApps, AnthropicClaude), or nothing: the Claude Code
+ * that runs this plugin, which the Store app keeps off the PATH.
+ */
+/** Trên Windows (PowerShell): in ra chương trình của tổ tiên gần nhất (trong ba tổ tiên gần nhất của shell này) tên `claude.exe` mà không phải chương trình của chính app desktop (WindowsApps, AnthropicClaude), hoặc không in gì: đó là Claude Code đang chạy plugin này, thứ mà app Store không đặt vào PATH. */
+export const WINDOWS_CLAUDE_SCRIPT = [
+  "$ErrorActionPreference = 'Stop'",
+  '$all = @{}; Get-CimInstance Win32_Process | ForEach-Object { $all[[int]$_.ProcessId] = $_ }',
+  '$child = $all[[int]$PID]',
+  'for ($n = 0; $n -lt 3 -and $child; $n++) {',
+  '  $parent = $all[[int]$child.ParentProcessId]',
+  '  if (-not $parent -or $parent.CreationDate -gt $child.CreationDate) { break }',
+  '  $exe = $parent.ExecutablePath',
+  "  if ($exe -and (Split-Path -Leaf $exe) -ieq 'claude.exe' -and $exe -notlike '*\\WindowsApps\\*' -and $exe -notlike '*\\AnthropicClaude\\*') { [Console]::Out.Write($exe); exit }",
+  '  $child = $parent',
+  '}',
+].join('\n')
+
+/** On macOS and Linux: prints the program of the shell's parent, the one that runs this plugin. */
+/** Trên macOS và Linux: in ra chương trình của tiến trình cha của shell, là chương trình đang chạy plugin này. */
+export const UNIX_CLAUDE_SCRIPT = 'readlink "/proc/$PPID/exe" 2>/dev/null || ps -o comm= -p "$PPID"'
+
+/** A program found by those scripts that may be asked `--version`: a full path, never a desktop app's own program. */
+/** Một chương trình do các script đó tìm ra mà được phép hỏi `--version`: đường dẫn đầy đủ, không bao giờ là chương trình của app desktop. */
+export function claudeCandidate(out: string): string | undefined {
+  const p = out.trim()
+  if (/^[A-Za-z]:\\[^\r\n\t]+\.exe$/i.test(p)) return /\\(WindowsApps|AnthropicClaude)\\/i.test(p) ? undefined : p
+  if (/^\/[^\r\n\t]+$/.test(p)) return p.includes('.app/Contents/MacOS/') ? undefined : p
+  return undefined
+}
+
+/** Whether a `--version` answer comes from Claude Code itself, as in "2.1.330 (Claude Code)". */
+/** Câu trả lời `--version` có phải của chính Claude Code không, như "2.1.330 (Claude Code)". */
+export function isClaudeCodeVersion(out: string): boolean {
+  return /^\d+\.\d+\.\d+\S* \(Claude Code\)$/.test(out.trim())
+}
+
+/** What WINDOWS_FIND_SCRIPT printed: the app's process and the program, or the Store app's entry, that opens it again. */
+/** Kết quả WINDOWS_FIND_SCRIPT in ra: tiến trình của app và chương trình, hoặc mục của app Store, mở lại nó. */
 export function parseWindowsHost(out: string): { pid: number; app: string; launcher: string } | undefined {
-  const m = /^(\d+)\t([A-Za-z]:\\[^\t\r\n]+\.exe)\t([A-Za-z]:\\[^\t\r\n]+\.exe)$/i.exec(out.trim())
+  const m = /^(\d+)\t([A-Za-z]:\\[^\t\r\n]+\.exe)\t([A-Za-z]:\\[^\t\r\n]+\.exe|shell:AppsFolder\\Claude_pzs8sxrjxfjjc![A-Za-z0-9.]+)$/i.exec(out.trim())
   if (!m) return undefined
   const pid = Number(m[1])
   return pid > 4 ? { pid, app: m[2]!, launcher: m[3]! } : undefined
@@ -183,9 +252,9 @@ export function parseWindowsHost(out: string): { pid: number; app: string; launc
  * The helper that closes and reopens the app on Windows, `{pid}` and `{launcher}` filled in by
  * WINDOWS_RESTART_SCRIPT. Closing the window only hides the app in the tray, so the helper asks the way Windows
  * does at sign-out: it sends "may this session end?" to the app's windows, and "it ends" only to a window that
- * agreed. An app still running after 30 seconds is left alone.
+ * agreed. An app still running after 30 seconds is left alone. The Store app opens again through the shell.
  */
-/** Chương trình phụ đóng rồi mở lại app trên Windows, `{pid}` và `{launcher}` do WINDOWS_RESTART_SCRIPT điền vào. Đóng cửa sổ chỉ làm app ẩn xuống khay, nên chương trình phụ hỏi theo cách Windows làm lúc đăng xuất: gửi "phiên này kết thúc được không?" tới các cửa sổ của app, và chỉ gửi "phiên kết thúc" cho cửa sổ đã đồng ý. App còn chạy sau 30 giây thì để yên. */
+/** Chương trình phụ đóng rồi mở lại app trên Windows, `{pid}` và `{launcher}` do WINDOWS_RESTART_SCRIPT điền vào. Đóng cửa sổ chỉ làm app ẩn xuống khay, nên chương trình phụ hỏi theo cách Windows làm lúc đăng xuất: gửi "phiên này kết thúc được không?" tới các cửa sổ của app, và chỉ gửi "phiên kết thúc" cho cửa sổ đã đồng ý. App còn chạy sau 30 giây thì để yên. App Store được mở lại qua shell. */
 export const WINDOWS_HELPER = [
   "$ErrorActionPreference = 'SilentlyContinue'",
   "$app = {pid}; $launcher = '{launcher}'",
@@ -208,12 +277,18 @@ export const WINDOWS_HELPER = [
   '  }',
   '}',
   '"@',
+  // the Store app opens through the shell by its entry, the installed one by its program
+  // app Store mở qua shell theo mục của nó, app cài thường mở bằng chương trình của nó
+  "function Open($launcher) { if ($launcher -like 'shell:AppsFolder\\*') { Start-Process -FilePath 'explorer.exe' -ArgumentList $launcher } else { Start-Process -FilePath $launcher } }",
   'Start-Sleep -Seconds 2',
   '[AiwEnd]::Ask([uint32]$app)',
   'for ($i = 0; $i -lt 60 -and (Get-Process -Id $app); $i++) { Start-Sleep -Milliseconds 500 }',
   'if (Get-Process -Id $app) { exit }',
+  // the Store app's other processes may outlive the main one for a moment: opening before they go may meet the old app's lock
+  // các tiến trình khác của app Store có thể sống lâu hơn tiến trình chính một lúc: mở trước khi chúng đi có thể gặp khoá của app cũ
+  `if ($launcher -like 'shell:AppsFolder\\*') { for ($i = 0; $i -lt 20 -and (Get-Process | Where-Object { $_.Path -like '*\\WindowsApps\\${STORE_FAMILY.split('_')[0]}_*__${STORE_FAMILY.split('_')[1]}\\*' }); $i++) { Start-Sleep -Milliseconds 500 } }`,
   'Start-Sleep -Seconds 1',
-  'Start-Process -FilePath $launcher',
+  'Open $launcher',
 ].join('\n')
 
 /**
