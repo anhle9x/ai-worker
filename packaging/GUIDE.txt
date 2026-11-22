@@ -13,7 +13,7 @@ INSTALL
 1. Unzip the zip file into any folder.
 2. Double-click:
    - macOS:   INSTALL-Mac.command
-              (The first time, macOS may block it: right-click the file > Open > Open.)
+              (The first time, macOS may block it: System Settings > Privacy & Security, click Open Anyway, then open the file again.)
    - Windows: INSTALL-Windows.bat
    - Ubuntu:  open Terminal in the unzipped folder and type: bash INSTALL-Linux.sh
               (Ubuntu usually does not run .sh files on double-click.)

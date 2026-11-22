@@ -75,7 +75,7 @@ open -na "Google Chrome" --args --kiosk --user-data-dir="$HOME/ai-worker-tv" htt
 google-chrome --kiosk --user-data-dir="$HOME/ai-worker-tv" https://<domain của bảng>/
 ```
 
-Cách dễ hơn: trên chính máy đó mở `/tv`, tải file ở cuối trang rồi bấm đúp, chọn 1 để tự mở khi bật máy, chọn 2 để gỡ. Windows có thể hiện SmartScreen; macOS cần chuột phải > Open lần đầu.
+Cách dễ hơn: trên chính máy đó mở `/tv`, tải file ở cuối trang rồi bấm đúp, chọn 1 để tự mở khi bật máy, chọn 2 để gỡ. Windows có thể hiện SmartScreen; macOS chặn lần đầu: System Settings > Privacy & Security > Open Anyway.
 
 Ra khỏi kiosk: Alt+F4 (macOS: Cmd+Q). Nút Thoát trên màn hình chỉ đăng xuất, không đóng cửa sổ.
 

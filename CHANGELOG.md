@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+- The guides told Mac users to right-click a blocked installer and choose Open. Since macOS 15 that no longer lets an unsigned file through; they now say System Settings > Privacy & Security > Open Anyway (the installer guides in the package, the user guide and the wall screen notes).
+
 ## 0.50.4 - 2026-11-22
 
 ### Added

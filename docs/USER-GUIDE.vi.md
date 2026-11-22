@@ -31,7 +31,7 @@ Người quản trị gửi bạn một file zip. Bên trong có `GUIDE.vi.txt`;
 
 1. Giải nén vào thư mục bất kỳ.
 2. Bấm đúp `INSTALL-Mac.command` (Mac) hoặc `INSTALL-Windows.bat` (Windows). Trên Ubuntu, mở Terminal ở thư mục đó và gõ `bash INSTALL-Linux.sh`.
-   - Lần đầu, máy Mac có thể chặn file: bấm chuột phải vào file, chọn **Open**, rồi **Open** lần nữa.
+   - Lần đầu, máy Mac có thể chặn file. Mở **System Settings > Privacy & Security**, kéo xuống dòng báo file bị chặn, bấm **Open Anyway**, rồi bấm đúp file lần nữa. (Từ macOS 15, chuột phải > Open không còn cho qua.)
 3. Gói của công ty sẽ hỏi họ tên. Gõ đúng tên đồng nghiệp vẫn gọi bạn.
 4. Bộ cài hỏi có cài các trợ lý phụ không. Đồng ý với trợ lý công ty đang dùng; bỏ qua hết cũng được.
 5. Khi cửa sổ báo **Xong**, bấm Enter, rồi thoát hẳn app Claude và mở lại. Trên Windows, đóng cửa sổ chỉ làm app ẩn đi: bấm chuột phải vào biểu tượng Claude cạnh đồng hồ rồi chọn **Exit**.

@@ -75,7 +75,7 @@ open -na "Google Chrome" --args --kiosk --user-data-dir="$HOME/ai-worker-tv" htt
 google-chrome --kiosk --user-data-dir="$HOME/ai-worker-tv" https://<board domain>/
 ```
 
-An easier way: on that computer open `/tv`, download the file at the bottom of the page and double-click it; choose 1 to open by itself at startup, 2 to remove. Windows may show SmartScreen; macOS needs right-click > Open the first time.
+An easier way: on that computer open `/tv`, download the file at the bottom of the page and double-click it; choose 1 to open by itself at startup, 2 to remove. Windows may show SmartScreen; macOS blocks it the first time: System Settings > Privacy & Security > Open Anyway.
 
 To leave kiosk mode: Alt+F4 (macOS: Cmd+Q). The Exit button on the screen only logs out, it does not close the window.
 

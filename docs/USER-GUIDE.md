@@ -31,7 +31,7 @@ Your admin gives you a zip file. Read `GUIDE.txt` inside it; in short:
 
 1. Unzip it into any folder.
 2. Double-click `INSTALL-Mac.command` (Mac) or `INSTALL-Windows.bat` (Windows). On Ubuntu, open Terminal in that folder and type `bash INSTALL-Linux.sh`.
-   - The first time, a Mac may block the file: right-click it, choose **Open**, then **Open** again.
+   - The first time, a Mac may block the file. Open **System Settings > Privacy & Security**, scroll down to the line about the blocked file, click **Open Anyway**, then double-click the file again. (Since macOS 15, right-click > Open no longer lets it through.)
 3. A company package asks for your full name. Type it the way colleagues know you.
 4. The installer offers the helper assistants. Say yes to the ones your company uses; you can skip them all.
 5. When the window says **Done**, press Enter, then quit the Claude app completely and open it again. On Windows, closing the window only hides the app: right-click the Claude icon next to the clock and choose **Exit**.

@@ -13,7 +13,7 @@ CÀI ĐẶT
 1. Giải nén file zip ra một thư mục bất kỳ.
 2. Bấm đúp:
    - macOS:   INSTALL-Mac.command
-              (Lần đầu macOS có thể chặn: chuột phải vào file > Open > Open.)
+              (Lần đầu macOS có thể chặn: vào System Settings > Privacy & Security, bấm Open Anyway, rồi mở lại file.)
    - Windows: INSTALL-Windows.bat
    - Ubuntu:  mở Terminal trong thư mục giải nén, gõ: bash INSTALL-Linux.sh
               (Ubuntu thường không chạy file .sh khi bấm đúp.)
