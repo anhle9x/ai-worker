@@ -19,6 +19,7 @@ set "CLAUDE="
 where claude >nul 2>nul && set "CLAUDE=claude"
 if not defined CLAUDE if exist "%USERPROFILE%\.local\bin\claude.exe" set "CLAUDE=%USERPROFILE%\.local\bin\claude.exe"
 if not defined CLAUDE for /f "delims=" %%F in ('dir /s /b /o:d "%APPDATA%\Claude\claude-code\claude.exe" 2^>nul') do set "CLAUDE=%%F"
+if not defined CLAUDE for /f "delims=" %%F in ('dir /s /b /o:d "%LOCALAPPDATA%\Claude-Data\claude.exe" 2^>nul') do set "CLAUDE=%%F"
 if defined CLAUDE (
   call "%CLAUDE%" plugin uninstall ai-worker@ai-worker
   call "%CLAUDE%" plugin marketplace remove ai-worker

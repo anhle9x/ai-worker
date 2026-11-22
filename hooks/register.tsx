@@ -971,7 +971,22 @@ async function findOwnWorkers($: EngineInterface): Promise<OwnWorkers> {
   // ai-workers is set up but not connected yet (it starts after the plugin): leave the delegation to it, lookForMcp fills in the rest
   // ai-workers đã được cài nhưng chưa kết nối (nó khởi động sau plugin): để nó phụ trách giao việc, lookForMcp sẽ điền phần còn lại
   const appData = (await $.env.get('APPDATA')) || `${home}/Library/Application Support`
-  for (const f of [`${appData}/Claude/claude_desktop_config.json`, `${home}/.claude.json`]) {
+  const configs = [`${appData}/Claude/claude_desktop_config.json`]
+  // the Claude app installed from the Microsoft Store (MSIX) keeps its settings in %LOCALAPPDATA%\Claude-Data\<package>\
+  // app Claude cài từ Microsoft Store (MSIX) để thiết lập trong %LOCALAPPDATA%\Claude-Data\<gói>\
+  const localAppData = await $.env.get('LOCALAPPDATA')
+  if (localAppData) {
+    try {
+      for (const e of await $.fs.list(`${localAppData}/Claude-Data`)) {
+        if (e.kind === 'dir') configs.push(`${localAppData}/Claude-Data/${e.name}/claude_desktop_config.json`)
+      }
+    } catch {
+      // no Store app on this computer
+      // máy này không có app bản Store
+    }
+  }
+  configs.push(`${home}/.claude.json`)
+  for (const f of configs) {
     try {
       if (!mcpConfigured(await $.fs.read(f))) continue
     } catch {

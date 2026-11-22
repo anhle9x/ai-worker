@@ -38,6 +38,9 @@ function Run([string]$name, [hashtable]$opts) {
   if ($opts.Company) { Set-Content -Path (Join-Path $folder 'setup\ASK-NAME') -Value 'test' } else { Remove-Item -ErrorAction SilentlyContinue (Join-Path $folder 'setup\ASK-NAME') }
   if ($opts.LoggedIn) { Set-Content -Encoding utf8 -Path "$userHome\login.json" -Value "{`"loggedIn`": true, `"email`": `"$($opts.LoggedIn)`"}" }
   if ($opts.HasApp) { New-Item -ItemType Directory -Force -Path "$userHome\AppData\Roaming\Claude" | Out-Null }
+  # the Claude app from the Microsoft Store (MSIX): its data folder, without the claude command yet
+  # app Claude cài từ Microsoft Store (MSIX): thư mục dữ liệu của nó, chưa có lệnh claude
+  if ($opts.MsixApp) { New-Item -ItemType Directory -Force -Path "$userHome\AppData\Local\Claude-Data\claude_test" | Out-Null }
   if ($opts.HasUser) {
     New-Item -ItemType Directory -Force -Path "$userHome\.local\share\ai-worker" | Out-Null
     Set-Content -Encoding utf8 -Path "$userHome\.local\share\ai-worker\user.json" -Value '{"name":"Cu","account":"cu@example.com"}'
@@ -148,6 +151,13 @@ if ($real) { $show = & $real show --id Anthropic.Claude --exact --accept-source-
 Write-Host '== W6 app but no claude command: copies the commands to paste'
 $k = Run 'w6' @{ HasApp = $true; Answers = @('') }
 Check $k 'exit 0' { param($k) $k.ExitCode -eq 0 }
+Check $k 'explains how to paste the command' { param($k) $k.Out -match 'Command copied' }
+Check $k 'copied the plugin into the user folder' { param($k) Test-Path (Join-Path $k.Home 'claude-plugins-ai-worker\ai-worker\.claude-plugin\plugin.json') }
+
+Write-Host '== W6b the Claude app from the Microsoft Store (MSIX), no claude command yet: seen as installed, copies the commands to paste'
+$k = Run 'w6b' @{ MsixApp = $true; Answers = @('') }
+Check $k 'exit 0' { param($k) $k.ExitCode -eq 0 }
+Check $k 'does not say Claude is missing' { param($k) $k.Out -notmatch 'not on this computer|not installed on this computer' }
 Check $k 'explains how to paste the command' { param($k) $k.Out -match 'Command copied' }
 Check $k 'copied the plugin into the user folder' { param($k) Test-Path (Join-Path $k.Home 'claude-plugins-ai-worker\ai-worker\.claude-plugin\plugin.json') }
 

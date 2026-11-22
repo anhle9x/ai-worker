@@ -31,9 +31,14 @@ set "CLAUDE="
 where claude >nul 2>nul && set "CLAUDE=claude"
 if not defined CLAUDE if exist "%USERPROFILE%\.local\bin\claude.exe" set "CLAUDE=%USERPROFILE%\.local\bin\claude.exe"
 if not defined CLAUDE for /f "delims=" %%F in ('dir /s /b /o:d "%APPDATA%\Claude\claude-code\claude.exe" 2^>nul') do set "CLAUDE=%%F"
+:: The app from the Microsoft Store (MSIX) keeps Claude Code in %LOCALAPPDATA%\Claude-Data\<package>\claude-code\
+:: App cài từ Microsoft Store (MSIX) để Claude Code trong %LOCALAPPDATA%\Claude-Data\<gói>\claude-code\
+if not defined CLAUDE for /f "delims=" %%F in ('dir /s /b /o:d "%LOCALAPPDATA%\Claude-Data\claude.exe" 2^>nul') do set "CLAUDE=%%F"
 set "HAS_APP="
 if exist "%APPDATA%\Claude" set "HAS_APP=1"
 if exist "%LOCALAPPDATA%\AnthropicClaude" set "HAS_APP=1"
+if exist "%LOCALAPPDATA%\Claude-Data" set "HAS_APP=1"
+for /d %%D in ("%LOCALAPPDATA%\Packages\Claude_*") do set "HAS_APP=1"
 if not defined CLAUDE if not defined HAS_APP goto :no_claude
 
 set "USER_FILE=%USERPROFILE%\.local\share\ai-worker\user.json"

@@ -18,6 +18,9 @@ call :say "== Installing the tools for the coding and testing skills ==" "== Cà
 set "CLAUDE="
 for /f "delims=" %%i in ('where claude 2^>nul') do if not defined CLAUDE set "CLAUDE=%%i"
 if not defined CLAUDE for /f "delims=" %%i in ('dir /b /s /o-d "%APPDATA%\Claude\claude-code\claude.exe" 2^>nul') do if not defined CLAUDE set "CLAUDE=%%i"
+:: The app from the Microsoft Store (MSIX) keeps Claude Code in %LOCALAPPDATA%\Claude-Data\<package>\claude-code\
+:: App cài từ Microsoft Store (MSIX) để Claude Code trong %LOCALAPPDATA%\Claude-Data\<gói>\claude-code\
+if not defined CLAUDE for /f "delims=" %%i in ('dir /b /s /o-d "%LOCALAPPDATA%\Claude-Data\claude.exe" 2^>nul') do if not defined CLAUDE set "CLAUDE=%%i"
 if not defined CLAUDE (
   call :say "Claude Code was not found. Open the Claude app, sign in, click the Code tab once, then run this file again." "Chưa tìm thấy Claude Code. Mở app Claude, đăng nhập, bấm sang tab Code một lần rồi chạy lại file này."
   pause

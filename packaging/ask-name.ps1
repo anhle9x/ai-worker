@@ -43,10 +43,12 @@ function Ask([string]$question) {
   return [string](Read-Host $question)
 }
 
+# Claude Code downloaded by the Claude app: %APPDATA%\Claude\claude-code, or %LOCALAPPDATA%\Claude-Data\<package>\claude-code for the Microsoft Store (MSIX) app
+# Claude Code do app Claude tải về: %APPDATA%\Claude\claude-code, hoặc %LOCALAPPDATA%\Claude-Data\<gói>\claude-code với app bản Microsoft Store (MSIX)
 function Find-Claude {
-  $root = Join-Path $env:APPDATA 'Claude\claude-code'
-  if (-not (Test-Path $root)) { return '' }
-  $f = Get-ChildItem -Path $root -Recurse -Filter 'claude.exe' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-Object -Last 1
+  $roots = @((Join-Path $env:APPDATA 'Claude\claude-code'), (Join-Path $env:LOCALAPPDATA 'Claude-Data')) | Where-Object { Test-Path $_ }
+  if (-not $roots) { return '' }
+  $f = Get-ChildItem -Path $roots -Recurse -Filter 'claude.exe' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-Object -Last 1
   if ($f) { return $f.FullName } else { return '' }
 }
 
