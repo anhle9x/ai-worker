@@ -113,7 +113,7 @@ Muốn mở riêng cho `/mcp` và không gì khác, thay hai dòng `@outside not
 	respond @outside "Forbidden" 403
 ```
 
-Sau đó chạy `caddy validate` với file này rồi `sudo systemctl reload caddy`. Nếu bạn đã mở `/ingest` theo cách mẫu chỉ, giữ cả dòng `not path /ingest` của nó bên trong `@outside`. Nếu file của bạn đặt tên khối này khác `@outside` thì giữ nguyên tên của bạn. Muốn đóng cửa lại thì đặt lại hai dòng cũ rồi nạp lại.
+Sau đó chạy `caddy validate` với file này rồi `sudo systemctl reload caddy`. Nếu bạn đã mở `/ingest` và `/releases/` theo cách mẫu chỉ, giữ cả dòng `not path /ingest /releases/*` của nó bên trong `@outside`. Nếu file của bạn đặt tên khối này khác `@outside` thì giữ nguyên tên của bạn. Muốn đóng cửa lại thì đặt lại hai dòng cũ rồi nạp lại.
 
 Hai dải trong khối trên là địa chỉ IPv4 đi ra của Anthropic, công bố ở [platform.claude.com/docs/en/api/ip-addresses](https://platform.claude.com/docs/en/api/ip-addresses), đọc ngày 2026-11-16. Hãy tự đọc trang đó trước khi dùng, và thỉnh thoảng đọc lại: các dải có thể đổi.
 

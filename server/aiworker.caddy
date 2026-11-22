@@ -19,13 +19,15 @@ board.example.com {
 	# chỉ các mạng được phép: thay hai dải mẫu này bằng IP của bạn
 	@outside not remote_ip 203.0.113.0/24 198.51.100.0/24
 	respond @outside "Forbidden" 403
-	# Only if computers at a provincial branch are blocked, open the data-sending path on its own: replace the two lines above with the block below.
-	# The viewing pages still keep the IP list and OTP; /ingest still needs the send key and has a rate limit.
-	# Máy ở chi nhánh tỉnh bị chặn thì mới mở riêng đường gửi số liệu: thay hai dòng trên bằng khối dưới.
-	# Trang xem vẫn giữ danh sách IP và OTP; /ingest vẫn cần mã gửi và có giới hạn tần suất.
+	# For computers away from these networks (a branch, home, travel): open only the data-sending path and the plugin's updates (/update),
+	# replacing the two lines above with the block below. The viewing pages still keep the IP list and OTP; /ingest and /releases/ still need
+	# the send key, /ingest has a rate limit, and an update is checked against its signature on the computer.
+	# Máy ở ngoài các mạng này (chi nhánh, ở nhà, đi công tác): chỉ mở đường gửi số liệu và bản cập nhật plugin (/update),
+	# thay hai dòng trên bằng khối dưới. Trang xem vẫn giữ danh sách IP và OTP; /ingest và /releases/ vẫn cần mã gửi,
+	# /ingest có giới hạn tần suất, và bản cập nhật được máy kiểm chữ ký.
 	# @outside {
 	# 	not remote_ip 203.0.113.0/24 198.51.100.0/24
-	# 	not path /ingest
+	# 	not path /ingest /releases/*
 	# }
 	# respond @outside "Forbidden" 403
 	# Only for an AI project or application that runs on a cloud server (AI_PROJECTS=1): let its IP reach /projects/ingest and nothing else.

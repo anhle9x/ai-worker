@@ -73,7 +73,13 @@ $codexDirs = @((Join-Path $env:LOCALAPPDATA 'Programs\OpenAI\Codex\bin'), (Join-
 $codex = Find 'codex' $codexDirs
 if (-not $codex) {
   Say-Text 'Installing Codex CLI (ChatGPT, the official OpenAI installer)...' 'Cài Codex CLI (ChatGPT, bộ cài chính thức của OpenAI)...'
+  # CODEX_NON_INTERACTIVE: the installer asks nothing (its questions all default to no), so it does not open Codex's own screen
+  # in the middle of this setup; the sign-in below is done with codex login
+  # CODEX_NON_INTERACTIVE: bộ cài không hỏi gì (các câu hỏi của nó đều mặc định là không), nên không mở màn hình riêng của Codex
+  # giữa lúc cài; đăng nhập làm ở dưới bằng codex login
+  $env:CODEX_NON_INTERACTIVE = '1'
   Run-Installer 'https://chatgpt.com/codex/install.ps1'
+  Remove-Item Env:CODEX_NON_INTERACTIVE -ErrorAction SilentlyContinue
   Reload-Path
   $codex = Find 'codex' $codexDirs
 }

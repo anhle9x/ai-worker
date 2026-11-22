@@ -59,7 +59,11 @@ function Signed-In-Email {
     try {
       $j = (& $Claude auth status --json 2>$null | Out-String) | ConvertFrom-Json
       if ($j.loggedIn -eq $true) { return ([string]$j.email).Trim().ToLower() }
-      if ($j.loggedIn -eq $false) { return '' }
+      # the Claude app from the Microsoft Store keeps its sign-in inside the app, so the claude command run from here says "not signed in":
+      # then the email in .claude.json, which the app's Code tab writes, is the one to use
+      # app Claude bản Microsoft Store giữ đăng nhập bên trong app, nên lệnh claude chạy từ đây báo "chưa đăng nhập":
+      # khi đó email trong .claude.json, do tab Code của app ghi, là email cần dùng
+      if ($j.loggedIn -eq $false -and -not (Test-Path (Join-Path $env:LOCALAPPDATA 'Claude-Data'))) { return '' }
     } catch { }
   }
   try {

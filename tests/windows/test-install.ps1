@@ -41,6 +41,9 @@ function Run([string]$name, [hashtable]$opts) {
   # the Claude app from the Microsoft Store (MSIX): its data folder, without the claude command yet
   # app Claude cài từ Microsoft Store (MSIX): thư mục dữ liệu của nó, chưa có lệnh claude
   if ($opts.MsixApp) { New-Item -ItemType Directory -Force -Path "$userHome\AppData\Local\Claude-Data\claude_test" | Out-Null }
+  # the email the app's Code tab wrote into .claude.json
+  # email mà tab Code của app ghi vào .claude.json
+  if ($opts.DotClaudeEmail) { Set-Content -Encoding utf8 -Path "$userHome\.claude.json" -Value "{`"oauthAccount`": {`"emailAddress`": `"$($opts.DotClaudeEmail)`"}}" }
   if ($opts.HasUser) {
     New-Item -ItemType Directory -Force -Path "$userHome\.local\share\ai-worker" | Out-Null
     Set-Content -Encoding utf8 -Path "$userHome\.local\share\ai-worker\user.json" -Value '{"name":"Cu","account":"cu@example.com"}'
@@ -160,6 +163,12 @@ Check $k 'exit 0' { param($k) $k.ExitCode -eq 0 }
 Check $k 'does not say Claude is missing' { param($k) $k.Out -notmatch 'not on this computer|not installed on this computer' }
 Check $k 'explains how to paste the command' { param($k) $k.Out -match 'Command copied' }
 Check $k 'copied the plugin into the user folder' { param($k) Test-Path (Join-Path $k.Home 'claude-plugins-ai-worker\ai-worker\.claude-plugin\plugin.json') }
+
+Write-Host '== W6c Store app, the claude command says not signed in (the sign-in lives in the app): the email comes from .claude.json'
+$k = Run 'w6c' @{ MsixApp = $true; HasCmd = $true; DotClaudeEmail = 'lan@example.com'; Company = $true; Answers = @('Lan') }
+Check $k 'exit 0' { param($k) $k.ExitCode -eq 0 }
+Check $k 'says it is signed in, without offering the browser' { param($k) $k.Out -match 'Claude is signed in: lan@example.com' -and $k.Out -notmatch 'Open the browser to sign in' }
+Check $k 'saves the email and the name' { param($k) ($k.User | ConvertFrom-Json).account -eq 'lan@example.com' -and ($k.User | ConvertFrom-Json).name -eq 'Lan' }
 
 Write-Host '== W7 reinstall when a name already exists'
 $k = Run 'w7' @{ HasCmd = $true; LoggedIn = 'cu@example.com'; Company = $true; HasUser = $true; Answers = @() }

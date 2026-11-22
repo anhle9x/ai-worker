@@ -113,7 +113,7 @@ To open it for `/mcp` and nothing else, replace the two lines `@outside not remo
 	respond @outside "Forbidden" 403
 ```
 
-Then run `caddy validate` on the file and `sudo systemctl reload caddy`. If you opened `/ingest` the way the template shows, keep its `not path /ingest` line inside `@outside` as well. If your file names the matcher something other than `@outside`, keep your name. To close the door again, put the two lines back and reload.
+Then run `caddy validate` on the file and `sudo systemctl reload caddy`. If you opened `/ingest` and `/releases/` the way the template shows, keep its `not path /ingest /releases/*` line inside `@outside` as well. If your file names the matcher something other than `@outside`, keep your name. To close the door again, put the two lines back and reload.
 
 The two ranges in the block are Anthropic's outbound IPv4 addresses as published on [platform.claude.com/docs/en/api/ip-addresses](https://platform.claude.com/docs/en/api/ip-addresses), read on 2026-11-16. Read that page yourself before you use them, and again from time to time: the ranges can change.
 

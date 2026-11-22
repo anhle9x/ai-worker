@@ -10,6 +10,11 @@ Changes that matter to people who install or run AI Worker. The format follows [
 
 ### Fixed
 - On Windows, the installers now recognise the Claude app installed from the Microsoft Store (MSIX). That app keeps its data, the `claude` command of the Code tab and `claude_desktop_config.json` in `%LOCALAPPDATA%\Claude-Data\<package>\` instead of `%APPDATA%\Claude`, so `INSTALL-Windows.bat` (and the setup of `AI-Worker-Plugin.msi`) said "Claude Desktop is not on this computer", offered to install it again and stopped before copying the plugin. The installer, the uninstaller, the developer tools installer and the plugin's lookup of the app's MCP settings now look there too.
+- With that app, the `claude` command run by the installer says "not signed in" even when the app is signed in, because the app keeps its sign-in inside. The installer now takes the email from `.claude.json` (written by the app's Code tab) instead of asking for it and offering a browser sign-in.
+- The helper assistants step no longer drops people into Codex's own screen in the middle of the setup: the official Codex installer runs with `CODEX_NON_INTERACTIVE=1`, so it does not ask "Start Codex now?"; signing in to Codex is still offered right after, with `codex login`.
+
+### Changed
+- The Caddy template's block for computers away from the office networks opens `/releases/` as well as `/ingest`, so `/update` works there too. Both still need the send code, and an update is checked against its signature on the computer.
 
 ## 0.50.3 - 2026-11-22
 
