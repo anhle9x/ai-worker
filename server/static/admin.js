@@ -13,6 +13,7 @@
     'plugin-msi': tx('Downloaded the staff plugin installer'), 'tv-request-code': tx('Screen asked for code'), 'tv-refused': tx('Code request refused'), 'tv-view': tx('Viewed screen request'), 'tv-approve': tx('Approved screen'), 'tv-joined': tx('Screen joined board'), 'tv-revoke': tx('Revoked screen'), 'tv-self-exit': tx('Screen exited by itself'), 'tv-unpaired-itself': tx('Paired device unpaired itself'), 'tv-reload': tx('Reloaded screen remotely'), 'tv-rename': tx('Renamed screen'), 'tv-ip-changed': tx('Screen changed IP'), 'tv-renewed': tx('Renewed screen'),
     'tv-revoked-key-used': tx('Revoked device asked again'), 'mcp-rate-limited': tx('Key for an AI tool asked too often'),
     'device-revoked': tx('Revoked a computer\'s key'), 'device-forgotten': tx('Let a computer enrol again'),
+    'device-roaming-on': tx('Let a computer send from any network'), 'device-roaming-off': tx('Kept a computer to the office network'),
     'account-telegram-unlink': tx('Unlink Telegram'), 'telegram-link': tx('Link Telegram'), 'telegram-unlink': tx('Unlink Telegram'), 'telegram-link-failed': tx('Telegram link failed'),
     'telegram-app-on': tx('Allowed a chat the window'), 'telegram-app-off': tx('Stopped a chat\'s window'), 'telegram-app-open': tx('Chat opened the window'), 'telegram-app-refused': tx('Window refused'),
   }
@@ -336,16 +337,20 @@
       off: tx('The key in the install package no longer sends at all.'),
     }
     p.append(o('div', 'qt-row', tx('{active} with a key, {revoked} revoked.', { active: k.active, revoked: k.revoked }) + ' ' + (modes[k.sharedKeyMode] || '')))
+    // sending from outside the office: the server needs the office networks (OFFICE_NETS) to tell who is outside
+    // gửi từ ngoài văn phòng: máy chủ cần các mạng văn phòng (OFFICE_NETS) để biết ai ở ngoài
+    if (!k.officeNets) p.append(o('div', 'qt-hint', tx('The server does not know the office networks (OFFICE_NETS is empty), so only Caddy tells the office from outside. Set OFFICE_NETS before letting a computer send from any network.')))
+    else if (k.viewerAway) p.append(o('div', 'qt-hint', tx('Your address is counted as outside the office. If you are in the office, OFFICE_NETS and the list in Caddy differ: computers in the office would be refused.')))
     if (!k.computers.length) return p
     const board = o('table', 'qt-table small')
     const head = o('tr')
-    for (const c of [tx('Person'), tx('Computer'), tx('Key issued'), tx('State'), '']) head.append(o('th', '', c))
+    for (const c of [tx('Person'), tx('Computer'), tx('Key issued'), tx('State'), tx('Sends from'), '']) head.append(o('th', '', c))
     board.append(head)
     const states = { active: tx('Sending with its key'), expired: tx('Key too old, enrols again at its next send'), revoked: tx('Revoked') }
     for (const x of k.computers) {
       const h = o('tr', x.state === 'revoked' ? 'qt-bad-row' : '')
       const who = x.name || x.account || '—'
-      const act = o('td')
+      const act = o('td', 'qt-action')
       if (x.state === 'revoked') {
         act.append(button(tx('Let back'), () => {
           if (confirm(tx('Let {device} of {name} send again? It enrols with the key in the install package at its next send.', { device: x.device, name: who }))) post('/admin/device-forget', { device: x.device }, () => toast(tx('{device} may send again', { device: x.device })))
@@ -355,7 +360,19 @@
           if (confirm(tx('Revoke {device} of {name}? It stops sending at once, and the key in the install package cannot bring it back until you let it back.', { device: x.device, name: who }))) post('/admin/device-revoke', { device: x.device }, () => toast(tx('Revoked {device}', { device: x.device })))
         }))
       }
-      h.append(o('td', '', who), o('td', '', x.device), o('td', '', x.issuedAt ? dateTime(x.issuedAt) : '—'), o('td', '', x.state === 'revoked' && x.revokedAt ? states.revoked + ' · ' + dateTime(x.revokedAt) : states[x.state] || x.state), act)
+      // only a computer sending with its own key can be let send from any network; taking it back is always possible
+      // chỉ máy đang gửi bằng khoá riêng mới được cho gửi từ mọi mạng; thôi cho thì lúc nào cũng được
+      if (x.roamingSince) {
+        act.append(button(tx('Office only'), () => {
+          if (confirm(tx('Keep {device} of {name} to the office network? From outside the office it stops sending and updating at once.', { device: x.device, name: who }))) post('/admin/device-roam', { device: x.device, roaming: false }, () => toast(tx('{device} sends from the office only', { device: x.device })))
+        }))
+      } else if (x.state === 'active') {
+        act.append(button(tx('Any network'), () => {
+          if (confirm(tx('Let {device} of {name} send numbers and fetch updates from any network (home, 4G)? Its own key is still checked. The board will show the addresses it sends from.', { device: x.device, name: who }))) post('/admin/device-roam', { device: x.device, roaming: true }, () => toast(tx('{device} may send from any network', { device: x.device })))
+        }))
+      }
+      const from = x.roamingSince ? tx('Any network') + ' · ' + dateTime(x.roamingSince) : tx('Office only')
+      h.append(o('td', '', who), o('td', '', x.device), o('td', '', x.issuedAt ? dateTime(x.issuedAt) : '—'), o('td', '', x.state === 'revoked' && x.revokedAt ? states.revoked + ' · ' + dateTime(x.revokedAt) : states[x.state] || x.state), o('td', '', from), act)
       board.append(h)
     }
     p.append(addLabel(board))

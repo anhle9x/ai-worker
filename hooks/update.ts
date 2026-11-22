@@ -40,6 +40,13 @@ export function hasSigningKeys(text: string): boolean {
   return text.split(/\r?\n/).some(line => line.trim() && !line.trim().startsWith('#'))
 }
 
+/** The keys to fetch a release with, in order: this computer's own key first, which a server lets through from any network when an admin allowed it, then the shared key of the install package. */
+/** Các khoá để tải một bản phát hành, theo thứ tự: khoá riêng của máy này trước, khoá mà máy chủ cho qua từ mọi mạng khi quản trị đã cho phép, rồi khoá chung của gói cài. */
+export function releaseKeys(own: unknown, shared: string): string[] {
+  const mine = typeof own === 'string' && /^awd1(\.[A-Za-z0-9_-]{1,64}){7}$/.test(own) ? own : ''
+  return [...new Set([mine, shared].filter(Boolean))]
+}
+
 /** The hash in shasum, sha256sum or certutil output; certutil may space its bytes. */
 /** Mã băm trong kết quả của shasum, sha256sum hoặc certutil; certutil có thể chèn dấu cách giữa các byte. */
 export function parseHash(out: string): string | undefined {

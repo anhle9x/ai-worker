@@ -11,7 +11,7 @@ To look at the board before deploying anything, run `python3 server/demo.py` (on
 - **A Linux server** with `python3` 3.8 or newer and systemd. The webhook needs no outside libraries.
 - **A dedicated subdomain**, for example `board.company.com`, with a DNS `A` record pointing to the server IP.
 - **Caddy** (or nginx) on the server for HTTPS. The webhook listens only inside the server; Caddy takes the outside connections.
-- **An allow-list of IPs:** the network IPs of the offices. A computer outside the list cannot see the dashboard, send numbers or download updates.
+- **An allow-list of IPs:** the network IPs of the offices. A computer outside the list cannot see the dashboard, send numbers or download updates, unless an admin lets that computer send from any network ([Sending from outside the office](#sending-from-outside-the-office-chosen-computers)).
 - **One signing computer** with `ssh-keygen` to keep the update signing key.
 
 Real addresses, the `INGEST_KEY` and the keys do not go into git. The repo only uses sample addresses such as `https://board.company.com`.
@@ -113,7 +113,7 @@ To open it for `/mcp` and nothing else, replace the two lines `@outside not remo
 	respond @outside "Forbidden" 403
 ```
 
-Then run `caddy validate` on the file and `sudo systemctl reload caddy`. If you opened `/ingest` and `/releases/` the way the template shows, keep its `not path /ingest /releases/*` line inside `@outside` as well. If your file names the matcher something other than `@outside`, keep your name. To close the door again, put the two lines back and reload.
+Then run `caddy validate` on the file and `sudo systemctl reload caddy`. If you opened `/ingest` and `/releases/` for chosen computers ([Sending from outside the office](#sending-from-outside-the-office-chosen-computers)), keep that `not { path ... header ... }` block inside `@outside` as well, and its `@away` lines. If your file names the matcher something other than `@outside`, keep your name. To close the door again, put the two lines back and reload.
 
 The two ranges in the block are Anthropic's outbound IPv4 addresses as published on [platform.claude.com/docs/en/api/ip-addresses](https://platform.claude.com/docs/en/api/ip-addresses), read on 2026-11-16. Read that page yourself before you use them, and again from time to time: the ranges can change.
 
@@ -137,6 +137,33 @@ A project or application your team built can send what its `ai-cost-report` mete
 What the project's developers do: [AI-PROJECTS.md](AI-PROJECTS.md).
 
 Prices come from `server/board/prices.json`, a copy of the skill's price file that ships with each release. For a provider it does not have, a negotiated price, or a model on your own machine, paste a price file of your own under **Prices of your own** on the Admin page.
+
+## Sending from outside the office (chosen computers)
+
+By default only your office networks reach the server, so a laptop at home or on 4G neither sends numbers nor gets `/update`. You can let chosen computers do both from any network, and keep every other computer to the office:
+
+- From outside the office, Caddy lets through only a request to `/ingest` or `/releases/` that carries a computer's own key (`awd1.`). The shared send code in the install package sends nothing from outside.
+- The server then takes it only from a computer an admin let send from any network on the Admin page. Every other computer gets 403, and keeps its own key.
+- The board's pages, login, `/mcp` and the rest stay office-only, with OTP as before.
+
+A computer gets its own key at its first send from the office, so each computer you want to let must have sent from the office once, with a plugin newer than 0.50.6 for `/update`. Do the steps in this order: at no step is the server open wider than you want.
+
+1. **Back up** the database folders and the Caddy file, for example `sudo cp -a /opt/ai-worker/data /opt/ai-worker/data.bak` and `sudo cp /etc/caddy/aiworker.caddy /etc/caddy/aiworker.caddy.bak`. The new version adds a table (schema version 7), and an older server refuses the upgraded file.
+2. **Install the new server version** as usual, with `OFFICE_NETS` still empty: nothing changes yet.
+3. **Tell the server the office networks.** Add `OFFICE_NETS=` with exactly the ranges of `remote_ip` in the Caddy block, separated by commas, to `/etc/ai-worker.env` (IPv6 ranges too, if the domain has an AAAA record), then `sudo systemctl restart ai-worker-webhook`. Caddy is still closed, so every request still comes from the office. Open the Admin page from the office: under **Computers and their keys** there must be no warning that your address counts as outside. If there is, the two lists differ: fix them before going on.
+4. **Let the computers.** On the Admin page, **Computers and their keys**, press **Any network** on the row of each chosen computer and type the OTP again. Each change goes into the Admin log.
+5. **Open Caddy.** In the Caddy block, replace the two lines `@outside not remote_ip ...` and `respond @outside ...` with the commented block in `server/aiworker.caddy` that starts with `# @outside {` and has `header Authorization "Bearer awd1.*"`, with your own ranges in both `remote_ip` lines. Run `caddy validate --config /etc/caddy/Caddyfile`, then `sudo systemctl reload caddy`.
+6. **Check from outside**, on a phone's 4G for example: `curl -s -o /dev/null -w '%{http_code}\n' https://board.example.com/` answers `403`, and so does `curl -s -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer <send code>' https://board.example.com/releases/latest.json`. On the chosen computer, away from the office, `/update` answers and the board shows it sending.
+
+To close again: put the two old Caddy lines back and `sudo systemctl reload caddy`; empty `OFFICE_NETS` only after that. To take one computer back, press **Office only** on its row.
+
+Before you open it:
+
+- **A lost or stolen computer:** press **Revoke**, not **Let back**. Revoking takes the right to send from outside away too; letting a computer back makes its old key good again, though no longer from outside.
+- **Home addresses show on the board.** The board keeps the last addresses each computer sent from, and admins see them. Tell the person before you let their computer.
+- **A key lasts 90 days without a send.** A computer off for longer, or every computer after `--rotate-device-secret --drop-old`, has to send from the office once again.
+- **A CDN or another proxy in front of Caddy** (Cloudflare, for example) makes every request look like it comes from the CDN, so every computer counts as outside. This setup is not for that case.
+- **With the Go receiver** (`RECEIVER=1`, [RECEIVER.md](RECEIVER.md)) the receiver does not check this list yet: keep its own address office-only.
 
 ## Plugin installer for Windows (.msi)
 

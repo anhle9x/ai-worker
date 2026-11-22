@@ -126,6 +126,13 @@ DATA_STEPS = [
         "CREATE INDEX device_days_device ON device_days (device, day)",
         split_hour_books,
     ],
+    # version 7: the computers an admin let send numbers and fetch updates from any network, not only from the office (OFFICE_NETS):
+    # since when and by which admin. Only the computer's id: no address is kept here
+    # phiên bản 7: các máy quản trị cho gửi số liệu và tải bản cập nhật từ mọi mạng, không chỉ từ văn phòng (OFFICE_NETS): từ lúc nào
+    # và do quản trị nào. Chỉ có mã máy: không giữ địa chỉ nào ở đây
+    [
+        "CREATE TABLE device_roaming (device TEXT PRIMARY KEY, since INTEGER NOT NULL, by TEXT NOT NULL DEFAULT '')",
+    ],
 ]
 KEYS_STEPS = [
     [

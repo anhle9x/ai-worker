@@ -113,7 +113,7 @@ Muốn mở riêng cho `/mcp` và không gì khác, thay hai dòng `@outside not
 	respond @outside "Forbidden" 403
 ```
 
-Sau đó chạy `caddy validate` với file này rồi `sudo systemctl reload caddy`. Nếu bạn đã mở `/ingest` và `/releases/` theo cách mẫu chỉ, giữ cả dòng `not path /ingest /releases/*` của nó bên trong `@outside`. Nếu file của bạn đặt tên khối này khác `@outside` thì giữ nguyên tên của bạn. Muốn đóng cửa lại thì đặt lại hai dòng cũ rồi nạp lại.
+Sau đó chạy `caddy validate` với file này rồi `sudo systemctl reload caddy`. Nếu bạn đã mở `/ingest` và `/releases/` cho các máy được chọn ([Gửi từ ngoài văn phòng](#gửi-từ-ngoài-văn-phòng-máy-được-chọn)), giữ cả khối `not { path ... header ... }` đó bên trong `@outside`, cùng các dòng `@away` của nó. Nếu file của bạn đặt tên khối này khác `@outside` thì giữ nguyên tên của bạn. Muốn đóng cửa lại thì đặt lại hai dòng cũ rồi nạp lại.
 
 Hai dải trong khối trên là địa chỉ IPv4 đi ra của Anthropic, công bố ở [platform.claude.com/docs/en/api/ip-addresses](https://platform.claude.com/docs/en/api/ip-addresses), đọc ngày 2026-11-16. Hãy tự đọc trang đó trước khi dùng, và thỉnh thoảng đọc lại: các dải có thể đổi.
 
@@ -137,6 +137,33 @@ Một dự án hay ứng dụng nhóm tự làm có thể gửi những gì bộ
 Phần người làm dự án tự làm: [AI-PROJECTS.vi.md](AI-PROJECTS.vi.md).
 
 Giá lấy từ `server/board/prices.json`, bản sao bảng giá của skill, đi theo mỗi bản phát hành. Hãng chưa có trong đó, giá đã thương lượng, hay model chạy trên máy của nhóm thì dán file giá riêng ở mục **Giá riêng** trên trang Quản trị.
+
+## Gửi từ ngoài văn phòng (máy được chọn)
+
+Mặc định chỉ các mạng văn phòng tới được máy chủ, nên laptop ở nhà hay dùng 4G không gửi được số liệu và không `/update` được. Bạn có thể cho các máy được chọn làm cả hai việc đó từ mọi mạng, còn mọi máy khác vẫn chỉ ở văn phòng:
+
+- Từ ngoài văn phòng, Caddy chỉ cho qua yêu cầu tới `/ingest` hay `/releases/` có mang khoá riêng của một máy (`awd1.`). Mã gửi chung trong gói cài không gửi được gì từ ngoài.
+- Sau đó máy chủ chỉ nhận yêu cầu ấy từ máy mà quản trị viên đã cho gửi từ mọi mạng trên trang Quản trị. Mọi máy khác nhận 403, và vẫn giữ khoá riêng của mình.
+- Các trang của bảng, đăng nhập, `/mcp` và phần còn lại vẫn chỉ cho văn phòng, có OTP như trước.
+
+Một máy nhận khoá riêng ở lần gửi đầu từ văn phòng, nên mỗi máy bạn muốn cho phải đã gửi từ văn phòng một lần, với bản plugin mới hơn 0.50.6 để dùng `/update`. Làm theo đúng thứ tự dưới đây: không bước nào máy chủ mở rộng hơn ý bạn.
+
+1. **Sao lưu** các thư mục cơ sở dữ liệu và file Caddy, ví dụ `sudo cp -a /opt/ai-worker/data /opt/ai-worker/data.bak` và `sudo cp /etc/caddy/aiworker.caddy /etc/caddy/aiworker.caddy.bak`. Bản mới thêm một bảng (lược đồ phiên bản 7), và máy chủ bản cũ từ chối file đã nâng.
+2. **Cài bản máy chủ mới** như thường lệ, `OFFICE_NETS` vẫn để trống: chưa có gì thay đổi.
+3. **Báo cho máy chủ các mạng văn phòng.** Thêm `OFFICE_NETS=` với đúng các dải của `remote_ip` trong khối Caddy, cách nhau bằng dấu phẩy, vào `/etc/ai-worker.env` (cả dải IPv6, nếu tên miền có bản ghi AAAA), rồi `sudo systemctl restart ai-worker-webhook`. Caddy vẫn đóng, nên mọi yêu cầu vẫn từ văn phòng. Mở trang Quản trị từ văn phòng: trong mục **Máy nhân viên và khoá riêng** không được có cảnh báo địa chỉ của bạn bị tính là ở ngoài. Nếu có, hai danh sách đang lệch nhau: sửa cho khớp rồi mới làm tiếp.
+4. **Cho các máy.** Trên trang Quản trị, mục **Máy nhân viên và khoá riêng**, bấm **Mọi mạng** ở dòng của từng máy được chọn rồi nhập lại OTP. Mỗi thay đổi được ghi vào nhật ký Quản trị.
+5. **Mở Caddy.** Trong khối Caddy, thay hai dòng `@outside not remote_ip ...` và `respond @outside ...` bằng khối chú thích trong `server/aiworker.caddy` bắt đầu bằng `# @outside {` và có dòng `header Authorization "Bearer awd1.*"`, đặt các dải của bạn vào cả hai dòng `remote_ip`. Chạy `caddy validate --config /etc/caddy/Caddyfile`, rồi `sudo systemctl reload caddy`.
+6. **Thử từ ngoài**, ví dụ bằng 4G của điện thoại: `curl -s -o /dev/null -w '%{http_code}\n' https://board.example.com/` trả `403`, và `curl -s -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer <mã gửi>' https://board.example.com/releases/latest.json` cũng vậy. Trên máy được chọn, ở ngoài văn phòng, `/update` trả lời được và bảng hiện máy đó đang gửi.
+
+Muốn đóng lại: đặt lại hai dòng Caddy cũ rồi `sudo systemctl reload caddy`; chỉ xoá `OFFICE_NETS` sau bước đó. Muốn thôi cho một máy, bấm **Chỉ văn phòng** ở dòng của nó.
+
+Trước khi mở:
+
+- **Máy bị mất hay bị lấy:** bấm **Thu hồi**, đừng bấm **Cho quay lại**. Thu hồi cũng lấy luôn quyền gửi từ ngoài; cho quay lại làm khoá cũ của máy dùng được trở lại, dù không còn từ ngoài.
+- **Địa chỉ ở nhà hiện trên bảng.** Bảng giữ các địa chỉ gần nhất mỗi máy đã gửi từ đó, và quản trị viên nhìn thấy. Báo trước cho người dùng máy trước khi cho.
+- **Khoá sống 90 ngày nếu máy không gửi.** Máy tắt lâu hơn, hay mọi máy sau `--rotate-device-secret --drop-old`, phải gửi từ văn phòng thêm một lần.
+- **CDN hay proxy khác đứng trước Caddy** (ví dụ Cloudflare) làm mọi yêu cầu như tới từ CDN, nên máy nào cũng bị tính là ở ngoài. Cách này không dành cho trường hợp đó.
+- **Có bộ nhận Go** (`RECEIVER=1`, [RECEIVER.vi.md](RECEIVER.vi.md)) thì bộ nhận chưa kiểm danh sách này: giữ địa chỉ riêng của nó chỉ cho văn phòng.
 
 ## Gói cài plugin cho Windows (.msi)
 

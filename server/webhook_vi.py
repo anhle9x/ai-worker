@@ -383,4 +383,5 @@ VI = {
     "Detail board": "Bảng chi tiết",
     "invalid computer": "mã máy không hợp lệ",
     "This computer has no key to revoke": "Máy này chưa có khoá để thu hồi",
+    "Only a computer sending with its own key can send from any network": "Chỉ máy đang gửi bằng khoá riêng mới được gửi từ mọi mạng",
 }

@@ -14,7 +14,7 @@ import { applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, 
 import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextNoteForClaude, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
 import { answerModel, buildMachineSummary, deviceKeyIn, refusalAfter, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
 import type { ShareConfig } from './team'
-import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT, WINDOWS_CLAUDE_SCRIPT, UNIX_CLAUDE_SCRIPT, claudeCandidate, isClaudeCodeVersion, findHostApp, parseLinuxHost, parseWindowsHost, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
+import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT, WINDOWS_CLAUDE_SCRIPT, UNIX_CLAUDE_SCRIPT, claudeCandidate, isClaudeCodeVersion, findHostApp, parseLinuxHost, parseWindowsHost, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, releaseKeys, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
 import { AGY_BRAIN, IMAGE_DIR, IMAGE_SCHEMA, IMAGE_SETTLE_MS, OLLAMA_URL, PROMPT_LEVEL_SCHEMA, PROMPT_SCHEMA, WORKER_TIMEOUT_MS, imageArgv, imageTargets, newImages, safeImageName, sendingNeedsAsking, sendingRefusal, agyArgv, codexArgv, codexInput, isBatchLauncher, delegationRules, gemmaAnswer, gemmaRequest, mcpConfigured, ownTools, pickGemma } from './workers'
 import type { OwnWorkers } from './workers'
 import { pageLanguageScript, setLang, tx } from './lang'
@@ -1231,10 +1231,12 @@ async function checkSignature($: EngineInterface, manifest: string, sigPath: str
   return 'unsupported'
 }
 
-const ingestHeaders = () => ({ Authorization: `Bearer ${share.ingestKey}` })
+/** This computer's own key when it has one, then the shared key: a server that knows the office networks lets only the own key of a computer allowed to send from any network through from outside. */
+/** Khoá riêng của máy này khi có, rồi khoá chung: máy chủ biết các mạng văn phòng chỉ cho khoá riêng của máy được gửi từ mọi mạng đi qua từ bên ngoài. */
+const keysForReleases = async ($: EngineInterface) => releaseKeys(await $.store.get(DEVICE_KEY).catch(() => undefined), share.ingestKey)
 
-/** The server refused the network this computer is on. Only its front door answers 403 for a release file, so this is never a wrong key or a missing file. */
-/** Máy chủ từ chối mạng mà máy này đang dùng. Chỉ cửa trước của máy chủ mới trả 403 cho một file phát hành, nên đây không bao giờ là sai khoá hay thiếu file. */
+/** The server refused the network this computer is on: its front door, or the server itself for a computer not let send from any network. A wrong key gets 401 and a missing file 200, so 403 is never either. */
+/** Máy chủ từ chối mạng mà máy này đang dùng: cửa trước của nó, hoặc chính máy chủ với máy chưa được gửi từ mọi mạng. Sai khoá nhận 401 và thiếu file nhận 200, nên 403 không bao giờ là một trong hai. */
 class NetworkRefused extends Error {}
 
 /** What /update says when the network is refused: what happened, what to do, and one line for the admin. No error code up front. */
@@ -1242,7 +1244,7 @@ class NetworkRefused extends Error {}
 const networkRefusedText = () => [
   tx('The network you are on is not allowed to reach the company server, so the new version could not be checked. Nothing is wrong with this computer.'),
   tx('The server answers only the networks your admin has added, usually the office one. Back on that network, type /update again.'),
-  tx('Working somewhere else for a while? Ask your admin to add the network you are on. (For the admin: the server answered 403.)'),
+  tx('Working somewhere else for a while? Ask your admin to let this computer send from any network on the Admin page. (For the admin: the server answered 403.)'),
 ].join('\n')
 
 /** The newest signed manifest, if the server has one and it should be offered; says in state what it found. */
@@ -1252,11 +1254,18 @@ async function checkNewVersion($: EngineInterface): Promise<{ m?: Manifest; sign
   // gói không có khoá ký riêng thì không bao giờ xác minh được một bản cập nhật, nên không có gì để đưa ra
   if (!hasSigningKeys(await $.fs.read(signersPath($)).catch(() => ''))) return {}
   const dir = `${await webFolder($)}/update`
+  const keys = await keysForReleases($)
   const fetchRelease = async (name: string) => {
-    const r = await $.http.fetch(`${share.webhook}/releases/${name}`, { headers: ingestHeaders() })
-    if (r.status === 403) throw new NetworkRefused('403')
-    if (!r.ok) throw new Error(tx('server returned {code}', { code: r.status }))
-    return r.text
+    // a refused own key is not dropped here: only a send may drop it, since the server says why there (hooks above, at /ingest)
+    // khoá riêng bị từ chối thì không bỏ ở đây: chỉ lần gửi mới được bỏ nó, vì ở đó máy chủ nói rõ lý do (ở /ingest phía trên)
+    for (const [i, key] of keys.entries()) {
+      const r = await $.http.fetch(`${share.webhook}/releases/${name}`, { headers: { Authorization: `Bearer ${key}` } })
+      if ((r.status === 401 || r.status === 403) && i < keys.length - 1) continue
+      if (r.status === 403) throw new NetworkRefused('403')
+      if (!r.ok) throw new Error(tx('server returned {code}', { code: r.status }))
+      return r.text
+    }
+    throw new Error(tx('server returned {code}', { code: 401 }))
   }
   const raw = await fetchRelease('latest.json')
   const m = parseManifest(raw)
@@ -1431,9 +1440,17 @@ async function installUpdate($: EngineInterface): Promise<{ text: string; versio
   // the key goes in a file: on a command line any process on the machine could read it
   // khoá đi vào một file: trên dòng lệnh, mọi tiến trình trên máy đều đọc được nó
   const headerFile = `${dir}/dau.txt`
-  await $.fs.write(headerFile, `Authorization: Bearer ${share.ingestKey}\n`)
-  const download = await $.process.run(['curl', '-fsS', '-m', '120', '-H', `@${headerFile}`, '-o', zip, `${share.webhook}/releases/${m.name}`], { timeoutMs: 130_000 })
-  await $.fs.write(headerFile, '')
+  // the own key first, as for the manifest; a refused one falls back to the shared key
+  // khoá riêng trước, như với manifest; bị từ chối thì quay về khoá chung
+  let download = { exitCode: 1 }
+  for (const key of await keysForReleases($)) {
+    await $.fs.write(headerFile, `Authorization: Bearer ${key}\n`)
+    download = await $.process.run(['curl', '-fsS', '-m', '120', '-H', `@${headerFile}`, '-o', zip, `${share.webhook}/releases/${m.name}`], { timeoutMs: 130_000 })
+    await $.fs.write(headerFile, '')
+    // only a refusal by the server (curl's 22) is worth the other key; a network that does not answer would not answer it either
+    // chỉ lần máy chủ từ chối (mã 22 của curl) mới đáng thử khoá kia; mạng không trả lời thì cũng không trả lời khoá đó
+    if (download.exitCode !== 22) break
+  }
   if (download.exitCode !== 0) return { text: tx('Could not download the new version. Try again later, or tell your admin if this computer is away from the office.') }
   let bam: string | undefined
   for (const argv of [['shasum', '-a', '256', zip], ['sha256sum', zip], ['certutil', '-hashfile', zip, 'SHA256']]) {

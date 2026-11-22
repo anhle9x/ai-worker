@@ -2,6 +2,15 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.7 - 2026-11-22
+
+### Added
+- Chosen computers can send numbers and get `/update` from any network (home, 4G), while every other computer stays office-only. Set `OFFICE_NETS` on the server to the office ranges of the Caddy file, press **Any network** on the computer's row under **Computers and their keys** on the Admin page (OTP again, written in the Admin log), then use the new commented block in `server/aiworker.caddy`. From outside, Caddy lets through only a computer's own key (`awd1.`), and the server takes it only from a computer an admin let; everything else gets 403, so the shared send code in the install package sends nothing from outside. Revoking or forgetting a computer takes the right away. The Admin page warns when `OFFICE_NETS` is empty, or when your own address counts as outside, which means the two lists differ. Steps, in an order that never opens more than you want: [docs/INSTALL.md](docs/INSTALL.md#sending-from-outside-the-office-chosen-computers). The server adds a table (schema version 7). The Go receiver does not check this list yet.
+
+### Changed
+- The plugin fetches updates with its computer's own key when it has one, and falls back to the shared send code, so `/update` works for a computer let send from any network.
+- The commented block in the Caddy template for computers away from the office no longer opens `/ingest` and `/releases/` to every computer with the send code: it lets through only a computer's own key and needs `OFFICE_NETS`. A server already using the old block keeps it until you change it; computers already sending from outside must be let on the Admin page before you switch.
+
 ## 0.50.6 - 2026-11-22
 
 ### Fixed

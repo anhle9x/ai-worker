@@ -146,6 +146,7 @@ A new secret signs every key from then on, and every computer gets a new key at 
 
 ## 7. Known limits of this stage
 
+- The receiver does not check the list of computers let send from any network (`OFFICE_NETS`, [INSTALL.md](INSTALL.md#sending-from-outside-the-office-chosen-computers)): the batches it writes through `/internal/rows` do not pass the webhook's check. Keep the receiver's address reachable from the office networks only.
 - Whether 100,000 computers stay within 5 seconds is not measured yet: the measurement on Linux comes at the end of this stage.
 - The table of people is built from the whole board each time the receiver asks: what that costs at 100,000 computers is measured with the rest on Linux.
 - The live feed adds up every computer once a second, instead of keeping the sums up to date as the sends come. Measured on a Mac with an M-series chip at 100,000 computers, 500 people a branch: one pass 83 ms; one second with every branch and the whole organisation read by a board 175 ms in all, half of it making the JSON of the rows. The measurement on Linux (4 vCPU) decides whether the sums must be kept as the sends come.

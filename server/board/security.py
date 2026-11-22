@@ -149,6 +149,20 @@ class CallLimit:
 BLOCKED = "\0blocked"
 
 
+def in_networks(ip: str, networks) -> bool:
+    """True when ip is inside one of the networks; an address that does not read is inside none. An IPv4 address written as IPv6
+    (::ffff:a.b.c.d) counts as the IPv4 one.
+    True khi ip nằm trong một trong các mạng; địa chỉ không đọc được thì không nằm trong mạng nào. Địa chỉ IPv4 viết dạng IPv6
+    (::ffff:a.b.c.d) tính như địa chỉ IPv4 đó."""
+    try:
+        parsed = ipaddress.ip_address((ip or "").strip())
+    except ValueError:
+        return False
+    if parsed.version == 6 and parsed.ipv4_mapped:
+        parsed = parsed.ipv4_mapped
+    return any(parsed.version == n.version and parsed in n for n in networks)
+
+
 def ip_bucket(ip: str) -> str:
     """One IPv6 customer usually holds a whole /64, so those addresses count as one.
     Một khách IPv6 thường giữ cả dải /64, nên các địa chỉ đó tính là một."""

@@ -608,7 +608,9 @@ def computer_keys(now: float) -> dict:
         account, name = people.get(r["device"], ["", ""])
         rows.append(dict(r, account=last.get("account") or account, name=last.get("name") or name))
     rows.sort(key=lambda r: (r["state"] != "revoked", (r["name"] or r["account"] or r["device"]).lower()))
-    return {"sharedKeyMode": settings.SHARED_KEY_MODE, "total": len(rows), "active": sum(1 for r in rows if r["state"] == "active"),
+    # officeNets: how many office networks the server knows (OFFICE_NETS); with none, only Caddy tells the office from outside
+    # officeNets: máy chủ biết bao nhiêu mạng văn phòng (OFFICE_NETS); không có mạng nào thì chỉ Caddy phân biệt văn phòng với bên ngoài
+    return {"sharedKeyMode": settings.SHARED_KEY_MODE, "officeNets": len(settings.OFFICE_NETS), "total": len(rows), "active": sum(1 for r in rows if r["state"] == "active"),
             "revoked": sum(1 for r in rows if r["state"] == "revoked"), "computers": rows[:COMPUTER_KEYS_SHOWN]}
 
 

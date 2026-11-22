@@ -146,6 +146,7 @@ Từ lúc đó một bí mật mới ký mọi khoá, và mọi máy nhận kho�
 
 ## 7. Giới hạn đã biết của đợt này
 
+- Bộ nhận chưa kiểm danh sách máy được gửi từ mọi mạng (`OFFICE_NETS`, [INSTALL.vi.md](INSTALL.vi.md#gửi-từ-ngoài-văn-phòng-máy-được-chọn)): các lô nó ghi qua `/internal/rows` không đi qua bước kiểm của webhook. Giữ địa chỉ của bộ nhận chỉ tới được từ các mạng văn phòng.
 - 100.000 máy có ở dưới 5 giây không thì chưa đo: bài đo trên Linux làm ở cuối đợt này.
 - Bảng người được dựng từ cả bảng mỗi lần bộ nhận hỏi: chi phí của việc đó ở 100.000 máy được đo cùng phần còn lại trên Linux.
 - Luồng số trực tiếp cộng mọi máy mỗi giây một lần, thay vì giữ tổng luôn mới theo từng lần gửi tới. Đo trên Mac chip M ở 100.000 máy, 500 người một chi nhánh: một lượt cộng 83 ms; một giây mà mọi chi nhánh lẫn cả tổ chức đều có bảng đọc mất tổng cộng 175 ms, một nửa là làm JSON của các dòng. Bài đo trên Linux (4 vCPU) quyết có phải giữ tổng theo từng lần gửi hay không.

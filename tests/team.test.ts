@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { buildHelp, skillLine } from '../hooks/help'
-import { claudeCandidate, isClaudeCodeVersion, findHostApp, parseLinuxHost, parseWindowsHost, hasSigningKeys, parseHash, parseSignatureResult, parseManifest, shouldOfferUpdate } from '../hooks/update'
+import { claudeCandidate, isClaudeCodeVersion, findHostApp, parseLinuxHost, parseWindowsHost, hasSigningKeys, parseHash, parseSignatureResult, parseManifest, releaseKeys, shouldOfferUpdate } from '../hooks/update'
 import { DEVICE_ID_LENGTH, OPEN_MS, REFUSED_FIRST_MS, REFUSED_MAX_MS, buildMachineSummary, deviceKeyIn, refusalAfter, newDeviceId, hardwareMark, parseHardwareId, sha256Hex, isLanIp, mergeShare, mergeTeam, parseLanIp, parseSessionFile, readShareConfig, summarySignature, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, answerModel, toQuota, quotaWarning } from '../hooks/team'
 
 const H = 3_600_000
@@ -257,6 +257,17 @@ test('a bad signature is not the same as a machine too old to check one', () => 
   expect(parseSignatureResult({ exitCode: 0, stdout: 'Good' })).toBe('valid')
   expect(parseSignatureResult({ exitCode: 255, stdout: '', stderr: 'Could not verify signature.' })).toBe('invalid')
   expect(parseSignatureResult({ exitCode: 1, stdout: '', stderr: 'unknown option -- Y' })).toBe('unsupported')
+})
+
+test('a release is fetched with the computer\'s own key first, then the shared key', () => {
+  const own = 'awd1.k.o.p.r.device-a1.1700000000.sig'
+  expect(releaseKeys(own, 'shared')).toEqual([own, 'shared'])
+  // no own key yet, or something that is not one: the shared key alone
+  // chưa có khoá riêng, hoặc thứ không phải khoá riêng: chỉ khoá chung
+  expect(releaseKeys(undefined, 'shared')).toEqual(['shared'])
+  expect(releaseKeys('awd1.bad', 'shared')).toEqual(['shared'])
+  expect(releaseKeys(42, 'shared')).toEqual(['shared'])
+  expect(releaseKeys(own, '')).toEqual([own])
 })
 
 test('the hash is read from each tool', () => {

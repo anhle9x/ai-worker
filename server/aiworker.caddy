@@ -19,17 +19,28 @@ board.example.com {
 	# chỉ các mạng được phép: thay hai dải mẫu này bằng IP của bạn
 	@outside not remote_ip 203.0.113.0/24 198.51.100.0/24
 	respond @outside "Forbidden" 403
-	# For computers away from these networks (a branch, home, travel): open only the data-sending path and the plugin's updates (/update),
-	# replacing the two lines above with the block below. The viewing pages still keep the IP list and OTP; /ingest and /releases/ still need
-	# the send key, /ingest has a rate limit, and an update is checked against its signature on the computer.
-	# Máy ở ngoài các mạng này (chi nhánh, ở nhà, đi công tác): chỉ mở đường gửi số liệu và bản cập nhật plugin (/update),
-	# thay hai dòng trên bằng khối dưới. Trang xem vẫn giữ danh sách IP và OTP; /ingest và /releases/ vẫn cần mã gửi,
-	# /ingest có giới hạn tần suất, và bản cập nhật được máy kiểm chữ ký.
+	# For chosen computers away from these networks (home, 4G, travel): let them send numbers and fetch the plugin's updates (/update)
+	# from anywhere. Set OFFICE_NETS in ai-worker.env to the same ranges first and restart the webhook, then let each computer on /admin
+	# ("Any network"), then replace the two lines above with the block below. From outside, only a request carrying a computer's own key
+	# (awd1.) to /ingest or /releases/ gets past Caddy; the server then takes it only from a computer an admin let, so the shared key in the
+	# install package sends nothing from outside. The second matcher marks every request from outside, so the server holds the same rule
+	# even if OFFICE_NETS is left empty. The viewing pages keep the IP list and OTP. Keep both lists the same (docs/INSTALL.md).
+	# Máy được chọn ở ngoài các mạng này (ở nhà, 4G, đi công tác): cho gửi số liệu và tải bản cập nhật plugin (/update) từ mọi nơi.
+	# Trước hết đặt OFFICE_NETS trong ai-worker.env đúng các dải này rồi khởi động lại webhook, rồi cho từng máy ở /admin ("Mọi mạng"),
+	# rồi thay hai dòng trên bằng khối dưới. Từ ngoài, chỉ yêu cầu mang khoá riêng của một máy (awd1.) tới /ingest hay /releases/ mới qua
+	# được Caddy; máy chủ chỉ nhận nó từ máy quản trị đã cho, nên khoá chung trong gói cài không gửi được gì từ ngoài. Bộ so thứ hai đánh
+	# dấu mọi yêu cầu từ ngoài, để máy chủ giữ cùng luật đó kể cả khi OFFICE_NETS bị để trống. Trang xem vẫn giữ danh sách IP và OTP.
+	# Giữ hai danh sách giống nhau (docs/INSTALL.vi.md).
 	# @outside {
 	# 	not remote_ip 203.0.113.0/24 198.51.100.0/24
-	# 	not path /ingest /releases/*
+	# 	not {
+	# 		path /ingest /releases/*
+	# 		header Authorization "Bearer awd1.*"
+	# 	}
 	# }
 	# respond @outside "Forbidden" 403
+	# @away not remote_ip 203.0.113.0/24 198.51.100.0/24
+	# request_header @away X-AiWorker-Away 1
 	# Only for an AI project or application that runs on a cloud server (AI_PROJECTS=1): let its IP reach /projects/ingest and nothing else.
 	# Replace the two lines at the top with the block below and put the project's IP in place of 192.0.2.10. The path still needs the project's key.
 	# Chỉ cho dự án hay ứng dụng AI chạy trên cloud (AI_PROJECTS=1): cho IP của nó tới /projects/ingest và không tới đâu khác.

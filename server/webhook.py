@@ -138,6 +138,7 @@ from board.security import (
     VIEWER,
     WALL,
     CallLimit,
+    in_networks,
     session_lifetime,
 )
 from board.settings import (
@@ -425,7 +426,20 @@ class Handler(BaseHTTPRequestHandler):
         now, cookie = time.time(), self.headers.get("Cookie", "")
         self.receiver_ip = None
         if d.permission == PERM_INGEST_KEY:
-            return RequestCtx(None, None, cookie, now) if self.ingest_auth(self.headers.get("Authorization", ""), now) else None
+            away = self.from_away()
+            # from outside the office only a computer's own key is looked at: the shared key every package carries is refused before it
+            # is compared, so nobody outside can try it. 403, not 401: on a 401 the plugin drops its own key (hooks/register.tsx)
+            # từ ngoài văn phòng chỉ xét khoá riêng của máy: khoá chung mà mọi gói cài mang bị từ chối trước khi được so, để không ai ở
+            # ngoài thử được nó. 403, không phải 401: gặp 401 plugin sẽ bỏ khoá riêng của nó (hooks/register.tsx)
+            if away and not self.bearer().startswith(PREFIX + "."):
+                self.reply(403, {"error": "outside the office network"})
+                return None
+            if not self.ingest_auth(self.headers.get("Authorization", ""), now):
+                return None
+            if away and not DEVICE_KEYS.roams(self.device_claims["device"]):
+                self.reply(403, {"error": "this computer may not send from outside the office"})
+                return None
+            return RequestCtx(None, None, cookie, now)
         if d.permission in (PERM_RECEIVER, PERM_RECEIVER_SEND):
             # the Go receiver on this same machine, calling the webhook's port directly with the internal code of the file of secrets
             # (board/receiver.py). Anything that came through the proxy, or with a wrong code, is told the path does not exist
@@ -956,7 +970,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def get_admin_data(self, y: "RequestCtx") -> None:
         month = parse_qs(urlparse(self.path).query).get("month", [""])[0]
-        self.reply(200, admin_data(y.now, y.cookie, month))
+        data = admin_data(y.now, y.cookie, month)
+        # whether the admin looking now is counted as outside the office: an office address counted as outside shows that the list in
+        # OFFICE_NETS and the one in Caddy differ, before any computer is shut out by it
+        # quản trị đang xem có bị tính là ở ngoài văn phòng không: một địa chỉ văn phòng bị tính là ở ngoài cho thấy danh sách trong
+        # OFFICE_NETS và trong Caddy lệch nhau, trước khi máy nào bị chặn vì nó
+        data["computerKeys"]["viewerAway"] = self.from_away()
+        self.reply(200, data)
 
     def get_history(self, y: "RequestCtx") -> None:
         b = json.dumps(history_view(y.role, y.now), ensure_ascii=False).encode()
@@ -1437,6 +1457,17 @@ class Handler(BaseHTTPRequestHandler):
                     # cho máy quay lại: ở lần gửi sau nó ghi danh lại bằng khoá chung, như một máy mới
                     DEVICE_KEYS.forget(device)
                     details = {"action": "device-forgotten", "device": device, "personName": name, "personAccount": account}
+            elif self.path == "/admin/device-roam":
+                device = str(body.get("device") or "")
+                if not re.fullmatch(r"device-[a-z0-9]{1,40}", device):
+                    raise ValueError(tx("invalid computer"))
+                on = body.get("roaming") is True
+                account, name = INGEST_GATE.identities.get(device, ["", ""])
+                # only a computer sending with its own key now: it is that key the server looks at when the computer is away
+                # chỉ máy đang gửi bằng khoá riêng: đó là khoá máy chủ xét khi máy ở ngoài
+                if not DEVICE_KEYS.set_roaming(device, on, user, time.time()) and on and not DEVICE_KEYS.roams(device):
+                    raise ValueError(tx("Only a computer sending with its own key can send from any network"))
+                details = {"action": "device-roaming-on" if on else "device-roaming-off", "device": device, "personName": name, "personAccount": account}
             elif self.path == "/admin/project-delete":
                 # only a project whose key is already revoked: a live project would only send again
                 # chỉ dự án đã thu hồi khoá: dự án còn khoá sẽ lại gửi tiếp
@@ -1618,6 +1649,15 @@ class Handler(BaseHTTPRequestHandler):
         Yêu cầu do Caddy/nginx trên chính máy chủ chuyển tới: chỉ khi đó mới tin các header X-Forwarded-*.
         Ai gọi thẳng cổng webhook từ máy khác thì không giả được IP (khoá đăng nhập sai tính theo IP)."""
         return settings.TRUST_PROXY and self.client_address[0] in ("127.0.0.1", "::1")
+
+    def from_away(self) -> bool:
+        """True when this request comes from outside the office: its address is not in OFFICE_NETS, or Caddy marked it with X-AiWorker-Away.
+        Either one is enough, so a sender that adds the mark itself only shuts itself out. With neither set, nothing is away (as before).
+        True khi yêu cầu này tới từ ngoài văn phòng: địa chỉ không nằm trong OFFICE_NETS, hoặc Caddy đã đánh dấu bằng X-AiWorker-Away.
+        Chỉ cần một trong hai, nên máy gửi tự thêm dấu đó chỉ tự khoá mình. Không đặt cả hai thì không gì bị tính là ở ngoài (như trước)."""
+        if self.headers.get("X-AiWorker-Away") is not None:
+            return True
+        return bool(settings.OFFICE_NETS) and not in_networks(self.client_ip(), settings.OFFICE_NETS)
 
     def client_ip(self) -> str:
         if self.via_proxy():
@@ -1904,6 +1944,9 @@ POST_ROUTES = {
     "/admin/project-delete": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True, projects=True),
     "/admin/device-revoke": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True),
     "/admin/device-forget": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True),
+    # let one computer send numbers and fetch updates from any network, or take that back (OFFICE_NETS)
+    # cho một máy gửi số liệu và tải bản cập nhật từ mọi mạng, hoặc thôi cho (OFFICE_NETS)
+    "/admin/device-roam": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True),
     # an AI tool with a key an admin approved asks the board's numbers; read-only
     # công cụ AI có khoá đã được quản trị duyệt hỏi số liệu của bảng; chỉ đọc
     "/mcp": Route(Handler.mcp_post, PERM_MCP_KEY, mcp=True),

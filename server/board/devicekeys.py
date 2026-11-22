@@ -98,6 +98,9 @@ class DeviceKeys:
         # máy -> (iat của khoá mới nhất nó đã dùng để gửi, revoked_at hoặc 0); khoá đã cấp mà chưa dùng thì không có dòng
         self.rows = {}
         self.rows_for = None
+        # device -> (since, admin) for the computers that may send from any network (device_roaming)
+        # máy -> (từ lúc, quản trị) cho các máy được gửi từ mọi mạng (device_roaming)
+        self.roaming = {}
         self.used_only = False
         # person_key -> the code of their row on the board, for the keys database it was made with
         # person_key -> mã dòng của người đó trên bảng, cho cơ sở dữ liệu khoá đã dùng để làm nó
@@ -155,6 +158,7 @@ class DeviceKeys:
                     c.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)", (USED_ONLY_KEY, "1"))
                 self.used_only = True
             self.rows = {d: (iat, revoked) for d, iat, revoked in db.rows("SELECT device, iat, revoked_at FROM device_keys")}
+            self.roaming = {d: (since, by) for d, since, by in db.rows("SELECT device, since, by FROM device_roaming")}
             self.rows_for = db
         return db
 
@@ -334,6 +338,10 @@ class DeviceKeys:
                 changed = c.execute("UPDATE device_keys SET revoked_at = ? WHERE device = ? AND revoked_at = 0", (int(now), device)).rowcount
                 if not changed and device not in self.rows and c.execute("SELECT 1 FROM identities WHERE device = ?", (device,)).fetchone():
                     changed = c.execute("INSERT INTO device_keys (device, iat, revoked_at) VALUES (?, 0, ?)", (device, int(now))).rowcount
+                # a revoked computer loses the right to send from outside too: letting it back does not give that back
+                # máy bị thu hồi cũng mất quyền gửi từ ngoài: cho nó quay lại không trả quyền đó
+                c.execute("DELETE FROM device_roaming WHERE device = ?", (device,))
+            self.roaming.pop(device, None)
             if changed:
                 self.rows[device] = (self.rows.get(device, (0, 0))[0], int(now))
             return bool(changed)
@@ -343,7 +351,11 @@ class DeviceKeys:
             db = self._rows()
             with db.tx() as c:
                 gone = c.execute("DELETE FROM device_keys WHERE device = ?", (device,)).rowcount
+                # a forgotten computer's old key is good again until it expires, so it must not still reach the server from anywhere
+                # khoá cũ của máy đã quên lại dùng được tới khi hết hạn, nên nó không được còn tới máy chủ từ mọi nơi
+                c.execute("DELETE FROM device_roaming WHERE device = ?", (device,))
             self.rows.pop(device, None)
+            self.roaming.pop(device, None)
             return bool(gone)
 
     def listing(self, now: float) -> list:
@@ -354,9 +366,38 @@ class DeviceKeys:
         """
         with self.lock:
             self._rows()
-            rows = dict(self.rows)
+            rows, roaming = dict(self.rows), dict(self.roaming)
         return [{"device": d, "issuedAt": iat * 1000 if iat else None, "revokedAt": revoked * 1000 if revoked else None,
-                 "state": "revoked" if revoked else "expired" if now - iat > KEY_DAYS * 86400 else "active"} for d, (iat, revoked) in rows.items()]
+                 "state": "revoked" if revoked else "expired" if now - iat > KEY_DAYS * 86400 else "active",
+                 "roamingSince": roaming[d][0] * 1000 if d in roaming else None} for d, (iat, revoked) in rows.items()]
+
+    def roams(self, device: str) -> bool:
+        """True when an admin let this computer send and fetch updates from any network.
+        True khi quản trị đã cho máy này gửi và tải bản cập nhật từ mọi mạng."""
+        with self.lock:
+            self._rows()
+            return device in self.roaming
+
+    def set_roaming(self, device: str, on: bool, by: str, now: float) -> bool:
+        """Lets a computer send from any network, or takes that back. Only a computer that is sending with its own key now can be let:
+        a revoked one, or one whose key is too old, would have to come to the office first anyway. True when something changed.
+        Cho một máy gửi từ mọi mạng, hoặc thôi cho. Chỉ máy đang gửi bằng khoá riêng mới được cho: máy bị thu hồi, hay có khoá quá cũ,
+        đằng nào cũng phải về văn phòng trước. True khi có gì đó đổi."""
+        with self.lock:
+            db = self._rows()
+            row = self.rows.get(device)
+            if on and (not row or row[1] or now - row[0] > KEY_DAYS * 86400):
+                return False
+            with db.tx() as c:
+                if on:
+                    changed = c.execute("INSERT OR IGNORE INTO device_roaming (device, since, by) VALUES (?, ?, ?)", (device, int(now), by[:60])).rowcount
+                else:
+                    changed = c.execute("DELETE FROM device_roaming WHERE device = ?", (device,)).rowcount
+            if on and changed:
+                self.roaming[device] = (int(now), by[:60])
+            elif not on:
+                self.roaming.pop(device, None)
+            return bool(changed)
 
     def counts(self) -> dict:
         with self.lock:

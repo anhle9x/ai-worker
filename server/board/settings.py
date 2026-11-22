@@ -2,8 +2,10 @@
 Cấu hình máy chủ bảng tổng: biến môi trường, giới hạn và khoảng thời gian."""
 
 import http.client
+import ipaddress
 import os
 import re
+import sys
 from datetime import timedelta, timezone
 
 # the server folder: webhook.py, static/, menubar/ and the default data/ and keys/ sit here
@@ -22,6 +24,36 @@ INGEST_KEY = os.environ.get("INGEST_KEY", "")
 # known-only: chỉ những máy máy chủ đã biết, để một gói cài bị lộ không thêm được máy mới;
 # off: không ai gửi bằng nó nữa (bản cập nhật của plugin vẫn tải bằng nó).
 SHARED_KEY_MODE = os.environ.get("SHARED_KEY_MODE", "allow") if os.environ.get("SHARED_KEY_MODE", "allow") in ("allow", "known-only", "off") else "allow"
+
+
+def parse_office_nets(text: str) -> tuple:
+    """The office networks in OFFICE_NETS, separated by commas or spaces. A range that does not read, or one that holds every address
+    (/0), is left out with a line on stderr: a mistake never makes the list wider.
+    Các mạng văn phòng trong OFFICE_NETS, cách nhau bằng dấu phẩy hoặc dấu cách. Dải không đọc được, hay dải chứa mọi địa chỉ (/0),
+    bị bỏ kèm một dòng trên stderr: viết sai không bao giờ làm danh sách rộng ra."""
+    nets = []
+    for part in re.split(r"[\s,]+", text or ""):
+        if not part:
+            continue
+        try:
+            net = ipaddress.ip_network(part, strict=False)
+        except ValueError:
+            sys.stderr.write("OFFICE_NETS: ignoring %r, not an IP range\n" % part[:60])
+            continue
+        if net.prefixlen == 0:
+            sys.stderr.write("OFFICE_NETS: ignoring %s, it holds every address\n" % net)
+            continue
+        nets.append(net)
+    return tuple(nets)
+
+
+# The office networks, the same list as remote_ip in the Caddy file. When set, a send (/ingest) or an update (/releases/) from any other
+# address is taken only from a computer an admin let send from any network, with its own key; every other one gets 403.
+# Empty (the default): the server does not look at the address, and only Caddy decides (docs/INSTALL.md, "Sending from outside the office").
+# Các mạng văn phòng, cùng danh sách với remote_ip trong file Caddy. Khi đặt, một lần gửi (/ingest) hay tải bản cập nhật (/releases/) từ
+# địa chỉ khác chỉ được nhận từ máy quản trị đã cho gửi từ mọi mạng, bằng khoá riêng của nó; mọi máy khác nhận 403.
+# Trống (mặc định): máy chủ không xét địa chỉ, chỉ Caddy quyết (docs/INSTALL.vi.md, "Gửi từ ngoài văn phòng").
+OFFICE_NETS = parse_office_nets(os.environ.get("OFFICE_NETS", ""))
 # Log in with Telegram (optional): the bot's token and its @username without the @, both from @BotFather. Off while either is empty.
 # The token can sign a login for anyone, so it stays in the env file like INGEST_KEY, never in git.
 # Đăng nhập bằng Telegram (tuỳ chọn): khoá của bot và tên @ của bot không có @, cả hai lấy từ @BotFather. Tắt khi thiếu một trong hai.

@@ -760,9 +760,9 @@ class RoutePermissions(unittest.TestCase):
     }
     POST_ADMIN = ("/locations", "/team-csv", "/team-sale", "/admin/confirm", "/admin/accounts", "/admin/sessions",
                      "/admin/tv-view", "/admin/tv-approve", "/admin/tv-revoke", "/admin/tv-rename", "/admin/tv-reload", "/admin/tv-app",
-                     "/admin/device-revoke", "/admin/device-forget")
+                     "/admin/device-revoke", "/admin/device-forget", "/admin/device-roam")
     NEEDS_OTP_CONFIRM = ("/admin/accounts", "/admin/sessions", "/admin/tv-view", "/admin/tv-approve",
-                        "/admin/tv-revoke", "/admin/tv-rename", "/admin/tv-app", "/admin/device-revoke", "/admin/device-forget")
+                        "/admin/tv-revoke", "/admin/tv-rename", "/admin/tv-app", "/admin/device-revoke", "/admin/device-forget", "/admin/device-roam")
 
     @classmethod
     def setUpClass(cls):
@@ -4137,6 +4137,7 @@ class PageMatchesServer(unittest.TestCase):
             "/admin/project-delete": body_reads(branch("/admin/project-delete")),
             "/admin/device-revoke": body_reads(action.split('elif self.path in ("/admin/device-revoke", "/admin/device-forget"):')[1].split("elif self.path")[0]),
             "/admin/device-forget": body_reads(action.split('elif self.path in ("/admin/device-revoke", "/admin/device-forget"):')[1].split("elif self.path")[0]),
+            "/admin/device-roam": body_reads(action.split('elif self.path == "/admin/device-roam":')[1].split("elif self.path")[0]),
         }
         seen = set()
         for m in re.finditer(r"(?:post|submit)\('(/[\w/-]+)',\s*(\{|\w+)", self.admin_js):
@@ -5354,10 +5355,12 @@ class DeviceKeys(unittest.TestCase):
         security.BOT.__init__()
         views.INGEST_GATE.buckets, views.INGEST_GATE.new_devices = {}, {}
         self.saved_mode = settings.SHARED_KEY_MODE
+        self.saved_nets = settings.OFFICE_NETS
         self.devices = []
 
     def tearDown(self):
         settings.SHARED_KEY_MODE = self.saved_mode
+        settings.OFFICE_NETS = self.saved_nets
         for device in self.devices:
             devicekeys.DEVICE_KEYS.forget(device)
             drop_device(device)
@@ -5365,20 +5368,23 @@ class DeviceKeys(unittest.TestCase):
             with db.data_db().tx() as c:
                 c.execute("DELETE FROM identities WHERE device = ?", (device,))
 
-    def send(self, device, key, **fields):
+    def send(self, device, key, ip=None, headers=None, **fields):
         if device not in self.devices:
             self.devices.append(device)
         body = json.dumps(dict({"v": 1, "device": device, "name": "Key " + device[-2:], "account": device + "@example.com", "updatedAt": int(time.time() * 1000)}, **fields))
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        # ip: the address Caddy saw, put last in X-Forwarded-For as Caddy does
+        # ip: địa chỉ Caddy đã thấy, đặt cuối X-Forwarded-For như Caddy làm
+        extra = dict({"X-Forwarded-For": "198.51.100.9, " + ip} if ip else {}, **(headers or {}))
         try:
-            conn.request("POST", "/ingest", body, {"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+            conn.request("POST", "/ingest", body, dict({"Authorization": "Bearer " + key, "Content-Type": "application/json"}, **extra))
             r = conn.getresponse()
             return r.status, json.loads(r.read() or b"{}")
         finally:
             conn.close()
 
     def enrol(self, device):
-        status, answer = self.send(device, self.SHARED)
+        status, answer = self.send(device, self.SHARED, ip=self.OFFICE)
         self.assertEqual(status, 200)
         return answer["deviceKey"]
 
@@ -5525,6 +5531,115 @@ class DeviceKeys(unittest.TestCase):
         self.assertNotEqual(self.admin("/admin/device-revoke", {"device": "../etc"})[0], 200)
         self.assertEqual(self.admin("/admin/device-forget", {"device": "device-k12"})[0], 200)
         self.assertTrue(self.enrol("device-k12").startswith("awd1."))
+
+    def release(self, token, ip=None):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        try:
+            conn.request("GET", "/releases/latest.json", headers=dict({"Authorization": "Bearer " + token}, **({"X-Forwarded-For": ip} if ip else {})))
+            r = conn.getresponse()
+            return r.status, json.loads(r.read() or b"{}")
+        finally:
+            conn.close()
+
+    OFFICE = "203.0.113.20"
+    HOME = "192.0.2.77"
+
+    def test_from_outside_the_office_only_a_computer_let_roam_sends_and_updates(self):
+        settings.OFFICE_NETS = settings.parse_office_nets("203.0.113.0/24, 2001:db8:1::/48")
+        roams, stays = self.enrol("device-k20"), self.enrol("device-k21")
+        for key in (roams, stays):
+            self.assertEqual(self.send(key.split(".")[5], key, ip=self.OFFICE)[0], 200)
+            self.assertEqual(self.release(key, self.OFFICE)[0], 200)
+        # in the office the shared key still sends and updates, as before
+        # trong văn phòng khoá chung vẫn gửi và cập nhật được, như trước
+        self.assertEqual(self.send("device-k22", self.SHARED, ip=self.OFFICE)[0], 200)
+        self.assertEqual(self.release(self.SHARED, self.OFFICE)[0], 200)
+        self.assertEqual(self.release(self.SHARED, "2001:db8:1::5")[0], 200)
+        self.assertEqual(self.release(self.SHARED, "::ffff:203.0.113.8")[0], 200)
+        # from home nobody is let through yet, and never with 401: the plugin would drop its own key
+        # từ nhà chưa ai được qua, và không bao giờ bằng 401: plugin sẽ bỏ khoá riêng của nó
+        self.assertEqual(self.send("device-k20", roams, ip=self.HOME), (403, {"error": "this computer may not send from outside the office"}))
+        self.assertEqual(self.release(roams, self.HOME), (403, {"error": "this computer may not send from outside the office"}))
+        self.assertEqual(self.send("device-k23", self.SHARED, ip=self.HOME), (403, {"error": "outside the office network"}))
+        self.assertEqual(self.release(self.SHARED, self.HOME), (403, {"error": "outside the office network"}))
+        self.assertTrue(devicekeys.DEVICE_KEYS.set_roaming("device-k20", True, "adm", time.time()))
+        self.assertEqual(self.send("device-k20", roams, ip=self.HOME)[0], 200)
+        self.assertEqual(self.release(roams, self.HOME)[0], 200)
+        self.assertEqual(self.send("device-k21", stays, ip=self.HOME)[0], 403)
+        # the roaming key still sends only for its own computer, and a key that does not check is still a 401
+        # khoá được gửi từ mọi mạng vẫn chỉ gửi cho đúng máy của nó, và khoá kiểm không đạt vẫn là 401
+        self.assertEqual(self.send("device-k21", roams, ip=self.HOME), (403, {"error": "this key belongs to another computer"}))
+        self.assertEqual(self.send("device-k20", roams[:-2] + ("AA" if not roams.endswith("AA") else "BB"), ip=self.HOME)[0], 401)
+        # the home address is what the board keeps, not what the sender put first in X-Forwarded-For
+        # địa chỉ ở nhà là thứ bảng giữ, không phải thứ máy gửi đặt đầu X-Forwarded-For
+        self.assertEqual(views.DEVICES.get("device-k20")["ip"], self.HOME)
+        # revoked, it is cut off everywhere and loses the right: letting it back does not give the right back
+        # bị thu hồi thì bị cắt ở mọi nơi và mất quyền: cho quay lại không trả quyền đó
+        self.assertTrue(devicekeys.DEVICE_KEYS.revoke("device-k20", time.time()))
+        self.assertEqual(self.send("device-k20", roams, ip=self.HOME)[0], 401)
+        devicekeys.DEVICE_KEYS.forget("device-k20")
+        self.assertFalse(devicekeys.DEVICE_KEYS.roams("device-k20"))
+        self.assertEqual(self.send("device-k20", roams, ip=self.HOME)[0], 403)
+
+    def test_forgetting_a_computer_takes_its_right_to_roam_away(self):
+        settings.OFFICE_NETS = settings.parse_office_nets("203.0.113.0/24")
+        key = self.enrol("device-k24")
+        self.assertEqual(self.send("device-k24", key, ip=self.OFFICE)[0], 200)
+        self.assertTrue(devicekeys.DEVICE_KEYS.set_roaming("device-k24", True, "adm", time.time()))
+        devicekeys.DEVICE_KEYS.forget("device-k24")
+        # its old key is good again, but no longer from outside
+        # khoá cũ của nó lại dùng được, nhưng không còn từ bên ngoài
+        self.assertEqual(self.send("device-k24", key, ip=self.HOME)[0], 403)
+        self.assertEqual(self.send("device-k24", key, ip=self.OFFICE)[0], 200)
+
+    def test_without_office_nets_the_address_is_not_looked_at_unless_caddy_marks_it(self):
+        settings.OFFICE_NETS = ()
+        key = self.enrol("device-k25")
+        self.assertEqual(self.send("device-k25", key, ip=self.HOME)[0], 200)
+        self.assertEqual(self.release(self.SHARED, self.HOME)[0], 200)
+        # Caddy marks every request from outside its list: then the same rule holds without OFFICE_NETS
+        # Caddy đánh dấu mọi yêu cầu ngoài danh sách của nó: khi đó luật vẫn giữ mà không cần OFFICE_NETS
+        away = {"X-AiWorker-Away": "1"}
+        self.assertEqual(self.send("device-k25", key, ip=self.HOME, headers=away)[0], 403)
+        self.assertEqual(self.send("device-k26", self.SHARED, ip=self.HOME, headers=away), (403, {"error": "outside the office network"}))
+        devicekeys.DEVICE_KEYS.set_roaming("device-k25", True, "adm", time.time())
+        self.assertEqual(self.send("device-k25", key, ip=self.HOME, headers=away)[0], 200)
+
+    def test_office_nets_never_reads_wider_than_written(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            nets = settings.parse_office_nets("203.0.113.0/24,not-a-range 0.0.0.0/0 ::/0  198.51.100.7")
+        self.assertEqual([str(n) for n in nets], ["203.0.113.0/24", "198.51.100.7/32"])
+        self.assertIn("not an IP range", err.getvalue())
+        self.assertIn("holds every address", err.getvalue())
+        self.assertFalse(security.in_networks("", nets))
+        self.assertFalse(security.in_networks("unknown", nets))
+        self.assertTrue(security.in_networks("::ffff:198.51.100.7", nets))
+        self.assertFalse(security.in_networks("198.51.100.8", nets))
+
+    def test_an_admin_lets_a_computer_roam_from_the_page(self):
+        settings.OFFICE_NETS = settings.parse_office_nets("203.0.113.0/24")
+        key = self.enrol("device-k27")
+        self.assertEqual(self.send("device-k27", key, ip=self.OFFICE)[0], 200)
+        # without the OTP typed again the action is refused
+        # chưa nhập lại OTP thì thao tác bị từ chối
+        self.assertNotEqual(self.admin("/admin/device-roam", {"device": "device-k27", "roaming": True}, confirmed=False)[0], 200)
+        self.assertFalse(devicekeys.DEVICE_KEYS.roams("device-k27"))
+        self.assertEqual(self.admin("/admin/device-roam", {"device": "device-k27", "roaming": True})[0], 200)
+        self.assertEqual(all_audit_rows()[-1]["action"], "device-roaming-on")
+        self.assertEqual(all_audit_rows()[-1]["device"], "device-k27")
+        listed = {c["device"]: c for c in views.computer_keys(time.time())["computers"]}
+        self.assertIsNotNone(listed["device-k27"]["roamingSince"])
+        self.assertEqual(views.computer_keys(time.time())["officeNets"], 1)
+        self.assertEqual(self.send("device-k27", key, ip=self.HOME)[0], 200)
+        self.assertEqual(self.admin("/admin/device-roam", {"device": "device-k27", "roaming": False})[0], 200)
+        self.assertEqual(all_audit_rows()[-1]["action"], "device-roaming-off")
+        self.assertEqual(self.send("device-k27", key, ip=self.HOME)[0], 403)
+        # a computer that has never sent with its own key, or a made-up id, cannot be let
+        # máy chưa từng gửi bằng khoá riêng, hay mã máy bịa ra, không được cho
+        self.send("device-k28", self.SHARED, ip=self.OFFICE)
+        self.assertEqual(self.admin("/admin/device-roam", {"device": "device-k28", "roaming": True})[0], 400)
+        self.assertNotEqual(self.admin("/admin/device-roam", {"device": "../etc", "roaming": True})[0], 200)
 
     def test_updates_still_download_with_either_key(self):
         key = self.enrol("device-k11")
