@@ -89,6 +89,30 @@ test('ordinary code, placeholders and the providers own examples pass', () => {
   }
 })
 
+test('a constant in code whose value is a name of words is not a secret; the same value in a .env line still is', () => {
+  // names put together so this file holds no line a scanner would flag
+  // tên được ghép lại để file này không chứa dòng nào bị máy quét bắt
+  const PACE = 'PACE' + '_KEY'
+  for (const text of [
+    `const ${PACE} = 'sharePace'`,
+    `export const BOARD${'_KEY'} = 'board-pairing'`,
+    `const REPAIRED${'_KEY'} = 'ledgerRepaired1'`,
+    `private static final String DEVICE${'_KEY'} = "deviceKey";`,
+  ]) {
+    expect([text, findSecrets(text)]).toEqual([text, []])
+  }
+  for (const text of [
+    `${PACE}=sharePace`,
+    `{"${PACE}": "sharePace"}`,
+    // a declared constant whose value is not a name of words: a real key in code is still found
+    // hằng khai báo có giá trị không phải tên ghép từ chữ: khoá thật trong code vẫn bị bắt
+    `const ${PACE} = 'Zq8wLp3nVb7x'`,
+    `const ${PACE} = 'sharepace2024!'`,
+  ]) {
+    expect([text, findSecrets(text).map(s => s.kind)]).toEqual([text, ['password or key in a .env line']])
+  }
+})
+
 test('the refusal names the helper, the kinds and the lines, never a value', () => {
   const found = findSecrets(`line one\nkey ${AWS}\nDB_PASSWORD=hunter2hunter2`)
   const said = secretRefusal(found, 'ChatGPT')

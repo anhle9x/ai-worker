@@ -12,7 +12,7 @@ import type { EngineInterface, Register, ToolCallResult } from 'claude-code'
 import type { Activity, BlockKind, Job, Ledger, TeamState, Usage, WorkerId } from '../types'
 import { applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, staleSessionFiles } from './activity'
 import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextNoteForClaude, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
-import { answerModel, buildMachineSummary, deviceKeyIn, refusalAfter, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
+import { answerModel, buildMachineSummary, deviceKeyIn, paceFrom, PACE_MIN_MS, refusalAfter, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
 import type { ShareConfig } from './team'
 import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT, WINDOWS_CLAUDE_SCRIPT, UNIX_CLAUDE_SCRIPT, claudeCandidate, isClaudeCodeVersion, findHostApp, parseLinuxHost, parseWindowsHost, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, releaseKeys, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
 import { AGY_BRAIN, IMAGE_DIR, IMAGE_SCHEMA, IMAGE_SETTLE_MS, OLLAMA_URL, PROMPT_LEVEL_SCHEMA, PROMPT_SCHEMA, WORKER_TIMEOUT_MS, imageArgv, imageTargets, newImages, safeImageName, sendingNeedsAsking, sendingRefusal, agyArgv, codexArgv, codexInput, isBatchLauncher, delegationRules, gemmaAnswer, gemmaRequest, mcpConfigured, ownTools, pickGemma } from './workers'
@@ -474,6 +474,12 @@ const DEVICE_KEY = 'deviceKey'
 /** After the server refuses a send (401 or 403), no send before `until` (refusalAfter). */
 /** Sau khi máy chủ từ chối một lần gửi (401 hay 403), không gửi trước `until` (refusalAfter). */
 const REFUSED_KEY = 'shareRefused'
+/** What the server's answers ask of the next sends: the gap between them and, after "busy", no send before `until` (paceFrom). */
+/** Các câu trả lời của máy chủ dặn gì cho các lần gửi sau: khoảng cách giữa chúng và, sau "bận", không gửi trước `until` (paceFrom). */
+const PACE_KEY = 'sharePace'
+/** The gap of the last answer, in this session's memory too, for the timer of the next send. */
+/** Khoảng cách của câu trả lời gần nhất, giữ cả trong bộ nhớ của phiên này, cho bộ hẹn giờ của lần gửi sau. */
+let paceGapMs = PACE_MIN_MS
 /** A change is sent this long after it is saved, so the changes a turn makes together (cost, then state) leave in one send. */
 /** Một thay đổi được gửi sau khi lưu chừng này, để các thay đổi một lượt làm cùng lúc (chi phí, rồi trạng thái) đi chung một lần gửi. */
 const SHARE_GATHER_MS = 1_000
@@ -487,14 +493,15 @@ let shareSoon: { cancel(): void } | undefined
 /** Một thay đổi vừa được lưu: gửi nó trong vài giây thay vì chờ nhịp tim kế tiếp, để bảng hiện ngay. Các thay đổi đến sát nhau đi chung một lần gửi, nhiều nhất một lần mỗi SHARE_MIN_MS. */
 function shareAfterChange($: EngineInterface, now: number) {
   if (shareSoon || share === SHARE_OFF || !share.enabled) return
-  const wait = Math.max(SHARE_GATHER_MS, SHARE_MIN_MS - (now - shareStartedAt))
+  const gap = Math.max(SHARE_MIN_MS, paceGapMs)
+  const wait = Math.max(SHARE_GATHER_MS, gap - (now - shareStartedAt))
   shareSoon = $.clock.after(wait, () => {
     shareSoon = undefined
     void (async () => {
       // another send (the heartbeat, the start of the session) may have gone out meanwhile: keep the gap from that one too
       // một lần gửi khác (nhịp tim, lúc mở phiên) có thể đã đi trong lúc chờ: giữ khoảng cách với cả lần đó
       const now = await $.clock.now()
-      if (now - shareStartedAt < SHARE_MIN_MS) shareAfterChange($, now)
+      if (now - shareStartedAt < Math.max(SHARE_MIN_MS, paceGapMs)) shareAfterChange($, now)
       else await shareTeam($)
     })()
   })
@@ -768,7 +775,14 @@ async function shareOnce($: EngineInterface) {
       const sig = summarySignature(summary)
       const last = ((await $.store.get(SHARED_KEY).catch(() => undefined)) ?? {}) as { sig?: string; at?: number }
       const refused = ((await $.store.get(REFUSED_KEY).catch(() => undefined)) ?? {}) as { until?: number; wait?: number }
-      if ((sig !== last.sig || now - (last.at ?? 0) > SHARE_EVERY_MS) && !(viaWeb && now < (refused.until ?? 0))) {
+      const pace = ((await $.store.get(PACE_KEY).catch(() => undefined)) ?? {}) as { gapMs?: number; until?: number }
+      if (typeof pace.gapMs === 'number') paceGapMs = pace.gapMs
+      // a busy server said when to come back: nothing before then, not even the beat that sends when nothing changed
+      // máy chủ bận đã nói khi nào quay lại: không gửi gì trước lúc đó, kể cả nhịp gửi khi không có gì đổi
+      // and never two sends closer than the gap it asked, the beat's included
+      // và không bao giờ hai lần gửi sát hơn khoảng cách nó dặn, kể cả lần gửi của nhịp tim
+      const busy = viaWeb && (now < (pace.until ?? 0) || now - (last.at ?? 0) < paceGapMs)
+      if ((sig !== last.sig || now - (last.at ?? 0) > SHARE_EVERY_MS) && !(viaWeb && now < (refused.until ?? 0)) && !busy) {
         if (viaWeb) {
           // this computer's own key once the server has given it one, else the key of the install package
           // khoá riêng của máy này khi máy chủ đã cấp, nếu không thì khoá của gói cài
@@ -786,6 +800,13 @@ async function shareOnce($: EngineInterface) {
           // lần từ chối không tự hết: chờ lâu dần thay vì hỏi lại mỗi giây
           if (r.status === 401 || r.status === 403) {
             await $.store.set(REFUSED_KEY, refusalAfter(refused, now))
+          }
+          // the gap the server asks, or when to come back after "busy", for every session of this computer
+          // khoảng cách máy chủ dặn, hoặc lúc quay lại sau "bận", cho mọi phiên trên máy này
+          const asked = paceFrom(r, now)
+          if (asked.gapMs !== undefined || asked.until !== undefined) {
+            if (asked.gapMs !== undefined) paceGapMs = asked.gapMs
+            await $.store.set(PACE_KEY, { gapMs: asked.gapMs ?? pace.gapMs, until: asked.until }).catch(() => undefined)
           }
           if (!r.ok) throw new Error(`webhook ${r.status}`)
           if (refused.wait) await $.store.delete(REFUSED_KEY).catch(() => undefined)

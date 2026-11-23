@@ -4,7 +4,7 @@ Tiếng Việt | [English](RECEIVER.md)
 
 Công ty nhỏ không cần trang này: máy chủ Python tự nhận mọi lần gửi. Bộ nhận trong `receiver/` là một chương trình thứ hai, viết chỉ bằng thư viện chuẩn của Go, cho tổ chức có nhiều nghìn máy. Nó nhận các lần gửi của máy trên một địa chỉ riêng qua TLS, trả lời ngay, rồi trao chúng cho máy chủ Python theo lô. Python vẫn là bản gốc: đăng nhập, vai, bảng, lịch sử và các file SQLite không đổi.
 
-**Đợt đầu này làm gì và chưa làm gì.** Nó nhận số đúng và đưa cho Python đúng những bản ghi mà Python tự ghi sẽ ra; các bài kiểm giữ hai bên như vậy. Nó còn phục vụ các bảng số trực tiếp, theo chi nhánh hoặc cho cả tổ chức, ở `/live` (mục 3, "Luồng số trực tiếp"), và trang bảng mở luồng đó khi luồng đã được cài. Có đạt 100.000 máy dưới 5 giây không thì đo trên Linux ở cuối đợt này. Plugin cũng chưa gửi tới bộ nhận: chưa máy nào đi đường này cho tới khi một bản plugin sau biết địa chỉ bộ nhận từ máy chủ (`ingestUrls`).
+**Đợt đầu này làm gì và chưa làm gì.** Nó nhận số đúng và đưa cho Python đúng những bản ghi mà Python tự ghi sẽ ra; các bài kiểm giữ hai bên như vậy. Nó còn phục vụ các bảng số trực tiếp, theo chi nhánh hoặc cho cả tổ chức, ở `/live` (mục 3, "Luồng số trực tiếp"), và trang bảng mở luồng đó khi luồng đã được cài. Trên Linux 4 vCPU, 8 GB, nó hợp cho khoảng 20.000 máy gửi mỗi 2 giây (mục 7). Plugin cũng chưa gửi tới bộ nhận: chưa máy nào đi đường này cho tới khi một bản plugin sau biết địa chỉ bộ nhận từ máy chủ (`ingestUrls`).
 
 ## 1. Một lần gửi đi thế nào
 
@@ -111,12 +111,26 @@ Khi có `RECEIVER_LIVE_URL`, các trang của bảng cho phép địa chỉ đó
 | `RECEIVER_SECRETS_FILE` | File bí mật bên trên. Bắt buộc |
 | `RECEIVER_WEBHOOK` | Máy chủ Python trên máy này; chỉ nhận `http://127.0.0.1:…`, `http://[::1]:…` hoặc `http://localhost:…` |
 | `RECEIVER_BATCH_MS` | Bao lâu các dòng được gửi cho Python một lần: 1000 (mặc định) cho tổ chức nhỏ, 5000 tới 10000 cho tổ chức lớn |
+| `RECEIVER_MEMORY_MB` | Bộ nhớ bộ nhận giữ dưới mức này, trao cho runtime của Go: mặc định 40% bộ nhớ của máy (khoảng 3 GB trên máy 8 GB), phần còn lại để cho Python; `0` là không giới hạn. `GOMEMLIMIT` đã đặt thì giữ nguyên |
+| `RECEIVER_MAX_CONNECTIONS` | Số máy kết nối cùng lúc; quá mức này lần gửi được trả 503 kèm `Retry-After` 30 tới 90 giây và kết nối bị đóng, nhật ký báo mỗi phút một lần số lần từ chối. Mặc định: giới hạn bộ nhớ chia 64 KB mỗi kết nối (khoảng 48.000 trên máy 8 GB); `0` là không có trần. Luồng số trực tiếp của các bảng và `/health` được cho qua |
+| `RECEIVER_SENDS_PER_SECOND` | Số lần gửi máy cần trả lời mỗi giây, mặc định 2.500 mỗi bộ xử lý (đo được: 4 bộ xử lý đầy ở 20.000 lần mỗi giây khi có Python bên cạnh). Quá mức này, `minGapMs` của câu trả lời dặn mọi máy gửi thưa hơn: số kết nối đang mở chia cho số này, làm tròn lên giây, nhiều nhất 120; ví dụ 5 giây khi có 50.000 máy trên 4 bộ xử lý. Số trực tiếp khi đó tới chậm hơn chừng ấy. `0` để giữ nhịp của máy chủ |
 
 Khi Python chậm hơn tốc độ các máy gửi, nhịp tự giãn ra: lô sau chỉ đi khi Python đã trả lời lô trước, các lần gửi của một máy trong lúc đó chờ thành một dòng, và các lô vẫn theo thứ tự mã máy. `GET /health` của bộ nhận cho biết bao nhiêu dòng đang chờ (`queued`), dòng chờ lâu nhất đã chờ bao lâu (`waitSeconds`), và `behind: true` khi quá 60 giây, đồng thời ghi một lần vào nhật ký. Số trên các bảng vẫn tới trực tiếp từ bộ nhận.
 
 Bộ nhận chỉ nói HTTP/1.1 (HTTP/2 tốn hơn ở đây), chờ phần header của một yêu cầu nhiều nhất 10 giây, đọc thân nhiều nhất 256 KB, và giữ kết nối rảnh 5 phút, lâu hơn một chút so với 4 phút giữa hai lần gửi của máy đang rảnh.
 
 ## 5. Dựng lên
+
+**Máy chủ cỡ nào.** Đo trên Linux (Hetzner CPX32: 4 vCPU, 8 GB), bộ nhận và Python cùng một máy, các máy giả giữ kết nối mở và gửi mỗi 2 giây (lần gửi nào cũng đổi tiền: mức xấu nhất), các bảng đọc luồng số trực tiếp và `/data` ([BENCHMARK.vi.md](BENCHMARK.vi.md#trên-linux-có-bộ-nhận-go)):
+
+| Số máy kết nối cùng lúc | Máy chủ | Đo được |
+|---|---|---|
+| tới 40.000 | 4 vCPU, 8 GB | số trực tiếp p99 1,5 giây, CPU 56%, bộ nhớ 6,0 GB; bộ nhận dặn 4 giây gửi một lần |
+| khoảng 50.000 | 4 vCPU, 8 GB | số trực tiếp p99 1,7 giây, CPU 67%, bộ nhớ 6,4 GB; 5 giây gửi một lần; bảng của Python và `/data` chậm tới một phút (`behind`) |
+| hơn khoảng 49.500 | 4 vCPU, 8 GB | phần dư được bảo quay lại sau (503, `RECEIVER_MAX_CONNECTIONS`), không mất gì |
+| 100.000 | 8 vCPU, 16 GB | chưa đo: các trần tăng theo bộ nhớ và số bộ xử lý, tốc độ ghi của Python thì không |
+
+Máy đang rảnh chỉ gửi 4 phút một lần, nên ở đây tính theo số máy đang làm việc cùng lúc, không theo số máy đã cài.
 
 Nơi nghe đã được quyết cùng bản thiết kế: **một IP công khai thứ hai trên cùng máy chủ, cổng 443 của IP đó**. Bộ nhận và Python ở cùng một máy, nên file bí mật và các đường nội bộ vẫn chỉ ở trong máy; cổng 443 đi qua được proxy công ty; sau này chuyển bộ nhận sang máy riêng chỉ cần đổi DNS.
 
@@ -149,7 +163,7 @@ Từ lúc đó một bí mật mới ký mọi khoá, và mọi máy nhận kho�
 ## 7. Giới hạn đã biết của đợt này
 
 - Bộ nhận chưa kiểm danh sách máy được gửi từ mọi mạng (`OFFICE_NETS`, [INSTALL.vi.md](INSTALL.vi.md#gửi-từ-ngoài-văn-phòng-máy-được-chọn)): các lô nó ghi qua `/internal/rows` không đi qua bước kiểm của webhook. Giữ địa chỉ của bộ nhận chỉ tới được từ các mạng văn phòng.
-- 100.000 máy có ở dưới 5 giây không thì chưa đo: bài đo trên Linux làm ở cuối đợt này.
+- Máy chủ cỡ nào xem ở mục 5. Ở khoảng 50.000 máy trên 4 vCPU, phần còn lại là tốc độ ghi của Python: khi có bảng đọc `/data` nó ghi khoảng 1.650 dòng mỗi giây (5.100 khi không có), nên bảng của nó và `/data` chậm tới một phút trong khi số trực tiếp vẫn đúng giờ. Trước khi có các trần, bộ nhận hết bộ nhớ ở khoảng 60.000 kết nối và bị giết lại sau mỗi lần khởi động.
 - Khi Python ghi chậm hơn tốc độ các máy gửi, các dòng chờ ở bộ nhận, mỗi máy một dòng, và không mất gì; quá một phút thì `/health` của bộ nhận báo `behind` và trang Quản trị hiện dòng vàng. Nếu kéo dài, máy chủ quá nhỏ so với tổ chức: đo trong máy ảo 4 vCPU, Python ghi khoảng 10.000 dòng mỗi giây khi không có bảng nào mở và khoảng một nửa khi các bảng đọc `/data` liên tục.
 - Bảng người được dựng từ cả bảng mỗi lần bộ nhận hỏi: chi phí của việc đó ở 100.000 máy được đo cùng phần còn lại trên Linux.
 - Luồng số trực tiếp cộng mọi máy mỗi giây một lần, thay vì giữ tổng luôn mới theo từng lần gửi tới. Đo trên Mac chip M ở 100.000 máy, 500 người một chi nhánh: một lượt cộng 83 ms; một giây mà mọi chi nhánh lẫn cả tổ chức đều có bảng đọc mất tổng cộng 175 ms, một nửa là làm JSON của các dòng. Bài đo trên Linux (4 vCPU) quyết có phải giữ tổng theo từng lần gửi hay không.

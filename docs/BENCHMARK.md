@@ -119,6 +119,24 @@ The `/health` number is held down by the test itself: the server speaks HTTP/1.0
 
 100,000 computers sending every 30 seconds is about 3,300 sends a second, and 40 MB a second at 12 KB each. That is about five processes like this one on this Mac, and more on a small Linux server. So 100,000 computers need, in this order: a smaller send (only the hours that changed), a pace the server sets, a key per computer, the hours kept on disk with only the day totals in memory, connections kept open, and several processes that take sends. The plan and its measured goals are in [What is next](#what-is-next).
 
+## On Linux, with the Go receiver
+
+Measured on 2026-11-23 on two rented Hetzner machines in one private network: the server (CPX32: 4 AMD vCPU, 8 GB, Ubuntu 26.04, Python 3.14) ran the Python server and the Go receiver ([RECEIVER.md](RECEIVER.md)); the load came from a second machine (CPX42: 8 vCPU, 16 GB). Each fake computer keeps a TLS connection open and sends `v: 2` every 2 seconds, or as often as the receiver asks; every send changes money (the worst case). The Python server holds 100,000 computers with an 8-day book (a 2.4 GB database). The tools are outside the repository: a load generator in Go and the measure of Python's writes alone.
+
+| | 40,000 computers, 100 boards | 100,000 computers, 300 boards |
+|---|---|---|
+| Kept connected | 40,000 | about 49,500 (the rest told to come back: 503) |
+| Gap the receiver asks between sends | 4 s | 5 s |
+| Live numbers on a board, p99 | 1.5 s | 1.7 s |
+| `/data`, p95 over the run | 0.9 s (most seconds 45 to 240 ms) | 0.6 s |
+| CPU of the machine | 56% (receiver 1.2 cores, Python 0.97) | 67% (receiver 1.7, Python 0.93) |
+| Memory used | 6.0 GB | 6.4 GB |
+| Python behind (rows waiting over a minute) | at times | 35 to 75 s, on and off |
+
+Python's writes alone, 100,000 computers, batches of 2,000 rows in the order of the computers' ids: 5,100 rows a second with no board reading, 1,650 with a board reading `/data` all the time. That is the limit left on such a machine; the live numbers do not wait for it.
+
+Before the fixes of this round, the same machine let the receiver run out of memory at about 60,000 connections (killed by the kernel 13 times in ten minutes, as every computer connected again after each start), and at 40,000 computers the CPU was at 94% with live numbers at p99 3.1 s and `/data` at p95 4.2 s. What changed: the receiver keeps under a memory limit and a ceiling of connections, makes less garbage, and asks the computers to send less often when they are many; the board finds each person's branch through an index. After a `kill -9` of the receiver and then of Python at 40,000 computers, the money of every person matched the load generator to the micro-dollar (measured before these fixes; the write path did not change since).
+
 ## What changed
 
 - `DeviceCache` in `server/board/devices.py`: each computer's last send, cleaned once, kept in memory. The table is still the record: the cache is written together with it, loaded again when the server starts, and loaded again when another program such as `webhook.py --forget-device` changes the file (`PRAGMA data_version`).
@@ -143,7 +161,7 @@ The signal to change: a sustained need above about 500 sends a second that more 
 
 ## What is next
 
-1. **Measure on Linux**, with a load generator in several processes and through Caddy with TLS.
+1. **Measure on Linux**: done with the Go receiver ([On Linux, with the Go receiver](#on-linux-with-the-go-receiver)); through Caddy with TLS is still to do.
 2. **A board page per branch** for large teams, instead of every person in one answer.
 3. **Raise `MAX_DEVICES`**, configurable, once 1 and 2 pass at that size.
 4. **Past one process**, for organisations of 100,000 computers and more: a smaller send from the plugin (only the hours that changed), a pace the server sets, a key per computer, and several processes that take sends feeding one that serves people. This is planned, not built; it changes the format the plugin sends, so it is designed and measured before any of it ships.

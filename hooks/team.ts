@@ -431,6 +431,32 @@ export function refusalAfter(previous: { wait?: number } | undefined, now: numbe
   return { until: now + wait, wait }
 }
 
+/** The gap between sends the plugin keeps by default, and the longest a server may ask (as its INGEST_MIN_GAP_MS allows). */
+/** Khoảng cách giữa hai lần gửi plugin giữ theo mặc định, và dài nhất máy chủ được dặn (như INGEST_MIN_GAP_MS của nó cho phép). */
+export const PACE_MIN_MS = 2_000
+export const PACE_MAX_MS = 120_000
+/** The longest a "busy, come back later" is obeyed, whatever Retry-After says. */
+/** Thời gian lâu nhất tuân theo một lần "bận, quay lại sau", dù Retry-After nói gì. */
+export const BUSY_MAX_MS = 10 * 60_000
+
+/** What the server's answer to a send asks of the next ones: after a 200, the gap between sends (`minGapMs`, longer from a busy receiver; the default when it says nothing); after 429 or 503 with `Retry-After`, no send before `until`. */
+/** Câu trả lời của máy chủ cho một lần gửi dặn gì cho các lần sau: sau 200, khoảng cách giữa hai lần gửi (`minGapMs`, bộ nhận đang bận sẽ kéo dài nó; mặc định khi không nói gì); sau 429 hay 503 kèm `Retry-After`, không gửi trước `until`. */
+export function paceFrom(r: { status: number; headers?: Record<string, string>; text: string }, now: number): { gapMs?: number; until?: number } {
+  if (r.status === 429 || r.status === 503) {
+    const seconds = Number(r.headers?.['retry-after'])
+    return Number.isFinite(seconds) && seconds > 0 ? { until: now + Math.min(seconds * 1000, BUSY_MAX_MS) } : {}
+  }
+  if (r.status < 200 || r.status > 299) return {}
+  try {
+    const gap = (JSON.parse(r.text) as { minGapMs?: unknown }).minGapMs
+    if (typeof gap === 'number' && Number.isFinite(gap)) return { gapMs: Math.min(PACE_MAX_MS, Math.max(PACE_MIN_MS, Math.round(gap))) }
+  } catch {
+    // an older server answers only {"ok": true}, or not JSON
+    // máy chủ cũ chỉ trả {"ok": true}, hoặc không phải JSON
+  }
+  return { gapMs: PACE_MIN_MS }
+}
+
 export function deviceKeyIn(answer: string): string | undefined {
   try {
     const key = (JSON.parse(answer) as { deviceKey?: unknown }).deviceKey

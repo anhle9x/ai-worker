@@ -119,6 +119,24 @@ Con số `/health` bị chính bài đo kìm lại: máy chủ nói HTTP/1.0, n�
 
 100.000 máy gửi mỗi 30 giây là khoảng 3.300 lần gửi mỗi giây, và 40 MB mỗi giây với 12 KB mỗi lần. Như vậy là khoảng năm tiến trình như thế này trên máy Mac này, và nhiều hơn trên một máy chủ Linux nhỏ. Vì vậy 100.000 máy cần, theo thứ tự: lần gửi gọn hơn (chỉ các giờ đã đổi), nhịp gửi do máy chủ đặt, khoá riêng cho từng máy, sổ giờ để trên đĩa và chỉ giữ tổng theo ngày trong bộ nhớ, giữ kết nối mở, và nhiều tiến trình nhận số. Kế hoạch và mục tiêu đo nằm ở [Việc tiếp theo](#việc-tiếp-theo).
 
+## Trên Linux, có bộ nhận Go
+
+Đo ngày 2026-11-23 trên hai máy thuê ở Hetzner chung một mạng riêng: máy chủ (CPX32: 4 vCPU AMD, 8 GB, Ubuntu 26.04, Python 3.14) chạy máy chủ Python và bộ nhận Go ([RECEIVER.vi.md](RECEIVER.vi.md)); tải đến từ máy thứ hai (CPX42: 8 vCPU, 16 GB). Mỗi máy giả giữ một kết nối TLS mở và gửi `v: 2` mỗi 2 giây, hoặc thưa hơn khi bộ nhận dặn; lần gửi nào cũng đổi tiền (mức xấu nhất). Máy chủ Python giữ 100.000 máy, mỗi máy sổ 8 ngày (cơ sở dữ liệu 2,4 GB). Công cụ đo nằm ngoài repo: một bộ tạo tải viết bằng Go và bài đo riêng tốc độ ghi của Python.
+
+| | 40.000 máy, 100 bảng | 100.000 máy, 300 bảng |
+|---|---|---|
+| Giữ kết nối | 40.000 | khoảng 49.500 (phần còn lại được bảo quay lại: 503) |
+| Khoảng cách giữa hai lần gửi bộ nhận dặn | 4 giây | 5 giây |
+| Số trực tiếp trên bảng, p99 | 1,5 giây | 1,7 giây |
+| `/data`, p95 cả lượt | 0,9 giây (phần lớn các giây 45 tới 240 ms) | 0,6 giây |
+| CPU của máy | 56% (bộ nhận 1,2 nhân, Python 0,97) | 67% (bộ nhận 1,7, Python 0,93) |
+| Bộ nhớ dùng | 6,0 GB | 6,4 GB |
+| Python tụt sau (dòng chờ quá một phút) | có lúc | 35 tới 75 giây, lúc có lúc không |
+
+Riêng tốc độ ghi của Python, 100.000 máy, lô 2.000 dòng theo thứ tự mã máy: 5.100 dòng mỗi giây khi không có bảng nào đọc, 1.650 khi có một bảng đọc `/data` liên tục. Đó là giới hạn còn lại trên máy cỡ này; số trực tiếp không phải chờ nó.
+
+Trước các bản sửa của đợt này, cùng máy đó để bộ nhận hết bộ nhớ ở khoảng 60.000 kết nối (bị nhân giết 13 lần trong mười phút, vì mọi máy kết nối lại sau mỗi lần khởi động), và ở 40.000 máy CPU ở mức 94%, số trực tiếp p99 3,1 giây, `/data` p95 4,2 giây. Đã đổi: bộ nhận giữ dưới một giới hạn bộ nhớ và một trần kết nối, tạo ít rác hơn, và dặn các máy gửi thưa hơn khi đông; bảng tìm chi nhánh của từng người qua một chỉ mục. Sau khi `kill -9` bộ nhận rồi Python ở 40.000 máy, tiền của từng người khớp với bộ tạo tải tới từng micro-đô (đo trước các bản sửa này; đường ghi không đổi từ đó).
+
 ## Đã sửa gì
 
 - `DeviceCache` trong `server/board/devices.py`: lần gửi mới nhất của mỗi máy, làm sạch một lần, giữ trong bộ nhớ. Bảng trong cơ sở dữ liệu vẫn là bản gốc: bộ nhớ đệm được ghi cùng lúc với bảng, nạp lại khi máy chủ khởi động, và nạp lại khi chương trình khác như `webhook.py --forget-device` đổi file (`PRAGMA data_version`).
@@ -143,7 +161,7 @@ Dấu hiệu để đổi: nhu cầu kéo dài trên khoảng 500 lần gửi m�
 
 ## Việc tiếp theo
 
-1. **Đo trên Linux**, với bộ phát tải chạy nhiều tiến trình và đi qua Caddy có TLS.
+1. **Đo trên Linux**: đã đo với bộ nhận Go ([Trên Linux, có bộ nhận Go](#trên-linux-có-bộ-nhận-go)); đi qua Caddy có TLS thì chưa.
 2. **Trang bảng theo chi nhánh** cho đội lớn, thay cho trả mọi người trong một câu trả lời.
 3. **Nâng `MAX_DEVICES`**, cho cấu hình được, khi bước 1 và 2 đạt ở cỡ đó.
 4. **Vượt một tiến trình**, cho tổ chức 100.000 máy trở lên: plugin gửi gọn hơn (chỉ các giờ đã đổi), máy chủ đặt nhịp gửi, khoá riêng cho từng máy, và nhiều tiến trình nhận số cấp cho một tiến trình phục vụ người xem. Phần này đã lên kế hoạch, chưa làm; nó đổi định dạng plugin gửi, nên được thiết kế và đo trước khi phát hành bất kỳ phần nào.

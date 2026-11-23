@@ -17,6 +17,7 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"unicode/utf8"
 )
 
@@ -50,12 +51,44 @@ type Value = any
 type Object struct {
 	Keys []string
 	Vals []Value
-	idx  map[string]int
+	// idx: where each key is, made only once the table has more than smallObject keys; a small one is searched in order, which costs
+	// less than a map for each of the many small tables of a send (half the receiver's allocations went to those maps)
+	// idx: mỗi khoá ở đâu, chỉ tạo khi bảng có hơn smallObject khoá; bảng nhỏ được dò theo thứ tự, rẻ hơn một map cho mỗi bảng nhỏ trong
+	// một lần gửi (một nửa số lần cấp phát của bộ nhận là cho các map đó)
+	idx map[string]int
 }
+
+// smallObject: up to this many keys a table has no map
+// smallObject: tới chừng này khoá thì bảng không có map
+const smallObject = 16
 
 // NewObject makes an empty table.
 // NewObject tạo một bảng rỗng.
-func NewObject() *Object { return &Object{idx: map[string]int{}} }
+func NewObject() *Object { return &Object{} }
+
+// find gives where a key is, -1 if it is not there.
+// find trả vị trí của một khoá, -1 nếu không có.
+func (o *Object) find(k string) int {
+	if o.idx != nil {
+		if i, ok := o.idx[k]; ok {
+			return i
+		}
+		return -1
+	}
+	for i, key := range o.Keys {
+		if key == k {
+			return i
+		}
+	}
+	return -1
+}
+
+func (o *Object) index() {
+	o.idx = make(map[string]int, len(o.Keys)*2)
+	for i, k := range o.Keys {
+		o.idx[k] = i
+	}
+}
 
 // Get gives the value of a key and whether it is there.
 // Get trả giá trị của một khoá và cho biết khoá có ở đó không.
@@ -63,8 +96,8 @@ func (o *Object) Get(k string) (Value, bool) {
 	if o == nil {
 		return nil, false
 	}
-	i, ok := o.idx[k]
-	if !ok {
+	i := o.find(k)
+	if i < 0 {
 		return nil, false
 	}
 	return o.Vals[i], true
@@ -73,27 +106,36 @@ func (o *Object) Get(k string) (Value, bool) {
 // Set puts a value: a key already there keeps its place, as in a Python dict.
 // Set đặt một giá trị: khoá đã có thì giữ chỗ cũ, như trong dict của Python.
 func (o *Object) Set(k string, v Value) {
-	if i, ok := o.idx[k]; ok {
+	if i := o.find(k); i >= 0 {
 		o.Vals[i] = v
 		return
 	}
-	o.idx[k] = len(o.Keys)
+	if o.Keys == nil {
+		o.Keys, o.Vals = make([]string, 0, 4), make([]Value, 0, 4)
+	}
 	o.Keys = append(o.Keys, k)
 	o.Vals = append(o.Vals, v)
+	if o.idx != nil {
+		o.idx[k] = len(o.Keys) - 1
+	} else if len(o.Keys) > smallObject {
+		o.index()
+	}
 }
 
 // Delete takes a key out, keeping the order of the others.
 // Delete bỏ một khoá ra, giữ thứ tự các khoá còn lại.
 func (o *Object) Delete(k string) {
-	i, ok := o.idx[k]
-	if !ok {
+	i := o.find(k)
+	if i < 0 {
 		return
 	}
 	o.Keys = append(o.Keys[:i], o.Keys[i+1:]...)
 	o.Vals = append(o.Vals[:i], o.Vals[i+1:]...)
-	delete(o.idx, k)
-	for j := i; j < len(o.Keys); j++ {
-		o.idx[o.Keys[j]] = j
+	if o.idx != nil {
+		delete(o.idx, k)
+		for j := i; j < len(o.Keys); j++ {
+			o.idx[o.Keys[j]] = j
+		}
 	}
 }
 
@@ -109,9 +151,9 @@ func (o *Object) Len() int {
 // Copy is a shallow copy: the values are shared.
 // Copy là bản sao nông: các giá trị dùng chung.
 func (o *Object) Copy() *Object {
-	out := &Object{Keys: append([]string(nil), o.Keys...), Vals: append([]Value(nil), o.Vals...), idx: make(map[string]int, len(o.Keys))}
-	for i, k := range out.Keys {
-		out.idx[k] = i
+	out := &Object{Keys: append([]string(nil), o.Keys...), Vals: append([]Value(nil), o.Vals...)}
+	if len(out.Keys) > smallObject {
+		out.index()
 	}
 	return out
 }
@@ -220,7 +262,7 @@ func (p *parser) object(depth int) (Value, error) {
 		if p.i >= len(p.s) || p.s[p.i] != '"' {
 			return nil, ErrUnsure
 		}
-		k, err := p.str()
+		k, err := p.key()
 		if err != nil {
 			return nil, err
 		}
@@ -234,7 +276,7 @@ func (p *parser) object(depth int) (Value, error) {
 		if err != nil {
 			return nil, err
 		}
-		o.Set(k.(string), v)
+		o.Set(k, v)
 		p.space()
 		if p.i >= len(p.s) {
 			return nil, ErrUnsure
@@ -288,6 +330,50 @@ func hex4(s string) (rune, bool) {
 	}
 	n, err := strconv.ParseUint(s[:4], 16, 32)
 	return rune(n), err == nil && !strings.ContainsAny(s[:4], "+-")
+}
+
+// keys: the keys of tables seen lately, so the same few keys of every send are not made again each time; a fixed number of slots, each
+// holding the last key that fell in it, so what a sender writes cannot make it grow
+// keys: các khoá bảng gặp gần đây, để vài khoá giống nhau của mọi lần gửi không phải tạo lại mỗi lần; một số ô cố định, mỗi ô giữ khoá
+// cuối cùng rơi vào nó, nên người gửi viết gì cũng không làm nó lớn thêm
+var keys [1024]atomic.Pointer[string]
+
+func intern(s string) string {
+	if len(s) > 32 {
+		return strings.Clone(s)
+	}
+	h := uint32(2166136261)
+	for i := 0; i < len(s); i++ {
+		h = (h ^ uint32(s[i])) * 16777619
+	}
+	slot := &keys[h%uint32(len(keys))]
+	if k := slot.Load(); k != nil && *k == s {
+		return *k
+	}
+	k := strings.Clone(s)
+	slot.Store(&k)
+	return k
+}
+
+// key reads the key of a table: without escapes it is taken from the slots above, else as any string.
+// key đọc khoá của một bảng: không có ký tự thoát thì lấy từ các ô ở trên, nếu không thì như mọi chuỗi.
+func (p *parser) key() (string, error) {
+	start := p.i + 1
+	for j := start; j < len(p.s); j++ {
+		c := p.s[j]
+		if c == '"' {
+			p.i = j + 1
+			return intern(p.s[start:j]), nil
+		}
+		if c == '\\' || c < 0x20 {
+			break
+		}
+	}
+	v, err := p.str()
+	if err != nil {
+		return "", err
+	}
+	return v.(string), nil
 }
 
 func (p *parser) str() (Value, error) {

@@ -19,6 +19,9 @@
 //	                       máy chủ Python trên máy này (mặc định http://127.0.0.1:8788)
 //	RECEIVER_BATCH_MS      how often the rows go to Python, in milliseconds (default 1000; 5000 to 10000 for a large organisation)
 //	                       bao lâu các dòng được gửi cho Python một lần, theo mili giây (mặc định 1000; 5000 tới 10000 cho tổ chức lớn)
+//	RECEIVER_MEMORY_MB, RECEIVER_MAX_CONNECTIONS, RECEIVER_SENDS_PER_SECOND
+//	                       the ceilings of memory and connections, and the pace of the sends (limits.go)
+//	                       các trần bộ nhớ và kết nối, và nhịp các lần gửi (limits.go)
 package main
 
 import (
@@ -32,6 +35,8 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -175,6 +180,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	meminfo, _ := os.ReadFile("/proc/meminfo")
+	lim, err := readLimits(os.Getenv, string(meminfo), debug.SetMemoryLimit(-1), runtime.NumCPU())
+	if err != nil {
+		log.Fatal(err)
+	}
+	if lim.memory > 0 {
+		debug.SetMemoryLimit(lim.memory)
+	}
 	secrets, err := devicekey.Load(c.secrets)
 	if err != nil {
 		log.Fatalf("cannot read %s: %v (start the webhook with RECEIVER=1 first)", c.secrets, err)
@@ -229,16 +242,39 @@ func main() {
 	// luồng số trực tiếp của các bảng, dựng mỗi giây một lần cho mọi phạm vi đang được đọc
 	live := feed.New(r, secrets)
 	go live.Run(ctx.Done())
-	srv := newServer(c, handler(r, live), cert)
+	ln, err := net.Listen("tcp", c.listen)
+	if err != nil {
+		log.Fatal(err)
+	}
+	capped := &capListener{Listener: ln, max: lim.connections}
+	r.Pace = func() int64 { return pace(capped.open.Load(), lim.sends) }
+	srv := newServer(c, refuseOver(capped, handler(r, live)), cert)
+	srv.ConnContext = connContext
 	srv.RegisterOnShutdown(live.Close)
+	// the refusals of a minute, said once a minute at most
+	// các lần từ chối trong một phút, báo nhiều nhất mỗi phút một lần
+	go func() {
+		t := time.NewTicker(time.Minute)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if n := capped.refused.Swap(0); n > 0 {
+					log.Printf("receiver: %d sends refused in the last minute: %d connections open, the ceiling is %d", n, capped.open.Load(), capped.max)
+				}
+			}
+		}
+	}()
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(shutdown)
 	}()
-	log.Printf("receiver: listening on %s (boot %s), Python at %s", c.listen, r.Boot, c.webhook)
-	if err := srv.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	log.Printf("receiver: listening on %s (boot %s), Python at %s; %s", c.listen, r.Boot, c.webhook, lim)
+	if err := srv.ServeTLS(capped, "", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
 	// what Python has not taken yet goes now, once

@@ -37,6 +37,20 @@ const PATTERNS: [string, RegExp][] = [
 // các ví dụ do chính nhà cung cấp công bố, và giá trị chỉ đứng thay cho một bí mật
 const EXAMPLE = /EXAMPLE|example|placeholder|dummy|redacted|REDACTED|\.\.\.|xxxxxxxx|XXXXXXXX/
 
+// a constant declared in code whose value is a name made of words (camelCase or kebab-case, at most two digits at the
+// end), as in const PACE_KEY = 'sharePace': the name of a stored setting, not a secret; a .env, JSON or YAML line has no
+// declaration word, so it is still read in full
+// một hằng khai báo trong code có giá trị là một cái tên ghép từ các chữ (camelCase hay kebab-case, tối đa hai chữ số ở
+// cuối), như const PACE_KEY = 'sharePace': tên một ô lưu thiết lập, không phải bí mật; dòng .env, JSON hay YAML không có
+// từ khai báo, nên vẫn được đọc đầy đủ
+const DECLARED = /(?:^|[\s(;{])(?:const|let|var|val|final|static|readonly)\s+(?:[A-Za-z_][\w<>,[\]]*\s+)?$/
+const WORDS_NAME = /^[a-z]+(?:[A-Z][a-z]+|-[a-z]+)+\d{0,2}$/
+function isNameConstant(text: string, at: number, value: string | undefined): boolean {
+  if (!value || !WORDS_NAME.test(value)) return false
+  const lineStart = text.lastIndexOf('\n', at - 1) + 1
+  return DECLARED.test(text.slice(lineStart, at))
+}
+
 /** Each secret found in the text: its kind, the line it is on (from 1), and a hint with no more than its first four characters. */
 /** Mỗi bí mật tìm thấy trong chữ: loại của nó, dòng chứa nó (đếm từ 1), và một gợi ý không quá bốn ký tự đầu. */
 export function findSecrets(text: string): Secret[] {
@@ -46,7 +60,7 @@ export function findSecrets(text: string): Secret[] {
     re.lastIndex = 0
     for (let m = re.exec(text); m; m = re.exec(text)) {
       const value = m[0]
-      if (!EXAMPLE.test(value)) {
+      if (!EXAMPLE.test(value) && !(kind.endsWith('.env line') && isNameConstant(text, m.index, m[1]))) {
         const line = text.slice(0, m.index).split('\n').length
         // a .env line shows its name, which says what kind of secret it is, and never its value
         // một dòng .env hiện tên của nó, tên nói loại bí mật, và không bao giờ hiện giá trị

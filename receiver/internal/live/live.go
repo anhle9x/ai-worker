@@ -165,6 +165,10 @@ type Row struct {
 	Tasks        [3]int64          `json:"tasks"`
 	UpdatedAt    float64           `json:"updatedAt"`
 	online       bool
+	// one: the only tool with a session open while there is one, kept here before Tools is made (see addTool)
+	// one: công cụ duy nhất có phiên đang mở khi chỉ có một, giữ ở đây trước khi tạo Tools (xem addTool)
+	one      string
+	oneCount Counts
 }
 
 // Round4 is Python's round(micro / 1_000_000, 4): the dollars of a whole number of usdMicro to four places, as the board shows them.
@@ -270,6 +274,9 @@ func (s *Store) Rows(now float64, tzSeconds int64, place func(device string) (pe
 	}
 	for i := range out {
 		r := &out[i]
+		if r.Tools == nil && r.one != "" {
+			r.Tools = oneTool(r.one, r.oneCount)
+		}
 		if r.Tools == nil {
 			r.Tools = noTools
 		}
@@ -286,18 +293,50 @@ var noTools = map[string]Counts{}
 
 // addTool counts one tool's sessions on the row, and in Tools when one is open.
 // addTool đếm số phiên của một công cụ vào dòng, và vào Tools khi có phiên đang mở.
+// A row with one tool, the usual one, keeps it in one/oneCount and gets a table shared with every row of the same tool and counts (see
+// oneTool); a table of its own is made only for a second tool.
+// Dòng chỉ có một công cụ, trường hợp thường gặp, giữ nó ở one/oneCount và nhận một bảng dùng chung với mọi dòng cùng công cụ và cùng
+// số (xem oneTool); chỉ khi có công cụ thứ hai mới tạo bảng riêng.
 func (r *Row) addTool(tool string, c Counts) {
 	r.OpenSessions += c.OpenSessions
 	r.Working += c.Working
 	r.Waiting += c.Waiting
-	if c.OpenSessions > 0 {
-		if r.Tools == nil {
-			r.Tools = map[string]Counts{}
-		}
+	if c.OpenSessions <= 0 {
+		return
+	}
+	switch {
+	case r.Tools != nil:
 		per := r.Tools[tool]
 		per.add(c)
 		r.Tools[tool] = per
+	case r.one == "" || r.one == tool:
+		r.one = tool
+		r.oneCount.add(c)
+	default:
+		r.Tools = map[string]Counts{r.one: r.oneCount, tool: c}
+		r.one = ""
 	}
+}
+
+// shared: the one-tool tables handed out, never changed, as Rows says of Tools; only small counts are kept, so it stays small
+// shared: các bảng một công cụ đã trao ra, không bao giờ bị đổi, như Rows nói về Tools; chỉ giữ các số nhỏ, nên nó luôn nhỏ
+var shared sync.Map
+
+type oneKey struct {
+	tool string
+	c    Counts
+}
+
+func oneTool(tool string, c Counts) map[string]Counts {
+	k := oneKey{tool, c}
+	if m, ok := shared.Load(k); ok {
+		return m.(map[string]Counts)
+	}
+	m := map[string]Counts{tool: c}
+	if len(tool) <= 16 && c.OpenSessions < 32 && c.Working < 32 && c.Waiting < 32 && c.Working >= 0 && c.Waiting >= 0 {
+		shared.Store(k, m)
+	}
+	return m
 }
 
 // statusOf is status_of.

@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.9 - 2026-11-23
+
+### Changed
+- The Go receiver keeps itself under a memory limit and a ceiling of connections: by default 40% of the machine's memory and that over 64 KB a connection (about 3 GB and 48,000 on 8 GB). Past the ceiling a send is answered 503 with a `Retry-After` of 30 to 90 seconds instead of the receiver running the machine out of memory, being killed, and being killed again as every computer connects at once. `RECEIVER_MEMORY_MB` and `RECEIVER_MAX_CONNECTIONS` change them, `0` turns each off: [docs/RECEIVER.md](docs/RECEIVER.md).
+- The Go receiver makes less garbage, so it spends less of the processor cleaning up: a usual send costs it about 2.5 µs instead of 5.6 and 8 KB instead of 16, and the live numbers of 100,000 computers 26 MB a second instead of 62. After a restart, the books it cannot read yet from Python are logged in one line a minute instead of one line each (a log of 78 MB in ten minutes at 100,000 computers).
+- The plugin keeps the gap between sends the server asks (`minGapMs`, at most 2 minutes) and, after a "busy" answer with `Retry-After`, sends nothing before that time (at most 10 minutes); before, it sent every 2 seconds whatever the server said. The Go receiver asks for a longer gap when more computers are connected than the machine answers every 2 seconds: by default 2,500 sends a second a processor (`RECEIVER_SENDS_PER_SECOND`), so 50,000 computers on 4 processors send every 5 seconds. A small organisation keeps 2 seconds.
+- The board (`/data`) is built about 30% faster for a large organisation: the branch of each person is found through an index of the names and emails declared, not by going through every branch, and empty hours of the 24-hour chart are not rounded again. Measured at 40,000 people and 80 branches: 0.43 s a build instead of 0.61, the same bytes out.
+
 ## 0.50.8 - 2026-11-23
 
 ### Added

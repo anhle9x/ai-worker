@@ -157,6 +157,14 @@ type Receiver struct {
 	// sorted: bao nhiêu máy ở đầu order đang theo thứ tự mã (xem take); behind: /health đang báo chậm
 	sorted int
 	behind bool
+	// unloaded: the books that could not be read, said once a minute
+	// unloaded: các sổ không đọc được, báo mỗi phút một lần
+	unloaded unloaded
+	// Pace, when set, gives the shortest gap in milliseconds the computers are told to keep between sends for the load of now, 0 for
+	// none; the policy's gaps stay the least
+	// Pace, khi được đặt, cho khoảng cách ngắn nhất theo mili giây mà các máy được dặn giữ giữa hai lần gửi theo tải lúc này, 0 là không
+	// có; khoảng cách trong chính sách vẫn là mức thấp nhất
+	Pace func() int64
 }
 
 // batch is a numbered batch of rows on its way to Python.
@@ -688,8 +696,12 @@ func (r *Receiver) ingest(w http.ResponseWriter, req *http.Request) {
 		refuse(w, http.StatusRequestEntityTooLarge, "too large")
 		return
 	}
-	body, err := io.ReadAll(http.MaxBytesReader(w, req.Body, limit))
-	if err != nil {
+	// the length is known and checked above: one buffer of that size, not the doubling of io.ReadAll; a body shorter than it said is
+	// refused as io.ReadAll's would have been refused by net/http
+	// độ dài đã biết và đã kiểm ở trên: một vùng nhớ đúng cỡ đó, không nhân đôi dần như io.ReadAll; thân ngắn hơn đã khai thì bị từ chối
+	// như net/http đã làm với io.ReadAll
+	body := make([]byte, req.ContentLength)
+	if _, err := io.ReadFull(http.MaxBytesReader(w, req.Body, limit), body); err != nil {
 		refuse(w, http.StatusRequestEntityTooLarge, "too large")
 		return
 	}
@@ -743,7 +755,8 @@ func (r *Receiver) ingest(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if err := r.load(req.Context(), claims.Device, e); err != nil {
-		log.Printf("receiver: cannot load the book of %s: %v", claims.Device, err)
+		r.unloaded.note(claims.Device, err)
+		r.unloaded.say(time.Now())
 		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry)
 		return
 	}
@@ -767,7 +780,15 @@ func (r *Receiver) ingest(w http.ResponseWriter, req *http.Request) {
 		// số liệu không được ghi, nhưng biên bản giao việc vẫn vào nhật ký, như ở Python
 		r.enqueue(claims.Device, d, "delegations", ip, nowMs, delegations)
 	}
-	reply(w, http.StatusOK, answer{OK: true, Accepts: []int{1, 2}, MinGapMs: policy.MinGapMs, StateGapMs: policy.StateGapMs, MaxGapMs: policy.MaxGapMs,
+	minGap, stateGap := policy.MinGapMs, policy.StateGapMs
+	if r.Pace != nil {
+		// more computers than the machine answers every two seconds: they are asked to send less often (limits.go in package main)
+		// nhiều máy hơn sức máy trả lời mỗi hai giây: các máy được dặn gửi thưa hơn (limits.go trong gói main)
+		if g := r.Pace(); g > 0 {
+			minGap, stateGap = max(minGap, g), max(stateGap, g)
+		}
+	}
+	reply(w, http.StatusOK, answer{OK: true, Accepts: []int{1, 2}, MinGapMs: minGap, StateGapMs: stateGap, MaxGapMs: policy.MaxGapMs,
 		NeedFull: outcome == clean.NeedFull, Boot: r.Boot})
 }
 
@@ -1155,6 +1176,7 @@ func (r *Receiver) Run(ctx context.Context) {
 		// logs once when the oldest row goes past behindAfter, and once when it comes back
 		// ghi nhật ký một lần khi dòng chờ lâu nhất vượt behindAfter, và một lần khi trở lại
 		r.health()
+		r.unloaded.say(time.Now())
 	}
 }
 

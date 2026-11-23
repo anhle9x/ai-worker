@@ -187,13 +187,39 @@ def team_summary(rows: list):
     return {"updatedAt": t.get("updatedAt"), "dateFrom": t.get("dateFrom", ""), "dateTo": t.get("dateTo", ""), "items": items}
 
 
+# the last few lists of branches and, for each, every name or email declared with the first branch (place, id) that declares it: one build
+# of the board asks for every person, and going through every branch for each was a third of the build at 40,000 people and 80 branches.
+# A few, not one: the board and the receiver's table of people build at the same time, each with a list of its own.
+# vài danh sách chi nhánh gần nhất và, với mỗi danh sách, mọi tên hay email đã khai báo cùng chi nhánh đầu tiên (vị trí, id) khai báo nó: một
+# lần dựng bảng hỏi cho mọi người, và duyệt mọi chi nhánh cho từng người từng chiếm một phần ba thời gian dựng ở 40.000 người và 80 chi
+# nhánh. Vài danh sách, không phải một: bảng và bảng người của bộ nhận dựng cùng lúc, mỗi bên một danh sách riêng.
+_PEOPLE_INDEXES = []
+
+
+def _people_index(branches: list) -> dict:
+    global _PEOPLE_INDEXES
+    for kept, index in _PEOPLE_INDEXES:
+        if kept is branches:
+            return index
+    index = {}
+    for place, b in enumerate(branches):
+        for who in b["people"]:
+            index.setdefault(who, (place, b["id"]))
+    # each list is kept with its index, so the identity compared above stays its own; a new list is put in place of the whole, never changed
+    # in place, for the threads that read it
+    # mỗi danh sách được giữ cùng chỉ mục của nó, nên phép so danh tính ở trên luôn đúng là của nó; danh sách mới được thay cả, không sửa tại
+    # chỗ, vì các luồng khác đang đọc
+    _PEOPLE_INDEXES = [(branches, index)] + _PEOPLE_INDEXES[:3]
+    return index
+
+
 def branch_of(r: dict, branches: list) -> str:
     """Which branch a person belongs to: by the name or email declared first, then by the declared public IP range.
     Người thuộc chi nhánh nào: theo tên hoặc email đã khai báo trước, sau đó theo dải IP công cộng đã khai báo."""
-    person_keys = {str(r.get("account") or "").lower(), str(r.get("name") or "").lower()}
-    for b in branches:
-        if b["people"] & person_keys:
-            return b["id"]
+    index = _people_index(branches)
+    found = [index[k] for k in (str(r.get("account") or "").lower(), str(r.get("name") or "").lower()) if k in index]
+    if found:
+        return min(found)[1]
     for text in [r["latestIp"]] if r.get("latestIp") else r.get("ip") or []:
         try:
             ip = ipaddress.ip_address(text)
@@ -820,6 +846,9 @@ def manage_account(body: dict, actor: str, token: str) -> tuple:
     return {"action": "account-" + jobs, "accountName": name, **({"newRole": role} if jobs in ("create", "role") else {})}, result
 
 
+_ZEROS = [0.0] * 24
+
+
 def _raw_data(now: float) -> dict:
     """All the numbers, unfiltered: only role_view may call it, do not return this function directly.
     Mọi số liệu, chưa lọc: chỉ role_view được gọi, đừng trả thẳng hàm này ra ngoài."""
@@ -846,7 +875,9 @@ def _raw_data(now: float) -> dict:
             "quota": r["quota"], "pluginVersion": r["pluginVersion"],
             # cost per hour, last 24 hours, oldest first
             # chi phí từng giờ, 24 giờ gần nhất, cũ trước mới sau
-            "hourly24": [round(r["costByHour"].get(this_hour - 23 + i, 0.0), 4) for i in range(24)],
+            # most hours of most people are empty: 0.0 is given as it is, not rounded again (same number, same JSON)
+            # phần lớn các giờ của phần lớn mọi người là trống: 0.0 giữ nguyên, không làm tròn lại (cùng số, cùng JSON)
+            "hourly24": [v and round(v, 4) for v in map(r["costByHour"].get, range(this_hour - 23, this_hour + 1), _ZEROS)],
         })
         # only with the Go receiver, which joins its live numbers on it: without it /data stays byte for byte what it was
         # chỉ khi có bộ nhận Go, nơi ghép số trực tiếp theo nó: không có thì /data giữ nguyên từng byte như trước

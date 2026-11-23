@@ -4,7 +4,7 @@
 
 A small company does not need this page: the Python server takes every send itself. The receiver in `receiver/` is a second program, written with the Go standard library only, for an organisation with many thousands of computers. It takes the computers' sends on an address of its own over TLS, answers them at once, and hands them to the Python server in batches. Python stays the record: logins, roles, the board, the history and the SQLite files are unchanged.
 
-**What this first stage does and does not do.** It takes sends correctly and gives Python the same records Python would have written itself; tests hold the two to that. It also serves the boards their live numbers, per branch or for the whole organisation, on `/live` (section 3, "The live feed"), and the board's page opens that feed when it is set up. Whether it reaches 100,000 computers within 5 seconds is measured on Linux at the end of this stage. The plugin does not send to the receiver yet either: no computer goes this way until a later plugin learns the receiver's address from the server (`ingestUrls`).
+**What this first stage does and does not do.** It takes sends correctly and gives Python the same records Python would have written itself; tests hold the two to that. It also serves the boards their live numbers, per branch or for the whole organisation, on `/live` (section 3, "The live feed"), and the board's page opens that feed when it is set up. On Linux with 4 vCPU and 8 GB it is for about 20,000 computers sending every 2 seconds (section 7). The plugin does not send to the receiver yet either: no computer goes this way until a later plugin learns the receiver's address from the server (`ingestUrls`).
 
 ## 1. How a send goes
 
@@ -111,12 +111,26 @@ On the receiver (its environment):
 | `RECEIVER_SECRETS_FILE` | The file of secrets above. Required |
 | `RECEIVER_WEBHOOK` | The Python server on this machine; only `http://127.0.0.1:…`, `http://[::1]:…` or `http://localhost:…` |
 | `RECEIVER_BATCH_MS` | How often the rows go to Python: 1000 (the default) for a small organisation, 5000 to 10000 for a large one |
+| `RECEIVER_MEMORY_MB` | Memory the receiver keeps under, given to Go's runtime: by default 40% of the machine's memory (about 3 GB on 8 GB), leaving the rest to Python; `0` for none. A `GOMEMLIMIT` already set is kept |
+| `RECEIVER_MAX_CONNECTIONS` | Computers connected at once; past it a send is answered 503 with a `Retry-After` of 30 to 90 seconds and its connection closed, and the log says once a minute how many were refused. By default the memory limit over 64 KB a connection (about 48,000 on 8 GB); `0` for no ceiling. Boards' live feeds and `/health` are let through |
+| `RECEIVER_SENDS_PER_SECOND` | Sends the machine is to answer each second, by default 2,500 a processor (measured: 4 processors filled at 20,000 a second with Python beside them). Past it, the answer's `minGapMs` asks every computer to send less often: the connections open over this number, in whole seconds, at most 120; for example 5 seconds with 50,000 computers on 4 processors. The live numbers then come that much later. `0` keeps the server's gap |
 
 When Python is slower than the computers send, the beat stretches by itself: the next batch goes only once Python has answered the last one, the sends of one computer meanwhile wait as one row, and the batches stay in the order of the computers' ids. `GET /health` on the receiver says how many rows wait (`queued`), how long the oldest has waited (`waitSeconds`), and `behind: true` once that passes 60 seconds, also written once to the log. The numbers on the boards still come live from the receiver.
 
 The receiver speaks HTTP/1.1 only (HTTP/2 costs more here), waits at most 10 seconds for the headers of a request, reads at most 256 KB of a body, and keeps an idle connection 5 minutes, a little longer than a quiet computer's 4 minutes between sends.
 
 ## 5. Setting it up
+
+**How big a server.** Measured on Linux (Hetzner CPX32: 4 vCPU, 8 GB) with the receiver and Python on the same machine, fake computers keeping a connection open and sending every 2 seconds (each send changing money: the worst case), and the boards reading the live feed and `/data` ([BENCHMARK.md](BENCHMARK.md#on-linux-with-the-go-receiver)):
+
+| Computers connected at once | Server | Measured |
+|---|---|---|
+| up to 40,000 | 4 vCPU, 8 GB | live numbers p99 1.5 s, CPU 56%, memory 6.0 GB; the receiver asks for a send every 4 s |
+| about 50,000 | 4 vCPU, 8 GB | live numbers p99 1.7 s, CPU 67%, memory 6.4 GB; a send every 5 s; Python's tables and `/data` up to a minute behind (`behind`) |
+| more than about 49,500 | 4 vCPU, 8 GB | the rest are told to come back (503, `RECEIVER_MAX_CONNECTIONS`), nothing lost |
+| 100,000 | 8 vCPU, 16 GB | not measured: the ceilings scale with memory and processors, Python's writes do not |
+
+Computers that are idle send every 4 minutes, so an organisation counts here by the computers working at once, not by those installed.
 
 Where it listens was decided with the design: a **second public IP on the same server, port 443 of that IP**. The receiver and Python stay on one machine, so the file of secrets and the internal paths stay local; port 443 gets through company proxies; moving the receiver to a machine of its own later is a change of DNS.
 
@@ -149,7 +163,7 @@ A new secret signs every key from then on, and every computer gets a new key at 
 ## 7. Known limits of this stage
 
 - The receiver does not check the list of computers let send from any network (`OFFICE_NETS`, [INSTALL.md](INSTALL.md#sending-from-outside-the-office-chosen-computers)): the batches it writes through `/internal/rows` do not pass the webhook's check. Keep the receiver's address reachable from the office networks only.
-- Whether 100,000 computers stay within 5 seconds is not measured yet: the measurement on Linux comes at the end of this stage.
+- How big a server is in section 5. What is left at about 50,000 computers on 4 vCPU is Python's writes: with boards reading `/data` it writes about 1,650 rows a second there (5,100 with none), so its tables and the board's `/data` fall up to a minute behind while the live numbers stay on time. Before the ceilings the receiver ran out of memory at about 60,000 connections and was killed again after each start.
 - When Python writes slower than the computers send, the rows wait at the receiver, one per computer, and nothing is lost; past a minute the receiver's `/health` says `behind` and the Admin page shows it in yellow. If it lasts, the machine is too small for the organisation: measured in a VM of 4 vCPU, Python writes about 10,000 rows a second with no board open and about half that with boards reading `/data` all the time.
 - The table of people is built from the whole board each time the receiver asks: what that costs at 100,000 computers is measured with the rest on Linux.
 - The live feed adds up every computer once a second, instead of keeping the sums up to date as the sends come. Measured on a Mac with an M-series chip at 100,000 computers, 500 people a branch: one pass 83 ms; one second with every branch and the whole organisation read by a board 175 ms in all, half of it making the JSON of the rows. The measurement on Linux (4 vCPU) decides whether the sums must be kept as the sends come.

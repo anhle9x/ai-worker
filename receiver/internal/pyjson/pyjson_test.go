@@ -2,6 +2,7 @@ package pyjson
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"testing"
 )
@@ -51,5 +52,95 @@ func TestFloatTextIsPythonRepr(t *testing.T) {
 	}
 	if FloatText(math.Copysign(0, -1)) != "-0.0" {
 		t.Error("-0.0")
+	}
+}
+
+// TestObjectSmallAndLarge: the same keys in the same order whether a table is searched in order (small) or through its map (large),
+// across the step from one to the other, with keys set again, deleted and copied.
+// TestObjectSmallAndLarge: cùng các khoá theo cùng thứ tự dù bảng được dò theo thứ tự (nhỏ) hay qua map (lớn), qua bước chuyển giữa hai
+// dạng, với khoá được đặt lại, bị xoá và được chép.
+func TestObjectSmallAndLarge(t *testing.T) {
+	o := NewObject()
+	var want []string
+	vals := map[string]int{}
+	check := func(when string) {
+		t.Helper()
+		if len(o.Keys) != len(want) || o.Len() != len(want) {
+			t.Fatalf("%s: keys %v, want %v", when, o.Keys, want)
+		}
+		for i, k := range want {
+			if o.Keys[i] != k {
+				t.Fatalf("%s: keys %v, want %v", when, o.Keys, want)
+			}
+			if v, ok := o.Get(k); !ok || v != vals[k] {
+				t.Fatalf("%s: %s = %v %v, want %d", when, k, v, ok, vals[k])
+			}
+		}
+		if _, ok := o.Get("missing"); ok {
+			t.Fatalf("%s: a missing key found", when)
+		}
+		c := o.Copy()
+		for _, k := range want {
+			if v, ok := c.Get(k); !ok || v != vals[k] {
+				t.Fatalf("%s: the copy lost %s", when, k)
+			}
+		}
+	}
+	for i := 0; i < 3*smallObject; i++ {
+		k := fmt.Sprintf("k%02d", i)
+		o.Set(k, i)
+		want, vals[k] = append(want, k), i
+		check(fmt.Sprintf("after %d", i+1))
+		// a key set again keeps its place / khoá đặt lại giữ chỗ cũ
+		o.Set("k00", 100+i)
+		vals["k00"] = 100 + i
+		check(fmt.Sprintf("again after %d", i+1))
+	}
+	for _, k := range []string{"k05", "k00", fmt.Sprintf("k%02d", 3*smallObject-1)} {
+		o.Delete(k)
+		for i, w := range want {
+			if w == k {
+				want = append(want[:i], want[i+1:]...)
+				break
+			}
+		}
+		delete(vals, k)
+		check("deleted " + k)
+	}
+	small := NewObject()
+	small.Set("a", 1)
+	small.Set("b", 2)
+	small.Delete("a")
+	if v, ok := small.Get("b"); !ok || v != 2 || small.Len() != 1 {
+		t.Fatalf("small delete: %v %v", small.Keys, small.Vals)
+	}
+}
+
+// TestKeysOfManyKinds: keys with escapes, keys that share a slot of the cache of keys, and a raw control character in a key, which
+// Python refuses.
+// TestKeysOfManyKinds: khoá có ký tự thoát, khoá dùng chung một ô của bộ nhớ khoá, và ký tự điều khiển viết thẳng trong khoá, thứ Python
+// từ chối.
+func TestKeysOfManyKinds(t *testing.T) {
+	v, err := Parse([]byte(`{"a\"b": 1, "\u00e9": 2, "plain": 3}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := v.(*Object)
+	if o.Keys[0] != `a"b` || o.Keys[1] != "\u00e9" || o.Keys[2] != "plain" {
+		t.Fatalf("keys %q", o.Keys)
+	}
+	if _, err := Parse([]byte("{\"a\x01\": 1}")); err == nil {
+		t.Fatal("a control character in a key was taken")
+	}
+	// more keys than slots, read twice: every key comes back as it was written
+	// nhiều khoá hơn số ô, đọc hai lần: mọi khoá trở lại đúng như khi viết
+	for round := 0; round < 2; round++ {
+		for i := 0; i < 3000; i++ {
+			k := fmt.Sprintf("key-%d", i)
+			v, err := Parse([]byte(`{"` + k + `": true}`))
+			if err != nil || v.(*Object).Keys[0] != k {
+				t.Fatalf("%s: %v %v", k, v, err)
+			}
+		}
 	}
 }

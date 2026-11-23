@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { buildHelp, skillLine } from '../hooks/help'
 import { claudeCandidate, isClaudeCodeVersion, findHostApp, parseLinuxHost, parseWindowsHost, hasSigningKeys, parseHash, parseSignatureResult, parseManifest, releaseKeys, shouldOfferUpdate } from '../hooks/update'
-import { DEVICE_ID_LENGTH, OPEN_MS, REFUSED_FIRST_MS, REFUSED_MAX_MS, buildMachineSummary, deviceKeyIn, refusalAfter, newDeviceId, hardwareMark, parseHardwareId, sha256Hex, isLanIp, mergeShare, mergeTeam, parseLanIp, parseSessionFile, readShareConfig, summarySignature, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, answerModel, toQuota, quotaWarning } from '../hooks/team'
+import { BUSY_MAX_MS, DEVICE_ID_LENGTH, OPEN_MS, PACE_MAX_MS, PACE_MIN_MS, paceFrom, REFUSED_FIRST_MS, REFUSED_MAX_MS, buildMachineSummary, deviceKeyIn, refusalAfter, newDeviceId, hardwareMark, parseHardwareId, sha256Hex, isLanIp, mergeShare, mergeTeam, parseLanIp, parseSessionFile, readShareConfig, summarySignature, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, answerModel, toQuota, quotaWarning } from '../hooks/team'
 
 const H = 3_600_000
 const NOW = 500_000 * H
@@ -485,3 +485,23 @@ test('after the server refuses a send, the plugin waits longer each time, up to 
   expect(r.wait).toBe(REFUSED_MAX_MS)
   expect(refusalAfter({}, 5).until).toBe(5 + REFUSED_FIRST_MS)
 })
+
+test('the plugin keeps the gap between sends the server asks, and comes back when a busy server says', () => {
+  const ok = (text: string) => ({ status: 200, headers: {}, text })
+  expect(paceFrom(ok('{"ok": true, "minGapMs": 6000}'), NOW)).toEqual({ gapMs: 6000 })
+  // an older server, or one that says too little or too much: the default, and never past two minutes
+  // máy chủ cũ, hoặc nói quá ít hay quá nhiều: dùng mặc định, và không bao giờ quá hai phút
+  expect(paceFrom(ok('{"ok": true}'), NOW)).toEqual({ gapMs: PACE_MIN_MS })
+  expect(paceFrom(ok('not json'), NOW)).toEqual({ gapMs: PACE_MIN_MS })
+  expect(paceFrom(ok('{"minGapMs": 10}'), NOW)).toEqual({ gapMs: PACE_MIN_MS })
+  expect(paceFrom(ok('{"minGapMs": 999999999}'), NOW)).toEqual({ gapMs: PACE_MAX_MS })
+  expect(paceFrom(ok('{"minGapMs": "6000"}'), NOW)).toEqual({ gapMs: PACE_MIN_MS })
+  // busy: come back when it says, at most ten minutes later; without Retry-After nothing changes
+  // bận: quay lại khi nó nói, chậm nhất mười phút sau; không có Retry-After thì không đổi gì
+  expect(paceFrom({ status: 503, headers: { 'retry-after': '45' }, text: '{"error":"busy"}' }, NOW)).toEqual({ until: NOW + 45_000 })
+  expect(paceFrom({ status: 429, headers: { 'retry-after': '99999' }, text: '' }, NOW)).toEqual({ until: NOW + BUSY_MAX_MS })
+  expect(paceFrom({ status: 503, headers: {}, text: '' }, NOW)).toEqual({})
+  expect(paceFrom({ status: 503, headers: { 'retry-after': 'soon' }, text: '' }, NOW)).toEqual({})
+  expect(paceFrom({ status: 401, headers: { 'retry-after': '45' }, text: '' }, NOW)).toEqual({})
+})
+

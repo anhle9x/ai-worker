@@ -70,6 +70,23 @@ test('only the lines a commit adds are read, with the file and the line in the n
   expect(asked).not.toContain('s3cretValue99')
 })
 
+test('a store-name constant in a .ts file passes, a real key in a .env file is still caught', () => {
+  // values put together so this file holds none a scanner would flag
+  // giá trị ghép ở đây để file này không chứa giá trị nào bị máy quét bắt
+  const OPENAI = 'sk-' + 'proj-' + 'Zx9Yw8Vu7Ts6Rq5Po4Nm3Lk2Ji1Hg0FeDcBa'
+  const diff = [
+    '+++ b/hooks/register.tsx',
+    '@@ -478,0 +479 @@',
+    `+const PACE${'_KEY'} = 'sharePace'`,
+    '+++ b/.env',
+    '@@ -0,0 +1 @@',
+    `+API${'_KEY'}=${OPENAI}`,
+  ].join('\n')
+  const found = secretsInDiff(diff)
+  expect(found.map(s => s.file)).toEqual(['.env', '.env'])
+  expect(found.map(s => s.kind).sort()).toEqual(['OpenAI API key', 'password or key in a .env line'])
+})
+
 /** A session whose `git diff` prints `diff`: returns the verdict for `command` and the argv git was run with. */
 async function checkCommit($: Engine, on: On, command: string, diff: string) {
   mock.clock(on)
