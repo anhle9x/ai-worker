@@ -15,7 +15,7 @@ A small company does not need this page: the Python server takes every send itse
 
 - The name and the account the computer claims are dropped; Python fills them from the person the computer enrolled as (`identities`).
 - The receiver never trusts an `X-Forwarded-For` from the computer: it gives Python the address of the socket.
-- The records of work handed to helpers, the IP history and the history of the board are written by Python, as for a send on `/ingest`.
+- The records of work handed to helpers, the IP history and the history of the board are written by Python, as for a send on `/ingest`. The board (`/data`) is kept 5 seconds instead of 0.5 (`VIEW_CACHE_SECONDS`), one build serves every role, and the old board is given while the next is built, as long as it is at most 15 seconds old, so a new name or branch shows 5 to 7 seconds later; the numbers come live from the receiver. The history of the board is written by the round that looks at everyone every 30 seconds, not after each batch, so a change comes into it up to 30 seconds later (`RECEIVER_FAST_APPLY=0` writes it after each batch again). A computer whose state only changed has its `devices` row written up to a minute later (every 30 seconds, and when the service stops), so after a `kill -9` the table may be a minute behind on what the computers are doing, never on who they are or what they spent; they all send again within seconds.
 - A computer that Python asks for its whole book (`needFull`), one sent out of order, or a whole book sent again within an hour is handled exactly as Python does (`save_ingest`).
 - The answer to a send has the same fields as Python's, with the receiver's own `boot`: rows not yet written are lost if the receiver stops, and a computer that sees `boot` change sends its latest hours again.
 
@@ -112,6 +112,8 @@ On the receiver (its environment):
 | `RECEIVER_WEBHOOK` | The Python server on this machine; only `http://127.0.0.1:…`, `http://[::1]:…` or `http://localhost:…` |
 | `RECEIVER_BATCH_MS` | How often the rows go to Python: 1000 (the default) for a small organisation, 5000 to 10000 for a large one |
 
+When Python is slower than the computers send, the beat stretches by itself: the next batch goes only once Python has answered the last one, the sends of one computer meanwhile wait as one row, and the batches stay in the order of the computers' ids. `GET /health` on the receiver says how many rows wait (`queued`), how long the oldest has waited (`waitSeconds`), and `behind: true` once that passes 60 seconds, also written once to the log. The numbers on the boards still come live from the receiver.
+
 The receiver speaks HTTP/1.1 only (HTTP/2 costs more here), waits at most 10 seconds for the headers of a request, reads at most 256 KB of a body, and keeps an idle connection 5 minutes, a little longer than a quiet computer's 4 minutes between sends.
 
 ## 5. Setting it up
@@ -148,6 +150,7 @@ A new secret signs every key from then on, and every computer gets a new key at 
 
 - The receiver does not check the list of computers let send from any network (`OFFICE_NETS`, [INSTALL.md](INSTALL.md#sending-from-outside-the-office-chosen-computers)): the batches it writes through `/internal/rows` do not pass the webhook's check. Keep the receiver's address reachable from the office networks only.
 - Whether 100,000 computers stay within 5 seconds is not measured yet: the measurement on Linux comes at the end of this stage.
+- When Python writes slower than the computers send, the rows wait at the receiver, one per computer, and nothing is lost; past a minute the receiver's `/health` says `behind` and the Admin page shows it in yellow. If it lasts, the machine is too small for the organisation: measured in a VM of 4 vCPU, Python writes about 10,000 rows a second with no board open and about half that with boards reading `/data` all the time.
 - The table of people is built from the whole board each time the receiver asks: what that costs at 100,000 computers is measured with the rest on Linux.
 - The live feed adds up every computer once a second, instead of keeping the sums up to date as the sends come. Measured on a Mac with an M-series chip at 100,000 computers, 500 people a branch: one pass 83 ms; one second with every branch and the whole organisation read by a board 175 ms in all, half of it making the JSON of the rows. The measurement on Linux (4 vCPU) decides whether the sums must be kept as the sends come.
 - On the page of the whole organisation without its people, the 24-hour charts, the models and the quotas are empty: they are counted per person, so they show on the page of each branch.

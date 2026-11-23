@@ -2,6 +2,20 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.8 - 2026-11-23
+
+### Added
+- The board's **Active operations** list shows the work handed to a helper: while a person (or, on the single-machine page, a session) has work at Gemini, ChatGPT or Gemma, its row gets a line **DELEGATING → GEMINI**, each helper in its colour from the graph and `×2` when there is more than one job. It reads the same numbers as the graph's "PROCESSING ← name".
+- With the Go receiver, `GET /health` on the receiver gives the rows waiting (`queued`), how long the oldest has waited (`waitSeconds`) and `behind: true` past 60 seconds, and the Admin page shows a yellow line when the receiver is more than a minute behind. Nothing is lost: the boards still get the numbers live and the tables catch up. What to do when it lasts: [docs/RECEIVER.md](docs/RECEIVER.md).
+
+### Changed
+- The server writes the receiver's batches faster: the computers go to Python in the order of their ids, a batch is written in one transaction with its writes grouped, the days of a send that only changes hours move by the difference, and a row is cleaned once. Measured on 100,000 computers (4 vCPU), about 10,800 rows a second against 5,900 the old way. `RECEIVER_FAST_APPLY=0` in `ai-worker.env` goes back to the old way; a test checks both ways leave the same tables and board.
+- With the receiver, the history of the board is written by the round every 30 seconds instead of after each batch, and a computer whose state only changed has its `devices` row written up to a minute later. After a `kill -9` the table may be a minute behind on what computers are doing, never on who they are or what they spent.
+- With the receiver and `VIEW_CACHE_SECONDS` left empty, `/data` is kept 5 seconds instead of 0.5, one build serves every role, and the old board is given while the next is built as long as it is at most 15 seconds old. A new name or branch shows 5 to 7 seconds later; the numbers still come live. Without the receiver nothing changes.
+
+### Fixed
+- With the receiver, the first board to ask after a quiet while could get numbers from minutes before; a board older than 15 seconds is now built again at once.
+
 ## 0.50.7 - 2026-11-22
 
 ### Added

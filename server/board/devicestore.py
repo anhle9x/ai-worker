@@ -45,30 +45,134 @@ def _upsert(c, table: str, keys: tuple, values: tuple, rows: list) -> None:
             c.execute(insert, r)
 
 
+# writes held for a batch, by connection: see held()
+# các lệnh ghi đang giữ cho một lô, theo kết nối: xem held()
+_HELD = {}
+
+
+class Held:
+    """The writes of one batch of the receiver, held to be written together, one executemany per kind of write, before the batch's
+    transaction ends. A read of a computer that has writes held of what it reads writes everything held first, so a read always sees
+    what was written before it. The writes of one computer keep their order; between computers it does not matter, their rows never
+    meet. A computer written again in a later row of the batch writes what is held first, so the order of kinds below holds.
+    Các lệnh ghi của một lô của bộ nhận, được giữ để ghi chung, mỗi loại lệnh một executemany, trước khi giao dịch của lô kết thúc.
+    Đọc một máy đang có lệnh ghi được giữ cho thứ nó đọc thì ghi hết những gì đang giữ trước, nên lần đọc luôn thấy những gì đã ghi
+    trước nó. Các lệnh ghi của một máy giữ thứ tự; giữa các máy thì không quan trọng, dòng của chúng không bao giờ chạm nhau. Máy được
+    ghi lại ở một dòng sau trong lô thì ghi những gì đang giữ trước, để thứ tự các loại bên dưới luôn đúng."""
+
+    # the order the kinds are written in: within one row of a batch, every write of one computer comes in this order
+    # thứ tự ghi các loại: trong một dòng của lô, mọi lệnh ghi của một máy đều đến theo thứ tự này
+    ORDER = ("state", "days_of", "hours", "hours_drop", "days", "days_drop")
+
+    def __init__(self, c):
+        self.c = c
+        self.rows = {k: [] for k in self.ORDER}
+        # (device, what) with writes held: what is "devices", "days" or "hours:" and a kind
+        # (máy, thứ) đang có lệnh ghi được giữ: thứ là "devices", "days" hoặc "hours:" kèm một loại
+        self.touched = set()
+        # the devices written by the rows before the one being written
+        # các máy được ghi bởi những dòng trước dòng đang ghi
+        self.before, self.now = set(), set()
+
+    def next_row(self) -> None:
+        self.before |= self.now
+        self.now = set()
+
+    def hold(self, what: str, rows: list, touched: set) -> None:
+        devices = {d for d, _ in touched}
+        if devices & self.before:
+            self.write()
+        self.rows[what].extend(rows)
+        self.touched |= touched
+        self.now |= devices
+
+    def write(self) -> None:
+        """Write everything held, in the order of ORDER.
+        Ghi mọi thứ đang giữ, theo thứ tự của ORDER."""
+        c, rows = self.c, self.rows
+        if rows["state"]:
+            _upsert(c, "devices", ("device",), ("account", "name", "seen_at", "body"), rows["state"])
+        if rows["days_of"]:
+            c.executemany("DELETE FROM device_days WHERE device = ?", rows["days_of"])
+        if rows["hours"]:
+            _upsert(c, "device_hours", ("hour", "kind", "device"), ("body",), rows["hours"])
+        if rows["hours_drop"]:
+            c.executemany("DELETE FROM device_hours WHERE hour = ? AND kind = ? AND device = ?", rows["hours_drop"])
+        if rows["days"]:
+            _upsert(c, "device_days", ("day", "device"), DAY_COLUMNS, rows["days"])
+        if rows["days_drop"]:
+            c.executemany("DELETE FROM device_days WHERE day = ? AND device = ?", rows["days_drop"])
+        self.rows = {k: [] for k in self.ORDER}
+        self.touched = set()
+        self.before = set()
+
+
+class held:
+    """Hold the writes made through this file on connection c until the block ends, then write them together (see Held). If the block
+    raises, what is held is dropped: the caller's transaction is taken back anyway.
+    Giữ các lệnh ghi qua file này trên kết nối c tới hết khối, rồi ghi chung (xem Held). Nếu khối báo lỗi, những gì đang giữ bị bỏ:
+    giao dịch của bên gọi đằng nào cũng bị rút lại."""
+
+    def __init__(self, c):
+        self.held = Held(c)
+
+    def __enter__(self) -> Held:
+        _HELD[id(self.held.c)] = self.held
+        return self.held
+
+    def __exit__(self, kind, value, trace) -> None:
+        _HELD.pop(id(self.held.c), None)
+        if kind is None:
+            self.held.write()
+
+
+def _hold(c, what: str, rows: list, touched: set) -> bool:
+    h = _HELD.get(id(c))
+    if h is None:
+        return False
+    if rows:
+        h.hold(what, rows, touched)
+    return True
+
+
+def _before_read(c, device: str = None, *what) -> None:
+    """Write what is held before a read of what of device (of everything when device is None).
+    Ghi những gì đang giữ trước khi đọc thứ what của device (của mọi thứ khi device là None)."""
+    h = _HELD.get(id(c))
+    if h is not None and h.touched and (device is None or any((device, w) in h.touched for w in what)):
+        h.write()
+
+
 def _chunks(items: list):
     for i in range(0, len(items), _CHUNK):
         yield items[i:i + _CHUNK]
 
 
 def states(c) -> list:
+    _before_read(c)
     return c.execute("SELECT device, seen_at, body FROM devices").fetchall()
 
 
 def state(c, device: str):
+    _before_read(c, device, "devices")
     return c.execute("SELECT device, seen_at, body FROM devices WHERE device = ?", (device,)).fetchone()
 
 
 def put_state(c, device: str, account: str, name: str, seen_at: int, body: str) -> None:
-    _upsert(c, "devices", ("device",), ("account", "name", "seen_at", "body"), [(device, account, name, seen_at, body)])
+    rows = [(device, account, name, seen_at, body)]
+    if not _hold(c, "state", rows, {(device, "devices")}):
+        _upsert(c, "devices", ("device",), ("account", "name", "seen_at", "body"), rows)
 
 
 def set_body(c, device: str, body: str) -> None:
+    _before_read(c)
     c.execute("UPDATE devices SET body = ? WHERE device = ?", (body, device))
 
 
 def drop_devices(c, names: list) -> None:
     """Delete computers with their hours and their days.
     Xoá các máy cùng các giờ và các ngày của chúng."""
+    _before_read(c)
     for part in _chunks(list(names)):
         marks = ", ".join("?" * len(part))
         for table in ("devices", "device_hours", "device_days"):
@@ -78,6 +182,7 @@ def drop_devices(c, names: list) -> None:
 def hours(c, device: str, kinds: tuple, lo: int = -_FAR, hi: int = _FAR) -> list:
     """One computer's rows (kind, hour, body) of these kinds with lo <= hour < hi, oldest first.
     Các dòng (loại, giờ, nội dung) của một máy thuộc các loại này với lo <= giờ < hi, cũ trước mới sau."""
+    _before_read(c, device, *("hours:" + k for k in kinds))
     out = []
     for kind in kinds:
         out += c.execute("SELECT kind, hour, body FROM device_hours WHERE device = ? AND kind = ? AND hour >= ? AND hour < ? ORDER BY hour",
@@ -88,6 +193,7 @@ def hours(c, device: str, kinds: tuple, lo: int = -_FAR, hi: int = _FAR) -> list
 def hour_numbers(c, device: str, kind: str) -> list:
     """The hours one computer has of one kind, newest first, without their bodies.
     Các giờ một máy có của một loại, mới trước cũ sau, không kèm nội dung."""
+    _before_read(c, device, "hours:" + kind)
     return [h for (h,) in c.execute("SELECT hour FROM device_hours WHERE device = ? AND kind = ? ORDER BY hour DESC", (device, kind))]
 
 
@@ -95,32 +201,38 @@ def recent(c, lo: int) -> list:
     """Every computer's ledger and tasks rows (device, kind, hour, body) from hour lo on: the key starts with the hour, so this reads
     only the end of the table.
     Các dòng ledger và tasks (máy, loại, giờ, nội dung) của mọi máy từ giờ lo trở đi: khoá bắt đầu bằng giờ, nên chỉ đọc phần cuối bảng."""
+    _before_read(c)
     return c.execute("SELECT device, kind, hour, body FROM device_hours WHERE hour >= ? AND kind IN ('ledger', 'tasks')", (lo,)).fetchall()
 
 
 def recent_blocks(c, lo: int) -> list:
     """Every computer's blocks rows (device, hour, body) from hour lo on, through their own small index.
     Các dòng blocks (máy, giờ, nội dung) của mọi máy từ giờ lo trở đi, qua chỉ mục nhỏ riêng của chúng."""
+    _before_read(c)
     return c.execute("SELECT device, hour, body FROM device_hours WHERE kind = 'blocks' AND hour >= ?", (lo,)).fetchall()
 
 
 def all_hours(c) -> list:
+    _before_read(c)
     return c.execute("SELECT device, kind, hour, body FROM device_hours WHERE kind IN ('ledger', 'tasks') ORDER BY device").fetchall()
 
 
 def put_hours(c, rows: list) -> None:
     """Write rows (hour, kind, device, body), each over the one with the same key.
     Ghi các dòng (giờ, loại, máy, nội dung), mỗi dòng đè lên dòng cùng khoá."""
-    _upsert(c, "device_hours", ("hour", "kind", "device"), ("body",), rows)
+    if not _hold(c, "hours", rows, {(r[2], "hours:" + r[1]) for r in rows}):
+        _upsert(c, "device_hours", ("hour", "kind", "device"), ("body",), rows)
 
 
 def drop_hours(c, keys: list) -> None:
-    c.executemany("DELETE FROM device_hours WHERE hour = ? AND kind = ? AND device = ?", keys)
+    if not _hold(c, "hours_drop", keys, {(k[2], "hours:" + k[1]) for k in keys}):
+        c.executemany("DELETE FROM device_hours WHERE hour = ? AND kind = ? AND device = ?", keys)
 
 
 def days(c, device: str = None) -> list:
     """Rows (day, device, usd_micro, tokens_in, tokens_out, gemini, chatgpt, gemma) of one computer, or of all of them.
     Các dòng (ngày, máy, usd_micro, tokens_in, tokens_out, gemini, chatgpt, gemma) của một máy, hoặc của mọi máy."""
+    _before_read(c, device, "days")
     sql = "SELECT day, device, %s FROM device_days" % ", ".join(DAY_COLUMNS)
     if device is None:
         return c.execute(sql).fetchall()
@@ -130,25 +242,31 @@ def days(c, device: str = None) -> list:
 def put_days(c, rows: list) -> None:
     """Write rows (day, device, then the numbers in DAY_COLUMNS order), each over the one of the same day and computer.
     Ghi các dòng (ngày, máy, rồi các con số theo thứ tự DAY_COLUMNS), mỗi dòng đè lên dòng cùng ngày cùng máy."""
-    _upsert(c, "device_days", ("day", "device"), DAY_COLUMNS, rows)
+    if not _hold(c, "days", rows, {(r[1], "days") for r in rows}):
+        _upsert(c, "device_days", ("day", "device"), DAY_COLUMNS, rows)
 
 
 def drop_days(c, keys: list) -> None:
-    c.executemany("DELETE FROM device_days WHERE day = ? AND device = ?", keys)
+    if not _hold(c, "days_drop", keys, {(k[1], "days") for k in keys}):
+        c.executemany("DELETE FROM device_days WHERE day = ? AND device = ?", keys)
 
 
 def drop_days_of(c, device: str) -> None:
-    c.execute("DELETE FROM device_days WHERE device = ?", (device,))
+    if not _hold(c, "days_of", [(device,)], {(device, "days")}):
+        c.execute("DELETE FROM device_days WHERE device = ?", (device,))
 
 
 def clear_days(c) -> None:
+    _before_read(c)
     c.execute("DELETE FROM device_days")
 
 
 def days_zone(c) -> str:
+    _before_read(c)
     r = c.execute("SELECT value FROM meta WHERE key = ?", (DAYS_ZONE_KEY,)).fetchone()
     return r[0] if r else ""
 
 
 def set_days_zone(c, seconds: int) -> None:
+    _before_read(c)
     _upsert(c, "meta", ("key",), ("value",), [(DAYS_ZONE_KEY, str(seconds))])

@@ -15,7 +15,7 @@ Công ty nhỏ không cần trang này: máy chủ Python tự nhận mọi lầ
 
 - Tên và tài khoản máy tự khai bị bỏ; Python điền chúng từ người mà máy đã ghi danh (`identities`).
 - Bộ nhận không bao giờ tin `X-Forwarded-For` do máy gửi: nó đưa cho Python địa chỉ của socket.
-- Biên bản giao việc cho trợ lý, lịch sử IP và lịch sử của bảng do Python ghi, như với một lần gửi ở `/ingest`.
+- Biên bản giao việc cho trợ lý, lịch sử IP và lịch sử của bảng do Python ghi, như với một lần gửi ở `/ingest`. Bảng (`/data`) được giữ 5 giây thay vì 0,5 (`VIEW_CACHE_SECONDS`), một lần dựng dùng cho mọi vai, và bảng cũ vẫn được trả trong lúc dựng bảng kế, miễn là nó chưa cũ quá 15 giây, nên tên hay chi nhánh mới hiện muộn 5 tới 7 giây; số liệu thì tới trực tiếp từ bộ nhận. Lịch sử của bảng do vòng xem mọi người mỗi 30 giây ghi, không ghi sau mỗi lô, nên một thay đổi vào lịch sử muộn tới 30 giây (`RECEIVER_FAST_APPLY=0` thì lại ghi sau mỗi lô). Máy chỉ đổi trạng thái thì dòng `devices` của nó được ghi muộn tới một phút (mỗi 30 giây, và khi dừng dịch vụ), nên sau `kill -9` bảng có thể chậm một phút về việc các máy đang làm, không bao giờ về máy là của ai hay đã tiêu bao nhiêu; mọi máy gửi lại trong vài giây.
 - Máy được Python xin cả sổ (`needFull`), lần gửi tới sai thứ tự, hay cả sổ gửi lại trong vòng một giờ được xử lý đúng như Python làm (`save_ingest`).
 - Câu trả lời một lần gửi có đúng các trường như của Python, với `boot` riêng của bộ nhận: các dòng chưa ghi bị mất nếu bộ nhận dừng, và máy thấy `boot` đổi thì gửi lại các giờ gần nhất.
 
@@ -112,6 +112,8 @@ Khi có `RECEIVER_LIVE_URL`, các trang của bảng cho phép địa chỉ đó
 | `RECEIVER_WEBHOOK` | Máy chủ Python trên máy này; chỉ nhận `http://127.0.0.1:…`, `http://[::1]:…` hoặc `http://localhost:…` |
 | `RECEIVER_BATCH_MS` | Bao lâu các dòng được gửi cho Python một lần: 1000 (mặc định) cho tổ chức nhỏ, 5000 tới 10000 cho tổ chức lớn |
 
+Khi Python chậm hơn tốc độ các máy gửi, nhịp tự giãn ra: lô sau chỉ đi khi Python đã trả lời lô trước, các lần gửi của một máy trong lúc đó chờ thành một dòng, và các lô vẫn theo thứ tự mã máy. `GET /health` của bộ nhận cho biết bao nhiêu dòng đang chờ (`queued`), dòng chờ lâu nhất đã chờ bao lâu (`waitSeconds`), và `behind: true` khi quá 60 giây, đồng thời ghi một lần vào nhật ký. Số trên các bảng vẫn tới trực tiếp từ bộ nhận.
+
 Bộ nhận chỉ nói HTTP/1.1 (HTTP/2 tốn hơn ở đây), chờ phần header của một yêu cầu nhiều nhất 10 giây, đọc thân nhiều nhất 256 KB, và giữ kết nối rảnh 5 phút, lâu hơn một chút so với 4 phút giữa hai lần gửi của máy đang rảnh.
 
 ## 5. Dựng lên
@@ -148,6 +150,7 @@ Từ lúc đó một bí mật mới ký mọi khoá, và mọi máy nhận kho�
 
 - Bộ nhận chưa kiểm danh sách máy được gửi từ mọi mạng (`OFFICE_NETS`, [INSTALL.vi.md](INSTALL.vi.md#gửi-từ-ngoài-văn-phòng-máy-được-chọn)): các lô nó ghi qua `/internal/rows` không đi qua bước kiểm của webhook. Giữ địa chỉ của bộ nhận chỉ tới được từ các mạng văn phòng.
 - 100.000 máy có ở dưới 5 giây không thì chưa đo: bài đo trên Linux làm ở cuối đợt này.
+- Khi Python ghi chậm hơn tốc độ các máy gửi, các dòng chờ ở bộ nhận, mỗi máy một dòng, và không mất gì; quá một phút thì `/health` của bộ nhận báo `behind` và trang Quản trị hiện dòng vàng. Nếu kéo dài, máy chủ quá nhỏ so với tổ chức: đo trong máy ảo 4 vCPU, Python ghi khoảng 10.000 dòng mỗi giây khi không có bảng nào mở và khoảng một nửa khi các bảng đọc `/data` liên tục.
 - Bảng người được dựng từ cả bảng mỗi lần bộ nhận hỏi: chi phí của việc đó ở 100.000 máy được đo cùng phần còn lại trên Linux.
 - Luồng số trực tiếp cộng mọi máy mỗi giây một lần, thay vì giữ tổng luôn mới theo từng lần gửi tới. Đo trên Mac chip M ở 100.000 máy, 500 người một chi nhánh: một lượt cộng 83 ms; một giây mà mọi chi nhánh lẫn cả tổ chức đều có bảng đọc mất tổng cộng 175 ms, một nửa là làm JSON của các dòng. Bài đo trên Linux (4 vCPU) quyết có phải giữ tổng theo từng lần gửi hay không.
 - Ở trang cả tổ chức không kèm người, biểu đồ 24 giờ, mô hình và hạn mức để trống: chúng được đếm theo người, nên hiện ở trang của từng chi nhánh.

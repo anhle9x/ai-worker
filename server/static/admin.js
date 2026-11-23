@@ -948,6 +948,11 @@
     backLink.href = '/'
     head.append(o('h1', '', tx('Admin')), o('span', '', viewerName), I18n.switcher(), backLink)
     const column = o('div', 'qt-column')
+    // the Go receiver is behind: the newest numbers reach the tables more than a minute late (the boards still get them live)
+    // bộ nhận Go đang chậm: số mới nhất vào bảng muộn hơn một phút (các bảng vẫn nhận chúng trực tiếp)
+    if (snapshot.receiver && snapshot.receiver.behind) {
+      column.append(o('div', 'qt-hint', tx('The Go receiver is behind: the newest numbers reached the tables {n} seconds after they were sent, more than a minute. The boards still show them live, and nothing is lost: the tables catch up once this server is less busy. If it lasts, see docs/RECEIVER.md.', { n: snapshot.receiver.waitSeconds })))
+    }
     column.append(accountsSection(), tvSection(), computersSection(), ...(snapshot.projectsOn ? [projectsSection()] : []), ...(snapshot.mcpCalls.length ? [mcpCallsSection()] : []), ...(snapshot.pluginMsi ? [pluginSection()] : []), menubarSection(), locationsSection(), teamSection(), sessionsSection(), ...(snapshot.blocked7d ? [blockedSection()] : []), ...((snapshot.delegations || []).length ? [delegationsSection()] : []), auditSection())
     root.replaceChildren(head, notice, column)
   }

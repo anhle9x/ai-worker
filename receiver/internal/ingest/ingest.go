@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -46,7 +47,10 @@ const (
 	peopleEvery   = 15 * time.Second
 	devicesPage   = 1000
 	maxRetryPause = 30 * time.Second
-	forwardMax    = 16
+	// how long the oldest row may wait for Python before /health says the receiver is behind; rows keep waiting, one per computer
+	// dòng chờ lâu nhất được chờ Python bao lâu trước khi /health báo bộ nhận đang chậm; các dòng vẫn chờ tiếp, mỗi máy một dòng
+	behindAfter = 60 * time.Second
+	forwardMax  = 16
 )
 
 // Policy is the numbered policy document of the Python server (board/receiver.py, Policy.document).
@@ -149,6 +153,10 @@ type Receiver struct {
 	inflight *batch
 	seq      int64
 	wake     chan struct{}
+	// sorted: how many computers at the head of order are in the order of their ids (see take); behind: /health says so
+	// sorted: bao nhiêu máy ở đầu order đang theo thứ tự mã (xem take); behind: /health đang báo chậm
+	sorted int
+	behind bool
 }
 
 // batch is a numbered batch of rows on its way to Python.
@@ -157,6 +165,9 @@ type batch struct {
 	seq     int64
 	rows    []pyjson.Value
 	devices map[string]bool
+	// oldest is when the oldest of its rows began to wait, in milliseconds
+	// oldest là lúc dòng chờ lâu nhất trong lô bắt đầu chờ, tính bằng mili giây
+	oldest int64
 }
 
 // waiting is what waits for Python for one computer: its newest cleaned send, the kind of the row, and the records of work handed to
@@ -170,6 +181,9 @@ type waiting struct {
 	kind, ip    string
 	at          int64
 	delegations []pyjson.Value
+	// since is when this computer began to wait for the next batch, in milliseconds
+	// since là lúc máy này bắt đầu chờ lô kế tiếp, tính bằng mili giây
+	since int64
 }
 
 func (p *waiting) add(d *pyjson.Object, kind, ip string, at int64, delegations []pyjson.Value) {
@@ -621,7 +635,7 @@ func refuse(w http.ResponseWriter, status int, why string) {
 func (r *Receiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	switch {
 	case req.URL.RequestURI() == "/health" && req.Method == http.MethodGet:
-		reply(w, http.StatusOK, map[string]bool{"ok": true})
+		reply(w, http.StatusOK, r.health())
 	case req.URL.RequestURI() == "/ingest" && req.Method == http.MethodPost:
 		r.ingest(w, req)
 	default:
@@ -836,7 +850,7 @@ func (r *Receiver) enqueue(device string, d *pyjson.Object, kind, ip string, at 
 	r.qmu.Lock()
 	p := r.pending[device]
 	if p == nil {
-		p = &waiting{}
+		p = &waiting{since: time.Now().UnixMilli()}
 		r.pending[device] = p
 		r.order = append(r.order, device)
 	}
@@ -899,8 +913,30 @@ func (r *Receiver) queued() int {
 	return n
 }
 
-// take gives the batch to send: the one on its way if an earlier try failed, else a new one of the oldest rows waiting, nil if none.
-// take trả lô cần gửi: lô đang đi nếu lần thử trước hỏng, nếu không thì một lô mới gồm các dòng chờ lâu nhất, nil nếu không có gì.
+// sortWaiting puts the computers waiting in the order of their ids, once at the start of a beat: the batches of that beat then cover
+// ranges of ids one after another, so Python writes neighbouring rows of its tables together and touches far fewer pages (about 14 times
+// fewer bytes written, more than twice the rows a second, at 100,000 computers). Sorting each batch alone would not do it. Each computer
+// waits as one row, so the two sends of one computer never change order; a computer that comes during the beat waits after the ones
+// sorted, so none is pushed back for ever.
+// sortWaiting xếp các máy đang chờ theo mã máy, một lần ở đầu mỗi nhịp: các lô của nhịp đó lần lượt phủ những dải mã liền nhau, nên
+// Python ghi các dòng gần nhau trong bảng cùng lúc và đụng ít trang hơn nhiều (ghi ít hơn khoảng 14 lần, hơn gấp đôi số dòng mỗi giây,
+// ở 100.000 máy). Chỉ sắp từng lô thì không được như vậy. Mỗi máy chờ thành một dòng, nên hai lần gửi của một máy không bao giờ đổi thứ
+// tự; máy tới trong lúc nhịp đang chạy chờ sau các máy đã sắp, nên không máy nào bị đẩy lùi mãi.
+func (r *Receiver) sortWaiting() {
+	r.qmu.Lock()
+	sort.Strings(r.order)
+	r.sorted = len(r.order)
+	r.qmu.Unlock()
+}
+
+// take gives the batch to send: the one on its way if an earlier try failed, else a new one of the first rows waiting, nil if none.
+// The computers come in the order of their ids, a group at a time: when the batch would reach past the ones sorted, every computer
+// that came since is sorted too, behind them. So while Python is behind and the beat stretches, the batches still cover ranges of ids
+// (see sortWaiting), and a computer never waits behind one that came after it was sorted.
+// take trả lô cần gửi: lô đang đi nếu lần thử trước hỏng, nếu không thì một lô mới gồm các dòng đứng đầu hàng chờ, nil nếu không có gì.
+// Các máy đi theo thứ tự mã, từng nhóm một: khi lô sẽ vượt quá phần đã sắp, mọi máy tới từ đó cũng được sắp, phía sau chúng. Nên trong
+// lúc Python chậm và nhịp giãn ra, các lô vẫn phủ những dải mã liền nhau (xem sortWaiting), và không máy nào phải chờ sau một máy tới
+// sau khi nó đã được sắp.
 func (r *Receiver) take() *batch {
 	r.qmu.Lock()
 	defer r.qmu.Unlock()
@@ -912,19 +948,62 @@ func (r *Receiver) take() *batch {
 	if n == 0 && c == 0 {
 		return nil
 	}
+	if r.sorted < n {
+		sort.Strings(r.order[r.sorted:])
+		r.sorted = len(r.order)
+	}
 	rows := make([]pyjson.Value, 0, n+c)
 	devices := make(map[string]bool, n)
+	oldest := time.Now().UnixMilli()
 	for _, device := range r.order[:n] {
 		p := r.pending[device]
 		delete(r.pending, device)
 		devices[device] = true
 		rows = append(rows, row(p.d, p.kind, p.ip, p.at, p.delegations, nil))
+		oldest = min(oldest, p.since)
 	}
 	r.order = append([]string(nil), r.order[n:]...)
+	r.sorted = max(0, r.sorted-n)
 	rows = append(rows, r.checks[:c]...)
 	r.checks = append([]pyjson.Value(nil), r.checks[c:]...)
-	r.inflight = &batch{seq: r.seq + 1, rows: rows, devices: devices}
+	r.inflight = &batch{seq: r.seq + 1, rows: rows, devices: devices, oldest: oldest}
 	return r.inflight
+}
+
+// Waited is how many rows wait for Python (queued) and how long the oldest of them has waited, a batch on its way included.
+// Waited là số dòng đang chờ Python (queued) và dòng chờ lâu nhất đã chờ bao lâu, kể cả lô đang đi.
+func (r *Receiver) Waited() (int, time.Duration) {
+	now := time.Now().UnixMilli()
+	r.qmu.Lock()
+	defer r.qmu.Unlock()
+	n, oldest := len(r.pending)+len(r.checks), now
+	if r.inflight != nil {
+		n += len(r.inflight.rows)
+		oldest = min(oldest, r.inflight.oldest)
+	}
+	for _, p := range r.pending {
+		oldest = min(oldest, p.since)
+	}
+	return n, time.Duration(now-oldest) * time.Millisecond
+}
+
+// health is what GET /health says: the rows waiting for Python, how long the oldest has waited, and whether that is past behindAfter.
+// Going past it, and coming back, is logged once.
+// health là thứ GET /health nói: số dòng đang chờ Python, dòng chờ lâu nhất đã chờ bao lâu, và đã quá behindAfter chưa.
+// Vượt quá mức đó, và trở lại dưới mức đó, được ghi nhật ký một lần.
+func (r *Receiver) health() map[string]any {
+	n, waited := r.Waited()
+	behind := waited > behindAfter
+	r.qmu.Lock()
+	changed := behind != r.behind
+	r.behind = behind
+	r.qmu.Unlock()
+	if changed && behind {
+		log.Printf("receiver: behind: the oldest of %d rows has waited %s for Python", n, waited.Round(time.Second))
+	} else if changed {
+		log.Printf("receiver: caught up: %d rows wait, the oldest %s", n, waited.Round(time.Second))
+	}
+	return map[string]any{"ok": true, "queued": n, "waitSeconds": int64(waited / time.Second), "behind": behind}
 }
 
 // Flush sends one batch to Python and waits for its seq; on an error the same batch, with the same seq, goes again next time.
@@ -940,6 +1019,9 @@ func (r *Receiver) Flush(ctx context.Context) (int, error) {
 	out.Set("boot", r.Boot)
 	out.Set("seq", pyjson.IntN(b.seq))
 	out.Set("rows", b.rows)
+	// how long the oldest row of the batch has waited, so the Admin page of Python can say when the receiver is behind
+	// dòng chờ lâu nhất của lô đã chờ bao lâu, để trang Quản trị của Python báo được khi bộ nhận đang chậm
+	out.Set("waitMs", pyjson.IntN(max(0, time.Now().UnixMilli()-b.oldest)))
 	resp, err := r.internal(ctx, http.MethodPost, "/internal/rows", pyjson.Encode(out))
 	if err != nil {
 		return 0, err
@@ -1070,6 +1152,9 @@ func (r *Receiver) Run(ctx context.Context) {
 		if err := r.Resync(ctx); err != nil && ctx.Err() == nil {
 			log.Printf("receiver: reading again from Python: %v", err)
 		}
+		// logs once when the oldest row goes past behindAfter, and once when it comes back
+		// ghi nhật ký một lần khi dòng chờ lâu nhất vượt behindAfter, và một lần khi trở lại
+		r.health()
 	}
 }
 

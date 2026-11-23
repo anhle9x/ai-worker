@@ -42,7 +42,7 @@ import threading
 import time
 from collections import deque
 
-from board import settings
+from board import devicestore, settings
 from board.db import data_db
 from board.devicekeys import DEVICE_KEYS
 from board.login import SESSIONS
@@ -121,6 +121,9 @@ class Policy:
         # các dòng mà lớp đối chiếu thứ ba thấy bộ nhận làm sạch khác, kể từ khi máy chủ này khởi động
         self.mismatches = 0
         self.checked = 0
+        # (seconds the oldest row of the last batch waited at the receiver, when that batch came), for the Admin page (lag)
+        # (số giây dòng chờ lâu nhất của lô gần nhất đã chờ ở bộ nhận, lúc lô đó tới), cho trang Quản trị (lag)
+        self.waited = None
 
     def note_written(self, device: str) -> None:
         if not settings.RECEIVER_ENABLED:
@@ -272,22 +275,82 @@ def apply_rows(batch, now: float):
             and isinstance(batch.get("seq"), int) and not isinstance(batch.get("seq"), bool) and isinstance(batch.get("rows"), list)):
         return None
     source, seq = (batch["src"][:64], batch["boot"][:64]), batch["seq"]
+    wait = batch.get("waitMs")
     with POLICY.lock:
+        if isinstance(wait, int) and not isinstance(wait, bool) and 0 <= wait < 10 ** 10:
+            POLICY.waited = (wait / 1000, now)
         done = POLICY.batches.get(source, -1)
     if seq <= done:
         return {"ok": True, "seq": seq, "needFull": [], "unknown": [], "incomplete": [], "bad": []}
+    with DEVICES.lock:
+        result = _apply_fast(batch["rows"], now, INGEST_GATE.identities) if settings.RECEIVER_FAST_APPLY else None
+        out, people, delegations = result or _apply_one_by_one(batch["rows"], now, INGEST_GATE.identities)
+    with POLICY.lock:
+        POLICY.batches[source] = max(seq, POLICY.batches.get(source, -1))
+    # the receiver takes only sends made with a computer's own key: each computer written here has used it
+    # bộ nhận chỉ nhận lần gửi bằng khoá riêng của máy: mỗi máy được ghi ở đây đều đã dùng khoá đó
+    skipped = set(out["unknown"]) | set(out["bad"])
+    for row in batch["rows"]:
+        k = row.get("k") if isinstance(row, dict) else None
+        if isinstance(k, list) and row.get("kind") in ("v1", "hours", "full") and len(k) == 2 and k[0] == "m" and isinstance(k[1], str) \
+                and k[1] in INGEST_GATE.identities and k[1] not in skipped:
+            DEVICE_KEYS.note_used(k[1], None, now)
+    for d, records in delegations:
+        AUDIT_LOG.write_delegations(d["device"], d.get("name", ""), d.get("account", ""), records)
+    # the history of the board: with RECEIVER_FAST_APPLY it is left to history_loop, which looks at everyone every 30 seconds, so a
+    # batch no longer builds again the row of each person it wrote; a change comes into the history up to 30 seconds later, and a
+    # state that lasts less than that may not come in at all
+    # lịch sử của bảng: với RECEIVER_FAST_APPLY việc này để cho history_loop, vòng xem mọi người mỗi 30 giây, nên một lô không còn
+    # dựng lại dòng của từng người nó vừa ghi; một thay đổi vào lịch sử muộn tới 30 giây, và trạng thái kéo dài ngắn hơn thế có thể
+    # không vào lịch sử
+    if not settings.RECEIVER_FAST_APPLY:
+        for person in people:
+            record_history(person)
+    return dict({"ok": True, "seq": seq}, **{k: sorted(set(v)) for k, v in out.items()})
+
+
+def _apply_fast(rows: list, now: float, identities: dict):
+    """Write a batch in one transaction without a savepoint for each row, the writes held and written together (devicestore.held).
+    If any row or the writing fails, the transaction and the cache are taken back whole and None is returned: then the batch is
+    written again row by row (_apply_one_by_one), which takes back and names the row that fails, as before. Under DEVICES.lock.
+    Ghi một lô trong một giao dịch, không có điểm lưu cho từng dòng, các lệnh ghi được giữ và ghi chung (devicestore.held).
+    Nếu một dòng hay lần ghi hỏng, giao dịch và bộ nhớ đệm bị rút lại cả và trả về None: khi đó lô được ghi lại từng dòng
+    (_apply_one_by_one), cách này rút lại và nêu tên dòng hỏng như trước. Gọi khi giữ DEVICES.lock."""
+    out = {"needFull": [], "unknown": [], "incomplete": [], "bad": []}
+    people, delegations = set(), []
+    devices = {r["k"][1] for r in rows if isinstance(r, dict) and isinstance(r.get("k"), list) and len(r["k"]) == 2 and isinstance(r["k"][1], str)}
+    kept = DEVICES.keep(devices)
+    with POLICY.lock:
+        counts = POLICY.checked, POLICY.mismatches
+    try:
+        with data_db().tx() as c, devicestore.held(c) as held, DEVICES.pin():
+            for row in rows:
+                held.next_row()
+                apply_row(row, now, identities, out, people, delegations)
+    except Exception as e:
+        sys.stderr.write("receiver: batch written again row by row: %r\n" % (e,))
+        DEVICES.put_back(kept)
+        with POLICY.lock:
+            POLICY.checked, POLICY.mismatches = counts
+        return None
+    return out, people, delegations
+
+
+def _apply_one_by_one(rows: list, now: float, identities: dict) -> tuple:
+    """Write a batch in one transaction, each row with a savepoint of its own. Under DEVICES.lock.
+    Ghi một lô trong một giao dịch, mỗi dòng một điểm lưu riêng. Gọi khi giữ DEVICES.lock."""
     out = {"needFull": [], "unknown": [], "incomplete": [], "bad": []}
     people, delegations = set(), []
     try:
-        with DEVICES.lock, data_db().tx() as c:
-            for i, row in enumerate(batch["rows"]):
+        with data_db().tx() as c:
+            for i, row in enumerate(rows):
                 # each row has a savepoint of its own: a row that fails is taken back alone and named in the answer, so one bad row
                 # never holds up the batch, and the receiver never sends the same batch for ever
                 # mỗi dòng có một điểm lưu riêng: dòng hỏng được rút lại một mình và nêu tên trong câu trả lời, để một dòng hỏng
                 # không bao giờ chặn cả lô, và bộ nhận không phải gửi lại mãi cùng một lô
                 c.execute("SAVEPOINT receiver_row")
                 try:
-                    apply_row(row, now, INGEST_GATE.identities, out, people, delegations)
+                    apply_row(row, now, identities, out, people, delegations)
                     c.execute("RELEASE receiver_row")
                 except Exception as e:
                     c.execute("ROLLBACK TO receiver_row")
@@ -302,21 +365,29 @@ def apply_rows(batch, now: float):
         # cả lô hỏng (đĩa, lúc chốt giao dịch): những gì bộ nhớ đệm đã nhận được đọc lại từ bảng
         DEVICES.forget()
         raise
+    return out, people, delegations
+
+
+# past this many seconds of waiting at the receiver, the Admin page says the receiver is behind (its /health says so too)
+# chờ ở bộ nhận quá bấy nhiêu giây thì trang Quản trị báo bộ nhận đang chậm (/health của nó cũng báo)
+BEHIND_SECONDS = 60
+# a batch older than this says nothing any more about now: no computer sent since, or the receiver is stopped
+# lô cũ hơn mức này không còn nói gì về lúc này: không máy nào gửi từ đó, hoặc bộ nhận đã dừng
+WAITED_KEEP_SECONDS = 300
+
+
+def lag(now: float):
+    """For the Admin page with the receiver: how long the oldest row of the last batch waited at the receiver, and whether that is past
+    BEHIND_SECONDS; None without the receiver or without a batch in the last WAITED_KEEP_SECONDS.
+    Cho trang Quản trị khi có bộ nhận: dòng chờ lâu nhất của lô gần nhất đã chờ ở bộ nhận bao lâu, và đã quá BEHIND_SECONDS chưa;
+    None khi không có bộ nhận hoặc không có lô nào trong WAITED_KEEP_SECONDS gần nhất."""
+    if not settings.RECEIVER_ENABLED:
+        return None
     with POLICY.lock:
-        POLICY.batches[source] = max(seq, POLICY.batches.get(source, -1))
-    # the receiver takes only sends made with a computer's own key: each computer written here has used it
-    # bộ nhận chỉ nhận lần gửi bằng khoá riêng của máy: mỗi máy được ghi ở đây đều đã dùng khoá đó
-    skipped = set(out["unknown"]) | set(out["bad"])
-    for row in batch["rows"]:
-        k = row.get("k") if isinstance(row, dict) else None
-        if isinstance(k, list) and row.get("kind") in ("v1", "hours", "full") and len(k) == 2 and k[0] == "m" and isinstance(k[1], str) \
-                and k[1] in INGEST_GATE.identities and k[1] not in skipped:
-            DEVICE_KEYS.note_used(k[1], None, now)
-    for d, records in delegations:
-        AUDIT_LOG.write_delegations(d["device"], d.get("name", ""), d.get("account", ""), records)
-    for person in people:
-        record_history(person)
-    return dict({"ok": True, "seq": seq}, **{k: sorted(set(v)) for k, v in out.items()})
+        waited = POLICY.waited
+    if waited is None or not 0 <= now - waited[1] < WAITED_KEEP_SECONDS:
+        return None
+    return {"waitSeconds": int(waited[0]), "behind": waited[0] > BEHIND_SECONDS}
 
 
 def apply_row(row, now: float, identities: dict, out: dict, people: set, delegations: list) -> None:

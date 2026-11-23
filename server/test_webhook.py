@@ -5041,6 +5041,86 @@ class DeviceCacheAndViews(unittest.TestCase):
         views.VIEWS.view(security.WALL, t)["reload"] = True
         self.assertNotIn("reload", views.VIEWS.view(security.WALL, t))
 
+    def test_with_the_receiver_one_build_serves_every_role_and_the_old_view_is_given_while_the_next_is_built(self):
+        os.environ["VIEW_CACHE_SECONDS"] = ""
+        built, real = [], views._raw_data
+
+        def counting(now):
+            built.append(now)
+            return real(now)
+        views._raw_data = counting
+        was = settings.RECEIVER_ENABLED
+        settings.RECEIVER_ENABLED = True
+        try:
+            cache = views.ViewCache()
+            self.assertEqual(cache.seconds(), 5)
+            t = time.time()
+            first = {role: cache.json(role, t) for role in (security.ADMIN, security.VIEWER, security.WALL)}
+            self.assertEqual(len(built), 1)
+            self.assertIn(EMAIL.encode(), first[security.ADMIN])
+            self.assertNotIn(EMAIL.encode(), first[security.WALL])
+            self.assertEqual(cache.json(security.WALL, t + 4), first[security.WALL])
+            self.assertEqual(len(built), 1)
+            # past its time: the same bytes at once, and a thread builds the next view, with the JSON of every role asked before
+            # quá hạn: trả ngay đúng chuỗi byte cũ, và một luồng dựng khung nhìn kế, kèm JSON của mọi vai đã được hỏi
+            self.assertIs(cache.json(security.WALL, t + 6), first[security.WALL])
+            for _ in range(200):
+                if not cache.building:
+                    break
+                time.sleep(0.05)
+            self.assertFalse(cache.building)
+            self.assertEqual(len(built), 2)
+            self.assertTrue(all(cache.kept["entries"][(role, False)]["json"] is not None for role in first))
+            later = cache.json(security.WALL, cache.kept["at"])
+            self.assertIsNot(later, first[security.WALL])
+            self.assertEqual(json.loads(later)["role"], security.WALL)
+            self.assertEqual(len(built), 2)
+            # after a quiet while the old view is not given: the request builds a new one at once, as the first one did
+            # sau một lúc yên ắng không trả khung nhìn cũ: yêu cầu dựng bản mới ngay, như yêu cầu đầu tiên
+            quiet = cache.kept["at"] + 60
+            fresh = cache.json(security.WALL, quiet)
+            self.assertEqual(len(built), 3)
+            self.assertEqual(built[-1], quiet)
+            self.assertEqual(cache.kept["at"], quiet)
+            self.assertFalse(cache.building)
+            self.assertEqual(json.loads(fresh)["updatedAt"], int(quiet * 1000))
+        finally:
+            views._raw_data = real
+            settings.RECEIVER_ENABLED = was
+
+    def test_the_admin_page_says_when_the_receiver_is_behind(self):
+        from board import receiver
+        was = settings.RECEIVER_ENABLED
+        settings.RECEIVER_ENABLED = True
+        try:
+            receiver.POLICY.waited = None
+            now = time.time()
+            self.assertIsNone(receiver.lag(now))
+            batch = {"src": "go-lag", "boot": "b-%f" % now, "seq": 1, "rows": [], "waitMs": 4000}
+            receiver.apply_rows(batch, now)
+            self.assertEqual(receiver.lag(now), {"waitSeconds": 4, "behind": False})
+            receiver.apply_rows(dict(batch, seq=2, waitMs=75_500), now)
+            self.assertEqual(views.admin_data(now, "", "")["receiver"], {"waitSeconds": 75, "behind": True})
+            # an old batch says nothing about now; a value that is not a whole number of milliseconds is left out
+            # lô cũ không nói gì về lúc này; giá trị không phải số nguyên mili giây thì bỏ qua
+            self.assertIsNone(receiver.lag(now + receiver.WAITED_KEEP_SECONDS + 1))
+            receiver.apply_rows(dict(batch, seq=3, waitMs="lots"), now + 1)
+            self.assertEqual(receiver.lag(now + 1)["waitSeconds"], 75)
+            settings.RECEIVER_ENABLED = False
+            self.assertIsNone(views.admin_data(now, "", "")["receiver"])
+        finally:
+            settings.RECEIVER_ENABLED = was
+            receiver.POLICY.waited = None
+
+    def test_the_people_split_by_branch_give_each_scope_as_the_filter_does(self):
+        for device, name in zip(self.DEVICES, ("b Second", "A First", "c Third")):
+            self.send(device, name=name, account=name.split()[1].lower() + "@example.com")
+        d = views.role_view(security.ADMIN, time.time())
+        index = views.by_branch(d["people"])
+        for scope in ["org", "branch:"] + ["branch:" + b for b in index]:
+            for page in (0, 1, 7):
+                self.assertEqual(json.dumps(views.scoped_view(dict(d), scope, page, index)), json.dumps(views.scoped_view(dict(d), scope, page)), scope)
+
 
 class BusyServer(unittest.TestCase):
     """A busy server answers sends and people who are not logged in with 503 at once, and still answers people looking at the board.

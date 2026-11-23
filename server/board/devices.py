@@ -30,6 +30,7 @@ from board.settings import (
     MAX_HOURS_PER_DEVICE,
     NEW_DEVICES_PER_IP,
     OFFLINE_SECONDS,
+    RECEIVER_FAST_APPLY,
     REORDER_WINDOW_MS,
 )
 
@@ -234,7 +235,9 @@ def clean_payload(d, now: float):
     """Rebuild what a device sent from a fixed list of fields, types and sizes; None if it is not a device report.
     Runs on /ingest and again when a row is loaded from the table into memory, so one bad row cannot take down the pages for everyone.
     Dựng lại số liệu một máy gửi từ danh sách cố định các trường, kiểu và cỡ; None nếu không phải báo cáo của máy.
-    Chạy ở /ingest và lại chạy khi một dòng được nạp từ bảng vào bộ nhớ, để một dòng xấu không làm sập trang của mọi người."""
+    Chạy ở /ingest và lại chạy khi một dòng được nạp từ bảng vào bộ nhớ, để một dòng xấu không làm sập trang của mọi người.
+    A field added here goes into _clean_again too, at the same place.
+    Trường thêm ở đây cũng phải thêm vào _clean_again, ở cùng chỗ."""
     now_ms = now * 1000
     if not is_valid_payload(d):
         return None
@@ -306,6 +309,45 @@ def clean_payload(d, now: float):
                     entry["resetsAt"] = w["resetsAt"]
                 windows.append(entry)
         out["quota"] = {"readAt": quota["readAt"], "windows": windows}
+    return out
+
+
+# the fields a send of the receiver gets from this server after clean_payload (board/receiver.py, save_ingest), with their limits
+# các trường mà lần gửi của bộ nhận nhận từ máy chủ này sau clean_payload (board/receiver.py, save_ingest), kèm giới hạn
+_SET_AFTER = {"name": 120, "account": 120, "ip": 45}
+
+
+def _clean_again(d: dict, now: float):
+    """clean_payload(d, now) without its hours, for a d that came out of clean_payload and since got only name, account, ip and ipHistory
+    (and its hours): those are cleaned again, every other field is taken as it is, since cleaning a cleaned field gives it back unchanged.
+    The fields come in the same order. server/test_apply_paths.py checks that both give the same.
+    clean_payload(d, now) không kèm sổ giờ, cho d đã ra từ clean_payload và từ đó chỉ được đặt name, account, ip và ipHistory (cùng
+    các giờ của nó): các trường đó được làm sạch lại, mọi trường khác lấy nguyên, vì làm sạch một trường đã sạch cho lại đúng nó.
+    Các trường đi ra cùng thứ tự. server/test_apply_paths.py kiểm hai cách cho cùng kết quả."""
+    if not is_valid_payload(d):
+        return None
+    updated_at = clean_number(d["updatedAt"])
+    if updated_at is None:
+        return None
+    out = {"v": 1, "device": d["device"], "updatedAt": min(updated_at, now * 1000 + 86_400_000)}
+    for field in ("name", "account", "enteredAccount", "lanIp", "ip", "pluginVersion"):
+        text = clean_text(d.get(field), _SET_AFTER[field]) if field in _SET_AFTER else d.get(field)
+        if text:
+            out[field] = text
+    for field in SESSION_COUNTS:
+        out[field] = d[field]
+    for field in ("tools", "hardwareMark"):
+        if field in d:
+            out[field] = d[field]
+    history = []
+    for e in d.get("ipHistory") if isinstance(d.get("ipHistory"), list) else []:
+        if isinstance(e, dict) and clean_text(e.get("ip"), 45) and clean_number(e.get("from")) is not None and clean_number(e.get("to")) is not None:
+            history.append({"ip": clean_text(e["ip"], 45), "from": e["from"], "to": e["to"]})
+    if history:
+        out["ipHistory"] = history[:IP_HISTORY_MAX]
+    for field in ("delegating", "models", "subagents", "assistants", "quota"):
+        if field in d:
+            out[field] = d[field]
     return out
 
 
@@ -490,6 +532,20 @@ def _steady(m: dict) -> tuple:
     return rest, [(e.get("ip"), e.get("from")) for e in m.get("ipHistory") or ()]
 
 
+# the fields that say who and where a computer is: a change of them is written to its devices row at once, with the receiver too
+# (see DeviceCache._write_state, late)
+# các trường cho biết máy là của ai và ở đâu: khi chúng đổi thì ghi ngay vào dòng devices, kể cả khi có bộ nhận
+# (xem DeviceCache._write_state, late)
+IDENTITY_FIELDS = ("device", "name", "account", "enteredAccount", "lanIp", "ip", "pluginVersion", "hardwareMark", "assistants")
+# how often state_loop writes the devices rows held back (see late)
+# state_loop ghi các dòng devices đang để sau bao lâu một lần (xem late)
+LATE_WRITE_SECONDS = 30
+
+
+def _identity(m: dict) -> tuple:
+    return tuple(m.get(k) for k in IDENTITY_FIELDS), [(e.get("ip"), e.get("from")) for e in m.get("ipHistory") or ()]
+
+
 def write_book(c, device: str, book: dict, old_days=None) -> tuple:
     """Make device_hours and device_days hold exactly this book for one computer, inside the caller's transaction: only the hours that
     differ from the rows there are written, only the days that change. old_days is the days kept in memory, or None to write them all
@@ -518,6 +574,56 @@ def write_book(c, device: str, book: dict, old_days=None) -> tuple:
     days.update(fresh)
     _write_days(c, device, touched, fresh, old_days)
     return days
+
+
+def _hour_numbers(kind: str, body: str) -> tuple:
+    """What one stored ledger or tasks hour adds to its day, as _add_up adds it: (usdMicro, tokensIn, tokensOut, gemini, chatgpt, gemma),
+    whole numbers. None if the body is not a table of JSON.
+    Phần một giờ ledger hay tasks đã lưu cộng vào ngày của nó, đúng như _add_up cộng: (usdMicro, tokensIn, tokensOut, gemini, chatgpt,
+    gemma), số nguyên. None nếu nội dung không phải một bảng JSON."""
+    v = json.loads(body)
+    if not isinstance(v, dict):
+        return None
+    if kind == "ledger":
+        return (ledger_micro(v), int(v.get("input") or 0) + int(v.get("cacheRead") or 0) + int(v.get("cacheWrite") or 0),
+                int(v.get("output") or 0), 0, 0, 0)
+    return (0, 0, 0) + tuple(_counts(v))
+
+
+_DAY_FIELDS = ("usdMicro", "tokensIn", "tokensOut", "gemini", "chatgpt", "gemma")
+
+
+def _days_by_difference(days: dict, touched: set, changed: list):
+    """The touched days moved by the hours that changed: each day kept, less what each hour held before, plus what it holds now, in
+    whole numbers, so the result is what _add_up gives on the hours of those days. changed is [(kind, hour, body before or None,
+    body now)], only hours written over or added. None when the result cannot be sure (a day not kept, a body that does not read,
+    a number below zero): then the days are added up again from their hours.
+    Các ngày bị chạm, dịch đi bằng các giờ đã đổi: mỗi ngày đang giữ, trừ những gì mỗi giờ có trước đó, cộng những gì nó có bây giờ,
+    bằng số nguyên, để kết quả đúng như _add_up cho trên các giờ của các ngày đó. changed là [(loại, giờ, nội dung trước hoặc None,
+    nội dung giờ)], chỉ các giờ được ghi đè hay thêm. None khi kết quả không chắc chắn (ngày không có trong bộ nhớ, nội dung không đọc
+    được, số dưới không): khi đó các ngày được cộng lại từ các giờ của chúng."""
+    try:
+        sums = {}
+        for kind, h, before, now in changed:
+            day = local_day_of_hour(h)
+            if day not in touched or day not in days:
+                return None
+            r = sums.get(day)
+            if r is None:
+                r = sums[day] = [days[day][k] for k in _DAY_FIELDS]
+                if not all(isinstance(x, int) and not isinstance(x, bool) for x in r):
+                    return None
+            new = _hour_numbers(kind, now)
+            old = _hour_numbers(kind, before) if before is not None else (0,) * 6
+            if new is None or old is None:
+                return None
+            for i in range(6):
+                r[i] += new[i] - old[i]
+    except (ValueError, RecursionError, TypeError, OverflowError, KeyError):
+        return None
+    if set(sums) != touched or any(x < 0 for r in sums.values() for x in r):
+        return None
+    return {day: _day_numbers(r) for day, r in sums.items()}
 
 
 def _write_days(c, device: str, touched: set, fresh: dict, old_days: dict) -> None:
@@ -580,6 +686,31 @@ class DeviceCache:
         # device -> seen_at of its devices row as last written (see STATE_REWRITE_SECONDS)
         # máy -> seen_at của dòng devices của nó lúc ghi gần nhất (xem STATE_REWRITE_SECONDS)
         self.written = {}
+        # device -> seen_at of a send of the receiver whose devices row is held back: only its state changed since a write less than
+        # STATE_REWRITE_SECONDS ago. state_loop writes them every LATE_WRITE_SECONDS, so after a crash the table is at most about a
+        # minute behind on what the computers are doing, never on who they are or what they spent (the hours are written at once)
+        # máy -> seen_at của một lần gửi qua bộ nhận mà dòng devices đang để sau: chỉ trạng thái đổi kể từ lần ghi cách đây chưa tới
+        # STATE_REWRITE_SECONDS. state_loop ghi chúng mỗi LATE_WRITE_SECONDS, nên sau khi sập bảng chậm nhiều nhất khoảng một phút về
+        # việc các máy đang làm, không bao giờ về máy là của ai hay đã tiêu bao nhiêu (các giờ được ghi ngay)
+        self.late = {}
+        # the database while a batch is written inside its own write transaction (see pin): no other program can write it then
+        # cơ sở dữ liệu trong lúc một lô được ghi bên trong giao dịch ghi của nó (xem pin): khi đó không chương trình nào khác ghi được
+        self.pinned = None
+
+    def pin(self):
+        """For a batch written inside one write transaction (BEGIN IMMEDIATE): look at data_version once, at the start, instead of at
+        each row; while the transaction holds the lock no other program can write. A context manager, under self.lock.
+        Cho một lô ghi bên trong một giao dịch ghi (BEGIN IMMEDIATE): xem data_version một lần, lúc đầu, thay vì ở mỗi dòng; trong lúc
+        giao dịch giữ khoá không chương trình nào khác ghi được. Là một trình quản lý ngữ cảnh, gọi khi giữ self.lock."""
+        cache = self
+
+        class _Pin:
+            def __enter__(self):
+                cache.pinned = cache._fresh()
+
+            def __exit__(self, *exc):
+                cache.pinned = None
+        return _Pin()
 
     def _data_version(self, db) -> int:
         return db.rows("PRAGMA data_version")[0][0]
@@ -588,6 +719,8 @@ class DeviceCache:
         """The cache of the current database, loaded again if it is another database or another program wrote to it.
         Bộ nhớ đệm của cơ sở dữ liệu hiện tại, nạp lại nếu đó là cơ sở dữ liệu khác hoặc có chương trình khác đã ghi vào."""
         db = data_db()
+        if self.pinned is not None and db is self.pinned and db is self.db:
+            return db
         if db is not self.db or self._data_version(db) != self.version:
             self._load_all(db)
             self.db, self.version = db, self._data_version(db)
@@ -598,7 +731,7 @@ class DeviceCache:
         device_hours; a computer quiet for longer reads its own.
         Mọi bản ghi, các ngày và các giờ gần đây của nó. Giờ của mấy ngày cuối của mọi máy đến trong một lần đọc phần cuối của
         device_hours; máy im lâu hơn thì đọc riêng của nó."""
-        self.devices, self.people, self.summaries, self.written = {}, {}, {}, {}
+        self.devices, self.people, self.summaries, self.written, self.late = {}, {}, {}, {}, {}
         now = time.time()
         top = int(now // 3600)
         lo_all, blo_all = top - RECENT_HOURS - 24, top - BLOCK_HOURS - 24
@@ -657,34 +790,43 @@ class DeviceCache:
         m = (self.devices.get(device) or (0, None))[1]
         return (m, self.summaries[id(m)][1]) if m else (None, None)
 
-    def _write_state(self, c, d: dict, state: dict, seen_at: int, old, lazy: bool) -> None:
+    def _write_state(self, c, d: dict, state: dict, seen_at: int, old, lazy: bool, late: bool = False) -> None:
         """Write the devices row, unless lazy and nothing but the time changed since a write less than STATE_REWRITE_SECONDS ago.
-        Ghi dòng devices, trừ khi lazy và không gì ngoài thời điểm đã đổi kể từ lần ghi cách đây chưa tới STATE_REWRITE_SECONDS."""
+        late (a send of the receiver, RECEIVER_FAST_APPLY): also held back when only the state changed, not who or where the computer
+        is (IDENTITY_FIELDS); state_loop writes it later (see self.late).
+        Ghi dòng devices, trừ khi lazy và không gì ngoài thời điểm đã đổi kể từ lần ghi cách đây chưa tới STATE_REWRITE_SECONDS.
+        late (lần gửi qua bộ nhận, RECEIVER_FAST_APPLY): cũng để sau khi chỉ trạng thái đổi, không phải máy là của ai hay ở đâu
+        (IDENTITY_FIELDS); state_loop ghi nó sau (xem self.late)."""
         device = d["device"]
+        if late and old is not None and state and seen_at - self.written.get(device, -STATE_REWRITE_SECONDS) < STATE_REWRITE_SECONDS \
+                and _identity(old) == _identity(state):
+            self.late[device] = seen_at
+            return
+        self.late.pop(device, None)
         if lazy and old is not None and seen_at - self.written.get(device, -STATE_REWRITE_SECONDS) < STATE_REWRITE_SECONDS and _steady(old) == _steady(state):
             return
         body = {k: v for k, v in d.items() if k not in HOUR_KINDS}
         devicestore.put_state(c, device, str(d.get("account") or ""), str(d.get("name") or ""), seen_at, dumps(body))
         self.written[device] = seen_at
 
-    def save(self, d: dict, seen_at: int, lazy: bool = False, cleaned: bool = False) -> None:
+    def save(self, d: dict, seen_at: int, lazy: bool = False, cleaned: bool = False, again: bool = False) -> None:
         """Write one device's whole record (its hour book inside it, replacing the one kept) to the tables, then to the cache, under the
         same lock, so a read never sees one without the other. cleaned: d already came out of clean_payload, so its book is not cleaned
-        again. lazy: see STATE_REWRITE_SECONDS.
+        again. lazy: see STATE_REWRITE_SECONDS. again: d is what _clean_again takes, so only the fields set after cleaning are cleaned again.
         Ghi cả bản ghi của một máy (sổ giờ nằm trong đó, thay sổ đang giữ) vào các bảng rồi vào bộ nhớ đệm, dưới cùng một khoá, để lần
         đọc không bao giờ thấy cái này mà thiếu cái kia. cleaned: d đã qua clean_payload, nên sổ của nó không làm sạch lại.
-        lazy: xem STATE_REWRITE_SECONDS."""
+        lazy: xem STATE_REWRITE_SECONDS. again: d là thứ _clean_again nhận, nên chỉ các trường được đặt sau khi làm sạch được làm sạch lại."""
         now = time.time()
         with self.lock:
             db = self._fresh()
             device = d["device"]
             whole = d if cleaned else clean_payload(d, now)
-            state = clean_payload({k: v for k, v in whole.items() if k not in HOUR_KINDS}, now) if whole else None
+            state = (_clean_again if again else clean_payload)({k: v for k, v in whole.items() if k not in HOUR_KINDS}, now) if whole else None
             for kind in HOUR_KINDS if state else ():
                 state.pop(kind, None)
             old, summary = self._kept(device)
             with db.tx() as c:
-                self._write_state(c, d, state, seen_at, old if state else None, lazy and bool(state))
+                self._write_state(c, d, state, seen_at, old if state else None, lazy and bool(state), again)
                 if not whole or not state:
                     devicestore.drop_days_of(c, device)
                     devicestore.drop_hours(c, [(h, k, device) for k, h, _ in devicestore.hours(c, device, HOUR_KINDS)])
@@ -698,18 +840,18 @@ class DeviceCache:
             blocks = {int(h): v for h, v in book.get("blocks", {}).items()}
             self._set(device, seen_at, state, _summary(days, ledger, tasks, blocks, lo, blo))
 
-    def merge(self, d: dict, sent: dict, seen_at: int, lazy: bool = True) -> None:
+    def merge(self, d: dict, sent: dict, seen_at: int, lazy: bool = True, again: bool = False) -> None:
         """Write a record whose hours come as a v: 2 send has them (merge_hours): each hour sent replaces the row of that hour, an empty
         one removes it, the newest MAX_HOURS_PER_DEVICE of each kind are kept; only those hours and the days they fall in are written.
-        d is the record without hours, already cleaned; sent is {kind: {hour: table}}.
+        d is the record without hours, already cleaned; sent is {kind: {hour: table}}. again: as for save.
         Ghi một bản ghi có các giờ đến như gói v: 2 mang chúng (merge_hours): mỗi giờ gửi lên thay dòng của giờ đó, giờ rỗng thì xoá nó,
         mỗi loại giữ MAX_HOURS_PER_DEVICE giờ mới nhất; chỉ các giờ đó và các ngày chúng rơi vào được ghi. d là bản ghi không kèm giờ,
-        đã làm sạch; sent là {loại: {giờ: bảng}}."""
+        đã làm sạch; sent là {loại: {giờ: bảng}}. again: như với save."""
         now = time.time()
         with self.lock:
             db = self._fresh()
             device = d["device"]
-            state = clean_payload({k: v for k, v in d.items() if k not in HOUR_KINDS}, now)
+            state = (_clean_again if again else clean_payload)({k: v for k, v in d.items() if k not in HOUR_KINDS}, now)
             for kind in HOUR_KINDS:
                 state.pop(kind, None)
             old, summary = self._kept(device)
@@ -718,7 +860,7 @@ class DeviceCache:
             tasks = {h: v for h, v in summary["taskHours"]}
             blocks = {int(h): v for h, v in summary["blocks"].items()}
             with db.tx() as c:
-                self._write_state(c, d, state, seen_at, old, lazy)
+                self._write_state(c, d, state, seen_at, old, lazy, again)
                 # the window kept reaches further back than before (the computer's clock went back): read what is missing
                 # cửa sổ đang giữ lùi xa hơn trước (đồng hồ của máy lùi lại): đọc phần còn thiếu
                 more_ledger, more_tasks, more_blocks = _window_values(
@@ -728,6 +870,14 @@ class DeviceCache:
                 tasks.update(more_tasks)
                 blocks.update(more_blocks)
                 touched, added = set(), set()
+                # ledger and tasks hours written over or added, as (kind, hour, body before or None, body now), for the days by difference;
+                # None once an hour of them is removed, and the days are added up again from their hours
+                # các giờ ledger và tasks được ghi đè hay thêm, dạng (loại, giờ, nội dung trước hoặc None, nội dung giờ), cho các ngày tính bằng
+                # hiệu số; thành None khi có một giờ của chúng bị xoá, và các ngày được cộng lại từ các giờ của chúng
+                changed = [] if RECEIVER_FAST_APPLY else None
+                # the hours of each kind once this send is written, newest first, read before writing it (see devicestore.Held)
+                # các giờ của mỗi loại sau khi ghi lần gửi này, mới trước cũ sau, đọc trước khi ghi nó (xem devicestore.Held)
+                numbers = {}
                 for kind in HOUR_KINDS:
                     these = {int(h): table for h, table in (sent.get(kind) or {}).items()}
                     if not these:
@@ -739,12 +889,19 @@ class DeviceCache:
                             body = dumps(table)
                             if was.get(h) != body:
                                 put.append((h, kind, device, body))
+                                if changed is not None and kind != "blocks":
+                                    changed.append((kind, h, was.get(h), body))
                                 self._hold(kind, h, table, ledger, tasks, blocks)
                                 if h not in was:
                                     added.add(kind)
                         elif h in was:
                             drop.append((h, kind, device))
+                            if kind != "blocks":
+                                changed = None
                             self._hold(kind, h, None, ledger, tasks, blocks)
+                    if RECEIVER_FAST_APPLY and kind in added:
+                        have = set(devicestore.hour_numbers(c, device, kind)) | {r[0] for r in put}
+                        numbers[kind] = sorted(have - {r[0] for r in drop}, reverse=True)
                     devicestore.put_hours(c, put)
                     devicestore.drop_hours(c, drop)
                     if kind != "blocks":
@@ -752,18 +909,22 @@ class DeviceCache:
                 # a new hour may push the oldest one out of the book
                 # một giờ mới có thể đẩy giờ cũ nhất ra khỏi sổ
                 for kind in added:
-                    beyond = devicestore.hour_numbers(c, device, kind)[MAX_HOURS_PER_DEVICE:]
+                    beyond = (numbers[kind] if kind in numbers else devicestore.hour_numbers(c, device, kind))[MAX_HOURS_PER_DEVICE:]
                     devicestore.drop_hours(c, [(h, kind, device) for h in beyond])
                     for h in beyond:
                         self._hold(kind, h, None, ledger, tasks, blocks)
                     if kind != "blocks":
                         touched.update(local_day_of_hour(h) for h in beyond)
+                        if beyond:
+                            changed = None
                 days = summary["days"]
                 if touched:
-                    rows = []
-                    for day in touched:
-                        rows += devicestore.hours(c, device, ("ledger", "tasks"), *_day_hours(day))
-                    fresh = _add_up(_rows_to_book(rows), touched)["days"]
+                    fresh = _days_by_difference(days, touched, changed) if changed else None
+                    if fresh is None:
+                        rows = []
+                        for day in touched:
+                            rows += devicestore.hours(c, device, ("ledger", "tasks"), *_day_hours(day))
+                        fresh = _add_up(_rows_to_book(rows), touched)["days"]
                     _write_days(c, device, touched, fresh, days)
                     days = dict((day, v) for day, v in days.items() if day not in touched)
                     days.update(fresh)
@@ -785,6 +946,7 @@ class DeviceCache:
             with db.lock:
                 c = db.conn
                 row = devicestore.state(c, device)
+                self.late.pop(device, None)
                 if not row:
                     self._drop(device)
                     self.written.pop(device, None)
@@ -857,7 +1019,64 @@ class DeviceCache:
                 for k in old:
                     self._drop(k)
                     self.written.pop(k, None)
+                    self.late.pop(k, None)
             return [cleaned for _, cleaned in self.devices.values() if cleaned]
+
+    def keep(self, devices) -> tuple:
+        """What the cache holds for these devices, and the order of every device in memory, for put_back: before a batch is written
+        the fast way, which is taken back whole if a row of it fails (board/receiver.py). Under self.lock.
+        Những gì bộ nhớ đệm giữ cho các máy này, và thứ tự mọi máy trong bộ nhớ, cho put_back: trước khi ghi một lô theo cách nhanh,
+        cách này bị rút lại cả lô nếu một dòng của nó hỏng (board/receiver.py). Gọi khi giữ self.lock."""
+        none = object()
+        kept = {}
+        for device in devices:
+            entry = self.devices.get(device)
+            summary = self.summaries[id(entry[1])][1] if entry and entry[1] else None
+            kept[device] = (entry, summary, self.written.get(device, none), _FULL_AT.get(device, none), self.late.get(device, none))
+        return self.devices, self.db, self.version, list(self.devices), kept, none
+
+    def put_back(self, kept: tuple) -> None:
+        """Make the cache hold again what keep() saw, in the same order. If it was loaded again since, it is loaded again at the next use.
+        Làm bộ nhớ đệm giữ lại đúng những gì keep() đã thấy, cùng thứ tự. Nếu từ đó nó đã được nạp lại, thì nạp lại ở lần dùng sau."""
+        table, db, version, order, saved, none = kept
+        if table is not self.devices or db is not self.db or version != self.version:
+            self.db = None
+            return
+        for device, (entry, summary, written, full_at, late) in saved.items():
+            if entry is None:
+                self._drop(device)
+            else:
+                self._set(device, entry[0], entry[1], summary)
+            for target, value in ((self.written, written), (_FULL_AT, full_at), (self.late, late)):
+                if value is none:
+                    target.pop(device, None)
+                else:
+                    target[device] = value
+        # _set puts a device last; the board lists a person's computers in this order
+        # _set đặt máy xuống cuối; bảng liệt kê các máy của một người theo thứ tự này
+        devices = self.devices
+        self.devices = {d: devices[d] for d in order if d in devices}
+        self.devices.update((d, v) for d, v in devices.items() if d not in self.devices)
+
+    def write_late(self) -> int:
+        """Write the devices rows held back (see self.late) from what the cache holds now; returns how many were written.
+        Ghi các dòng devices đang để sau (xem self.late) từ những gì bộ nhớ đệm đang giữ; trả về số dòng đã ghi."""
+        with self.lock:
+            if not self.late:
+                return 0
+            db = self._fresh()
+            rows = []
+            for device in self.late:
+                seen_at, state = self.devices.get(device) or (0, None)
+                if state:
+                    rows.append((device, str(state.get("account") or ""), str(state.get("name") or ""), seen_at, dumps(state)))
+            with db.tx() as c, devicestore.held(c):
+                for row in rows:
+                    devicestore.put_state(c, *row)
+            for row in rows:
+                self.written[row[0]] = row[3]
+            self.late = {}
+            return len(rows)
 
     def forget(self) -> None:
         """Load again from the tables at the next use: for code that wrote the devices table itself (tests, migrations).
@@ -867,6 +1086,17 @@ class DeviceCache:
 
 
 DEVICES = DeviceCache()
+
+
+def state_loop() -> None:
+    """With the receiver: write the devices rows held back every LATE_WRITE_SECONDS (see DeviceCache.late).
+    Khi có bộ nhận: ghi các dòng devices đang để sau mỗi LATE_WRITE_SECONDS (xem DeviceCache.late)."""
+    while True:
+        time.sleep(LATE_WRITE_SECONDS)
+        try:
+            DEVICES.write_late()
+        except Exception as e:
+            sys.stderr.write("devices: the rows held back were not written: %r\n" % (e,))
 
 
 def read_device(device: str):
@@ -991,10 +1221,13 @@ def save_ingest(d: dict, now: float, kind: str = "v1", decided: bool = False) ->
         # the result is what merge_hours or replace_hours gives on the whole book
         # chỉ ghi các giờ đã đổi, và dòng devices chỉ khi đổi nhiều hơn thời điểm (STATE_REWRITE_SECONDS); kết quả đúng như
         # merge_hours hay replace_hours cho trên cả sổ
+        # decided: d came out of clean_payload in board/receiver.py, and only name, account and ip were set since (see _clean_again)
+        # decided: d đã ra từ clean_payload trong board/receiver.py, và từ đó chỉ name, account và ip được đặt (xem _clean_again)
+        again = decided and RECEIVER_FAST_APPLY
         if kind == "hours":
-            DEVICES.merge(new, {k: d.get(k) or {} for k in HOUR_KINDS}, int(time.time()))
+            DEVICES.merge(new, {k: d.get(k) or {} for k in HOUR_KINDS}, int(time.time()), again=again)
         else:
-            DEVICES.save(dict(new, **replace_hours(d)), int(time.time()), lazy=True, cleaned=True)
+            DEVICES.save(dict(new, **replace_hours(d)), int(time.time()), lazy=True, cleaned=True, again=again)
         return SAVED
 
 

@@ -135,6 +135,7 @@ window.I18n.add({
   '{n} open sessions · {tokens} tokens': '{n} phiên mở · {tokens} token',
   'Open a branch to see the models its people use.': 'Mở một chi nhánh để xem người ở đó dùng mô hình nào.',
   'ASSISTANTS · {list}': 'TRỢ LÝ · {list}',
+  'DELEGATING': 'ĐANG GIAO',
   'Near quota limit': 'Sắp hết hạn mức',
   'resets at {time}': 'làm mới lúc {time}',
   'TODAY': 'HÔM NAY',

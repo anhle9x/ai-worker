@@ -290,6 +290,13 @@ RECEIVER_CHECK_PERCENT = min(max(0.0, float(os.environ.get("RECEIVER_CHECK_PERCE
 # how often at most the table of people the receiver asks for (/internal/people) is built again, in seconds
 # bảng người bộ nhận hỏi (/internal/people) được dựng lại nhiều nhất bao lâu một lần, tính bằng giây
 RECEIVER_PEOPLE_SECONDS = max(0.0, float(os.environ.get("RECEIVER_PEOPLE_SECONDS", "").strip() or "5"))
+# The faster way of writing sends (on by default): a day's totals are moved by the difference of the hours that changed instead of
+# being added up again from every hour of that day, a batch of the receiver is written together without a savepoint for each row, and
+# its history is left to history_loop (up to 30 seconds later). 0 goes back to the old way; server/test_apply_paths.py runs both.
+# Cách ghi nhanh hơn các lần gửi (mặc định bật): tổng của một ngày được dịch đi bằng hiệu số của các giờ đã đổi thay vì cộng lại từ
+# mọi giờ của ngày đó, một lô của bộ nhận được ghi chung, không có điểm lưu cho từng dòng, và lịch sử của nó để cho history_loop ghi
+# (muộn tới 30 giây). 0 là quay về cách cũ; server/test_apply_paths.py chạy cả hai.
+RECEIVER_FAST_APPLY = os.environ.get("RECEIVER_FAST_APPLY", "1").strip() != "0"
 # The live feed of the board from the receiver (docs/RECEIVER.md, section 3): RECEIVER_LIVE_URL is the receiver's address as the boards
 # reach it (https://ingest.example.com), RECEIVER_BOARD_ORIGIN the board's own (https://board.example.com), the only page the receiver lets
 # open the feed. Both, with RECEIVER=1, open POST /sse/ticket and add the receiver to the pages' connect-src; either missing, neither happens.

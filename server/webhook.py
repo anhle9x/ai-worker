@@ -83,6 +83,7 @@ import csv
 import json
 import os
 import re
+import signal
 import socket
 import sqlite3
 import sys
@@ -95,7 +96,7 @@ from urllib.parse import parse_qs, quote, urlparse
 from board import assets, chat, db, mcp, packages, projects, receiver, settings, tgapp
 from board.assets import RELEASE_NAME_RE, STATIC_DIR, STATIC_FILES, has_3d_page
 from board.devicekeys import DEVICE_KEYS, PREFIX
-from board.devices import BOOT_ID, DEVICES, NEED_FULL, SAVED, clean_delegations, clean_payload, key_matches, person_key, refuse_constant, save_ingest, send_kind
+from board.devices import BOOT_ID, DEVICES, NEED_FULL, SAVED, clean_delegations, clean_payload, key_matches, person_key, refuse_constant, save_ingest, send_kind, state_loop
 from board.lang import REQUEST, lang_from, tx
 from board.login import SESSIONS
 from board.telegram import TELEGRAM
@@ -2055,6 +2056,15 @@ if __name__ == "__main__":
     if ADMIN not in count:
         print("No admin yet, nobody can open /admin: sudo bash manage-otp.sh --rescue <name>", flush=True)
     receiver.started()
+    if settings.RECEIVER_ENABLED and settings.RECEIVER_FAST_APPLY:
+        # the devices rows held back are written every 30 seconds, and once more when the service is stopped (systemctl stop, restart)
+        # các dòng devices đang để sau được ghi mỗi 30 giây, và thêm một lần khi dịch vụ bị dừng (systemctl stop, restart)
+        threading.Thread(target=state_loop, daemon=True).start()
+
+        def stop(signum, frame):
+            DEVICES.write_late()
+            raise SystemExit(0)
+        signal.signal(signal.SIGTERM, stop)
     threading.Thread(target=history_loop, daemon=True).start()
     threading.Thread(target=daily_loop, daemon=True).start()
     LimitedServer((BIND_ADDR, PORT), Handler).serve_forever()

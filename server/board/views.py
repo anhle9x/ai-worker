@@ -278,7 +278,12 @@ def role_view(role: str, now: float, every_branch: bool = False) -> dict:
     Số liệu của bảng đúng theo vai: đường duy nhất đưa số liệu người dùng ra ngoài.
     Chi nhánh có mặt trên bảng khi đã có máy ở đó gửi số liệu; nơi mới chỉ khai báo, chưa có máy nào,
     bị bỏ ra trừ khi đặt every_branch (trang Quản trị, nơi vẫn phải quản lý cả những chi nhánh đó)."""
-    raw = _raw_data(now)
+    return _view_of(_raw_data(now), role, every_branch)
+
+
+def _view_of(raw: dict, role: str, every_branch: bool) -> dict:
+    """role_view from numbers _raw_data already gave; raw is not changed, so one build serves every role.
+    role_view từ các số _raw_data đã cho; raw không bị sửa, nên một lần dựng dùng được cho mọi vai."""
     v = role if role in COMMON_FIELDS_BY_ROLE else WALL
     d = _pick(raw, COMMON_FIELDS_BY_ROLE[v])
     d["people"] = [_pick(p, PERSON_FIELDS_BY_ROLE[v]) for p in raw["people"]]
@@ -292,28 +297,92 @@ def role_view(role: str, now: float, every_branch: bool = False) -> dict:
     return d
 
 
+# with the receiver, a view is given while a thread builds the next one only up to this many times the time it is kept
+# khi có bộ nhận, khung nhìn chỉ được trả trong lúc một luồng dựng bản kế khi chưa cũ quá bấy nhiêu lần thời gian giữ nó
+STALE_TIMES = 3
+
+
 class ViewCache:
     """What role_view gave each role in the last few seconds, as a dict and as the JSON sent to browsers: with many boards open
     and many computers sending, the board is built at most once per role in that time instead of once per request.
     VIEW_CACHE_SECONDS sets the time (default 0.5; 0 builds every time). A board asks every second, so a change shows within a few seconds.
     Thứ role_view trả cho mỗi vai trong vài giây gần nhất, dạng dict và dạng JSON gửi trình duyệt: khi nhiều bảng đang mở
     và nhiều máy đang gửi, bảng được dựng nhiều nhất một lần cho mỗi vai trong khoảng đó thay vì mỗi yêu cầu một lần.
-    VIEW_CACHE_SECONDS đặt khoảng đó (mặc định 0,5; 0 thì lần nào cũng dựng). Bảng hỏi mỗi giây, nên một thay đổi hiện trong vài giây."""
+    VIEW_CACHE_SECONDS đặt khoảng đó (mặc định 0,5; 0 thì lần nào cũng dựng). Bảng hỏi mỗi giây, nên một thay đổi hiện trong vài giây.
+    With the Go receiver (RECEIVER=1) the view is kept 5 seconds by default, one build of the numbers serves every role, and a view
+    past its time is still given while a thread builds the next one: the numbers go to the boards live from the receiver, /data only
+    brings the names, so a new name or branch shows 5 to 7 seconds later, and a build never stops the requests or the writes for long.
+    Khi có bộ nhận Go (RECEIVER=1) khung nhìn mặc định giữ 5 giây, một lần dựng số dùng cho mọi vai, và khung nhìn đã quá hạn vẫn
+    được trả trong lúc một luồng dựng bản kế: số tới các bảng trực tiếp từ bộ nhận, /data chỉ còn mang tên, nên tên hay chi nhánh
+    mới hiện muộn 5 tới 7 giây, và một lần dựng không bao giờ chặn lâu các yêu cầu hay các lần ghi."""
 
     def __init__(self):
         self.lock = threading.Lock()
         self.built = {}
+        # with the receiver: the last build, {"at", "raw", "entries": {(role, every_branch): entry}}, and whether a thread builds the next
+        # khi có bộ nhận: lần dựng gần nhất, {"at", "raw", "entries": {(vai, every_branch): mục}}, và có luồng nào đang dựng bản kế không
+        self.kept = None
+        self.building = False
 
     @staticmethod
     def seconds() -> float:
+        default = "5" if settings.RECEIVER_ENABLED else "0.5"
         try:
-            return max(0.0, float(os.environ.get("VIEW_CACHE_SECONDS", "0.5")))
+            return max(0.0, float(os.environ.get("VIEW_CACHE_SECONDS", "").strip() or default))
         except ValueError:
-            return 0.5
+            return float(default)
+
+    def _build(self, now: float, keys, jsons) -> dict:
+        """One build of the numbers, with the views of keys and the JSON of jsons made from it.
+        Một lần dựng các số, kèm khung nhìn của keys và JSON của jsons làm từ đó."""
+        raw = _raw_data(now)
+        entries = {}
+        for key in keys:
+            entries[key] = {"at": now, "view": _view_of(raw, key[0], key[1]), "json": None}
+            if key in jsons:
+                entries[key]["json"] = json.dumps(entries[key]["view"], ensure_ascii=False).encode()
+        return {"at": now, "raw": raw, "entries": entries}
+
+    def _build_next(self, keys, jsons) -> None:
+        try:
+            kept = self._build(time.time(), keys, jsons)
+        except Exception as e:
+            # the view kept is given until a build works
+            # khung nhìn đang giữ vẫn được trả cho tới khi dựng được
+            sys.stderr.write("views: the next board was not built: %r\n" % (e,))
+            kept = None
+        with self.lock:
+            if kept is not None:
+                self.kept = kept
+            self.building = False
+
+    def _entry_kept(self, key: tuple, now: float, keep: float) -> dict:
+        """_entry with the receiver: see the class.
+        _entry khi có bộ nhận: xem lớp."""
+        with self.lock:
+            kept = self.kept
+            if kept is None or not 0 <= now - kept["at"] < STALE_TIMES * keep:
+                # the first request builds in its own thread, as without the receiver, and so does one that comes after a quiet
+                # while: an old view is given only while it is a few seconds old, never one left from minutes ago
+                # yêu cầu đầu tiên tự dựng trong luồng của nó, như khi không có bộ nhận, và yêu cầu tới sau một lúc yên ắng cũng vậy:
+                # khung nhìn cũ chỉ được trả khi nó mới cũ vài giây, không bao giờ là bản còn lại từ nhiều phút trước
+                old = kept["entries"] if kept else {}
+                kept = self.kept = self._build(now, list(old), {k for k, e in old.items() if e["json"] is not None})
+            elif not 0 <= now - kept["at"] < keep and not self.building:
+                self.building = True
+                entries = kept["entries"]
+                threading.Thread(target=self._build_next, args=(list(entries), {k for k, e in entries.items() if e["json"] is not None}),
+                                 daemon=True).start()
+            entry = kept["entries"].get(key)
+            if entry is None:
+                entry = kept["entries"][key] = {"at": kept["at"], "view": _view_of(kept["raw"], key[0], key[1]), "json": None}
+            return entry
 
     def _entry(self, role: str, now: float, every_branch: bool) -> dict:
         v = role if role in COMMON_FIELDS_BY_ROLE else WALL
         key, keep = (v, every_branch), self.seconds()
+        if settings.RECEIVER_ENABLED and keep > 0:
+            return self._entry_kept(key, now, keep)
         # one lock: while one thread builds, the others wait for it and take what it built instead of building again
         # một khoá: khi một luồng đang dựng, các luồng khác chờ rồi lấy thứ nó dựng thay vì dựng lại
         with self.lock:
@@ -337,7 +406,21 @@ class ViewCache:
     def scoped(self, role: str, now: float, scope: str, page: int) -> dict:
         """scoped_view of the cached view of this role.
         scoped_view của khung nhìn đang giữ cho vai này."""
-        return scoped_view(self.view(role, now), scope, page)
+        entry = self._entry(role, now, False)
+        return scoped_view(dict(entry["view"]), scope, page, self._by_branch(entry))
+
+    def _by_branch(self, entry: dict):
+        """With the receiver, the people of a view split by branch once, for every scope of it (see scoped_view); None without it.
+        Khi có bộ nhận, người của một khung nhìn được chia theo chi nhánh một lần, cho mọi phạm vi của nó (xem scoped_view); không có
+        bộ nhận thì None."""
+        if not settings.RECEIVER_ENABLED:
+            return None
+        index = entry.get("byBranch")
+        if index is None:
+            index = by_branch(entry["view"].get("people", []))
+            with self.lock:
+                entry["byBranch"] = index
+        return index
 
     def scoped_json(self, role: str, now: float, scope: str, page: int) -> bytes:
         """scoped as the JSON sent to browsers, built once per scope and page for as long as the view of the role is kept.
@@ -347,7 +430,7 @@ class ViewCache:
             done = entry.setdefault("scoped", {})
             b = done.get((scope, page))
         if b is None:
-            b = json.dumps(scoped_view(dict(entry["view"]), scope, page), ensure_ascii=False).encode()
+            b = json.dumps(scoped_view(dict(entry["view"]), scope, page, self._by_branch(entry)), ensure_ascii=False).encode()
             with self.lock:
                 if len(done) > SCOPES_KEPT:
                     done.clear()
@@ -415,14 +498,31 @@ def branch_totals(d: dict) -> list:
     return [_pick(dict(t, usdToday=round(t["usdToday"], 4)), BRANCH_TOTAL_FIELDS) for t in out]
 
 
-def scoped_view(d: dict, scope: str, page: int) -> dict:
+def _name_key(p: dict) -> str:
+    return str(p.get("name") or "").lower()
+
+
+def by_branch(people: list) -> dict:
+    """The people of a view by branch ("" for none), each list in the order scoped_view gives them.
+    Người của một khung nhìn theo chi nhánh ("" khi không có), mỗi danh sách theo thứ tự scoped_view cho ra."""
+    out = {}
+    for p in people:
+        out.setdefault(p.get("branch") or "", []).append(p)
+    for mine in out.values():
+        mine.sort(key=_name_key)
+    return out
+
+
+def scoped_view(d: dict, scope: str, page: int, index: dict = None) -> dict:
     """A view of role_view (or of ViewCache.view) for one scope (parse_scope); page counts from 0 and is held to the pages there are.
-    Một khung nhìn của role_view (hay của ViewCache.view) cho một phạm vi (parse_scope); trang đếm từ 0 và được giữ trong số trang có."""
+    index is by_branch of its people, when it was made already.
+    Một khung nhìn của role_view (hay của ViewCache.view) cho một phạm vi (parse_scope); trang đếm từ 0 và được giữ trong số trang có.
+    index là by_branch của người trong đó, khi đã làm sẵn."""
     people = d.get("people", [])
     if scope == SCOPE_ORG:
         return dict(d, scope=scope, people=people if len(people) <= PAGE_PEOPLE else [], peopleTotal=len(people), branchTotals=branch_totals(d))
     branch = scope[len(SCOPE_BRANCH):]
-    mine = sorted((p for p in people if (p.get("branch") or "") == branch), key=lambda p: str(p.get("name") or "").lower())
+    mine = index.get(branch, []) if index is not None else sorted((p for p in people if (p.get("branch") or "") == branch), key=_name_key)
     pages = max(1, -(-len(mine) // PAGE_PEOPLE))
     page = min(max(0, page), pages - 1)
     return dict(d, scope=scope, people=mine[page * PAGE_PEOPLE:(page + 1) * PAGE_PEOPLE], page=page, pages=pages, peopleTotal=len(mine),
@@ -646,7 +746,15 @@ def admin_data(now: float, cookie: str, month: str) -> dict:
             "projectsOn": settings.PROJECTS_ENABLED, "projectPrices": project_prices() if settings.PROJECTS_ENABLED else {},
             # projects whose key was revoked but whose numbers are kept: the Admin page offers to delete those numbers
             # dự án đã thu hồi khoá nhưng số liệu còn giữ: trang Quản trị cho xoá số liệu đó
-            "projectsRevoked": revoked_projects() if settings.PROJECTS_ENABLED else []}
+            "projectsRevoked": revoked_projects() if settings.PROJECTS_ENABLED else [],
+            # with the Go receiver: how late the newest numbers reached the tables, so the page says when the receiver is behind
+            # khi có bộ nhận Go: số mới nhất vào bảng muộn bao lâu, để trang báo khi bộ nhận đang chậm
+            "receiver": receiver_lag(now)}
+
+
+def receiver_lag(now: float):
+    from board import receiver
+    return receiver.lag(now)
 
 
 def revoked_projects() -> list:

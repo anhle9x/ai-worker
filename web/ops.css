@@ -53,6 +53,11 @@ body.ops-mode{margin:0}
 .o-row .bar i{display:block;height:100%;border-radius:2px;background:linear-gradient(90deg,var(--o-cyan),var(--o-purple))}
 .o-row .s{grid-column:2/4;font-size:10.5px;color:var(--o-muted);letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .o-row .s.o-subagent{color:var(--o-purple)}
+/* "delegating → GEMINI": a blinking dot and the helper names in their colours, so the row says the same as the graph */
+/* "đang giao → GEMINI": chấm nhấp nháy và tên trợ lý theo màu, để dòng nói đúng như đồ thị */
+.o-row .s.o-delegate{color:var(--o-fg);white-space:normal}
+.o-row .s.o-delegate i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--o-cyan);box-shadow:0 0 6px var(--o-cyan);margin-right:6px;vertical-align:1px;animation:o-blink 1.6s infinite}
+.o-row .s.o-delegate b{font-weight:600}
 .o-row .s.o-tools{display:flex;flex-wrap:wrap;gap:2px 12px;white-space:normal}
 .o-row .s.o-tools b{font-weight:600}
 .o-row .p{display:flex;gap:10px;align-items:baseline;white-space:nowrap}
@@ -124,7 +129,7 @@ body.ops-mode{margin:0}
   .o-title div{letter-spacing:.14em;font-size:13px}.o-title small{display:none}
   .o-right{flex-wrap:wrap}
 }
-@media (prefers-reduced-motion:reduce){.o-pill b,.o-ev div{animation:none}}
+@media (prefers-reduced-motion:reduce){.o-pill b,.o-ev div,.o-row .s.o-delegate i{animation:none}}
 
 /* help text for each panel: the ⓘ button, the floating box shows only on click */
 /* chú thích từng khung: nút ⓘ, bấm mới hiện ô nổi */

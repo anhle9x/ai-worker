@@ -1285,6 +1285,18 @@
           }
           const subagentText = subagentNames(p)
           const subagentTag = subagentText ? o('span', 's o-subagent', tx('ASSISTANTS · {list}', { list: subagentText })) : null
+          // work handed to Gemini, ChatGPT or Gemma right now, the same numbers that light the helper boxes in the graph; each name in its helper's colour
+          // việc đang giao cho Gemini, ChatGPT hay Gemma, cùng số liệu làm sáng ô trợ lý trên đồ thị; mỗi tên tô màu của trợ lý đó
+          const handed = HELPERS.map((h, k) => [h, (p.delegating || [])[k] || 0]).filter(([, n]) => n > 0)
+          const delegateTag = handed.length ? o('span', 's o-delegate') : null
+          if (delegateTag) {
+            delegateTag.append(o('i'), tx('DELEGATING') + ' →')
+            handed.forEach(([h, n], j) => {
+              const t = o('b', '', h.name + (n > 1 ? ` ×${n}` : ''))
+              t.style.color = h.color
+              delegateTag.append(j ? ' · ' : ' ', t)
+            })
+          }
           // the account's Claude plan quota (5 hours / 7 days), compact on the right
           // hạn mức gói Claude của tài khoản (5 giờ / 7 ngày), gọn ở góc phải
           const h = o('span', 'h')
@@ -1301,6 +1313,7 @@
           pc.append(h, o('span', '', p.deviceCount === 0 ? '' : pct + '%'))
           r.append(d, o('span', 'n', p.name), pc, b, s)
           if (toolTag) r.append(toolTag)
+          if (delegateTag) r.append(delegateTag)
           if (subagentTag) r.append(subagentTag)
           r.addEventListener('click', () => selectPerson(i))
           return r
