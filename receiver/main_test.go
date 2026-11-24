@@ -13,6 +13,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"io"
 	"math/big"
 	"net"
@@ -21,6 +22,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -200,4 +202,23 @@ func TestTheFeedOutlivesTheServersTimeouts(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatalf("shutdown: %v", err)
 	}
+}
+
+// TestListenWaitsForThePort: a port still held is tried again until it is free, and given up after the wait.
+// TestListenWaitsForThePort: cổng còn bị giữ được thử lại tới khi trống, và bỏ cuộc sau thời gian chờ.
+func TestListenWaitsForThePort(t *testing.T) {
+	held, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := held.Addr().String()
+	if _, err := listen(addr, 300*time.Millisecond); !errors.Is(err, syscall.EADDRINUSE) {
+		t.Fatalf("held all along: %v", err)
+	}
+	time.AfterFunc(500*time.Millisecond, func() { held.Close() })
+	ln, err := listen(addr, 5*time.Second)
+	if err != nil {
+		t.Fatalf("freed after half a second: %v", err)
+	}
+	ln.Close()
 }

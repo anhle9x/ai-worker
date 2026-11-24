@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"aiworker/receiver/internal/clean"
@@ -52,6 +53,14 @@ const (
 	behindAfter = 60 * time.Second
 	forwardMax  = 16
 )
+
+// startingRetry is the wait told to a computer whose book is not read yet while the books load: 15 to 45 seconds, spread so the
+// computers do not all come back in the same second; loading 100,000 books takes about 15 seconds when Python is free.
+// startingRetry là thời gian chờ báo cho máy chưa có sổ trong lúc nạp sổ: 15 tới 45 giây, rải ra để các máy không cùng quay lại một
+// giây; nạp 100.000 sổ mất khoảng 15 giây khi Python rảnh.
+func startingRetry() string {
+	return strconv.Itoa(15 + mrand.IntN(31))
+}
 
 // Policy is the numbered policy document of the Python server (board/receiver.py, Policy.document).
 // Policy là tài liệu chính sách có số thứ tự của máy chủ Python (board/receiver.py, Policy.document).
@@ -160,6 +169,11 @@ type Receiver struct {
 	// unloaded: the books that could not be read, said once a minute
 	// unloaded: các sổ không đọc được, báo mỗi phút một lần
 	unloaded unloaded
+	// loading: the books are being read a page at a time (Start); a computer whose book is not read yet is told to come back later
+	// instead of having it read alone, which would make Python answer tens of thousands of small asks while it reads the pages
+	// loading: các sổ đang được đọc từng trang (Start); máy chưa có sổ được bảo quay lại sau thay vì đọc riêng sổ của nó, việc làm
+	// Python phải trả lời hàng chục nghìn lần hỏi nhỏ trong lúc đọc các trang
+	loading atomic.Bool
 	// Pace, when set, gives the shortest gap in milliseconds the computers are told to keep between sends for the load of now, 0 for
 	// none; the policy's gaps stay the least
 	// Pace, khi được đặt, cho khoảng cách ngắn nhất theo mili giây mà các máy được dặn giữ giữa hai lần gửi theo tải lúc này, 0 là không
@@ -754,6 +768,10 @@ func (r *Receiver) ingest(w http.ResponseWriter, req *http.Request) {
 		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry)
 		return
 	}
+	if !e.loaded && r.loading.Load() {
+		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "starting"}, "Retry-After", startingRetry())
+		return
+	}
 	if err := r.load(req.Context(), claims.Device, e); err != nil {
 		r.unloaded.note(claims.Device, err)
 		r.unloaded.say(time.Now())
@@ -1103,42 +1121,68 @@ func (r *Receiver) Flush(ctx context.Context) (int, error) {
 	return n, nil
 }
 
-// Run sends the batches every interval (at once when the interval is 0), asks for the policy every 15 seconds and for the changes of
-// the table of people at once and then every 15 seconds, and after each batch and each policy reads again from Python what Python
-// wrote itself (Resync), until ctx ends.
-// Run gửi các lô mỗi chu kỳ (ngay lập tức khi chu kỳ là 0), hỏi chính sách mỗi 15 giây và hỏi các thay đổi của bảng người ngay rồi
-// mỗi 15 giây, và sau mỗi lô và mỗi lần hỏi chính sách thì đọc lại từ Python những gì Python tự ghi (Resync), cho tới khi ctx kết thúc.
-func (r *Receiver) Run(ctx context.Context) {
-	go func() {
-		t := time.NewTicker(peopleEvery)
-		defer t.Stop()
-		for {
-			if _, err := r.RefreshPeople(ctx); err != nil && ctx.Err() == nil {
-				log.Printf("receiver: people: %v", err)
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
+// Start reads the table of people and sends the batches at once, reads every book a page at a time meanwhile, and only then asks for the
+// policy every 15 seconds, until ctx ends: the next answer of the policy lists every computer Python wrote during the load, and the
+// receiver reads those again, so no book loaded from an older page stays. Batches go every interval (at once when it is 0), the table
+// of people is asked again every 15 seconds, and after each batch and each policy what Python wrote itself is read again (Resync).
+// Start đọc bảng người và gửi các lô ngay, trong lúc đó đọc mọi sổ từng trang một, rồi mới hỏi chính sách mỗi 15 giây, cho tới khi
+// ctx kết thúc: câu trả lời kế tiếp của chính sách liệt kê mọi máy Python đã ghi trong lúc nạp, và bộ nhận đọc lại các máy đó, nên
+// không sổ nào nạp từ một trang cũ còn nằm lại. Các lô đi mỗi chu kỳ (ngay khi chu kỳ là 0), bảng người được hỏi lại mỗi 15 giây, và
+// sau mỗi lô và mỗi lần hỏi chính sách thì đọc lại những gì Python tự ghi (Resync).
+func (r *Receiver) Start(ctx context.Context) {
+	r.loading.Store(true)
+	go r.keepPeople(ctx)
+	go r.sendBatches(ctx)
+	started := time.Now()
+	n, err := r.LoadBooks(ctx)
+	r.loading.Store(false)
+	if err != nil {
+		log.Printf("receiver: loaded %d books, the rest are read when needed: %v", n, err)
+	} else {
+		log.Printf("receiver: loaded %d books in %s", n, time.Since(started).Round(time.Millisecond))
+	}
+	r.keepPolicy(ctx)
+}
+
+// keepPeople asks for the changes of the table of people at once and then every 15 seconds.
+// keepPeople hỏi các thay đổi của bảng người ngay rồi mỗi 15 giây.
+func (r *Receiver) keepPeople(ctx context.Context) {
+	t := time.NewTicker(peopleEvery)
+	defer t.Stop()
+	for {
+		if _, err := r.RefreshPeople(ctx); err != nil && ctx.Err() == nil {
+			log.Printf("receiver: people: %v", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+// keepPolicy asks for the policy every 15 seconds and reads again what Python wrote itself.
+// keepPolicy hỏi chính sách mỗi 15 giây và đọc lại những gì Python tự ghi.
+func (r *Receiver) keepPolicy(ctx context.Context) {
+	t := time.NewTicker(policyEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if err := r.RefreshPolicy(ctx); err != nil {
+				log.Printf("receiver: policy: %v", err)
+			} else if err := r.Resync(ctx); err != nil && ctx.Err() == nil {
+				log.Printf("receiver: reading again from Python: %v", err)
 			}
 		}
-	}()
-	go func() {
-		t := time.NewTicker(policyEvery)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				if err := r.RefreshPolicy(ctx); err != nil {
-					log.Printf("receiver: policy: %v", err)
-				} else if err := r.Resync(ctx); err != nil && ctx.Err() == nil {
-					log.Printf("receiver: reading again from Python: %v", err)
-				}
-			}
-		}
-	}()
+	}
+}
+
+// sendBatches sends the batches every interval, or at once when woken.
+// sendBatches gửi các lô mỗi chu kỳ, hoặc ngay khi được đánh thức.
+func (r *Receiver) sendBatches(ctx context.Context) {
 	every := r.every
 	if every <= 0 {
 		every = time.Second

@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.10 - 2026-11-24
+
+### Fixed
+- After a restart under load, the Go receiver reads the table of people and passes the sends to Python at once, while it loads the books; before, it did neither until every book was loaded, so the boards showed no live row for about two minutes and Python fell a minute behind (measured at 40,000 computers after a `kill -9`). A computer whose book is not loaded yet is told to come back in 15 to 45 seconds instead of having its book asked of Python alone every 5 seconds, which slowed the load to 1.5 minutes. A port still held by the old process after a `kill -9` is tried again for up to 10 seconds instead of the receiver stopping at once.
+
 ## 0.50.9 - 2026-11-23
 
 ### Changed

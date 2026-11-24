@@ -211,19 +211,11 @@ func main() {
 			time.Sleep(2 * time.Second)
 		}
 	}
-	// the books load before the policy is asked again: its next answer then lists every computer Python wrote during the load, and
-	// the receiver drops those books, so none loaded from an older page stays; sends are answered meanwhile, a missing book read alone
-	// các sổ được nạp trước khi hỏi lại chính sách: câu trả lời kế tiếp khi đó liệt kê mọi máy Python đã ghi trong lúc nạp, và bộ nhận
-	// bỏ các sổ đó, nên không sổ nào nạp từ một trang cũ còn nằm lại; trong lúc đó các lần gửi vẫn được trả lời, sổ thiếu được đọc riêng
-	go func() {
-		started := time.Now()
-		if n, err := r.LoadBooks(ctx); err != nil {
-			log.Printf("receiver: loaded %d books, the rest are read when needed: %v", n, err)
-		} else {
-			log.Printf("receiver: loaded %d books in %s", n, time.Since(started).Round(time.Millisecond))
-		}
-		r.Run(ctx)
-	}()
+	// the table of people and the batches start at once, the books load a page at a time, then the policy is asked again (Start); a
+	// computer whose book is not read yet is told to come back in 15 to 45 seconds
+	// bảng người và các lô chạy ngay, các sổ nạp từng trang, rồi mới hỏi lại chính sách (Start); máy chưa có sổ được bảo quay lại sau
+	// 15 tới 45 giây
+	go r.Start(ctx)
 	go func() {
 		t := time.NewTicker(5 * time.Second)
 		defer t.Stop()
@@ -242,7 +234,7 @@ func main() {
 	// luồng số trực tiếp của các bảng, dựng mỗi giây một lần cho mọi phạm vi đang được đọc
 	live := feed.New(r, secrets)
 	go live.Run(ctx.Done())
-	ln, err := net.Listen("tcp", c.listen)
+	ln, err := listen(c.listen, 10*time.Second)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -285,5 +277,20 @@ func main() {
 		if n, err := r.Flush(flush); err != nil || n == 0 {
 			break
 		}
+	}
+}
+
+// listen opens the port, trying again for up to wait while it is still held: after a kill -9 the old process may keep it for a
+// moment, and a start that gave up at once had to be started again.
+// listen mở cổng, thử lại tối đa wait khi cổng vẫn bị giữ: sau kill -9 tiến trình cũ có thể còn giữ nó một lúc, và một lần khởi động
+// bỏ cuộc ngay thì phải được bật lại.
+func listen(addr string, wait time.Duration) (net.Listener, error) {
+	until := time.Now().Add(wait)
+	for {
+		ln, err := net.Listen("tcp", addr)
+		if err == nil || !errors.Is(err, syscall.EADDRINUSE) || time.Now().After(until) {
+			return ln, err
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
 }
