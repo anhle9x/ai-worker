@@ -1133,12 +1133,12 @@ func (r *Receiver) Flush(ctx context.Context) (int, error) {
 	return n, nil
 }
 
-// Start reads the table of people and sends the batches at once, reads every book a page at a time meanwhile, and only then asks for the
-// policy every 15 seconds, until ctx ends: the next answer of the policy lists every computer Python wrote during the load, and the
+// Start reads the table of people at once, reads every book a page at a time, and only then sends the batches, asks for the table of
+// people again and asks for the policy every 15 seconds, until ctx ends: the next answer of the policy lists every computer Python wrote during the load, and the
 // receiver reads those again, so no book loaded from an older page stays. Batches go every interval (at once when it is 0), the table
 // of people is asked again every 15 seconds, and after each batch and each policy what Python wrote itself is read again (Resync).
-// Start đọc bảng người và gửi các lô ngay, trong lúc đó đọc mọi sổ từng trang một, rồi mới hỏi chính sách mỗi 15 giây, cho tới khi
-// ctx kết thúc: câu trả lời kế tiếp của chính sách liệt kê mọi máy Python đã ghi trong lúc nạp, và bộ nhận đọc lại các máy đó, nên
+// Start đọc bảng người ngay, đọc mọi sổ từng trang một, rồi mới gửi các lô, hỏi lại bảng người và hỏi chính sách mỗi 15 giây, cho
+// tới khi ctx kết thúc: câu trả lời kế tiếp của chính sách liệt kê mọi máy Python đã ghi trong lúc nạp, và bộ nhận đọc lại các máy đó, nên
 // không sổ nào nạp từ một trang cũ còn nằm lại. Các lô đi mỗi chu kỳ (ngay khi chu kỳ là 0), bảng người được hỏi lại mỗi 15 giây, và
 // sau mỗi lô và mỗi lần hỏi chính sách thì đọc lại những gì Python tự ghi (Resync).
 func (r *Receiver) Start(ctx context.Context) {
@@ -1161,9 +1161,15 @@ func (r *Receiver) Start(ctx context.Context) {
 func (r *Receiver) keepPeople(ctx context.Context) {
 	t := time.NewTicker(peopleEvery)
 	defer t.Stop()
-	for {
-		if _, err := r.RefreshPeople(ctx); err != nil && ctx.Err() == nil {
-			log.Printf("receiver: people: %v", err)
+	for first := true; ; first = false {
+		// once at the start, then not again until the books are loaded: each ask makes Python build its table of people again
+		// (seconds at 100,000 computers), time taken from the pages of books
+		// một lần lúc đầu, rồi không hỏi lại cho tới khi nạp xong sổ: mỗi lần hỏi bắt Python dựng lại bảng người (vài giây với
+		// 100.000 máy), thời gian lấy mất của các trang sổ
+		if first || !r.loading.Load() {
+			if _, err := r.RefreshPeople(ctx); err != nil && ctx.Err() == nil {
+				log.Printf("receiver: people: %v", err)
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -1211,6 +1217,14 @@ func (r *Receiver) sendBatches(ctx context.Context) {
 		}
 		if pause > 0 {
 			time.Sleep(pause)
+		}
+		if r.loading.Load() {
+			// no batch while the books load: Python, writing them, had no time left for the pages (3 minutes 44 to load at 40,000
+			// computers); the rows wait here, one per computer, and go once the books are loaded
+			// không gửi lô trong lúc nạp sổ: Python bận ghi chúng thì không còn thời gian trả các trang (3 phút 44 để nạp ở 40.000
+			// máy); các dòng chờ ở đây, mỗi máy một dòng, và đi khi đã nạp xong
+			r.health()
+			continue
 		}
 		for {
 			n, err := r.Flush(ctx)

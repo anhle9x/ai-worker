@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.12 - 2026-11-24
+
+### Fixed
+- After a restart under load, the Go receiver loads its books again before it sends any batch, and asks for the table of people once instead of every 15 seconds meanwhile: Python, writing the batches and building its table of people, had no time left to give the pages, and the load took 3 minutes 44 seconds at 40,000 computers. The rows wait in the receiver, one per computer, and go once the books are loaded.
+
 ## 0.50.11 - 2026-11-24
 
 ### Fixed

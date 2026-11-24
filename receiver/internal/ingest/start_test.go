@@ -89,10 +89,10 @@ func TestComeBackWhileBooksLoad(t *testing.T) {
 	}
 }
 
-// TestPeopleAndBatchesBeforeTheBooks: Start asks for the table of people and sends the waiting rows while the pages of books are still
-// being read, so the boards have rows and Python gets the sends at once after a restart.
-// TestPeopleAndBatchesBeforeTheBooks: Start hỏi bảng người và gửi các dòng đang chờ trong lúc các trang sổ vẫn đang được đọc, để các
-// bảng có dòng và Python nhận các lần gửi ngay sau khi khởi động lại.
+// TestPeopleAndBatchesBeforeTheBooks: Start asks for the table of people once while the pages of books are still being read, so the
+// boards have rows at once after a restart, and holds the batches until the books are loaded, so Python has its time for the pages.
+// TestPeopleAndBatchesBeforeTheBooks: Start hỏi bảng người một lần trong lúc các trang sổ vẫn đang được đọc, để các bảng có dòng
+// ngay sau khi khởi động lại, và giữ các lô tới khi nạp xong sổ, để Python có thời gian trả các trang.
 func TestPeopleAndBatchesBeforeTheBooks(t *testing.T) {
 	h := start(t)
 	device := "device-gofirst"
@@ -141,10 +141,13 @@ func TestPeopleAndBatchesBeforeTheBooks(t *testing.T) {
 		<-done
 	})
 	until := time.Now().Add(10 * time.Second)
-	for (people.Load() == 0 || rows.Load() == 0 || r.waitingCount() != 0) && time.Now().Before(until) {
+	for people.Load() == 0 && time.Now().Before(until) {
 		time.Sleep(20 * time.Millisecond)
 	}
-	if people.Load() == 0 || rows.Load() == 0 || r.waitingCount() != 0 {
+	// a few beats of batches go by while the page is held: none is sent, and the table of people is not asked again
+	// vài nhịp gửi lô trôi qua trong lúc trang bị giữ: không lô nào được gửi, và bảng người không bị hỏi lại
+	time.Sleep(1500 * time.Millisecond)
+	if people.Load() != 1 || rows.Load() != 0 || r.waitingCount() != 1 {
 		t.Fatalf("while the books load: %d asks for people, %d batches, %d computers waiting", people.Load(), rows.Load(), r.waitingCount())
 	}
 	if !r.loading.Load() {
@@ -157,5 +160,11 @@ func TestPeopleAndBatchesBeforeTheBooks(t *testing.T) {
 	}
 	if r.loading.Load() {
 		t.Fatal("still loading after the pages came")
+	}
+	for (rows.Load() == 0 || r.waitingCount() != 0) && time.Now().Before(until) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if rows.Load() == 0 || r.waitingCount() != 0 {
+		t.Fatalf("after the books loaded: %d batches, %d computers waiting", rows.Load(), r.waitingCount())
 	}
 }
