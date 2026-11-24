@@ -465,7 +465,11 @@ func (r *Receiver) LoadBooks(ctx context.Context) (int, error) {
 			name, _ := device.(string)
 			e := r.entry(name)
 			e.mu.Lock()
-			if !e.loaded {
+			if !e.loaded && r.isQueued(name) {
+				// rows of it still wait: the page lacks them, so the book is read after they are written (Resync)
+				// các dòng của nó còn chờ: trang này thiếu chúng, nên sổ được đọc sau khi chúng đã ghi (Resync)
+				r.markStale(name)
+			} else if !e.loaded {
 				e.loaded, e.rec = true, heldFrom(o, r.today())
 				r.show(name, o, e.rec)
 				count++
@@ -765,6 +769,14 @@ func (r *Receiver) ingest(w http.ResponseWriter, req *http.Request) {
 	if !r.isWaiting(claims.Device) && r.waitingCount() >= maxPending {
 		// Python has not taken the rows for a long while: refuse, so the computers keep their hours instead of this side dropping them
 		// Python đã lâu không nhận các dòng: từ chối, để các máy giữ giờ của chúng thay vì bên này phải bỏ đi
+		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry)
+		return
+	}
+	if !e.loaded && r.isQueued(claims.Device) {
+		// the book was dropped (another start of Python, or Python wrote it) while rows of it still wait here: read now it would lack
+		// them, so the computer comes back once they are written
+		// sổ đã bị bỏ (Python khởi động lại, hoặc Python tự ghi) trong lúc các dòng của nó còn chờ ở đây: đọc lúc này sẽ thiếu
+		// chúng, nên máy quay lại khi chúng đã được ghi
 		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry)
 		return
 	}

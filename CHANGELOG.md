@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.11 - 2026-11-24
+
+### Fixed
+- The Go receiver's live numbers could stay lower than Python's after Python started again (or wrote a computer itself) while rows of that computer still waited in the receiver: the book read back from Python lacked those rows, and the receiver kept adding to it. The receiver now reads such a book only once its rows are written, and tells the computer to come back meanwhile. Measured at 40,000 computers with `kill -9` of Go then Python: 3,600 of 16,400 people about 5.7% too low on the live board until midnight; the money in Python was right. The fault was there in 0.50.9 too.
+
 ## 0.50.10 - 2026-11-24
 
 ### Fixed
