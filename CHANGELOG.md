@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.15 - 2026-11-25
+
+### Changed
+- The plugin sends `v: 2` to a server that says it reads it (`accepts`): only the hours that changed since the server last took a send, an empty hour for one that left the computer's 8 days, and the whole book once an hour (spread up to 15 minutes), when the server asks (`needFull`) and on the first send. When the server starts again (`boot`) or another one answers, the hours of the last two days go up again. It asks `GET /ingest/route?v=2`, so the server may now send it to the Go receiver when `RECEIVER_INGEST_URLS` is set. An older server, which answers only `ok`, keeps getting `v: 1`. The logic is in `hooks/sendv2.ts`.
+
 ## 0.50.14 - 2026-11-25
 
 ### Changed

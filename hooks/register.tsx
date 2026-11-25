@@ -13,6 +13,7 @@ import type { Activity, BlockKind, Job, Ledger, TeamState, Usage, WorkerId } fro
 import { applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, staleSessionFiles } from './activity'
 import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextNoteForClaude, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
 import { answerModel, backoff, buildMachineSummary, deviceKeyIn, FALLBACK_SPREAD_MS, paceFrom, PACE_MIN_MS, receiverOutcome, WEBHOOK_BACKOFF_FIRST_MS, WEBHOOK_BACKOFF_MAX_MS, webhookDown, refusalAfter, routeFrom, routeRested, routeTarget, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
+import { afterAnswer, packetFor, type SendState } from './sendv2'
 import type { IngestRoute, ShareConfig } from './team'
 import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT, WINDOWS_CLAUDE_SCRIPT, UNIX_CLAUDE_SCRIPT, claudeCandidate, isClaudeCodeVersion, findHostApp, parseLinuxHost, parseWindowsHost, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, releaseKeys, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
 import { AGY_BRAIN, IMAGE_DIR, IMAGE_SCHEMA, IMAGE_SETTLE_MS, OLLAMA_URL, PROMPT_LEVEL_SCHEMA, PROMPT_SCHEMA, WORKER_TIMEOUT_MS, imageArgv, imageTargets, newImages, safeImageName, sendingNeedsAsking, sendingRefusal, agyArgv, codexArgv, codexInput, isBatchLauncher, delegationRules, gemmaAnswer, gemmaRequest, mcpConfigured, ownTools, pickGemma } from './workers'
@@ -483,6 +484,9 @@ const ROUTE_KEY = 'ingestRoute'
 /** How long the sends wait after the webhook itself did not answer, doubling each time (team.ts, backoff). */
 /** Các lần gửi chờ bao lâu sau khi chính webhook không trả lời, gấp đôi mỗi lần (team.ts, backoff). */
 const WEBHOOK_DOWN_KEY = 'webhookDown'
+/** Whether the server reads v: 2 and which hours it holds (hooks/sendv2.ts). */
+/** Máy chủ có đọc v: 2 không và nó đang giữ những giờ nào (hooks/sendv2.ts). */
+const SEND_KEY = 'sendState'
 /** The gap of the last answer, in this session's memory too, for the timer of the next send. */
 /** Khoảng cách của câu trả lời gần nhất, giữ cả trong bộ nhớ của phiên này, cho bộ hẹn giờ của lần gửi sau. */
 let paceGapMs = PACE_MIN_MS
@@ -794,10 +798,15 @@ async function shareOnce($: EngineInterface) {
           // khoá riêng của máy này khi máy chủ đã cấp, nếu không thì khoá của gói cài
           const own = await $.store.get(DEVICE_KEY).catch(() => undefined)
           const key = typeof own === 'string' && own.startsWith('awd1.') ? own : share.ingestKey
+          // v: 1 until the server says it reads v: 2, then only the hours that changed, and the whole book once an hour
+          // v: 1 cho tới khi máy chủ nói nó đọc v: 2, sau đó chỉ các giờ đã đổi, và cả sổ mỗi giờ một lần
+          const sendState = (await $.store.get(SEND_KEY).catch(() => undefined)) as SendState | undefined
+          const packet = packetFor(summary, sendState, now)
+          const body = JSON.stringify(packet.body)
           const post = (base: string) => $.http.fetch(`${base}/ingest`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-            body: JSON.stringify(summary),
+            body,
           })
           // the Go receiver takes only a computer's own key: the shared key of the package always goes to the webhook
           // bộ nhận Go chỉ nhận khoá riêng của máy: khoá chung của gói luôn đi tới webhook
@@ -806,7 +815,7 @@ async function shareOnce($: EngineInterface) {
           if (route && !(route.until > now)) {
             // the address ran out: ask the webhook where to send now, which writes nothing; no answer sends to the webhook
             // địa chỉ đã hết hạn: hỏi webhook giờ gửi tới đâu, việc này không ghi gì; không trả lời thì gửi tới webhook
-            const asked = await $.http.fetch(`${share.webhook}/ingest/route`, { method: 'GET', headers: { Authorization: `Bearer ${key}` } }).catch(() => undefined)
+            const asked = await $.http.fetch(`${share.webhook}/ingest/route${sendState?.v2 ? '?v=2' : ''}`, { method: 'GET', headers: { Authorization: `Bearer ${key}` } }).catch(() => undefined)
             route = (asked?.ok ? routeFrom(asked.text, share.webhook, share.ingestHosts, now) : null) ?? undefined
             if (route) await $.store.set(ROUTE_KEY, route)
             else await $.store.delete(ROUTE_KEY).catch(() => undefined)
@@ -865,6 +874,7 @@ async function shareOnce($: EngineInterface) {
             await $.store.set(PACE_KEY, { gapMs: asked.gapMs ?? pace.gapMs, until: asked.until }).catch(() => undefined)
           }
           if (!r.ok) throw new Error(`webhook ${r.status}`)
+          await $.store.set(SEND_KEY, afterAnswer(sendState, r.text, packet, now)).catch(() => undefined)
           if (refused.wait) await $.store.delete(REFUSED_KEY).catch(() => undefined)
           const given = deviceKeyIn(r.text)
           if (given) await $.store.set(DEVICE_KEY, given)

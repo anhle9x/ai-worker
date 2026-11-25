@@ -38,7 +38,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | ID | Requirement | Where |
 |---|---|---|
 | F1 | Without a server the plugin still works on one computer | `hooks/register.tsx` |
-| F2 | A computer sends a summary when its numbers change, and at least every 5 minutes while Claude is open | `hooks/register.tsx`, `hooks/team.ts` |
+| F2 | A computer sends a summary when its numbers change, and at least every 5 minutes while Claude is open | `hooks/register.tsx`, `hooks/team.ts`, `hooks/sendv2.ts` |
 | F3 | The server accepts only known fields and writes the sender's IP itself | `clean_payload` in `server/board/devices.py`, `Handler.ingest` in `server/webhook.py` |
 | F4 | One device stays tied to one person | `IngestGate` |
 | F5 | The dashboard needs an OTP login, and the server applies each role itself | `LoginGate`, `Handler.gate`, `role_view` |

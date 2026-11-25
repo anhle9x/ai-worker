@@ -38,7 +38,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | Mã | Yêu cầu | Ở đâu |
 |---|---|---|
 | F1 | Không có máy chủ thì plugin vẫn chạy trên từng máy | `hooks/register.tsx` |
-| F2 | Máy gửi bản tóm tắt khi số liệu đổi, và ít nhất 5 phút một lần khi Claude đang mở | `hooks/register.tsx`, `hooks/team.ts` |
+| F2 | Máy gửi bản tóm tắt khi số liệu đổi, và ít nhất 5 phút một lần khi Claude đang mở | `hooks/register.tsx`, `hooks/team.ts`, `hooks/sendv2.ts` |
 | F3 | Máy chủ chỉ nhận các trường đã biết và tự ghi IP người gửi | `clean_payload` trong `server/board/devices.py`, `Handler.ingest` trong `server/webhook.py` |
 | F4 | Mỗi máy gắn với một người | `IngestGate` |
 | F5 | Xem bảng phải đăng nhập OTP, và máy chủ tự áp dụng từng vai | `LoginGate`, `Handler.gate`, `role_view` |
