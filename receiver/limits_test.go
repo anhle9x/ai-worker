@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -170,31 +171,45 @@ func TestPaceOfTheSends(t *testing.T) {
 	}
 }
 
-// TestNearTheMemoryLimit: new sends stop past 90% of the limit, measured on the process, and start again only under 80%; no limit, or no
-// reading, never stops them. The budgets are parts of the limit, none without one.
-// TestNearTheMemoryLimit: lần gửi mới dừng khi quá 90% giới hạn, đo trên tiến trình, và chỉ nhận lại khi dưới 80%; không có giới hạn,
-// hay không đọc được, thì không bao giờ dừng. Các ngân sách là phần của giới hạn, không có khi không có giới hạn.
+// TestNearTheMemoryLimit: new sends stop past 80% of the limit in memory still used, and start again only under 70%; no limit, or no
+// reading, never stops them. What is counted grows with live memory and not with garbage. The budgets are parts of the limit, none
+// without one.
+// TestNearTheMemoryLimit: lần gửi mới dừng khi bộ nhớ còn dùng quá 80% giới hạn, và chỉ nhận lại khi dưới 70%; không có giới hạn, hay
+// không đọc được, thì không bao giờ dừng. Phần được tính tăng theo bộ nhớ còn sống chứ không theo rác. Các ngân sách là phần của giới
+// hạn, không có khi không có giới hạn.
 func TestNearTheMemoryLimit(t *testing.T) {
 	const limit = 1000
 	steps := []struct {
-		rss       int64
+		used      int64
 		was, want bool
 	}{
-		{850, false, false}, {901, false, true}, {850, true, true}, {799, true, false}, {0, true, false},
+		{750, false, false}, {801, false, true}, {750, true, true}, {699, true, false}, {0, true, false},
 	}
 	for _, s := range steps {
-		if got := overloaded(s.rss, limit, s.was); got != s.want {
-			t.Errorf("rss %d, was %v: %v", s.rss, s.was, got)
+		if got := overloaded(s.used, limit, s.was); got != s.want {
+			t.Errorf("used %d, was %v: %v", s.used, s.was, got)
 		}
 	}
 	if overloaded(1<<40, 0, false) || overloaded(1<<40, math.MaxInt64, true) {
 		t.Error("stopped without a limit")
 	}
-	if got := residentBytes("12345 678 90 1 0 2 0\n", 4096); got != 678*4096 {
-		t.Errorf("resident %d", got)
+	// 64 MiB kept live is counted; the same dropped is not, once collected
+	// 64 MiB còn giữ thì được tính; cũng lượng đó bỏ đi thì không, sau khi dọn
+	runtime.GC()
+	before := usedBytes()
+	kept := make([]byte, 64<<20)
+	for i := range kept {
+		kept[i] = 1
 	}
-	if residentBytes("", 4096) != 0 || residentBytes("1 x", 4096) != 0 {
-		t.Error("a bad statm read as memory")
+	runtime.GC()
+	if usedBytes()-before < 60<<20 {
+		t.Errorf("64 MiB live counted as %d", usedBytes()-before)
+	}
+	runtime.KeepAlive(kept)
+	kept = nil
+	runtime.GC()
+	if usedBytes()-before > 8<<20 {
+		t.Errorf("garbage counted: %d over", usedBytes()-before)
 	}
 	if r, h := budgets(0); r != nil || h != nil {
 		t.Error("budgets without a limit")

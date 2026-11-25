@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.16 - 2026-11-25
+
+### Fixed
+- The Go receiver no longer refuses every send for minutes after a restart at 40,000 computers on 8 GB. It stopped new sends when the process's resident memory passed 90% of its limit, but Go lets garbage grow up to that limit by design: measured on Linux, it sat at 80 to 95% of the limit while, by the measured cost of a connection (28 KiB live, 11 KiB of stack), only about 60% was in use, and after a `kill -9` it refused almost every send for the rest of a 10-minute run. It now counts the memory still in use (the heap live at the last collection and the stacks, from `runtime/metrics`), stops past 80% of the limit and starts again under 70%.
+
 ## 0.50.15 - 2026-11-25
 
 ### Changed

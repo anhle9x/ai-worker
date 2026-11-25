@@ -8,6 +8,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"runtime/metrics"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,18 +59,22 @@ const sendsPerCPU = 2500
 const maxPaceMs = 120_000
 
 // readingShare and holdingShare: the parts of the memory limit for the bodies being read and cleaned and for the rows waiting for
-// Python (ingest.Budget); past either a send is answered busy. rssHigh and rssLow: past rssHigh of the limit, measured on the process
-// itself, every new send is refused until it is back under rssLow, since the limit given to Go is only a target its collector aims at
-// (a v: 1 book of 8 days per send ran it to 4.5 GB over a limit of 3.1 GB, docs/RECEIVER.md, section 7).
+// Python (ingest.Budget); past either a send is answered busy. usedHigh and usedLow: past usedHigh of the limit in memory the process
+// still uses (usedBytes), every new send is refused until it is back under usedLow, since the limit given to Go is only a target its
+// collector aims at (a v: 1 book of 8 days per send ran it to 4.5 GB over a limit of 3.1 GB, docs/RECEIVER.md, section 7). The resident
+// memory is not what is counted: the collector lets garbage grow up to the limit by design, so at 40,000 computers it sat at 80-95% of
+// the limit with about 60% in use by the cost of a connection above, and refusing on it kept the receiver refusing after a restart.
 // readingShare và holdingShare: các phần của giới hạn bộ nhớ cho các thân đang đọc và làm sạch và cho các dòng chờ Python
-// (ingest.Budget); quá một trong hai thì lần gửi được trả bận. rssHigh và rssLow: quá rssHigh của giới hạn, đo trên chính tiến trình,
-// thì mọi lần gửi mới bị từ chối cho tới khi về dưới rssLow, vì giới hạn trao cho Go chỉ là mức bộ dọn rác của nó nhắm tới (sổ v: 1
-// 8 ngày mỗi lần gửi đã đẩy nó lên 4,5 GB trên giới hạn 3,1 GB, docs/RECEIVER.vi.md, mục 7).
+// (ingest.Budget); quá một trong hai thì lần gửi được trả bận. usedHigh và usedLow: quá usedHigh của giới hạn về bộ nhớ tiến trình
+// còn dùng (usedBytes) thì mọi lần gửi mới bị từ chối cho tới khi về dưới usedLow, vì giới hạn trao cho Go chỉ là mức bộ dọn rác của
+// nó nhắm tới (sổ v: 1 8 ngày mỗi lần gửi đã đẩy nó lên 4,5 GB trên giới hạn 3,1 GB, docs/RECEIVER.vi.md, mục 7). Không tính bộ nhớ
+// thường trú: bộ dọn rác cố ý để rác lên tới giới hạn, nên ở 40.000 máy nó nằm ở 80-95% giới hạn trong khi theo chi phí một kết nối ở trên chỉ khoảng 60% còn dùng,
+// và từ chối theo nó làm bộ nhận cứ từ chối mãi sau một lần khởi động lại.
 const (
 	readingShare = 0.25
 	holdingShare = 0.35
-	rssHigh      = 0.90
-	rssLow       = 0.80
+	usedHigh     = 0.80
+	usedLow      = 0.70
 )
 
 // budgets are the two budgets of a memory limit, none without one.
@@ -81,32 +86,34 @@ func budgets(memory int64) (reading, holding *ingest.Budget) {
 	return ingest.NewBudget(int64(float64(memory) * readingShare)), ingest.NewBudget(int64(float64(memory) * holdingShare))
 }
 
-// overloaded says, from the resident memory of the process and whether it was over already, whether it is over now: on past rssHigh
-// of the limit, off again only under rssLow.
-// overloaded cho biết, từ bộ nhớ thường trú của tiến trình và việc nó đã quá chưa, giờ nó có đang quá không: bật khi quá rssHigh của
-// giới hạn, chỉ tắt lại khi dưới rssLow.
-func overloaded(rss, memory int64, was bool) bool {
-	if memory <= 0 || memory == math.MaxInt64 || rss <= 0 {
+// overloaded says, from the memory the process still uses and whether it was over already, whether it is over now: on past usedHigh of
+// the limit, off again only under usedLow.
+// overloaded cho biết, từ bộ nhớ tiến trình còn dùng và việc nó đã quá chưa, giờ nó có đang quá không: bật khi quá usedHigh của giới
+// hạn, chỉ tắt lại khi dưới usedLow.
+func overloaded(used, memory int64, was bool) bool {
+	if memory <= 0 || memory == math.MaxInt64 || used <= 0 {
 		return false
 	}
 	if was {
-		return float64(rss) > float64(memory)*rssLow
+		return float64(used) > float64(memory)*usedLow
 	}
-	return float64(rss) > float64(memory)*rssHigh
+	return float64(used) > float64(memory)*usedHigh
 }
 
-// residentBytes reads the resident memory of this process from /proc/self/statm (Linux); 0 elsewhere.
-// residentBytes đọc bộ nhớ thường trú của tiến trình này từ /proc/self/statm (Linux); 0 ở nơi khác.
-func residentBytes(statm string, pageSize int) int64 {
-	f := strings.Fields(statm)
-	if len(f) < 2 {
-		return 0
+// usedBytes is the memory the process still uses, from runtime/metrics: the heap found live by the last collection and the goroutines'
+// stacks, without the garbage not yet collected and the memory not yet given back.
+// usedBytes là bộ nhớ tiến trình còn dùng, lấy từ runtime/metrics: phần heap lần dọn gần nhất thấy còn sống và ngăn xếp của các
+// goroutine, không tính rác chưa dọn và bộ nhớ chưa trả lại.
+func usedBytes() int64 {
+	s := []metrics.Sample{{Name: "/gc/heap/live:bytes"}, {Name: "/memory/classes/heap/stacks:bytes"}}
+	metrics.Read(s)
+	var n int64
+	for _, x := range s {
+		if x.Value.Kind() == metrics.KindUint64 {
+			n += int64(x.Value.Uint64())
+		}
 	}
-	pages, err := strconv.ParseInt(f[1], 10, 64)
-	if err != nil {
-		return 0
-	}
-	return pages * int64(pageSize)
+	return n
 }
 
 type limits struct {

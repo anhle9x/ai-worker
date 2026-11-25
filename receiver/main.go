@@ -300,8 +300,8 @@ func listen(addr string, wait time.Duration) (net.Listener, error) {
 	}
 }
 
-// watchMemory checks the resident memory of the process once a second and sets over past rssHigh of the limit, until under rssLow.
-// watchMemory xem bộ nhớ thường trú của tiến trình mỗi giây và bật over khi quá rssHigh của giới hạn, tới khi dưới rssLow.
+// watchMemory checks the memory the process still uses once a second and sets over past usedHigh of the limit, until under usedLow.
+// watchMemory xem bộ nhớ tiến trình còn dùng mỗi giây và bật over khi quá usedHigh của giới hạn, tới khi dưới usedLow.
 func watchMemory(ctx context.Context, over *atomic.Bool, memory int64) {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
@@ -311,12 +311,8 @@ func watchMemory(ctx context.Context, over *atomic.Bool, memory int64) {
 			return
 		case <-t.C:
 		}
-		statm, err := os.ReadFile("/proc/self/statm")
-		if err != nil {
-			return
-		}
 		was := over.Load()
-		now := overloaded(residentBytes(string(statm), os.Getpagesize()), memory, was)
+		now := overloaded(usedBytes(), memory, was)
 		if now != was {
 			over.Store(now)
 			log.Printf("receiver: near the memory limit, refusing new sends: %v", now)
