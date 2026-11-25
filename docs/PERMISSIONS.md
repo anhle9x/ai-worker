@@ -48,6 +48,7 @@ The fields each role receives are fixed in `server/board/views.py` (`COMMON_FIEL
 | Action | Path | Who | Extra check |
 |---|---|---|---|
 | Send numbers | `POST /ingest` | Computer with its own key, or `INGEST_KEY` while it has none and `SHARED_KEY_MODE` allows it | A key sends only for its own computer; the computer stays tied to the person of its first send; a revoked computer is refused. From outside `OFFICE_NETS` (or marked so by Caddy): only the own key of a computer an admin let send from any network, else 403 |
+| Ask where to send now | `GET /ingest/route` | Computer with its own key (the shared key: 403) | Writes nothing; an empty list unless the Go receiver takes this computer's sends. From outside the office: as for `/ingest` |
 | Download an update | `GET /releases/...` | Computer with its own key or `INGEST_KEY` | The computer checks the signature before installing. From outside the office: as for `/ingest` |
 | Let a computer send from any network, or take it back | `POST /admin/device-roam` | `admin` | Re-enter OTP, valid 5 minutes; only a computer sending with its own key; written in the Admin log |
 | Name locations, mark the sales team, load the Team CSV | `POST /locations`, `/team-sale`, `/team-csv` | `admin` | Same-origin request |

@@ -4,7 +4,7 @@
 
 A small company does not need this page: the Python server takes every send itself. The receiver in `receiver/` is a second program, written with the Go standard library only, for an organisation with many thousands of computers. It takes the computers' sends on an address of its own over TLS, answers them at once, and hands them to the Python server in batches. Python stays the record: logins, roles, the board, the history and the SQLite files are unchanged.
 
-**What this first stage does and does not do.** It takes sends correctly and gives Python the same records Python would have written itself; tests hold the two to that. It also serves the boards their live numbers, per branch or for the whole organisation, on `/live` (section 3, "The live feed"), and the board's page opens that feed when it is set up. On Linux with 4 vCPU and 8 GB it is for about 20,000 computers sending every 2 seconds (section 7). The plugin does not send to the receiver yet either: no computer goes this way until a later plugin learns the receiver's address from the server (`ingestUrls`).
+**What this first stage does and does not do.** It takes sends correctly and gives Python the same records Python would have written itself; tests hold the two to that. It also serves the boards their live numbers, per branch or for the whole organisation, on `/live` (section 3, "The live feed"), and the board's page opens that feed when it is set up. On Linux with 4 vCPU and 8 GB it is for about 20,000 computers sending every 2 seconds (section 7). The plugin sends to the receiver only once the server tells it where (`ingestUrls`, "Which computers send to the receiver" below), so nothing changes until `RECEIVER_INGEST_URLS` is set.
 
 ## 1. How a send goes
 
@@ -118,6 +118,16 @@ On the receiver (its environment):
 When Python is slower than the computers send, the beat stretches by itself: the next batch goes only once Python has answered the last one, the sends of one computer meanwhile wait as one row, and the batches stay in the order of the computers' ids. `GET /health` on the receiver says how many rows wait (`queued`), how long the oldest has waited (`waitSeconds`), and `behind: true` once that passes 60 seconds, also written once to the log. The numbers on the boards still come live from the receiver.
 
 The receiver speaks HTTP/1.1 only (HTTP/2 costs more here), waits at most 10 seconds for the headers of a request, reads at most 256 KB of a body, and keeps an idle connection 5 minutes, a little longer than a quiet computer's 4 minutes between sends.
+
+### Which computers send to the receiver
+
+- `RECEIVER_INGEST_URLS` lists up to 4 `https` addresses of the receiver. Empty (the default): every computer sends to the webhook, as before.
+- Which computers are told: `RECEIVER_INGEST_DEVICES` (their ids, comma separated) and `RECEIVER_INGEST_PERCENT` (0 to 100, by a stable hash of the id, so raising it only adds computers). Start with a few computers of the IT team, then 5, 25, 100, with `RECEIVER_CHECK_PERCENT=100` while trying.
+- The server tells a chosen computer in its answer to a send made with the computer's own key (`ingestUrls`, `ingestTtlMs`, [DATA-MODEL.md](DATA-MODEL.md)); the shared key never goes to the receiver. The plugin keeps the address `RECEIVER_INGEST_TTL_SECONDS` (default an hour, moved by up to a fifth), then asks `GET /ingest/route` on the webhook, which writes nothing; an empty list sends it back to the webhook.
+- The plugin trusts an address only over `https`, without a path, and on the webhook's own host, under the webhook's parent domain (`ingest.example.com` beside `board.example.com`, never a public suffix such as `com.vn`), or listed in the package's `sharing.ingestHosts`. The certificate is a public one for that name (section 5).
+- When the receiver cannot be reached, answers without `Retry-After`, or refuses the key, the plugin sends that one to the webhook at once and keeps sending there for a minute, doubling up to ten. A busy receiver (429 or 503 with `Retry-After`) is waited for, never poured onto the webhook it shields.
+- To turn it off slowly, empty the settings: the computers come back within one time of keeping the address. At once: stop the receiver, and they come back on their next send.
+- A computer that sent straight to the webhook while an older row of it waited in a batch keeps the newer book: a row older than what the webhook wrote itself is left out (its records of work handed to helpers are still logged).
 
 ## 5. Setting it up
 

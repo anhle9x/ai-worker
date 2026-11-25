@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { buildHelp, skillLine } from '../hooks/help'
 import { claudeCandidate, isClaudeCodeVersion, findHostApp, parseLinuxHost, parseWindowsHost, hasSigningKeys, parseHash, parseSignatureResult, parseManifest, releaseKeys, shouldOfferUpdate } from '../hooks/update'
+import { ROUTE_REST_FIRST_MS, ROUTE_REST_MAX_MS, ROUTE_TTL_DEFAULT_MS, ROUTE_TTL_MAX_MS, ROUTE_TTL_MIN_MS, receiverAllowed, receiverOutcome, routeFrom, routeRested, routeTarget } from '../hooks/team'
 import { BUSY_MAX_MS, DEVICE_ID_LENGTH, OPEN_MS, PACE_MAX_MS, PACE_MIN_MS, paceFrom, REFUSED_FIRST_MS, REFUSED_MAX_MS, buildMachineSummary, deviceKeyIn, refusalAfter, newDeviceId, hardwareMark, parseHardwareId, sha256Hex, isLanIp, mergeShare, mergeTeam, parseLanIp, parseSessionFile, readShareConfig, summarySignature, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, answerModel, toQuota, quotaWarning } from '../hooks/team'
 
 const H = 3_600_000
@@ -9,7 +10,7 @@ const NOW = 500_000 * H
 test('sharing stays off unless IT turns it on, and ~ means home', () => {
   expect(readShareConfig(undefined, '/Users/an').enabled).toBe(false)
   const c = readShareConfig({ enabled: true, name: ' An ', account: 'An@Example.com', folders: '~/Drive/AI/', viewBoard: 'yes' }, '/Users/an')
-  expect(c).toEqual({ enabled: true, name: 'An', account: 'an@example.com', folders: ['/Users/an/Drive/AI'], viewBoard: false, webhook: '', ingestKey: '', viewCode: '' })
+  expect(c).toEqual({ enabled: true, name: 'An', account: 'an@example.com', folders: ['/Users/an/Drive/AI'], viewBoard: false, webhook: '', ingestKey: '', viewCode: '', ingestHosts: [] })
   const nas = readShareConfig({ folders: ['/Volumes/AI/office/', 'Z:\\office', 'Y:\\', '\\\\nas\\AI', '//nas/AI', ''] }, '/Users/an')
   expect(nas.folders).toEqual(['/Volumes/AI/office', 'Z:\\office', 'Y:\\'])
 })
@@ -91,7 +92,7 @@ test('company settings ship in the package; the machine and the person fill in t
   const shipped = { enabled: true, name: '', account: '', folders: ['/Volumes/AI/office', 'Z:\\office'], viewBoard: false }
   const mine = { enabled: true, name: '', account: '', folders: '', viewBoard: false }
   const c = readShareConfig(mergeShare(shipped, mine, { name: 'Binh', account: 'Binh@Example.com' }), '/Users/b')
-  expect(c).toEqual({ enabled: true, name: 'Binh', account: 'binh@example.com', folders: ['/Volumes/AI/office', 'Z:\\office'], viewBoard: false, webhook: '', ingestKey: '', viewCode: '' })
+  expect(c).toEqual({ enabled: true, name: 'Binh', account: 'binh@example.com', folders: ['/Volumes/AI/office', 'Z:\\office'], viewBoard: false, webhook: '', ingestKey: '', viewCode: '', ingestHosts: [] })
   // the machine's own config wins, and the manager turns xemTong on there
   // config của chính máy thắng, và người quản lý bật xemTong ở đó
   expect(readShareConfig(mergeShare(shipped, { viewBoard: true, folders: '~/thu' }, {}), '/Users/b').folders).toEqual(['/Users/b/thu'])
@@ -505,3 +506,80 @@ test('the plugin keeps the gap between sends the server asks, and comes back whe
   expect(paceFrom({ status: 401, headers: { 'retry-after': '45' }, text: '' }, NOW)).toEqual({})
 })
 
+
+test('only a receiver under the webhook\'s own domain, or listed in the package, is trusted with the sends', () => {
+  const hook = 'https://board.example.com'
+  expect(receiverAllowed('https://ingest.example.com', hook, [])).toBe(true)
+  expect(receiverAllowed('https://ingest.example.com:8443', hook, [])).toBe(true)
+  expect(receiverAllowed('https://board.example.com:8443', hook, [])).toBe(true)
+  // not https, a path, an account, another domain, a look-alike
+  // không phải https, có đường dẫn, có tài khoản, tên miền khác, tên giả giống
+  expect(receiverAllowed('http://ingest.example.com', hook, [])).toBe(false)
+  expect(receiverAllowed('https://ingest.example.com/x', hook, [])).toBe(false)
+  expect(receiverAllowed('https://a@ingest.example.com', hook, [])).toBe(false)
+  expect(receiverAllowed('https://ingest.other.com', hook, [])).toBe(false)
+  expect(receiverAllowed('https://evilexample.com', hook, [])).toBe(false)
+  // the package may list another host
+  // gói có thể liệt kê máy chủ khác
+  expect(receiverAllowed('https://ingest.other.com', hook, ['ingest.other.com'])).toBe(true)
+  // a webhook of two labels never opens a whole top-level domain, a plain http webhook or an address none
+  // webhook hai nhãn không bao giờ mở cả một tên miền cấp cao, webhook http thường hay địa chỉ IP thì không mở gì
+  expect(receiverAllowed('https://ingest.example.com', 'https://example.com', [])).toBe(false)
+  expect(receiverAllowed('https://x.com.vn', 'https://congty.com.vn', [])).toBe(false)
+  expect(receiverAllowed('https://x.com.vn', 'https://board.com.vn', [])).toBe(false)
+  expect(receiverAllowed('https://ingest.congty.com.vn', 'https://board.congty.com.vn', [])).toBe(true)
+  expect(receiverAllowed('https://ingest.example.com', 'http://board.example.com', [])).toBe(false)
+  expect(receiverAllowed('https://10.0.0.3', 'https://10.0.0.2', [])).toBe(false)
+})
+
+test('the route the server gives is kept for a bounded, spread time, and an empty list sends the machine back', () => {
+  const hook = 'https://board.example.com'
+  const mid = () => 0.5
+  expect(routeFrom('{"ok": true}', hook, [], NOW)).toBeUndefined()
+  expect(routeFrom('not json', hook, [], NOW)).toBeUndefined()
+  expect(routeFrom('{"ingestUrls": []}', hook, [], NOW)).toBeNull()
+  expect(routeFrom('{"ingestUrls": ["https://ingest.other.com"]}', hook, [], NOW)).toBeNull()
+  expect(routeFrom('{"ingestUrls": ["https://ingest.example.com/", "http://x.example.com"], "ingestTtlMs": 600000}', hook, [], NOW, mid))
+    .toEqual({ urls: ['https://ingest.example.com'], until: NOW + 600_000 })
+  expect(routeFrom('{"ingestUrls": ["https://ingest.example.com"]}', hook, [], NOW, mid)!.until).toBe(NOW + ROUTE_TTL_DEFAULT_MS)
+  expect(routeFrom('{"ingestUrls": ["https://ingest.example.com"], "ingestTtlMs": 1}', hook, [], NOW, mid)!.until).toBe(NOW + ROUTE_TTL_MIN_MS)
+  expect(routeFrom('{"ingestUrls": ["https://ingest.example.com"], "ingestTtlMs": 1e12}', hook, [], NOW, mid)!.until).toBe(NOW + ROUTE_TTL_MAX_MS)
+  // spread by up to a fifth either way
+  // lệch tới một phần năm mỗi phía
+  expect(routeFrom('{"ingestUrls": ["https://ingest.example.com"], "ingestTtlMs": 600000}', hook, [], NOW, () => 0)!.until).toBe(NOW + 480_000)
+  expect(routeFrom('{"ingestUrls": ["https://ingest.example.com"], "ingestTtlMs": 600000}', hook, [], NOW, () => 1)!.until).toBe(NOW + 720_000)
+})
+
+test('the machine sends to the receiver while the route holds, and rests on the webhook after the receiver failed', () => {
+  const route = { urls: ['https://ingest.example.com', 'https://ingest2.example.com'], until: NOW + ROUTE_TTL_DEFAULT_MS }
+  expect(routeTarget(undefined, NOW)).toBeUndefined()
+  expect(routeTarget(route, NOW)).toBe('https://ingest.example.com')
+  expect(routeTarget(route, NOW + ROUTE_TTL_DEFAULT_MS)).toBeUndefined()
+  const rested = routeRested(route, NOW)
+  expect(rested.rest).toEqual({ until: NOW + ROUTE_REST_FIRST_MS, wait: ROUTE_REST_FIRST_MS })
+  expect(routeTarget(rested, NOW + 1)).toBeUndefined()
+  expect(routeTarget(rested, NOW + ROUTE_REST_FIRST_MS)).toBe('https://ingest.example.com')
+  expect(routeRested(rested, NOW).rest!.wait).toBe(2 * ROUTE_REST_FIRST_MS)
+  let r = rested
+  for (let i = 0; i < 20; i++) r = routeRested(r, NOW)
+  expect(r.rest!.wait).toBe(ROUTE_REST_MAX_MS)
+})
+
+test('a busy receiver is waited for, any other failure sends that one to the webhook', () => {
+  expect(receiverOutcome({ status: 200 })).toBe('ok')
+  expect(receiverOutcome({ status: 503, headers: { 'retry-after': '30' } })).toBe('busy')
+  expect(receiverOutcome({ status: 429, headers: { 'retry-after': '5' } })).toBe('busy')
+  // no answer, no Retry-After, a key refused there or a path missing: the webhook takes this send, and the key is kept
+  // không trả lời, không có Retry-After, khoá bị từ chối ở đó hay đường không có: webhook nhận lần gửi này, và khoá được giữ
+  expect(receiverOutcome(undefined)).toBe('fallback')
+  expect(receiverOutcome({ status: 503, headers: {} })).toBe('fallback')
+  expect(receiverOutcome({ status: 502 })).toBe('fallback')
+  expect(receiverOutcome({ status: 401 })).toBe('fallback')
+  expect(receiverOutcome({ status: 403 })).toBe('fallback')
+  expect(receiverOutcome({ status: 404 })).toBe('fallback')
+})
+
+test('the package may list hosts of the receiver', () => {
+  expect(readShareConfig({ ingestHosts: ['Ingest.Other.com', 'bad host', 'nodot', 7] }, '/h').ingestHosts).toEqual(['ingest.other.com'])
+  expect(readShareConfig({}, '/h').ingestHosts).toEqual([])
+})

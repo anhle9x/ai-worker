@@ -100,6 +100,7 @@ Câu trả lời cho mọi lần gửi, ở cả hai định dạng (plugin cũ 
 | `needFull` | `true` khi một gói `v: 2` chỉ có các giờ đã đổi đến từ máy mà máy chủ không có sổ (máy mới, dòng bị mất hay hỏng): không giữ gì của gói đó, và lần gửi sau phải là `full: true` |
 | `boot` | Một giá trị ngẫu nhiên mới mỗi lần máy chủ khởi động. Plugin thấy nó đổi thì gửi lại các giờ gần nhất, phòng khi vài giây cuối trước lúc sập chưa kịp ghi |
 | `deviceKey` | Như trước: khoá riêng của máy này, khi máy gửi bằng khoá chung hoặc khoá sắp cũ |
+| `ingestUrls`, `ingestTtlMs` | Chỉ cho máy được chọn cho bộ nhận Go và gửi bằng khoá riêng: từ giờ gửi tới đâu, và trong bao lâu rồi mới hỏi lại `GET /ingest/route` ([RECEIVER.vi.md](RECEIVER.vi.md), "Máy nào gửi tới bộ nhận") |
 
 ### Tổng theo từng người từng ngày
 

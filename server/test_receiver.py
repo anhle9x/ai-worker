@@ -220,6 +220,29 @@ class Receiver(unittest.TestCase):
         self.internal("POST", "/internal/rows", batch)
         self.assertEqual(devices.read_device("device-rcva")["ledger"][h]["usdMicro"], 99)
 
+    def test_a_row_older_than_a_send_written_here_is_left_out(self):
+        """The computer sent a newer book straight here while its row waited in a batch of the receiver: the row, taken by the receiver
+        before that send, comes after and must not put the book back. Times are this server's clock, never the computer's.
+        Máy đã gửi một sổ mới hơn thẳng tới đây trong lúc dòng của nó chờ trong một lô của bộ nhận: dòng đó, bộ nhận nhận trước lần gửi
+        kia, tới sau và không được kéo sổ lùi lại. Thời điểm theo đồng hồ của máy chủ này, không bao giờ theo đồng hồ của máy."""
+        key = self.enrol("device-rcva")
+        h = str(int(time.time() // 3600))
+        older = self.row("device-rcva", {"ledger": {h: {"usdMicro": 5}}}, kind="full")
+        time.sleep(0.01)
+        status, _ = self.call("POST", "/ingest", {"v": 2, "device": "device-rcva", "updatedAt": int(time.time() * 1000), "full": True,
+                                                  "hours": {"ledger": {h: {"usdMicro": 9}}}}, Authorization="Bearer " + key)
+        self.assertEqual(status, 200)
+        self.assertEqual(devices.read_device("device-rcva")["ledger"][h]["usdMicro"], 9)
+        status, answer = self.internal("POST", "/internal/rows", {"src": "go-1", "boot": "b-stale", "seq": 1, "rows": [older]})
+        self.assertEqual((status, answer["bad"], answer["needFull"]), (200, [], []))
+        self.assertEqual(devices.read_device("device-rcva")["ledger"][h]["usdMicro"], 9)
+        # a row the receiver took after that send is written as usual
+        # một dòng bộ nhận nhận sau lần gửi đó được ghi như thường
+        time.sleep(0.01)
+        later = self.row("device-rcva", {"ledger": {h: {"usdMicro": 12}}}, kind="full")
+        self.internal("POST", "/internal/rows", {"src": "go-1", "boot": "b-stale", "seq": 2, "rows": [later]})
+        self.assertEqual(devices.read_device("device-rcva")["ledger"][h]["usdMicro"], 12)
+
     def test_a_row_that_fails_is_left_out_alone(self):
         self.enrol("device-rcva")
         self.enrol("device-rcvb")
@@ -361,6 +384,82 @@ class Receiver(unittest.TestCase):
         self.assertEqual(sorted(today), sorted({str(first), str(int(now // 3600))}))
         whole = self.internal("GET", "/internal/devices?device=device-rcva&whole=1")[1]["devices"][0]["ledger"]
         self.assertIn(str(first - 30), whole)
+
+
+class IngestRoute(unittest.TestCase):
+    """Where the computers send (docs/RECEIVER.md, section 4): told only with their own key, only when chosen, never by default. It
+    borrows the server and the helpers of Receiver without running its tests again.
+    Các máy gửi tới đâu (docs/RECEIVER.vi.md, mục 4): chỉ báo khi gửi bằng khoá riêng, chỉ khi được chọn, mặc định không báo. Lớp này
+    mượn máy chủ và các hàm phụ của Receiver mà không chạy lại các test của nó."""
+
+    URLS = ["https://ingest.example.com", "https://ingest2.example.com"]
+    setUpClass = Receiver.__dict__["setUpClass"]
+    tearDownClass = Receiver.__dict__["tearDownClass"]
+    call = Receiver.call
+    enrol = Receiver.enrol
+
+    def setUp(self):
+        Receiver.setUp(self)
+        self.was = (settings.RECEIVER_INGEST_URLS, settings.RECEIVER_INGEST_DEVICES, settings.RECEIVER_INGEST_PERCENT)
+
+    def tearDown(self):
+        settings.RECEIVER_INGEST_URLS, settings.RECEIVER_INGEST_DEVICES, settings.RECEIVER_INGEST_PERCENT = self.was
+        Receiver.tearDown(self)
+
+    def send(self, device: str, key: str):
+        return self.call("POST", "/ingest", {"v": 1, "device": device, "name": "Rae", "account": device + "@example.com",
+                                             "updatedAt": int(time.time() * 1000)}, Authorization="Bearer " + key)
+
+    def test_nothing_is_said_by_default(self):
+        key = self.enrol(DEVICES[0])
+        status, answer = self.send(DEVICES[0], key)
+        self.assertEqual(status, 200)
+        self.assertNotIn("ingestUrls", answer)
+        self.assertNotIn("ingestTtlMs", answer)
+        self.assertEqual(self.call("GET", "/ingest/route", Authorization="Bearer " + key), (200, {"ingestUrls": [], "ingestTtlMs": 3600000}))
+
+    def test_a_chosen_computer_is_told_with_its_own_key_only(self):
+        settings.RECEIVER_INGEST_URLS, settings.RECEIVER_INGEST_DEVICES = list(self.URLS), frozenset({DEVICES[0]})
+        # the first send, with the shared key, gets its own key and no address: the receiver never takes the shared key
+        # lần gửi đầu, bằng khoá chung, nhận khoá riêng mà không nhận địa chỉ: bộ nhận không bao giờ nhận khoá chung
+        status, answer = self.call("POST", "/ingest", {"v": 1, "device": DEVICES[0], "name": "Rae", "account": DEVICES[0] + "@example.com",
+                                                      "updatedAt": int(time.time() * 1000)}, Authorization="Bearer " + settings.INGEST_KEY)
+        self.assertEqual(status, 200)
+        self.assertNotIn("ingestUrls", answer)
+        key = answer["deviceKey"]
+        status, answer = self.send(DEVICES[0], key)
+        self.assertEqual((status, answer["ingestUrls"], answer["ingestTtlMs"]), (200, self.URLS, 3600000))
+        self.assertEqual(self.call("GET", "/ingest/route", Authorization="Bearer " + key), (200, {"ingestUrls": self.URLS, "ingestTtlMs": 3600000}))
+        self.assertEqual(self.call("GET", "/ingest/route", Authorization="Bearer " + settings.INGEST_KEY)[0], 403)
+        self.assertEqual(self.call("GET", "/ingest/route")[0], 401)
+        # another computer, not on the list, is not told
+        # máy khác, không có trong danh sách, không được báo
+        other = self.enrol(DEVICES[1])
+        self.assertNotIn("ingestUrls", self.send(DEVICES[1], other)[1])
+        # the receiver turned off: nobody is told, and the route sends everyone back here
+        # tắt bộ nhận: không ai được báo, và đường tuyến đưa mọi máy về lại đây
+        settings.RECEIVER_ENABLED = False
+        self.assertNotIn("ingestUrls", self.send(DEVICES[0], key)[1])
+        self.assertEqual(self.call("GET", "/ingest/route", Authorization="Bearer " + key)[1]["ingestUrls"], [])
+
+    def test_the_percentage_is_stable_and_only_adds(self):
+        settings.RECEIVER_INGEST_URLS = list(self.URLS)
+        ids = ["device-%05d" % i for i in range(2000)]
+        chosen = {}
+        for percent in (0, 5, 25, 100):
+            settings.RECEIVER_INGEST_PERCENT = float(percent)
+            chosen[percent] = {d for d in ids if receiver.ingest_route(d)}
+            self.assertEqual(chosen[percent], {d for d in ids if receiver.ingest_route(d)})
+        self.assertEqual(len(chosen[0]), 0)
+        self.assertEqual(len(chosen[100]), len(ids))
+        self.assertTrue(chosen[0] <= chosen[5] <= chosen[25] <= chosen[100])
+        self.assertTrue(50 <= len(chosen[5]) <= 150, len(chosen[5]))
+
+    def test_the_addresses_given(self):
+        self.assertEqual(settings._https_origins("https://a.example.com, http://b.example.com, https://c.example.com/path, https://a.example.com,"
+                                                 " https://d.example.com:8443, https://e.example.com, https://f.example.com, https://g.example.com"),
+                         ["https://a.example.com", "https://d.example.com:8443", "https://e.example.com", "https://f.example.com"])
+        self.assertEqual(settings._https_origins(""), [])
 
 
 class TurningTheSecret(unittest.TestCase):

@@ -100,6 +100,7 @@ The answer to every send, in both formats (an older plugin reads only `ok` and `
 | `needFull` | `true` when a `v: 2` send of changed hours came from a computer the server has no book for (a new computer, a lost or broken row): nothing of it was kept, and the next send must be `full: true` |
 | `boot` | A new random value each time the server starts. A plugin that sees it change sends its latest hours again, in case the last seconds before a crash were not written |
 | `deviceKey` | As before: this computer's own key, when it sent with the shared key or its key is getting old |
+| `ingestUrls`, `ingestTtlMs` | Only to a computer chosen for the Go receiver and sending with its own key: where to send from now on, and for how long before asking `GET /ingest/route` again ([RECEIVER.md](RECEIVER.md), "Which computers send to the receiver") |
 
 ### Totals per person per day
 

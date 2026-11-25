@@ -715,6 +715,7 @@ class RoutePermissions(unittest.TestCase):
         "/static/../webhook.py": (401, 404, 404, 404, 404),
         "/robots.txt": (200, 200, 200, 200, 200),
         "/health": (200, 200, 200, 200, 200),
+        "/ingest/route": (401, 401, 401, 401, 401),
         "/login.js": (200, 200, 200, 200, 200),
         "/tv.js": (200, 200, 200, 200, 200),
         "/tv-qr.js": (200, 200, 200, 200, 200),

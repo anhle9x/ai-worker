@@ -1088,6 +1088,8 @@ class Handler(BaseHTTPRequestHandler):
             # written here, not by the Go receiver: it drops the book it may hold for this computer (board/receiver.py)
             # ghi ở đây, không phải do bộ nhận Go: nó bỏ sổ nó có thể đang giữ cho máy này (board/receiver.py)
             receiver.POLICY.note_written(d["device"])
+            if self.device_claims is not None:
+                receiver.note_direct(d["device"], time.time())
         # which formats this server reads, the pace it wants, whether it needs the whole hour book, and which start of the server this is
         # (docs/DATA-MODEL.md, "Format v: 2"). An older plugin reads only ok and deviceKey
         # máy chủ này đọc được định dạng nào, muốn nhịp gửi ra sao, có cần cả sổ giờ không, và đây là lần khởi động nào của máy chủ
@@ -1102,7 +1104,23 @@ class Handler(BaseHTTPRequestHandler):
         filled = bool(known_before) and known_before != list(INGEST_GATE.identities.get(d["device"]) or [])
         if claims is None or filled or DEVICE_KEYS.needs_renewal(claims, time.time()):
             answer["deviceKey"] = DEVICE_KEYS.issue(d["device"], d.get("account", ""), d.get("name", ""), time.time())
+        # a computer sending with its own key and chosen for the Go receiver is told where to send (docs/RECEIVER.md, section 4)
+        # máy gửi bằng khoá riêng và được chọn cho bộ nhận Go được báo nơi gửi (docs/RECEIVER.vi.md, mục 4)
+        route = receiver.ingest_route(d["device"]) if claims is not None else None
+        if route:
+            answer.update(route)
         self.reply(200, answer)
+
+    def get_ingest_route(self, y: "RequestCtx") -> None:
+        """Where a computer holding an address of the receiver sends now, asked when that address is past its time; writes nothing. Only a
+        computer's own key: the receiver never takes the shared key. An empty list sends the computer back here.
+        Máy đang giữ địa chỉ của bộ nhận giờ gửi tới đâu, hỏi khi địa chỉ đó đã hết hạn; không ghi gì. Chỉ khoá riêng của máy: bộ nhận
+        không bao giờ nhận khoá chung. Danh sách rỗng đưa máy về lại đây."""
+        claims = self.device_claims
+        if claims is None:
+            return self.reply(403, {"error": "use this computer's own key"})
+        route = receiver.ingest_route(claims["device"])
+        self.reply(200, route or {"ingestUrls": [], "ingestTtlMs": settings.RECEIVER_INGEST_TTL_SECONDS * 1000})
 
     def internal_rows(self, y: "RequestCtx") -> None:
         try:
@@ -1846,6 +1864,9 @@ GET_ROUTES = {
     "/": Route(Handler.get_home, PERM_PUBLIC, allow_query=True),
     "/robots.txt": Route(Handler.get_robots, PERM_PUBLIC),
     "/health": Route(Handler.get_health, PERM_PUBLIC),
+    # where a computer sends now, for a plugin holding an address of the Go receiver (docs/RECEIVER.md, section 4)
+    # máy gửi tới đâu lúc này, cho plugin đang giữ địa chỉ của bộ nhận Go (docs/RECEIVER.vi.md, mục 4)
+    "/ingest/route": Route(Handler.get_ingest_route, PERM_INGEST_KEY),
     "/login.js": Route(Handler.get_login_js, PERM_PUBLIC),
     "/tv": Route(Handler.get_tv, PERM_PUBLIC),
     "/tv.js": Route(Handler.get_tv_js, PERM_PUBLIC),

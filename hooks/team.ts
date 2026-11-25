@@ -41,9 +41,12 @@ export type ShareConfig = {
   /** The webhook's key to read the board with: only on the manager's machine. */
   /** Khoá của webhook để đọc bảng: chỉ có trên máy của người quản lý. */
   viewCode: string
+  /** Hosts of the Go receiver this machine may send to besides those under the webhook's own domain (docs/RECEIVER.md, section 4). */
+  /** Các máy chủ của bộ nhận Go mà máy này được gửi tới, ngoài các máy chủ dưới chính tên miền của webhook (docs/RECEIVER.vi.md, mục 4). */
+  ingestHosts: string[]
 }
 
-export const SHARE_OFF: ShareConfig = { enabled: false, name: '', account: '', folders: [], viewBoard: false, webhook: '', ingestKey: '', viewCode: '' }
+export const SHARE_OFF: ShareConfig = { enabled: false, name: '', account: '', folders: [], viewBoard: false, webhook: '', ingestKey: '', viewCode: '', ingestHosts: [] }
 
 export function readShareConfig(raw: unknown, home: string): ShareConfig {
   const c = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
@@ -67,6 +70,9 @@ export function readShareConfig(raw: unknown, home: string): ShareConfig {
     webhook,
     ingestKey: text(c.ingestKey),
     viewCode: text(c.viewCode),
+    ingestHosts: (Array.isArray(c.ingestHosts) ? c.ingestHosts : [])
+      .map(v => text(v).toLowerCase())
+      .filter(h => /^[a-z0-9.-]+$/.test(h) && h.includes('.')),
   }
 }
 
@@ -455,6 +461,99 @@ export function paceFrom(r: { status: number; headers?: Record<string, string>; 
     // máy chủ cũ chỉ trả {"ok": true}, hoặc không phải JSON
   }
   return { gapMs: PACE_MIN_MS }
+}
+
+/** How long the plugin keeps an address of the Go receiver before asking again: what the server says, within these bounds. */
+/** Plugin giữ địa chỉ của bộ nhận Go bao lâu rồi mới hỏi lại: theo máy chủ dặn, trong các giới hạn này. */
+export const ROUTE_TTL_MIN_MS = 5 * 60_000
+export const ROUTE_TTL_MAX_MS = 24 * 60 * 60_000
+export const ROUTE_TTL_DEFAULT_MS = 60 * 60_000
+/** After the receiver could not be reached, how long the plugin sends to the webhook instead: doubling up to the longest. */
+/** Sau khi không tới được bộ nhận, plugin gửi tới webhook trong bao lâu: gấp đôi dần tới mức lâu nhất. */
+export const ROUTE_REST_FIRST_MS = 60_000
+export const ROUTE_REST_MAX_MS = 10 * 60_000
+
+/** Where this machine sends while the server says so: the receiver's addresses, until when, and a rest after the receiver failed. */
+/** Máy này gửi tới đâu trong lúc máy chủ còn dặn: các địa chỉ của bộ nhận, tới khi nào, và thời gian nghỉ sau khi bộ nhận hỏng. */
+export type IngestRoute = { urls: string[]; until: number; rest?: { until: number; wait: number } }
+
+function hostOf(url: string): string | undefined {
+  const m = /^https:\/\/([a-z0-9.-]+)(:\d{1,5})?$/i.exec(url)
+  return m ? m[1].toLowerCase() : undefined
+}
+
+/**
+ * Whether the receiver at `url` may be trusted with this machine's sends: https, no path and no account in it, and its host either the
+ * webhook's own, one under the webhook's parent domain (`ingest.example.com` beside `board.example.com`; the webhook's host needs three
+ * labels or more, so `example.com` never opens all of `.com`), or listed in the package's `ingestHosts`. The webhook must be https too.
+ */
+/** Có được giao các lần gửi của máy này cho bộ nhận ở `url` không: https, không có đường dẫn hay tài khoản, và máy chủ của nó là chính máy chủ của webhook, một máy chủ dưới tên miền cha của webhook (`ingest.example.com` cạnh `board.example.com`; máy chủ của webhook cần từ ba nhãn trở lên, để `example.com` không bao giờ mở cả `.com`), hoặc có trong `ingestHosts` của gói. Webhook cũng phải là https. */
+export function receiverAllowed(url: string, webhook: string, ingestHosts: string[]): boolean {
+  const host = hostOf(url)
+  const hookHost = /^https:\/\/([a-z0-9.-]+)(:\d{1,5})?(\/|$)/i.exec(webhook)?.[1]?.toLowerCase()
+  if (!host || !hookHost) return false
+  if (host === hookHost || ingestHosts.includes(host)) return true
+  const labels = hookHost.split('.')
+  if (labels.length < 3 || labels.every(l => /^\d+$/.test(l))) return false
+  const parent = labels.slice(1)
+  // a parent like com.vn or co.uk is a public suffix, not the company's domain: congty.com.vn opens nothing more
+  // tên miền cha như com.vn hay co.uk là hậu tố công cộng, không phải tên miền của công ty: congty.com.vn không mở thêm gì
+  if (parent.length === 2 && parent[1].length === 2 && SECOND_LEVEL.includes(parent[0])) return false
+  return host.endsWith('.' + parent.join('.'))
+}
+
+const SECOND_LEVEL = ['com', 'net', 'org', 'edu', 'gov', 'co', 'ac', 'or', 'ne', 'go', 'info', 'biz', 'int', 'mil', 'name', 'pro', 'health', 'id', 'ltd', 'plc']
+
+/**
+ * The route in the server's answer (to a send, or to GET /ingest/route): a new route, `null` when the server says to send to the webhook
+ * again (an empty list), or `undefined` when it says nothing (an older server, or a computer not chosen: keep what is held until it runs
+ * out). Addresses not allowed are left out; the time to keep it is bounded and moved by up to a fifth either way, so the computers do not
+ * all ask again in the same second.
+ */
+/** Tuyến trong câu trả lời của máy chủ (cho một lần gửi, hay cho GET /ingest/route): một tuyến mới, `null` khi máy chủ bảo gửi lại tới webhook (danh sách rỗng), hoặc `undefined` khi nó không nói gì (máy chủ cũ, hay máy không được chọn: giữ cái đang có tới khi hết hạn). Địa chỉ không được phép bị bỏ; thời gian giữ có giới hạn và lệch tới một phần năm mỗi phía, để các máy không cùng hỏi lại trong một giây. */
+export function routeFrom(answer: string, webhook: string, ingestHosts: string[], now: number, random: () => number = Math.random): IngestRoute | null | undefined {
+  let o: { ingestUrls?: unknown; ingestTtlMs?: unknown }
+  try {
+    o = JSON.parse(answer) as typeof o
+  } catch {
+    return undefined
+  }
+  if (!o || typeof o !== 'object' || !Array.isArray(o.ingestUrls)) return undefined
+  const urls = o.ingestUrls.filter((u): u is string => typeof u === 'string').map(u => u.replace(/\/+$/, '')).filter(u => receiverAllowed(u, webhook, ingestHosts)).slice(0, 4)
+  if (!urls.length) return null
+  const asked = typeof o.ingestTtlMs === 'number' && Number.isFinite(o.ingestTtlMs) ? o.ingestTtlMs : ROUTE_TTL_DEFAULT_MS
+  const ttl = Math.min(ROUTE_TTL_MAX_MS, Math.max(ROUTE_TTL_MIN_MS, asked))
+  return { urls, until: now + Math.round(ttl * (0.8 + 0.4 * random())) }
+}
+
+/** Where to send now: the receiver's first address while the route holds and is not resting, else undefined (the webhook). */
+/** Gửi tới đâu lúc này: địa chỉ đầu tiên của bộ nhận khi tuyến còn hạn và không đang nghỉ, nếu không thì undefined (webhook). */
+export function routeTarget(route: IngestRoute | undefined, now: number): string | undefined {
+  if (!route || !(route.until > now) || !route.urls.length) return undefined
+  if (route.rest && route.rest.until > now) return undefined
+  return route.urls[0]
+}
+
+/**
+ * What the receiver's answer means for this send: `ok` (taken), `busy` (429 or 503 with Retry-After: wait, never pour onto the webhook,
+ * which the receiver shields), or `fallback` (no answer, TLS, a timeout, 401, 403, 404, another error: send this one to the webhook now).
+ */
+/** Câu trả lời của bộ nhận có nghĩa gì cho lần gửi này: `ok` (đã nhận), `busy` (429 hay 503 kèm Retry-After: chờ, không bao giờ đổ sang webhook, nơi bộ nhận đang che chắn), hoặc `fallback` (không trả lời, lỗi TLS, hết giờ, 401, 403, 404, lỗi khác: gửi lần này tới webhook ngay). */
+export function receiverOutcome(r: { status: number; headers?: Record<string, string> } | undefined): 'ok' | 'busy' | 'fallback' {
+  if (!r) return 'fallback'
+  if (r.status >= 200 && r.status <= 299) return 'ok'
+  if (r.status === 429 || r.status === 503) {
+    const seconds = Number(r.headers?.['retry-after'])
+    if (Number.isFinite(seconds) && seconds > 0) return 'busy'
+  }
+  return 'fallback'
+}
+
+/** The route after the receiver failed: a rest, one minute the first time, doubling up to ten. */
+/** Tuyến sau khi bộ nhận hỏng: một lần nghỉ, một phút lần đầu, gấp đôi dần tới mười phút. */
+export function routeRested(route: IngestRoute, now: number): IngestRoute {
+  const wait = Math.min(ROUTE_REST_MAX_MS, route.rest?.wait ? route.rest.wait * 2 : ROUTE_REST_FIRST_MS)
+  return { ...route, rest: { until: now + wait, wait } }
 }
 
 export function deviceKeyIn(answer: string): string | undefined {

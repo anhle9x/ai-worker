@@ -315,6 +315,29 @@ RECEIVER_BOARD_ORIGIN = _origin(os.environ.get("RECEIVER_BOARD_ORIGIN", ""))
 TICKET_SECONDS = 300
 
 
+# Where the computers send once the receiver takes their sends (docs/RECEIVER.md, section 4): RECEIVER_INGEST_URLS lists up to 4 https
+# addresses of the receiver, comma separated; only the computers chosen by RECEIVER_INGEST_DEVICES (their ids, comma separated) or by
+# RECEIVER_INGEST_PERCENT (0 to 100, by a stable hash of the id) are told, in the answer to a send made with their own key, and keep the
+# address for RECEIVER_INGEST_TTL_SECONDS (300 to 86,400, default 3,600) before asking again. Empty: no computer is told, as before.
+# Nơi các máy gửi khi bộ nhận nhận các lần gửi của chúng (docs/RECEIVER.vi.md, mục 4): RECEIVER_INGEST_URLS liệt kê tới 4 địa chỉ https
+# của bộ nhận, cách nhau dấu phẩy; chỉ các máy được chọn bằng RECEIVER_INGEST_DEVICES (mã máy, cách nhau dấu phẩy) hoặc
+# RECEIVER_INGEST_PERCENT (0 tới 100, theo băm ổn định của mã máy) mới được báo, trong câu trả lời cho lần gửi bằng khoá riêng, và giữ
+# địa chỉ trong RECEIVER_INGEST_TTL_SECONDS (300 tới 86.400, mặc định 3.600) rồi mới hỏi lại. Để trống: không máy nào được báo, như cũ.
+def _https_origins(v: str) -> list:
+    out = []
+    for part in v.split(","):
+        o = _origin(part)
+        if o.startswith("https://") and o not in out:
+            out.append(o)
+    return out[:4]
+
+
+RECEIVER_INGEST_URLS = _https_origins(os.environ.get("RECEIVER_INGEST_URLS", ""))
+RECEIVER_INGEST_DEVICES = frozenset(x.strip() for x in os.environ.get("RECEIVER_INGEST_DEVICES", "").split(",") if x.strip())
+RECEIVER_INGEST_PERCENT = min(max(0.0, float(os.environ.get("RECEIVER_INGEST_PERCENT", "").strip() or "0")), 100.0)
+RECEIVER_INGEST_TTL_SECONDS = min(max(300, int(os.environ.get("RECEIVER_INGEST_TTL_SECONDS", "").strip() or "3600")), 86400)
+
+
 def live_enabled() -> bool:
     """Whether the live feed is set up: the receiver is on and both addresses are given.
     Luồng số trực tiếp đã được cài chưa: bộ nhận đang bật và có đủ hai địa chỉ."""

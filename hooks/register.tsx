@@ -12,8 +12,8 @@ import type { EngineInterface, Register, ToolCallResult } from 'claude-code'
 import type { Activity, BlockKind, Job, Ledger, TeamState, Usage, WorkerId } from '../types'
 import { applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, staleSessionFiles } from './activity'
 import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextNoteForClaude, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
-import { answerModel, buildMachineSummary, deviceKeyIn, paceFrom, PACE_MIN_MS, refusalAfter, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
-import type { ShareConfig } from './team'
+import { answerModel, buildMachineSummary, deviceKeyIn, paceFrom, PACE_MIN_MS, receiverOutcome, refusalAfter, routeFrom, routeRested, routeTarget, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
+import type { IngestRoute, ShareConfig } from './team'
 import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT, WINDOWS_CLAUDE_SCRIPT, UNIX_CLAUDE_SCRIPT, claudeCandidate, isClaudeCodeVersion, findHostApp, parseLinuxHost, parseWindowsHost, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, releaseKeys, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
 import { AGY_BRAIN, IMAGE_DIR, IMAGE_SCHEMA, IMAGE_SETTLE_MS, OLLAMA_URL, PROMPT_LEVEL_SCHEMA, PROMPT_SCHEMA, WORKER_TIMEOUT_MS, imageArgv, imageTargets, newImages, safeImageName, sendingNeedsAsking, sendingRefusal, agyArgv, codexArgv, codexInput, isBatchLauncher, delegationRules, gemmaAnswer, gemmaRequest, mcpConfigured, ownTools, pickGemma } from './workers'
 import type { OwnWorkers } from './workers'
@@ -477,6 +477,9 @@ const REFUSED_KEY = 'shareRefused'
 /** What the server's answers ask of the next sends: the gap between them and, after "busy", no send before `until` (paceFrom). */
 /** Các câu trả lời của máy chủ dặn gì cho các lần gửi sau: khoảng cách giữa chúng và, sau "bận", không gửi trước `until` (paceFrom). */
 const PACE_KEY = 'sharePace'
+/** Where this computer sends while the server says so: the Go receiver's addresses and until when (docs/RECEIVER.md, section 4). */
+/** Máy này gửi tới đâu trong lúc máy chủ còn dặn: các địa chỉ của bộ nhận Go và tới khi nào (docs/RECEIVER.vi.md, mục 4). */
+const ROUTE_KEY = 'ingestRoute'
 /** The gap of the last answer, in this session's memory too, for the timer of the next send. */
 /** Khoảng cách của câu trả lời gần nhất, giữ cả trong bộ nhớ của phiên này, cho bộ hẹn giờ của lần gửi sau. */
 let paceGapMs = PACE_MIN_MS
@@ -788,11 +791,42 @@ async function shareOnce($: EngineInterface) {
           // khoá riêng của máy này khi máy chủ đã cấp, nếu không thì khoá của gói cài
           const own = await $.store.get(DEVICE_KEY).catch(() => undefined)
           const key = typeof own === 'string' && own.startsWith('awd1.') ? own : share.ingestKey
-          const r = await $.http.fetch(`${share.webhook}/ingest`, {
+          const post = (base: string) => $.http.fetch(`${base}/ingest`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
             body: JSON.stringify(summary),
           })
+          // the Go receiver takes only a computer's own key: the shared key of the package always goes to the webhook
+          // bộ nhận Go chỉ nhận khoá riêng của máy: khoá chung của gói luôn đi tới webhook
+          const ownKey = key !== share.ingestKey
+          let route = ownKey ? ((await $.store.get(ROUTE_KEY).catch(() => undefined)) as IngestRoute | undefined) : undefined
+          if (route && !(route.until > now)) {
+            // the address ran out: ask the webhook where to send now, which writes nothing; no answer sends to the webhook
+            // địa chỉ đã hết hạn: hỏi webhook giờ gửi tới đâu, việc này không ghi gì; không trả lời thì gửi tới webhook
+            const asked = await $.http.fetch(`${share.webhook}/ingest/route`, { method: 'GET', headers: { Authorization: `Bearer ${key}` } }).catch(() => undefined)
+            route = (asked?.ok ? routeFrom(asked.text, share.webhook, share.ingestHosts, now) : null) ?? undefined
+            if (route) await $.store.set(ROUTE_KEY, route)
+            else await $.store.delete(ROUTE_KEY).catch(() => undefined)
+          }
+          const target = route ? routeTarget(route, now) : undefined
+          let r: Awaited<ReturnType<typeof post>>
+          if (target && route) {
+            const got = await post(target).catch(() => undefined)
+            if (receiverOutcome(got) === 'fallback') {
+              // the receiver could not take it (down, unreachable, its key check, a missing path): this send goes to the webhook now,
+              // and the webhook takes the next ones for a while, longer each time
+              // bộ nhận không nhận được (đã dừng, không tới được, kiểm khoá ở đó, thiếu đường): lần gửi này đi tới webhook ngay, và
+              // webhook nhận các lần sau trong một lúc, lâu dần mỗi lần
+              route = routeRested(route, now)
+              await $.store.set(ROUTE_KEY, route)
+              r = await post(share.webhook)
+            } else {
+              r = got!
+              if (route.rest) await $.store.set(ROUTE_KEY, { urls: route.urls, until: route.until })
+            }
+          } else {
+            r = await post(share.webhook)
+          }
           // its own key refused (too old, or the server was set up again): drop it, so the next send asks for a new one
           // khoá riêng bị từ chối (quá cũ, hoặc máy chủ được cài lại): bỏ nó, để lần gửi sau xin khoá mới
           if (r.status === 401 && key !== share.ingestKey) await $.store.delete(DEVICE_KEY).catch(() => undefined)
@@ -812,6 +846,11 @@ async function shareOnce($: EngineInterface) {
           if (refused.wait) await $.store.delete(REFUSED_KEY).catch(() => undefined)
           const given = deviceKeyIn(r.text)
           if (given) await $.store.set(DEVICE_KEY, given)
+          // the webhook says where to send from now on: the Go receiver, or here again (an empty list); nothing said keeps what is held
+          // webhook dặn từ giờ gửi tới đâu: bộ nhận Go, hoặc lại về đây (danh sách rỗng); không dặn gì thì giữ cái đang có
+          const next = ownKey || given ? routeFrom(r.text, share.webhook, share.ingestHosts, now) : undefined
+          if (next) await $.store.set(ROUTE_KEY, route?.rest && route.urls.join() === next.urls.join() ? { ...next, rest: route.rest } : next)
+          else if (next === null) await $.store.delete(ROUTE_KEY).catch(() => undefined)
         } else {
           await $.fs.write(`${folder}/${device}.json`, JSON.stringify(summary))
         }

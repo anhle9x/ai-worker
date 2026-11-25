@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.13 - 2026-11-25
+
+### Added
+- The computers can send to the Go receiver instead of the webhook, once the server says so: `RECEIVER_INGEST_URLS` gives the receiver's addresses, and only the computers in `RECEIVER_INGEST_DEVICES` or in `RECEIVER_INGEST_PERCENT` are told, in the answer to a send made with their own key. The plugin keeps the address an hour (`RECEIVER_INGEST_TTL_SECONDS`) and then asks `GET /ingest/route`; it trusts only `https` addresses under the webhook's own domain or listed in the package's `sharing.ingestHosts`, never sends the shared key there, sends to the webhook when the receiver cannot be reached, and waits when it is busy. Nothing changes until the addresses are set: [docs/RECEIVER.md](docs/RECEIVER.md), "Which computers send to the receiver".
+
+### Fixed
+- A row of the Go receiver older than a send the webhook wrote itself for the same computer no longer puts that computer's book back; its records of work handed to helpers are still logged.
+
 ## 0.50.12 - 2026-11-24
 
 ### Fixed

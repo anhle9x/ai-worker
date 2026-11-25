@@ -51,6 +51,7 @@ from board.devices import (
     DEVICES,
     NEED_FULL,
     SAVED,
+    STALE,
     clean_delegations,
     clean_payload,
     group_by_person,
@@ -77,6 +78,34 @@ PEOPLE_GONE_MAX = 100_000
 # thứ bộ nhận giữ về trạng thái của một máy ngoài các giờ, để đưa trạng thái lên số trực tiếp (receiver/internal/live): số phiên, số việc
 # đang giao cho trợ lý, và số theo từng công cụ của bộ nối. Không tên, không email, không địa chỉ.
 STATE_FIELDS = ("openSessions", "working", "waiting", "delegating", "tools")
+
+
+# when this server last wrote a computer's send itself with the computer's own key (straight to /ingest, or passed on by the receiver),
+# by this server's clock: a row the receiver took before that is older than the book here (board/receiver.py, apply_row)
+# lần cuối máy chủ này tự ghi một lần gửi của máy bằng khoá riêng của máy (thẳng tới /ingest, hay do bộ nhận chuyển nguyên văn), theo
+# đồng hồ của máy chủ này: một dòng bộ nhận đã nhận trước lúc đó thì cũ hơn sổ ở đây (board/receiver.py, apply_row)
+DIRECT_AT = {}
+
+
+def note_direct(device: str, now: float) -> None:
+    """A send of this computer, with its own key, written here at now (webhook.py, ingest).
+    Một lần gửi của máy này, bằng khoá riêng, được ghi ở đây lúc now (webhook.py, ingest)."""
+    DIRECT_AT[device] = now
+
+
+def ingest_route(device: str):
+    """Where this computer sends from now on, when the receiver takes its sends: {"ingestUrls": [...], "ingestTtlMs": n}, or None when it
+    is not chosen (RECEIVER off, no address, or not in RECEIVER_INGEST_DEVICES nor in RECEIVER_INGEST_PERCENT). The share is decided by a
+    stable hash of the id, so a computer stays in or out while the percentage stays the same, and raising it only adds computers.
+    Máy này gửi tới đâu từ giờ, khi bộ nhận nhận các lần gửi của nó: {"ingestUrls": [...], "ingestTtlMs": n}, hoặc None khi nó không
+    được chọn (RECEIVER tắt, không có địa chỉ, hoặc không nằm trong RECEIVER_INGEST_DEVICES lẫn RECEIVER_INGEST_PERCENT). Phần trăm được
+    quyết bằng băm ổn định của mã máy, nên một máy ở yên trong hay ngoài khi phần trăm không đổi, và tăng phần trăm chỉ thêm máy."""
+    if not (settings.RECEIVER_ENABLED and settings.RECEIVER_INGEST_URLS and isinstance(device, str) and device):
+        return None
+    bucket = int.from_bytes(hashlib.sha256(device.encode("utf-8")).digest()[:4], "big") % 10000
+    if device not in settings.RECEIVER_INGEST_DEVICES and bucket >= settings.RECEIVER_INGEST_PERCENT * 100:
+        return None
+    return {"ingestUrls": list(settings.RECEIVER_INGEST_URLS), "ingestTtlMs": settings.RECEIVER_INGEST_TTL_SECONDS * 1000}
 
 
 def write_secrets(now: float) -> str:
@@ -427,11 +456,19 @@ def apply_row(row, now: float, identities: dict, out: dict, people: set, delegat
     if row["kind"] == "delegations":
         delegations.append((d, clean_delegations(row["v"].get("delegations"), at * 1000)))
         return
-    outcome = save_ingest(d, now, row["kind"], decided=True)
+    # the computer sent straight here after the receiver took this row (its address of the receiver ran out, or the receiver could not be
+    # reached): the row is older than the book here and would put it back, so its numbers are left out
+    # máy đã gửi thẳng tới đây sau khi bộ nhận nhận dòng này (địa chỉ bộ nhận đã hết hạn, hoặc không tới được bộ nhận): dòng cũ hơn sổ ở
+    # đây và sẽ kéo sổ lùi lại, nên số của nó bị bỏ
+    outcome = STALE if DIRECT_AT.get(d["device"], 0) > at else save_ingest(d, now, row["kind"], decided=True)
     if outcome == NEED_FULL:
         out["needFull"].append(d["device"])
     elif outcome == SAVED:
         people.add(person_key(d))
+        delegations.append((d, clean_delegations(row["v"].get("delegations"), at * 1000)))
+    elif outcome == STALE:
+        # its numbers are older than the book here, but its records of work handed to helpers still go to the audit log, once each
+        # số của nó cũ hơn sổ ở đây, nhưng biên bản giao việc của nó vẫn vào nhật ký, mỗi cái một lần
         delegations.append((d, clean_delegations(row["v"].get("delegations"), at * 1000)))
     if "raw" in row and settings.RECEIVER_CHECK_PERCENT > 0:
         check_row(row, at)

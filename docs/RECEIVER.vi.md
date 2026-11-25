@@ -4,7 +4,7 @@ Tiếng Việt | [English](RECEIVER.md)
 
 Công ty nhỏ không cần trang này: máy chủ Python tự nhận mọi lần gửi. Bộ nhận trong `receiver/` là một chương trình thứ hai, viết chỉ bằng thư viện chuẩn của Go, cho tổ chức có nhiều nghìn máy. Nó nhận các lần gửi của máy trên một địa chỉ riêng qua TLS, trả lời ngay, rồi trao chúng cho máy chủ Python theo lô. Python vẫn là bản gốc: đăng nhập, vai, bảng, lịch sử và các file SQLite không đổi.
 
-**Đợt đầu này làm gì và chưa làm gì.** Nó nhận số đúng và đưa cho Python đúng những bản ghi mà Python tự ghi sẽ ra; các bài kiểm giữ hai bên như vậy. Nó còn phục vụ các bảng số trực tiếp, theo chi nhánh hoặc cho cả tổ chức, ở `/live` (mục 3, "Luồng số trực tiếp"), và trang bảng mở luồng đó khi luồng đã được cài. Trên Linux 4 vCPU, 8 GB, nó hợp cho khoảng 20.000 máy gửi mỗi 2 giây (mục 7). Plugin cũng chưa gửi tới bộ nhận: chưa máy nào đi đường này cho tới khi một bản plugin sau biết địa chỉ bộ nhận từ máy chủ (`ingestUrls`).
+**Đợt đầu này làm gì và chưa làm gì.** Nó nhận số đúng và đưa cho Python đúng những bản ghi mà Python tự ghi sẽ ra; các bài kiểm giữ hai bên như vậy. Nó còn phục vụ các bảng số trực tiếp, theo chi nhánh hoặc cho cả tổ chức, ở `/live` (mục 3, "Luồng số trực tiếp"), và trang bảng mở luồng đó khi luồng đã được cài. Trên Linux 4 vCPU, 8 GB, nó hợp cho khoảng 20.000 máy gửi mỗi 2 giây (mục 7). Plugin chỉ gửi tới bộ nhận khi máy chủ báo nơi gửi (`ingestUrls`, "Máy nào gửi tới bộ nhận" bên dưới), nên không có gì đổi cho tới khi đặt `RECEIVER_INGEST_URLS`.
 
 ## 1. Một lần gửi đi thế nào
 
@@ -118,6 +118,16 @@ Khi có `RECEIVER_LIVE_URL`, các trang của bảng cho phép địa chỉ đó
 Khi Python chậm hơn tốc độ các máy gửi, nhịp tự giãn ra: lô sau chỉ đi khi Python đã trả lời lô trước, các lần gửi của một máy trong lúc đó chờ thành một dòng, và các lô vẫn theo thứ tự mã máy. `GET /health` của bộ nhận cho biết bao nhiêu dòng đang chờ (`queued`), dòng chờ lâu nhất đã chờ bao lâu (`waitSeconds`), và `behind: true` khi quá 60 giây, đồng thời ghi một lần vào nhật ký. Số trên các bảng vẫn tới trực tiếp từ bộ nhận.
 
 Bộ nhận chỉ nói HTTP/1.1 (HTTP/2 tốn hơn ở đây), chờ phần header của một yêu cầu nhiều nhất 10 giây, đọc thân nhiều nhất 256 KB, và giữ kết nối rảnh 5 phút, lâu hơn một chút so với 4 phút giữa hai lần gửi của máy đang rảnh.
+
+### Máy nào gửi tới bộ nhận
+
+- `RECEIVER_INGEST_URLS` liệt kê tới 4 địa chỉ `https` của bộ nhận. Để trống (mặc định): mọi máy gửi tới webhook như trước.
+- Máy nào được báo: `RECEIVER_INGEST_DEVICES` (mã máy, cách nhau dấu phẩy) và `RECEIVER_INGEST_PERCENT` (0 tới 100, theo băm ổn định của mã máy, nên tăng lên chỉ thêm máy). Bắt đầu với vài máy phòng IT, rồi 5, 25, 100, kèm `RECEIVER_CHECK_PERCENT=100` trong lúc thử.
+- Máy chủ báo cho máy được chọn trong câu trả lời cho lần gửi bằng khoá riêng của máy (`ingestUrls`, `ingestTtlMs`, [DATA-MODEL.vi.md](DATA-MODEL.vi.md)); khoá chung không bao giờ đi tới bộ nhận. Plugin giữ địa chỉ `RECEIVER_INGEST_TTL_SECONDS` (mặc định một giờ, lệch tới một phần năm), rồi hỏi `GET /ingest/route` trên webhook, việc này không ghi gì; danh sách rỗng đưa máy về lại webhook.
+- Plugin chỉ tin một địa chỉ qua `https`, không có đường dẫn, và nằm trên chính máy chủ của webhook, dưới tên miền cha của webhook (`ingest.example.com` cạnh `board.example.com`, không bao giờ là hậu tố công cộng như `com.vn`), hoặc có trong `sharing.ingestHosts` của gói. Chứng chỉ là chứng chỉ công khai cho tên đó (mục 5).
+- Khi không tới được bộ nhận, bộ nhận trả lời mà không có `Retry-After`, hoặc từ chối khoá, plugin gửi lần đó tới webhook ngay và gửi tiếp ở đó một phút, gấp đôi dần tới mười phút. Bộ nhận đang bận (429 hay 503 kèm `Retry-After`) thì chờ, không bao giờ đổ sang webhook mà nó đang che chắn.
+- Tắt chậm: để trống các thiết lập, các máy quay về trong một lần hết hạn địa chỉ. Tắt ngay: dừng bộ nhận, các máy quay về ở lần gửi kế.
+- Máy đã gửi thẳng tới webhook trong lúc một dòng cũ hơn của nó còn chờ trong một lô vẫn giữ sổ mới hơn: dòng cũ hơn thứ webhook tự ghi bị bỏ (biên bản giao việc của nó vẫn được ghi nhật ký).
 
 ## 5. Dựng lên
 
