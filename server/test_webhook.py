@@ -5089,6 +5089,44 @@ class DeviceCacheAndViews(unittest.TestCase):
             views._raw_data = real
             settings.RECEIVER_ENABLED = was
 
+    def test_with_the_receiver_a_slow_build_makes_the_next_one_wait_longer(self):
+        """A build that took 4 seconds makes the next wait 12 (BUILD_TIMES times as long) instead of 5, and never past KEEP_MAX.
+        Một lần dựng mất 4 giây làm lần kế chờ 12 giây (gấp BUILD_TIMES) thay vì 5, và không bao giờ quá KEEP_MAX."""
+        os.environ["VIEW_CACHE_SECONDS"] = ""
+        built, real = [], views._raw_data
+
+        def counting(now):
+            built.append(now)
+            return real(now)
+        views._raw_data = counting
+        was = settings.RECEIVER_ENABLED
+        settings.RECEIVER_ENABLED = True
+        try:
+            cache = views.ViewCache()
+            t = time.time()
+            cache.json(security.WALL, t)
+            cache.kept["took"] = 4.0
+            cache.json(security.WALL, t + 6)
+            self.assertFalse(cache.building)
+            self.assertEqual(len(built), 1)
+            cache.json(security.WALL, t + 13)
+            for _ in range(200):
+                if not cache.building:
+                    break
+                time.sleep(0.05)
+            self.assertEqual(len(built), 2)
+            cache.kept["took"] = 100.0
+            at = cache.kept["at"]
+            cache.json(security.WALL, at + views.KEEP_MAX + 1)
+            for _ in range(200):
+                if not cache.building:
+                    break
+                time.sleep(0.05)
+            self.assertEqual(len(built), 3)
+        finally:
+            views._raw_data = real
+            settings.RECEIVER_ENABLED = was
+
     def test_the_admin_page_says_when_the_receiver_is_behind(self):
         from board import receiver
         was = settings.RECEIVER_ENABLED

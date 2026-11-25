@@ -326,6 +326,12 @@ def _view_of(raw: dict, role: str, every_branch: bool) -> dict:
 # with the receiver, a view is given while a thread builds the next one only up to this many times the time it is kept
 # khi có bộ nhận, khung nhìn chỉ được trả trong lúc một luồng dựng bản kế khi chưa cũ quá bấy nhiêu lần thời gian giữ nó
 STALE_TIMES = 3
+# with the receiver, the next build waits at least this many times the time the last one took, up to KEEP_MAX seconds: when a build
+# takes long because the server is busy writing, the board is built less often instead of taking the time the writes need
+# khi có bộ nhận, lần dựng kế chờ ít nhất bấy nhiêu lần thời gian lần trước đã mất, tối đa KEEP_MAX giây: khi một lần dựng lâu vì máy chủ
+# đang bận ghi, bảng được dựng thưa đi thay vì lấy mất thời gian của việc ghi
+BUILD_TIMES = 3
+KEEP_MAX = 20.0
 
 
 class ViewCache:
@@ -361,13 +367,14 @@ class ViewCache:
     def _build(self, now: float, keys, jsons) -> dict:
         """One build of the numbers, with the views of keys and the JSON of jsons made from it.
         Một lần dựng các số, kèm khung nhìn của keys và JSON của jsons làm từ đó."""
+        started = time.perf_counter()
         raw = _raw_data(now)
         entries = {}
         for key in keys:
             entries[key] = {"at": now, "view": _view_of(raw, key[0], key[1]), "json": None}
             if key in jsons:
                 entries[key]["json"] = json.dumps(entries[key]["view"], ensure_ascii=False).encode()
-        return {"at": now, "raw": raw, "entries": entries}
+        return {"at": now, "raw": raw, "entries": entries, "took": time.perf_counter() - started}
 
     def _build_next(self, keys, jsons) -> None:
         try:
@@ -387,6 +394,8 @@ class ViewCache:
         _entry khi có bộ nhận: xem lớp."""
         with self.lock:
             kept = self.kept
+            if kept is not None:
+                keep = min(max(keep, BUILD_TIMES * kept.get("took", 0.0)), max(keep, KEEP_MAX))
             if kept is None or not 0 <= now - kept["at"] < STALE_TIMES * keep:
                 # the first request builds in its own thread, as without the receiver, and so does one that comes after a quiet
                 # while: an old view is given only while it is a few seconds old, never one left from minutes ago

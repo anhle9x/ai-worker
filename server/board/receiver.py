@@ -42,7 +42,7 @@ import threading
 import time
 from collections import deque
 
-from board import devicestore, settings
+from board import devicestore, settings, turns
 from board.db import data_db
 from board.devicekeys import DEVICE_KEYS
 from board.login import SESSIONS
@@ -54,7 +54,7 @@ from board.devices import (
     STALE,
     clean_delegations,
     clean_payload,
-    group_by_person,
+    branch_facts,
     person_key,
     read_all_devices,
     read_book,
@@ -277,7 +277,7 @@ def devices_page(after: str, limit: int, device: str = "", whole: bool = False) 
         one = book_for_receiver(device, whole)
         return {"devices": [one] if one else [], "next": None}
     limit = min(max(1, limit), DEVICES_PAGE_MAX)
-    with DEVICES.lock:
+    with turns.writing(), DEVICES.lock:
         ids = DEVICES.ids_after(after, limit + 1)
         page = [book for book in (book_for_receiver(k) for k in ids[:limit]) if book]
     return {"devices": page, "next": ids[limit - 1] if len(ids) > limit else None}
@@ -311,7 +311,9 @@ def apply_rows(batch, now: float):
         done = POLICY.batches.get(source, -1)
     if seq <= done:
         return {"ok": True, "seq": seq, "needFull": [], "unknown": [], "incomplete": [], "bad": []}
-    with DEVICES.lock:
+    # the builds of the board rest while the batch is written (board/turns.py)
+    # các lần dựng bảng nghỉ trong lúc lô được ghi
+    with turns.writing(), DEVICES.lock:
         result = _apply_fast(batch["rows"], now, INGEST_GATE.identities) if settings.RECEIVER_FAST_APPLY else None
         out, people, delegations = result or _apply_one_by_one(batch["rows"], now, INGEST_GATE.identities)
     with POLICY.lock:
@@ -539,7 +541,7 @@ class People:
         branches = all_branches()
         # the same people and the same branches as the board (board/views.py, _raw_data)
         # cùng những người và cùng các chi nhánh như bảng (board/views.py, _raw_data)
-        scope_of = {r["key"]: branch_of(r, branches) for r in group_by_person(devices, now)}
+        scope_of = {key: branch_of(r, branches) for key, r in branch_facts(devices).items()}
         table = {}
         for m in devices:
             key = person_key(m)

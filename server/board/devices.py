@@ -13,7 +13,7 @@ import threading
 import time
 from datetime import date, datetime, timedelta
 
-from board import devicestore, settings
+from board import devicestore, settings, turns
 from board.db import data_db, dumps
 from board.settings import (
     CONNECTOR_OFFLINE_SECONDS,
@@ -1061,7 +1061,7 @@ class DeviceCache:
     def write_late(self) -> int:
         """Write the devices rows held back (see self.late) from what the cache holds now; returns how many were written.
         Ghi các dòng devices đang để sau (xem self.late) từ những gì bộ nhớ đệm đang giữ; trả về số dòng đã ghi."""
-        with self.lock:
+        with turns.writing(), self.lock:
             if not self.late:
                 return 0
             db = self._fresh()
@@ -1423,6 +1423,33 @@ def _good_until(group: list, now: float, today) -> float:
     return min([t for t in moments if t > now] or [now])
 
 
+def _note_ip(r: dict, m: dict, ip: str) -> None:
+    """Where a person sent from most recently (so an old computer at the office does not keep a person who is travelling), and every address.
+    Nơi một người gửi gần nhất (để máy cũ ở văn phòng không giữ người đang đi công tác), và mọi địa chỉ."""
+    if ip and m["updatedAt"] >= r["latestIpAt"]:
+        r["latestIp"], r["latestIpAt"] = ip, m["updatedAt"]
+    if ip and ip not in r["ip"]:
+        r["ip"].append(ip)
+
+
+def branch_facts(devices: list) -> dict:
+    """person key -> the fields of that person's row branch_of reads (name, account, latestIp, ip), exactly as group_by_person sets them,
+    without adding up anything else: the table of people the Go receiver asks for every few seconds (board/receiver.py, People.rebuild).
+    khoá người -> các trường trong dòng của người đó mà branch_of đọc (tên, tài khoản, latestIp, ip), đúng như group_by_person đặt, mà không
+    cộng thêm gì khác: bảng người bộ nhận Go hỏi vài giây một lần."""
+    out = {}
+    for i, m in enumerate(devices):
+        turns.rest(i)
+        if not isinstance(m, dict) or m.get("v") != 1 or not isinstance(m.get("updatedAt"), (int, float)):
+            continue
+        key = person_key(m)
+        r = out.get(key)
+        if r is None:
+            r = out[key] = {"key": key, "name": person_name(m), "account": str(m.get("account") or ""), "latestIp": "", "latestIpAt": 0, "ip": []}
+        _note_ip(r, m, str(m.get("ip") or ""))
+    return out
+
+
 def _build_person_row(group: list, now: float, today, since_7_days) -> dict:
     people = {}
     for m in group:
@@ -1440,13 +1467,9 @@ def _build_person_row(group: list, now: float, today, since_7_days) -> dict:
         # bộ nối không phải một bản cài plugin: không tính là một máy và không có phiên bản plugin để hiện
         if not connector:
             r["deviceCount"] += 1
-        # where this person sent from most recently: so an old computer at the office does not keep a person who is travelling
-        # nơi người này gửi gần nhất: để máy cũ ở văn phòng không giữ người đang đi công tác
-        if ip and m["updatedAt"] >= r["latestIpAt"]:
-            r["latestIp"], r["latestIpAt"] = ip, m["updatedAt"]
-        for k, v in (("lanIps", lan_ip), ("ip", ip)):
-            if v and v not in r[k]:
-                r[k].append(v)
+        _note_ip(r, m, ip)
+        if lan_ip and lan_ip not in r["lanIps"]:
+            r["lanIps"].append(lan_ip)
         entered = str(m.get("enteredAccount") or "")
         if entered and entered not in r["enteredAccounts"]:
             r["enteredAccounts"].append(entered)
@@ -1574,7 +1597,13 @@ def group_by_person(devices: list, now: float) -> list:
             _ROWS.pop(gone, None)
     # a copy of each kept row, since the account-wide fields below are written on it
     # bản sao của mỗi dòng đang giữ, vì các trường theo tài khoản bên dưới được ghi lên nó
-    out = sorted((dict(_person_row(key, group, now, today, since_7_days)) for key, group in groups.items()), key=lambda r: r["name"].lower())
+    out = []
+    for i, (key, group) in enumerate(groups.items()):
+        # between two people a build holds no lock: it rests while the receiver's rows are written (board/turns.py)
+        # giữa hai người, lần dựng không giữ khoá nào: nó nghỉ trong lúc các dòng của bộ nhận đang được ghi
+        turns.rest(i)
+        out.append(dict(_person_row(key, group, now, today, since_7_days)))
+    out.sort(key=lambda r: r["name"].lower())
     per_account = {}
     for r in out:
         per_account[r["account"]] = per_account.get(r["account"], 0) + 1

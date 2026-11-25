@@ -171,9 +171,8 @@ class Receiver(unittest.TestCase):
         trước đó bắt đầu lại từ đầu, trừ khi nó đang nạp cả bảng."""
         table = receiver.People()
         names = {"now": ["device-a", "device-b", "device-c"]}
-        saved = (receiver.read_all_devices, receiver.group_by_person, receiver.PEOPLE_GONE_MAX)
-        receiver.read_all_devices = lambda: [{"v": 1, "device": d, "account": "", "name": d} for d in names["now"]]
-        receiver.group_by_person = lambda devs, now: [{"key": devices.person_key(m), "account": "", "name": m["name"]} for m in devs]
+        saved = (receiver.read_all_devices, receiver.PEOPLE_GONE_MAX)
+        receiver.read_all_devices = lambda: [{"v": 1, "device": d, "account": "", "name": d, "updatedAt": 1000} for d in names["now"]]
         receiver.PEOPLE_GONE_MAX = 1
         try:
             first = table.page(0, "", 100, 1.0)
@@ -194,7 +193,32 @@ class Receiver(unittest.TestCase):
                 table.page(0, "", 1, 20.0 + 10 * i)
             self.assertLessEqual(len(table.log), 2 * len(table.rows) + 1001)
         finally:
-            receiver.read_all_devices, receiver.group_by_person, receiver.PEOPLE_GONE_MAX = saved
+            receiver.read_all_devices, receiver.PEOPLE_GONE_MAX = saved
+
+    def test_the_branch_of_each_person_is_the_board_s(self):
+        """The table of people finds each person's branch from branch_facts, without building the board: for random computers (several per
+        person, addresses changing, ties in time, computers without a time) it gives the branch group_by_person's rows give.
+        Bảng người tìm chi nhánh của mỗi người từ branch_facts, không dựng bảng: với các máy ngẫu nhiên (nhiều máy mỗi người, địa chỉ đổi,
+        trùng thời điểm, máy không có thời điểm) nó cho đúng chi nhánh mà các dòng của group_by_person cho."""
+        import ipaddress
+        import random
+        rng = random.Random(3)
+        nets = [ipaddress.ip_network("10.%d.0.0/16" % i) for i in range(4)]
+        names = ["p%02d@example.com" % i for i in range(12)] + ["Person %02d" % i for i in range(12)]
+        for _ in range(40):
+            branches = [{"id": "b%d" % b, "people": set(rng.sample(names, rng.randint(0, 4))), "networks": rng.sample(nets, rng.randint(0, 2))}
+                        for b in range(rng.randint(1, 4))]
+            devs = []
+            for i in range(rng.randint(1, 60)):
+                p = rng.randrange(12)
+                m = {"v": 1, "device": "device-r%03d" % i, "account": rng.choice(["p%02d@example.com" % p, ""]), "name": "Person %02d" % p,
+                     "ip": rng.choice(["", "10.%d.1.%d" % (rng.randrange(5), rng.randrange(9))]), "updatedAt": rng.choice([1000, 1000, 2000, 3000])}
+                if rng.random() < 0.05:
+                    m.pop("updatedAt")
+                devs.append(m)
+            want = {r["key"]: views.branch_of(r, branches) for r in devices.group_by_person(devs, time.time())}
+            got = {key: views.branch_of(r, branches) for key, r in devices.branch_facts(devs).items()}
+            self.assertEqual(got, want)
 
     def test_a_batch_is_written_with_the_known_name_once(self):
         self.enrol("device-rcva")

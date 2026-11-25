@@ -374,7 +374,7 @@ Không có máy chủ nhưng có ổ dùng chung: bỏ `webhook`, ghi `folders` 
 
 ## Chống tấn công làm nghẽn (DDoS)
 
-Máy chủ giới hạn phần một máy được dùng: tổng số kết nối và số kết nối mỗi IP, cỡ header, thời gian sống của kết nối, bộ nhớ và số luồng (`MemoryMax`, `TasksMax`, `LimitNOFILE` trong file dịch vụ). Vì vậy khi bị tấn công, dịch vụ này chậm hoặc dừng, không kéo sập cả máy chủ. Phần mềm trên máy chủ không chặn được đợt tấn công lớn, vì lưu lượng đã làm nghẽn đường mạng trước khi tới nơi.
+Máy chủ giới hạn phần một máy được dùng: tổng số kết nối và số kết nối mỗi IP, cỡ header, thời gian sống của kết nối, bộ nhớ và số luồng (`MemoryMax`, `TasksMax`, `LimitNOFILE` trong file dịch vụ; bộ nhớ 1 GB, hoặc 45% bộ nhớ của máy khi có bộ nhận Go, `WEBHOOK_MEMORY_MB` để tự đặt). Vì vậy khi bị tấn công, dịch vụ này chậm hoặc dừng, không kéo sập cả máy chủ. Phần mềm trên máy chủ không chặn được đợt tấn công lớn, vì lưu lượng đã làm nghẽn đường mạng trước khi tới nơi.
 - **Tốt nhất:** chỉ cho mạng công ty truy cập, như file mẫu `server/aiworker.caddy`.
 - **Nếu buộc phải mở ra Internet:** đặt sau dịch vụ bảo vệ như Cloudflare.
 - **Dùng nginx thay Caddy:** đặt `proxy_set_header X-Forwarded-For $remote_addr;` và `proxy_set_header X-Forwarded-Proto $scheme;`, nếu không người ngoài có thể giả IP và vượt giới hạn đăng nhập. Webhook tin các header này khi đến từ proxy trên máy; `TRUST_PROXY=0` để tắt.

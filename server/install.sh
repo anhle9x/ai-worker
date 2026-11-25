@@ -194,6 +194,19 @@ else
   OTP_KEY_LINE="Environment=OTP_KEY_FILE=$OTP_KEY"
 fi
 
+# The webhook's memory ceiling: 1 GB for an office. With the Go receiver (RECEIVER=1) Python holds the books of many thousands of computers,
+# 2 to 3.5 GB at 100,000 (docs/RECEIVER.md, section 5), so it gets 45% of the machine (the receiver takes 40%); WEBHOOK_MEMORY_MB in the
+# env file sets it by hand.
+# Trần bộ nhớ của webhook: 1 GB cho một văn phòng. Có bộ nhận Go (RECEIVER=1) thì Python giữ sổ của hàng nghìn máy, 2 tới 3,5 GB ở 100.000
+# máy, nên nó được 45% bộ nhớ của máy (bộ nhận lấy 40%); WEBHOOK_MEMORY_MB trong file env đặt tay con số này.
+WEBHOOK_MEMORY=1G
+if grep -q '^RECEIVER=1[[:space:]]*$' "$ENV"; then
+  SHARE=$(awk '/^MemTotal:/ {print int($2 / 1024 * 45 / 100)}' /proc/meminfo 2>/dev/null)
+  [ "${SHARE:-0}" -gt 1024 ] && WEBHOOK_MEMORY="${SHARE}M"
+fi
+SET_MEMORY=$(sed -n 's/^WEBHOOK_MEMORY_MB=\([0-9][0-9]*\)[[:space:]]*$/\1/p' "$ENV" | tail -1)
+[ -n "$SET_MEMORY" ] && WEBHOOK_MEMORY="${SET_MEMORY}M"
+
 cat > /etc/systemd/system/ai-worker-webhook.service <<EOF
 [Unit]
 Description=AI Worker Office dashboard webhook
@@ -212,7 +225,7 @@ PrivateTmp=true
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
-MemoryMax=1G
+MemoryMax=$WEBHOOK_MEMORY
 TasksMax=512
 LimitNOFILE=4096
 ProtectSystem=strict

@@ -374,7 +374,7 @@ No server but a shared drive: leave out `webhook` and set `folders` to the path 
 
 ## Protecting against floods (DDoS)
 
-The server limits what one client can use: connections in all and per IP, header size, the life of a connection, memory and threads (`MemoryMax`, `TasksMax`, `LimitNOFILE` in the service file). So a flood makes this service slow or stops it, without taking the whole server down. No software on the server can stop a large flood, because the traffic fills the network before it arrives.
+The server limits what one client can use: connections in all and per IP, header size, the life of a connection, memory and threads (`MemoryMax`, `TasksMax`, `LimitNOFILE` in the service file; memory 1 GB, or 45% of the machine with the Go receiver, `WEBHOOK_MEMORY_MB` to set it). So a flood makes this service slow or stops it, without taking the whole server down. No software on the server can stop a large flood, because the traffic fills the network before it arrives.
 - **Best:** keep it reachable only from your company network, as the template `server/aiworker.caddy` does.
 - **If it must be open to the Internet:** put it behind a protection service such as Cloudflare.
 - **nginx instead of Caddy:** set `proxy_set_header X-Forwarded-For $remote_addr;` and `proxy_set_header X-Forwarded-Proto $scheme;`, otherwise visitors can fake their IP and get past the login limits. The webhook trusts these headers from a local proxy; `TRUST_PROXY=0` turns that off.

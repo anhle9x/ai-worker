@@ -2,6 +2,12 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.18 - 2026-11-26
+
+### Fixed
+- With the Go receiver, the writes of its batches come before the builds of the board: while a batch is written, a build of the board, of the history or of the table of people rests a moment between two people (`board/turns.py`); the table of people the receiver asks for every few seconds finds each person's branch without adding up the whole board (`branch_facts`); and the board is built again at least three times as long after a build as that build took, up to 20 seconds, instead of every 5 seconds whatever it costs. Measured at 40,000 computers on 4 vCPU and 8 GB with Caddy and a `kill -9` of the receiver and of Python: about twice as many rows written a second while busy (316 batches in the run instead of 201), the receiver waiting for Python over a minute once instead of three times, and the money exact right after the run.
+- The webhook's service no longer caps Python at 1 GB when the Go receiver is on (`RECEIVER=1`): Python then holds the books of every computer, 2 to 3.5 GB at 100,000, and the kernel would have killed it. `install.sh` now gives it 45% of the machine in that case (the receiver keeps its 40%), and `WEBHOOK_MEMORY_MB` in the env file sets the ceiling by hand. An office without the receiver keeps 1 GB. Run `install.sh` again to apply it.
+
 ## 0.50.17 - 2026-11-25
 
 ### Fixed
