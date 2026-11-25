@@ -2091,6 +2091,7 @@ if __name__ == "__main__":
             DEVICES.write_late()
             raise SystemExit(0)
         signal.signal(signal.SIGTERM, stop)
+    sys.setswitchinterval(settings.SWITCH_MS / 1000)
     threading.Thread(target=history_loop, daemon=True).start()
     threading.Thread(target=daily_loop, daemon=True).start()
     LimitedServer((BIND_ADDR, PORT), Handler).serve_forever()

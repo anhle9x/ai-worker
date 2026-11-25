@@ -2,6 +2,15 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.17 - 2026-11-25
+
+### Fixed
+- The server no longer falls behind for minutes after a crash at 40,000 computers. Many request threads waited for the same locks (the lock every request of the Go receiver went through, and the devices' lock), and a thread holding one and paused for Python's 5 ms switch interval made hundreds wait behind it: after a `kill -9` the receiver's rows waited 592 seconds for Python. The server now lets another thread run every 0.5 ms (`SWITCH_MS`), gives the receiver its internal code without the lock, and its service runs with `MALLOC_ARENA_MAX=2`. Measured again on 4 vCPU and 8 GB with Caddy: nothing left waiting at the end, 201 batches written instead of 125, the machine's memory at most 6.2 GB instead of 7.3, and the money exact.
+
+### Changed
+- [docs/RECEIVER.md](docs/RECEIVER.md) has the measurement of 2026-11-25 (40,000 computers sending `v: 2` on 4 vCPU and 8 GB, `kill -9` of the receiver and of Python, the money matching right after) and a new part, "Trying it with a few computers": the versions needed, the settings, what to watch for a week, how to go back and how to widen. [docs/BENCHMARK.md](docs/BENCHMARK.md) has the same measurement.
+- The same pages have the run through Caddy with TLS (2026-11-25): no difference while nothing fails, no money taken lost after a `kill -9` of the receiver and of Python, but on 8 GB with Caddy on the same machine the board's tables fell up to 10 minutes behind after it; 16 GB is advised for 40,000 computers then.
+
 ## 0.50.16 - 2026-11-25
 
 ### Fixed

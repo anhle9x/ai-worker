@@ -286,6 +286,12 @@ class DeviceKeys:
             return _b64(hashlib.sha256(self.ticket.encode()).digest())[:8], base64.urlsafe_b64decode(self.ticket + "=" * (-len(self.ticket) % 4))
 
     def internal_code(self) -> str:
+        """The code the Go receiver sends on /internal/*. Once read it is taken without the lock: every request of the receiver asks for it,
+        and waiting there behind a key being issued or noted held the receiver's batches back.
+        Mã bộ nhận Go gửi kèm /internal/*. Đã đọc rồi thì lấy không cần khoá: mọi yêu cầu của bộ nhận đều hỏi nó, và chờ ở đó sau một
+        khoá đang được cấp hay ghi nhận đã giữ chân các lô của bộ nhận."""
+        if self.loaded_for is keys_db() and self.internal:
+            return self.internal
         with self.lock:
             self._secrets()
             return self.internal

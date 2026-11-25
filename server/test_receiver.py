@@ -386,6 +386,27 @@ class Receiver(unittest.TestCase):
         self.assertIn(str(first - 30), whole)
 
 
+class NoWaitingForTheInternalCode(unittest.TestCase):
+    """Once read, the receiver's internal code is given without waiting for the lock of the keys, and the interpreter switches threads
+    every SWITCH_MS (0.5 ms by default): both kept the receiver's batches from queuing behind other requests (docs/RECEIVER.md, section 7).
+    Đã đọc rồi thì mã nội bộ của bộ nhận được trả mà không chờ khoá của bộ khoá, và trình thông dịch đổi luồng mỗi SWITCH_MS (mặc định
+    0,5 ms): cả hai giữ cho các lô của bộ nhận không xếp hàng sau các yêu cầu khác."""
+
+    def test_the_code_is_given_while_the_lock_is_held(self):
+        keys = devicekeys.DEVICE_KEYS
+        code = keys.internal_code()
+        got = []
+        with keys.lock:
+            t = threading.Thread(target=lambda: got.append(keys.internal_code()))
+            t.start()
+            t.join(2)
+        self.assertEqual(got, [code])
+        self.assertTrue(code)
+
+    def test_the_switch_interval(self):
+        self.assertEqual(settings.SWITCH_MS, 0.5)
+
+
 class IngestRoute(unittest.TestCase):
     """Where the computers send (docs/RECEIVER.md, section 4): told only with their own key, only when chosen, never by default. It
     borrows the server and the helpers of Receiver without running its tests again.

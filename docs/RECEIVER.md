@@ -4,7 +4,7 @@
 
 A small company does not need this page: the Python server takes every send itself. The receiver in `receiver/` is a second program, written with the Go standard library only, for an organisation with many thousands of computers. It takes the computers' sends on an address of its own over TLS, answers them at once, and hands them to the Python server in batches. Python stays the record: logins, roles, the board, the history and the SQLite files are unchanged.
 
-**What this first stage does and does not do.** It takes sends correctly and gives Python the same records Python would have written itself; tests hold the two to that. It also serves the boards their live numbers, per branch or for the whole organisation, on `/live` (section 3, "The live feed"), and the board's page opens that feed when it is set up. On Linux with 4 vCPU and 8 GB it is for about 20,000 computers sending every 2 seconds (section 7). The plugin sends to the receiver only once the server tells it where (`ingestUrls`, "Which computers send to the receiver" below), so nothing changes until `RECEIVER_INGEST_URLS` is set.
+**What this first stage does and does not do.** It takes sends correctly and gives Python the same records Python would have written itself; tests hold the two to that. It also serves the boards their live numbers, per branch or for the whole organisation, on `/live` (section 3, "The live feed"), and the board's page opens that feed when it is set up. On Linux with 4 vCPU and 8 GB it carries 40,000 computers sending `v: 2`, the format of the plugin from 0.50.15 on, even after a `kill -9` of the receiver and of Python (section 5). The plugin sends to the receiver only once the server tells it where (`ingestUrls`, "Which computers send to the receiver" below), so nothing changes until `RECEIVER_INGEST_URLS` is set.
 
 ## 1. How a send goes
 
@@ -137,7 +137,9 @@ The receiver speaks HTTP/1.1 only (HTTP/2 costs more here), waits at most 10 sec
 |---|---|---|
 | up to 40,000 | 4 vCPU, 8 GB | live numbers p99 1.5 s, CPU 56%, memory 6.0 GB; the receiver asks for a send every 4 s |
 | about 50,000 | 4 vCPU, 8 GB | live numbers p99 1.7 s, CPU 67%, memory 6.4 GB; a send every 5 s; Python's tables and `/data` up to a minute behind (`behind`) |
+| 40,000 sending `v: 2` as the plugin of 0.50.15 does, the receiver then Python killed with `kill -9` | 4 vCPU, 8 GB | about 12,850 sends a second taken, p99 0.15 to 0.4 s; the receiver back to full speed about 2.5 minutes after its restart; the money of every person the same as the computers held, to the micro-dollar, right after the run (receiver 0.50.16, 2026-11-25) |
 | more than about 49,500 | 4 vCPU, 8 GB | the rest are told to come back (503, `RECEIVER_MAX_CONNECTIONS`), nothing lost |
+| 40,000 as above, Caddy with TLS on the same machine in front of Python (the boards and the sends that fall back go through it) | 4 vCPU, 8 GB | the same as without Caddy while nothing fails; memory up to 7.4 of 7.7 GB (Caddy 0.2 to 0.5 GB). After a `kill -9` of the receiver and of Python, Python wrote about 10 times slower with too little memory left to cache its database, so the board's tables and `/data` fell up to 10 minutes behind; the live numbers stayed on time and no money taken was lost (2026-11-25). With Caddy on the machine, take 16 GB for 40,000 computers |
 | 100,000 | 8 vCPU, 16 GB | not measured: the ceilings scale with memory and processors, Python's writes do not |
 
 Computers that are idle send every 4 minutes, so an organisation counts here by the computers working at once, not by those installed.
@@ -152,7 +154,33 @@ Where it listens was decided with the design: a **second public IP on the same s
 6. Build the receiver (`cd receiver && go build -o /opt/ai-worker/ai-worker-receiver .`), set `RECEIVER=1`, `RECEIVER_LIVE_URL=https://ingest.<your domain>` and `RECEIVER_BOARD_ORIGIN=https://<the board's domain>` in `/etc/ai-worker.env` and restart the webhook, then run the receiver with systemd as the `ai-worker` account with `AmbientCapabilities=CAP_NET_BIND_SERVICE`, never as root. In the unit, `MemoryMax=` a little above `RECEIVER_MEMORY_MB` and `OOMScoreAdjust=500`, so if memory still runs out the kernel kills the receiver, which restarts in seconds, and never the Python server.
 7. Once every computer has its own key, set `SHARED_KEY_MODE` to `known-only` or `off`.
 
-Not known yet: whether your provider gives a second IP, and at what price (otherwise port 8443, then measure how many computers it stops); whether the receiver and Python together fit in 4 vCPU (the next measurement says).
+Not known yet: whether your provider gives a second IP, and at what price (otherwise port 8443, then measure how many computers it stops).
+
+### Trying it with a few computers
+
+Before the whole organisation, try it for about a week with a few computers of the IT team. Nothing changes for the others.
+
+1. The server on 0.50.16 or later, and the plugin on 0.50.15 or later on the computers chosen (`/update` on each): an older plugin sends `v: 1` and is never sent to the receiver.
+2. Set up the receiver as in steps 1 to 6 above, and check from a computer in the office that `https://ingest.<your domain>/health` answers.
+3. Find the ids of the computers chosen on the Admin page, **Computers and their keys** (`device-` and 16 letters and digits).
+4. Add to `/etc/ai-worker.env`, then restart the webhook:
+
+```bash
+RECEIVER_INGEST_URLS=https://ingest.<your domain>
+RECEIVER_INGEST_DEVICES=device-aaaaaaaaaaaaaaaa,device-bbbbbbbbbbbbbbbb
+RECEIVER_CHECK_PERCENT=100
+```
+
+```bash
+sudo systemctl restart ai-worker-webhook
+```
+
+5. Each computer chosen moves to the receiver after its next send to the webhook, within a few minutes while Claude Code is open. What to watch for a week:
+   - the board shows these computers' numbers as before, and the Admin page shows no yellow line about the receiver being behind;
+   - `sudo journalctl -u ai-worker-webhook | grep "cleaned differently"` finds nothing: with `RECEIVER_CHECK_PERCENT=100` every send is checked against Python's own cleaning (section 2);
+   - the receiver's log (`sudo journalctl -u ai-worker-receiver`, or the name you gave its unit) has no line about the memory limit or about books it could not load.
+6. To go back: empty `RECEIVER_INGEST_URLS` and restart the webhook, and the computers come back within `RECEIVER_INGEST_TTL_SECONDS` (an hour by default); at once: stop the receiver, and they come back on their next send.
+7. Then widen with `RECEIVER_INGEST_PERCENT`: 5, 25, 100, a few days each, keeping `RECEIVER_INGEST_DEVICES`. At 100, set `RECEIVER_CHECK_PERCENT` back to 1.
 
 ## 6. Turning the signing secret
 
@@ -172,7 +200,7 @@ A new secret signs every key from then on, and every computer gets a new key at 
 
 ## 7. Known limits of this stage
 
-- **The sizes of section 5 hold for sends of `v: 2` only.** The plugin still sends `v: 1`, the whole book of 8 days each time: measured at 40,000 computers on 4 vCPU and 8 GB, the receiver went past its memory limit (a soft one) and was killed in under 30 seconds, and the computers falling back to the webhook all at once were too many for Python. So the server tells the receiver's address only to computers that send `v: 2` (section 4). The plugin sends `v: 2` from 0.50.15 on, once the server answers that it reads it; its whole book still goes up once an hour, after `needFull`, and as the first send. Until the receiver has been measured again with that plugin, turn it on for a few computers first (`RECEIVER_INGEST_DEVICES`).
+- **The sizes of section 5 hold for sends of `v: 2` only**, which the plugin sends from 0.50.15 on, once the server answers that it reads it. A send of `v: 1` carries the whole book of 8 days: measured at 40,000 computers on 4 vCPU and 8 GB, the receiver took about 800 sends a second where the computers wanted about 20,000. So the server tells the receiver's address only to computers that send `v: 2` (section 4), and a computer still on an older plugin stays on the webhook.
 - The receiver does not check the list of computers let send from any network (`OFFICE_NETS`, [INSTALL.md](INSTALL.md#sending-from-outside-the-office-chosen-computers)): the batches it writes through `/internal/rows` do not pass the webhook's check. Keep the receiver's address reachable from the office networks only.
 - How big a server is in section 5. What is left at about 50,000 computers on 4 vCPU is Python's writes: with boards reading `/data` it writes about 1,650 rows a second there (5,100 with none), so its tables and the board's `/data` fall up to a minute behind while the live numbers stay on time. Before the ceilings the receiver ran out of memory at about 60,000 connections and was killed again after each start.
 - When Python writes slower than the computers send, the rows wait at the receiver, one per computer, and nothing is lost; past a minute the receiver's `/health` says `behind` and the Admin page shows it in yellow. If it lasts, the machine is too small for the organisation: measured in a VM of 4 vCPU, Python writes about 10,000 rows a second with no board open and about half that with boards reading `/data` all the time.

@@ -137,6 +137,10 @@ Riêng tốc độ ghi của Python, 100.000 máy, lô 2.000 dòng theo thứ t�
 
 Trước các bản sửa của đợt này, cùng máy đó để bộ nhận hết bộ nhớ ở khoảng 60.000 kết nối (bị nhân giết 13 lần trong mười phút, vì mọi máy kết nối lại sau mỗi lần khởi động), và ở 40.000 máy CPU ở mức 94%, số trực tiếp p99 3,1 giây, `/data` p95 4,2 giây. Đã đổi: bộ nhận giữ dưới một giới hạn bộ nhớ và một trần kết nối, tạo ít rác hơn, và dặn các máy gửi thưa hơn khi đông; bảng tìm chi nhánh của từng người qua một chỉ mục. Sau khi `kill -9` bộ nhận rồi Python ở 40.000 máy, tiền của từng người khớp với bộ tạo tải tới từng micro-đô (đo trước các bản sửa này; đường ghi không đổi từ đó).
 
+Đo lại ngày 25/11/2026 trên cùng loại máy, với lần gửi thật của plugin. Gửi như bản 0.50.13 (`v: 1`, cả sổ 8 ngày mỗi lần) thì bộ nhận hết bộ nhớ trong chưa tới 30 giây ở 40.000 máy, và các máy cùng lúc quay về thì quá sức Python; với giới hạn bộ nhớ cứng của 0.50.14 nó không còn chết nhưng chỉ nhận khoảng 800 lần gửi mỗi giây trong khi các máy cần khoảng 20.000. Với `v: 2` như plugin 0.50.15 gửi (các giờ đã đổi, cả sổ mỗi giờ một lần) và bộ nhận 0.50.16 (từ chối theo bộ nhớ thật sự còn dùng, không theo phần rác Go giữ tới lần dọn): nhận mọi lần gửi trước khi `kill -9`, khoảng 12.850 lần mỗi giây, p99 0,15 tới 0,4 giây; bộ nhận chạy hết sức lại khoảng 2,5 phút sau khi khởi động lại; chỉ còn từ chối trong lúc Python bị dừng; và ngay sau lượt đo, tiền của cả 16.000 người khớp với số các máy giữ, tới từng phần triệu đô la, ở cả Python và bộ nhận.
+
+Cùng lượt đo đó với Caddy 2.6 đứng trước Python trên cùng máy, cài như `server/aiworker.caddy` (TLS, nén, nhật ký, danh sách mạng được vào), các bảng và các lần gửi quay về đi qua nó: lúc không có sự cố thì như khi không có Caddy (nhận mọi lần gửi, khoảng 12.000 lần mỗi giây, số trực tiếp p99 1,3 tới 1,6 giây). Bộ nhớ lên 7,0 tới 7,4 GB trên 7,7 (Caddy 0,2 tới 0,5 GB), và sau khi bộ nhận và Python bị `kill -9`, Python ghi lô chậm khoảng 10 lần vì còn quá ít bộ nhớ để đệm cơ sở dữ liệu: các dòng của bộ nhận chờ tới 10 phút, nên bảng của Python và `/data` chậm chừng ấy, trong khi số trực tiếp vẫn đúng giờ. Không mất đồng nào máy chủ đã trả lời là đã nhận: số người mà máy chủ giữ ít hơn các lần gửi nó đã nhận là 0. Có Caddy cùng máy thì 40.000 máy cần 16 GB.
+
 ## Đã sửa gì
 
 - `DeviceCache` trong `server/board/devices.py`: lần gửi mới nhất của mỗi máy, làm sạch một lần, giữ trong bộ nhớ. Bảng trong cơ sở dữ liệu vẫn là bản gốc: bộ nhớ đệm được ghi cùng lúc với bảng, nạp lại khi máy chủ khởi động, và nạp lại khi chương trình khác như `webhook.py --forget-device` đổi file (`PRAGMA data_version`).
@@ -161,7 +165,7 @@ Dấu hiệu để đổi: nhu cầu kéo dài trên khoảng 500 lần gửi m�
 
 ## Việc tiếp theo
 
-1. **Đo trên Linux**: đã đo với bộ nhận Go ([Trên Linux, có bộ nhận Go](#trên-linux-có-bộ-nhận-go)); đi qua Caddy có TLS thì chưa.
+1. **Đo trên Linux**: đã đo với bộ nhận Go ([Trên Linux, có bộ nhận Go](#trên-linux-có-bộ-nhận-go)); cả khi đi qua Caddy có TLS (25/11/2026).
 2. **Trang bảng theo chi nhánh** cho đội lớn, thay cho trả mọi người trong một câu trả lời.
 3. **Nâng `MAX_DEVICES`**, cho cấu hình được, khi bước 1 và 2 đạt ở cỡ đó.
-4. **Vượt một tiến trình**, cho tổ chức 100.000 máy trở lên: plugin gửi gọn hơn (chỉ các giờ đã đổi), máy chủ đặt nhịp gửi, khoá riêng cho từng máy, và nhiều tiến trình nhận số cấp cho một tiến trình phục vụ người xem. Phần này đã lên kế hoạch, chưa làm; nó đổi định dạng plugin gửi, nên được thiết kế và đo trước khi phát hành bất kỳ phần nào.
+4. **Vượt một tiến trình**, cho tổ chức 100.000 máy trở lên: nhiều tiến trình nhận số cấp cho một tiến trình phục vụ người xem. Đã làm và đo tới nay: plugin gửi gọn hơn (chỉ các giờ đã đổi, 0.50.15), máy chủ đặt nhịp gửi, khoá riêng cho từng máy, và một bộ nhận Go đứng trước Python ([Trên Linux, có bộ nhận Go](#trên-linux-có-bộ-nhận-go)).

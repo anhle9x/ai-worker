@@ -4,7 +4,7 @@ Tiếng Việt | [English](RECEIVER.md)
 
 Công ty nhỏ không cần trang này: máy chủ Python tự nhận mọi lần gửi. Bộ nhận trong `receiver/` là một chương trình thứ hai, viết chỉ bằng thư viện chuẩn của Go, cho tổ chức có nhiều nghìn máy. Nó nhận các lần gửi của máy trên một địa chỉ riêng qua TLS, trả lời ngay, rồi trao chúng cho máy chủ Python theo lô. Python vẫn là bản gốc: đăng nhập, vai, bảng, lịch sử và các file SQLite không đổi.
 
-**Đợt đầu này làm gì và chưa làm gì.** Nó nhận số đúng và đưa cho Python đúng những bản ghi mà Python tự ghi sẽ ra; các bài kiểm giữ hai bên như vậy. Nó còn phục vụ các bảng số trực tiếp, theo chi nhánh hoặc cho cả tổ chức, ở `/live` (mục 3, "Luồng số trực tiếp"), và trang bảng mở luồng đó khi luồng đã được cài. Trên Linux 4 vCPU, 8 GB, nó hợp cho khoảng 20.000 máy gửi mỗi 2 giây (mục 7). Plugin chỉ gửi tới bộ nhận khi máy chủ báo nơi gửi (`ingestUrls`, "Máy nào gửi tới bộ nhận" bên dưới), nên không có gì đổi cho tới khi đặt `RECEIVER_INGEST_URLS`.
+**Đợt đầu này làm gì và chưa làm gì.** Nó nhận số đúng và đưa cho Python đúng những bản ghi mà Python tự ghi sẽ ra; các bài kiểm giữ hai bên như vậy. Nó còn phục vụ các bảng số trực tiếp, theo chi nhánh hoặc cho cả tổ chức, ở `/live` (mục 3, "Luồng số trực tiếp"), và trang bảng mở luồng đó khi luồng đã được cài. Trên Linux 4 vCPU, 8 GB, nó chịu được 40.000 máy gửi `v: 2`, định dạng của plugin từ bản 0.50.15, kể cả sau khi bộ nhận và Python bị `kill -9` (mục 5). Plugin chỉ gửi tới bộ nhận khi máy chủ báo nơi gửi (`ingestUrls`, "Máy nào gửi tới bộ nhận" bên dưới), nên không có gì đổi cho tới khi đặt `RECEIVER_INGEST_URLS`.
 
 ## 1. Một lần gửi đi thế nào
 
@@ -137,7 +137,9 @@ Bộ nhận chỉ nói HTTP/1.1 (HTTP/2 tốn hơn ở đây), chờ phần head
 |---|---|---|
 | tới 40.000 | 4 vCPU, 8 GB | số trực tiếp p99 1,5 giây, CPU 56%, bộ nhớ 6,0 GB; bộ nhận dặn 4 giây gửi một lần |
 | khoảng 50.000 | 4 vCPU, 8 GB | số trực tiếp p99 1,7 giây, CPU 67%, bộ nhớ 6,4 GB; 5 giây gửi một lần; bảng của Python và `/data` chậm tới một phút (`behind`) |
+| 40.000 máy gửi `v: 2` như plugin 0.50.15, bộ nhận rồi Python bị `kill -9` | 4 vCPU, 8 GB | nhận khoảng 12.850 lần gửi mỗi giây, p99 0,15 tới 0,4 giây; bộ nhận chạy hết sức lại khoảng 2,5 phút sau khi khởi động lại; tiền của mọi người đúng bằng số các máy giữ, tới từng phần triệu đô la, ngay sau lượt đo (bộ nhận 0.50.16, 25/11/2026) |
 | hơn khoảng 49.500 | 4 vCPU, 8 GB | phần dư được bảo quay lại sau (503, `RECEIVER_MAX_CONNECTIONS`), không mất gì |
+| 40.000 như trên, Caddy có TLS cùng máy đứng trước Python (các bảng và các lần gửi quay về đi qua nó) | 4 vCPU, 8 GB | như khi không có Caddy lúc không có sự cố; bộ nhớ tới 7,4 trên 7,7 GB (Caddy 0,2 tới 0,5 GB). Sau khi bộ nhận và Python bị `kill -9`, Python ghi chậm khoảng 10 lần vì còn quá ít bộ nhớ để đệm cơ sở dữ liệu, nên bảng của Python và `/data` chậm tới 10 phút; số trực tiếp vẫn đúng giờ và không mất đồng nào đã nhận (25/11/2026). Có Caddy cùng máy thì dùng 16 GB cho 40.000 máy |
 | 100.000 | 8 vCPU, 16 GB | chưa đo: các trần tăng theo bộ nhớ và số bộ xử lý, tốc độ ghi của Python thì không |
 
 Máy đang rảnh chỉ gửi 4 phút một lần, nên ở đây tính theo số máy đang làm việc cùng lúc, không theo số máy đã cài.
@@ -152,7 +154,33 @@ Nơi nghe đã được quyết cùng bản thiết kế: **một IP công khai 
 6. Dựng bộ nhận (`cd receiver && go build -o /opt/ai-worker/ai-worker-receiver .`), đặt `RECEIVER=1`, `RECEIVER_LIVE_URL=https://ingest.<tên miền của bạn>` và `RECEIVER_BOARD_ORIGIN=https://<tên miền của bảng>` trong `/etc/ai-worker.env` rồi khởi động lại webhook, sau đó chạy bộ nhận bằng systemd với tài khoản `ai-worker` và `AmbientCapabilities=CAP_NET_BIND_SERVICE`, không bao giờ bằng root. Trong unit, đặt `MemoryMax=` cao hơn `RECEIVER_MEMORY_MB` một chút và `OOMScoreAdjust=500`, để nếu vẫn hết bộ nhớ thì nhân giết bộ nhận (khởi động lại trong vài giây), không bao giờ giết máy chủ Python.
 7. Khi mọi máy đã có khoá riêng, đặt `SHARED_KEY_MODE` thành `known-only` hoặc `off`.
 
-Chưa biết: nhà cung cấp của bạn có cho gắn IP thứ hai không, và giá bao nhiêu (không được thì dùng cổng 8443, rồi đo bao nhiêu máy bị chặn); bộ nhận và Python chung 4 vCPU có đủ không (lần đo sau sẽ cho biết).
+Chưa biết: nhà cung cấp của bạn có cho gắn IP thứ hai không, và giá bao nhiêu (không được thì dùng cổng 8443, rồi đo bao nhiêu máy bị chặn).
+
+### Thử với vài máy
+
+Trước khi bật cho cả tổ chức, thử khoảng một tuần với vài máy của phòng IT. Các máy khác không đổi gì.
+
+1. Máy chủ từ bản 0.50.16, và plugin từ bản 0.50.15 trên các máy được chọn (`/update` trên từng máy): plugin cũ gửi `v: 1` và không bao giờ được chuyển sang bộ nhận.
+2. Dựng bộ nhận như các bước 1 tới 6 ở trên, rồi từ một máy trong văn phòng kiểm `https://ingest.<tên miền của bạn>/health` có trả lời.
+3. Lấy mã của các máy được chọn trên trang Quản trị, mục **Máy nhân viên và khoá riêng** (`device-` và 16 chữ cái, chữ số).
+4. Thêm vào `/etc/ai-worker.env`, rồi khởi động lại webhook:
+
+```bash
+RECEIVER_INGEST_URLS=https://ingest.<tên miền của bạn>
+RECEIVER_INGEST_DEVICES=device-aaaaaaaaaaaaaaaa,device-bbbbbbbbbbbbbbbb
+RECEIVER_CHECK_PERCENT=100
+```
+
+```bash
+sudo systemctl restart ai-worker-webhook
+```
+
+5. Mỗi máy được chọn chuyển sang bộ nhận sau lần gửi kế tiếp tới webhook, trong vài phút khi Claude Code đang mở. Trong một tuần, theo dõi:
+   - bảng vẫn hiện số của các máy này như trước, và trang Quản trị không có dòng vàng báo bộ nhận chậm;
+   - `sudo journalctl -u ai-worker-webhook | grep "cleaned differently"` không ra dòng nào: với `RECEIVER_CHECK_PERCENT=100` mọi lần gửi đều được so với cách Python tự làm sạch (mục 2);
+   - nhật ký của bộ nhận (`sudo journalctl -u ai-worker-receiver`, hoặc tên bạn đặt cho unit của nó) không có dòng nào về giới hạn bộ nhớ hay về sổ không nạp được.
+6. Muốn quay lại: xoá trống `RECEIVER_INGEST_URLS` và khởi động lại webhook, các máy quay về trong `RECEIVER_INGEST_TTL_SECONDS` (mặc định một giờ); muốn ngay: dừng bộ nhận, các máy quay về ở lần gửi kế tiếp.
+7. Sau đó mở rộng bằng `RECEIVER_INGEST_PERCENT`: 5, 25, 100, mỗi mức vài ngày, vẫn giữ `RECEIVER_INGEST_DEVICES`. Tới 100 thì đặt `RECEIVER_CHECK_PERCENT` về 1.
 
 ## 6. Xoay bí mật ký
 
@@ -172,7 +200,7 @@ Từ lúc đó một bí mật mới ký mọi khoá, và mọi máy nhận kho�
 
 ## 7. Giới hạn đã biết của đợt này
 
-- **Các cỡ máy ở mục 5 chỉ đúng với lần gửi `v: 2`.** Plugin vẫn gửi `v: 1`, cả sổ 8 ngày mỗi lần: đo ở 40.000 máy trên 4 vCPU, 8 GB, bộ nhận vượt giới hạn bộ nhớ (giới hạn mềm) và bị giết trong chưa tới 30 giây, và các máy cùng lúc quay về webhook thì quá sức Python. Vì vậy máy chủ chỉ báo địa chỉ bộ nhận cho máy gửi `v: 2` (mục 4). Plugin gửi `v: 2` từ bản 0.50.15, khi máy chủ trả lời là nó đọc được; cả sổ vẫn được gửi mỗi giờ một lần, sau `needFull`, và ở lần gửi đầu. Cho tới khi bộ nhận được đo lại với plugin đó, hãy bật cho vài máy trước (`RECEIVER_INGEST_DEVICES`).
+- **Các cỡ máy ở mục 5 chỉ đúng với lần gửi `v: 2`**, loại plugin gửi từ bản 0.50.15, khi máy chủ trả lời là nó đọc được. Một lần gửi `v: 1` mang cả sổ 8 ngày: đo ở 40.000 máy trên 4 vCPU, 8 GB, bộ nhận chỉ nhận khoảng 800 lần gửi mỗi giây trong khi các máy cần khoảng 20.000. Vì vậy máy chủ chỉ báo địa chỉ bộ nhận cho máy gửi `v: 2` (mục 4), và máy còn dùng plugin cũ thì ở lại webhook.
 - Bộ nhận chưa kiểm danh sách máy được gửi từ mọi mạng (`OFFICE_NETS`, [INSTALL.vi.md](INSTALL.vi.md#gửi-từ-ngoài-văn-phòng-máy-được-chọn)): các lô nó ghi qua `/internal/rows` không đi qua bước kiểm của webhook. Giữ địa chỉ của bộ nhận chỉ tới được từ các mạng văn phòng.
 - Máy chủ cỡ nào xem ở mục 5. Ở khoảng 50.000 máy trên 4 vCPU, phần còn lại là tốc độ ghi của Python: khi có bảng đọc `/data` nó ghi khoảng 1.650 dòng mỗi giây (5.100 khi không có), nên bảng của nó và `/data` chậm tới một phút trong khi số trực tiếp vẫn đúng giờ. Trước khi có các trần, bộ nhận hết bộ nhớ ở khoảng 60.000 kết nối và bị giết lại sau mỗi lần khởi động.
 - Khi Python ghi chậm hơn tốc độ các máy gửi, các dòng chờ ở bộ nhận, mỗi máy một dòng, và không mất gì; quá một phút thì `/health` của bộ nhận báo `behind` và trang Quản trị hiện dòng vàng. Nếu kéo dài, máy chủ quá nhỏ so với tổ chức: đo trong máy ảo 4 vCPU, Python ghi khoảng 10.000 dòng mỗi giây khi không có bảng nào mở và khoảng một nửa khi các bảng đọc `/data` liên tục.

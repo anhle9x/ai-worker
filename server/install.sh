@@ -202,6 +202,7 @@ After=network.target
 [Service]
 EnvironmentFile=$ENV
 $OTP_KEY_LINE
+Environment=MALLOC_ARENA_MAX=2
 ExecStart=/usr/bin/env python3 $APP_DIR/webhook.py
 User=ai-worker
 Restart=on-failure

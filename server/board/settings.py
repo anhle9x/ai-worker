@@ -296,6 +296,13 @@ RECEIVER_SECRETS_FILE = os.environ.get("RECEIVER_SECRETS_FILE", "").strip() or o
 # the share of sends the receiver also hands over as they came, for this server to clean again and compare (the third check of docs/RECEIVER.md)
 # phần trăm số lần gửi mà bộ nhận cũng chuyển nguyên văn, để máy chủ này làm sạch lại và so (lớp đối chiếu thứ ba của docs/RECEIVER.vi.md)
 RECEIVER_CHECK_PERCENT = min(max(0.0, float(os.environ.get("RECEIVER_CHECK_PERCENT", "1"))), 100.0)
+# how long one thread may run before the interpreter lets another, in milliseconds (sys.setswitchinterval; Python's own default is 5).
+# Many request threads wait for the same locks; a thread holding one and paused for 5 ms made hundreds wait behind it: measured at 40,000
+# computers on 4 vCPU, the receiver's rows waited 592 s for this server with 5 ms and 5 s with 0.5 ms (docs/RECEIVER.md, section 7)
+# một luồng được chạy bao lâu trước khi trình thông dịch cho luồng khác chạy, tính bằng mili giây (mặc định của Python là 5). Nhiều luồng
+# yêu cầu chờ cùng các khoá; một luồng đang giữ khoá mà bị dừng 5 ms làm hàng trăm luồng phải chờ sau nó: đo ở 40.000 máy trên 4 vCPU,
+# các dòng của bộ nhận chờ máy chủ này 592 giây với 5 ms và 5 giây với 0,5 ms
+SWITCH_MS = min(max(0.1, float(os.environ.get("SWITCH_MS", "").strip() or "0.5")), 50.0)
 # how often at most the table of people the receiver asks for (/internal/people) is built again, in seconds
 # bảng người bộ nhận hỏi (/internal/people) được dựng lại nhiều nhất bao lâu một lần, tính bằng giây
 RECEIVER_PEOPLE_SECONDS = max(0.0, float(os.environ.get("RECEIVER_PEOPLE_SECONDS", "").strip() or "5"))
