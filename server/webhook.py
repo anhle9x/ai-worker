@@ -96,7 +96,7 @@ from urllib.parse import parse_qs, quote, urlparse
 from board import assets, chat, db, mcp, packages, projects, receiver, settings, tgapp
 from board.assets import RELEASE_NAME_RE, STATIC_DIR, STATIC_FILES, has_3d_page
 from board.devicekeys import DEVICE_KEYS, PREFIX
-from board.devices import BOOT_ID, DEVICES, NEED_FULL, SAVED, clean_delegations, clean_payload, key_matches, person_key, refuse_constant, save_ingest, send_kind, state_loop
+from board.devices import BOOT_ID, DEVICES, NEED_FULL, SAVED, SEND_PACE, clean_delegations, clean_payload, key_matches, person_key, refuse_constant, save_ingest, send_kind, state_loop
 from board.lang import REQUEST, lang_from, tx
 from board.login import SESSIONS
 from board.telegram import TELEGRAM
@@ -387,7 +387,7 @@ class Handler(BaseHTTPRequestHandler):
             self.rfile.read(n)
         self.close_connection = True
         self.send_response(503)
-        self.send_header("Retry-After", str(BUSY_RETRY_SECONDS))
+        self.send_header("Retry-After", settings.retry_after(BUSY_RETRY_SECONDS))
         self.send_header("X-Robots-Tag", "noindex, nofollow")
         self.send_header("Content-Length", "0")
         self.send_header("Connection", "close")
@@ -1094,7 +1094,7 @@ class Handler(BaseHTTPRequestHandler):
         # (docs/DATA-MODEL.md, "Format v: 2"). An older plugin reads only ok and deviceKey
         # máy chủ này đọc được định dạng nào, muốn nhịp gửi ra sao, có cần cả sổ giờ không, và đây là lần khởi động nào của máy chủ
         # (docs/DATA-MODEL.vi.md, "Định dạng v: 2"). Plugin cũ chỉ đọc ok và deviceKey
-        answer = {"ok": True, "accepts": [1, 2], "minGapMs": settings.INGEST_MIN_GAP_MS, "stateGapMs": settings.INGEST_STATE_GAP_MS,
+        answer = {"ok": True, "accepts": [1, 2], "minGapMs": SEND_PACE.note(d["device"], time.time()), "stateGapMs": settings.INGEST_STATE_GAP_MS,
                   "maxGapMs": settings.INGEST_MAX_GAP_MS, "needFull": outcome == NEED_FULL, "boot": BOOT_ID}
         # a computer that sent with the shared key gets its own key; one whose key is getting old gets a new one
         # máy gửi bằng khoá chung nhận khoá riêng; máy có khoá sắp cũ nhận khoá mới
@@ -1104,9 +1104,11 @@ class Handler(BaseHTTPRequestHandler):
         filled = bool(known_before) and known_before != list(INGEST_GATE.identities.get(d["device"]) or [])
         if claims is None or filled or DEVICE_KEYS.needs_renewal(claims, time.time()):
             answer["deviceKey"] = DEVICE_KEYS.issue(d["device"], d.get("account", ""), d.get("name", ""), time.time())
-        # a computer sending with its own key and chosen for the Go receiver is told where to send (docs/RECEIVER.md, section 4)
-        # máy gửi bằng khoá riêng và được chọn cho bộ nhận Go được báo nơi gửi (docs/RECEIVER.vi.md, mục 4)
-        route = receiver.ingest_route(d["device"]) if claims is not None else None
+        # a computer sending with its own key, in v: 2, and chosen for the Go receiver is told where to send (docs/RECEIVER.md, section 4);
+        # never one sending v: 1, whose whole book of 8 days in every send ran the receiver out of memory at 40,000 computers
+        # máy gửi bằng khoá riêng, theo v: 2, và được chọn cho bộ nhận Go được báo nơi gửi (docs/RECEIVER.vi.md, mục 4); không bao giờ
+        # báo cho máy gửi v: 1, vì cả sổ 8 ngày trong mỗi lần gửi đã làm bộ nhận hết bộ nhớ ở 40.000 máy
+        route = receiver.ingest_route(d["device"]) if claims is not None and send_kind(raw) != "v1" else None
         if route:
             answer.update(route)
         self.reply(200, answer)
@@ -1119,7 +1121,10 @@ class Handler(BaseHTTPRequestHandler):
         claims = self.device_claims
         if claims is None:
             return self.reply(403, {"error": "use this computer's own key"})
-        route = receiver.ingest_route(claims["device"])
+        # only a plugin that sends v: 2 asks with ?v=2; an older one (0.50.13 sends v: 1) is sent back here
+        # chỉ plugin gửi v: 2 mới hỏi kèm ?v=2; bản cũ hơn (0.50.13 gửi v: 1) được đưa về lại đây
+        v2 = (parse_qs(urlparse(self.path).query).get("v") or [""])[0] == "2"
+        route = receiver.ingest_route(claims["device"]) if v2 else None
         self.reply(200, route or {"ingestUrls": [], "ingestTtlMs": settings.RECEIVER_INGEST_TTL_SECONDS * 1000})
 
     def internal_rows(self, y: "RequestCtx") -> None:
@@ -1866,7 +1871,7 @@ GET_ROUTES = {
     "/health": Route(Handler.get_health, PERM_PUBLIC),
     # where a computer sends now, for a plugin holding an address of the Go receiver (docs/RECEIVER.md, section 4)
     # máy gửi tới đâu lúc này, cho plugin đang giữ địa chỉ của bộ nhận Go (docs/RECEIVER.vi.md, mục 4)
-    "/ingest/route": Route(Handler.get_ingest_route, PERM_INGEST_KEY),
+    "/ingest/route": Route(Handler.get_ingest_route, PERM_INGEST_KEY, allow_query=True),
     "/login.js": Route(Handler.get_login_js, PERM_PUBLIC),
     "/tv": Route(Handler.get_tv, PERM_PUBLIC),
     "/tv.js": Route(Handler.get_tv_js, PERM_PUBLIC),

@@ -169,3 +169,37 @@ func TestPaceOfTheSends(t *testing.T) {
 		}
 	}
 }
+
+// TestNearTheMemoryLimit: new sends stop past 90% of the limit, measured on the process, and start again only under 80%; no limit, or no
+// reading, never stops them. The budgets are parts of the limit, none without one.
+// TestNearTheMemoryLimit: lần gửi mới dừng khi quá 90% giới hạn, đo trên tiến trình, và chỉ nhận lại khi dưới 80%; không có giới hạn,
+// hay không đọc được, thì không bao giờ dừng. Các ngân sách là phần của giới hạn, không có khi không có giới hạn.
+func TestNearTheMemoryLimit(t *testing.T) {
+	const limit = 1000
+	steps := []struct {
+		rss       int64
+		was, want bool
+	}{
+		{850, false, false}, {901, false, true}, {850, true, true}, {799, true, false}, {0, true, false},
+	}
+	for _, s := range steps {
+		if got := overloaded(s.rss, limit, s.was); got != s.want {
+			t.Errorf("rss %d, was %v: %v", s.rss, s.was, got)
+		}
+	}
+	if overloaded(1<<40, 0, false) || overloaded(1<<40, math.MaxInt64, true) {
+		t.Error("stopped without a limit")
+	}
+	if got := residentBytes("12345 678 90 1 0 2 0\n", 4096); got != 678*4096 {
+		t.Errorf("resident %d", got)
+	}
+	if residentBytes("", 4096) != 0 || residentBytes("1 x", 4096) != 0 {
+		t.Error("a bad statm read as memory")
+	}
+	if r, h := budgets(0); r != nil || h != nil {
+		t.Error("budgets without a limit")
+	}
+	if r, h := budgets(1000); !r.Take(250) || r.Take(1) || !h.Take(350) || h.Take(1) {
+		t.Error("the parts of the limit")
+	}
+}

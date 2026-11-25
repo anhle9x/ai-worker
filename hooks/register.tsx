@@ -12,7 +12,7 @@ import type { EngineInterface, Register, ToolCallResult } from 'claude-code'
 import type { Activity, BlockKind, Job, Ledger, TeamState, Usage, WorkerId } from '../types'
 import { applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, staleSessionFiles } from './activity'
 import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextNoteForClaude, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
-import { answerModel, buildMachineSummary, deviceKeyIn, paceFrom, PACE_MIN_MS, receiverOutcome, refusalAfter, routeFrom, routeRested, routeTarget, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
+import { answerModel, backoff, buildMachineSummary, deviceKeyIn, FALLBACK_SPREAD_MS, paceFrom, PACE_MIN_MS, receiverOutcome, WEBHOOK_BACKOFF_FIRST_MS, WEBHOOK_BACKOFF_MAX_MS, webhookDown, refusalAfter, routeFrom, routeRested, routeTarget, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
 import type { IngestRoute, ShareConfig } from './team'
 import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT, WINDOWS_CLAUDE_SCRIPT, UNIX_CLAUDE_SCRIPT, claudeCandidate, isClaudeCodeVersion, findHostApp, parseLinuxHost, parseWindowsHost, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, releaseKeys, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
 import { AGY_BRAIN, IMAGE_DIR, IMAGE_SCHEMA, IMAGE_SETTLE_MS, OLLAMA_URL, PROMPT_LEVEL_SCHEMA, PROMPT_SCHEMA, WORKER_TIMEOUT_MS, imageArgv, imageTargets, newImages, safeImageName, sendingNeedsAsking, sendingRefusal, agyArgv, codexArgv, codexInput, isBatchLauncher, delegationRules, gemmaAnswer, gemmaRequest, mcpConfigured, ownTools, pickGemma } from './workers'
@@ -480,6 +480,9 @@ const PACE_KEY = 'sharePace'
 /** Where this computer sends while the server says so: the Go receiver's addresses and until when (docs/RECEIVER.md, section 4). */
 /** Máy này gửi tới đâu trong lúc máy chủ còn dặn: các địa chỉ của bộ nhận Go và tới khi nào (docs/RECEIVER.vi.md, mục 4). */
 const ROUTE_KEY = 'ingestRoute'
+/** How long the sends wait after the webhook itself did not answer, doubling each time (team.ts, backoff). */
+/** Các lần gửi chờ bao lâu sau khi chính webhook không trả lời, gấp đôi mỗi lần (team.ts, backoff). */
+const WEBHOOK_DOWN_KEY = 'webhookDown'
 /** The gap of the last answer, in this session's memory too, for the timer of the next send. */
 /** Khoảng cách của câu trả lời gần nhất, giữ cả trong bộ nhớ của phiên này, cho bộ hẹn giờ của lần gửi sau. */
 let paceGapMs = PACE_MIN_MS
@@ -809,24 +812,43 @@ async function shareOnce($: EngineInterface) {
             else await $.store.delete(ROUTE_KEY).catch(() => undefined)
           }
           const target = route ? routeTarget(route, now) : undefined
-          let r: Awaited<ReturnType<typeof post>>
+          // the webhook; no answer at all counts as status 0, as a 5xx without Retry-After does: the sends after it back off
+          // webhook; không trả lời gì được tính là mã 0, như 5xx không có Retry-After: các lần gửi sau đó lùi lại
+          const toWebhook = async () => {
+            const got = (await post(share.webhook).catch(() => undefined)) ?? { ok: false, status: 0, headers: {}, text: '' }
+            const down = (await $.store.get(WEBHOOK_DOWN_KEY).catch(() => undefined)) as { wait?: number } | undefined
+            if (webhookDown(got)) {
+              const b = backoff(down, now, WEBHOOK_BACKOFF_FIRST_MS, WEBHOOK_BACKOFF_MAX_MS, 0.5)
+              await $.store.set(WEBHOOK_DOWN_KEY, b).catch(() => undefined)
+              await $.store.set(PACE_KEY, { gapMs: pace.gapMs, until: b.until }).catch(() => undefined)
+            } else if (down) {
+              await $.store.delete(WEBHOOK_DOWN_KEY).catch(() => undefined)
+            }
+            return got
+          }
+          let r: Awaited<ReturnType<typeof post>> | undefined
           if (target && route) {
             const got = await post(target).catch(() => undefined)
             if (receiverOutcome(got) === 'fallback') {
-              // the receiver could not take it (down, unreachable, its key check, a missing path): this send goes to the webhook now,
-              // and the webhook takes the next ones for a while, longer each time
-              // bộ nhận không nhận được (đã dừng, không tới được, kiểm khoá ở đó, thiếu đường): lần gửi này đi tới webhook ngay, và
-              // webhook nhận các lần sau trong một lúc, lâu dần mỗi lần
+              // the receiver could not take it (down, unreachable, its key check, a missing path): the webhook takes the sends for a
+              // while, longer each time, and this one goes there after a wait under 30 seconds at random, so a whole office that lost
+              // the receiver together reaches the webhook spread out
+              // bộ nhận không nhận được (đã dừng, không tới được, kiểm khoá ở đó, thiếu đường): webhook nhận các lần gửi trong một lúc,
+              // lâu dần mỗi lần, và lần này đi tới đó sau một khoảng chờ ngẫu nhiên dưới 30 giây, để cả văn phòng cùng mất bộ nhận tới
+              // webhook rải ra
               route = routeRested(route, now)
               await $.store.set(ROUTE_KEY, route)
-              r = await post(share.webhook)
+              await $.store.set(PACE_KEY, { gapMs: pace.gapMs, until: now + Math.round(Math.random() * FALLBACK_SPREAD_MS) }).catch(() => undefined)
             } else {
               r = got!
               if (route.rest) await $.store.set(ROUTE_KEY, { urls: route.urls, until: route.until })
             }
           } else {
-            r = await post(share.webhook)
+            r = await toWebhook()
           }
+          // put off to the webhook: nothing was sent, the next beat after the wait sends it
+          // hoãn sang webhook: chưa gửi gì, nhịp sau khi hết chờ sẽ gửi
+          if (!r) return
           // its own key refused (too old, or the server was set up again): drop it, so the next send asks for a new one
           // khoá riêng bị từ chối (quá cũ, hoặc máy chủ được cài lại): bỏ nó, để lần gửi sau xin khoá mới
           if (r.status === 401 && key !== share.ingestKey) await $.store.delete(DEVICE_KEY).catch(() => undefined)

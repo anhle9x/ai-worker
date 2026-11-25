@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.14 - 2026-11-25
+
+### Changed
+- The plugin backs off instead of crowding a server that fails: when the webhook does not answer, or answers 5xx without `Retry-After`, the next send waits 5 seconds, doubling up to 5 minutes, spread at random (before, it tried again about every 2 seconds). When the Go receiver cannot take a send, that send goes to the webhook after a wait under 30 seconds at random instead of at once, and the rest from the receiver is spread by up to half. One spread backoff (`backoff` in `hooks/team.ts`) now serves the refusals, the rests from the receiver and the webhook.
+- The Python server tells a busy turned-away sender to come back in 30 to 90 seconds, spread, instead of 30 for all, and widens the gap between sends it tells the computers when more of them sent in the last minute than `INGEST_SENDS_PER_SECOND` (default 1,000) answers every 2 seconds, up to 2 minutes. A small company keeps 2 seconds; a crowd falling back from a stopped Go receiver slows down instead of failing.
+- The Go receiver keeps a whole book of 8 days that waits for Python encoded instead of as objects (about 11 KB a computer instead of 150 to 180 KB, measured with pprof at 10,000 computers sending `v: 1`), bounds the memory of the bodies it reads and of the rows waiting (a quarter and 35% of its memory limit), cuts a batch at 8 MB as well as 2,000 rows, and refuses every new send while the process itself is past 90% of its limit, until under 80%. A send refused that way, or because Python is far behind, is told to come back in 5 to 15 seconds, spread, instead of 5 for all; past the ceiling of connections, 30 to 90 as before.
+- The server tells a computer the Go receiver's address only when it sends `v: 2`, and `GET /ingest/route` gives one only when asked with `?v=2`. Measured with the plugin's real sends (`v: 1`, the whole book of 8 days each time) at 40,000 computers, the receiver ran out of memory in under 30 seconds; the plugin of 0.50.13 therefore stays on the webhook even if `RECEIVER_INGEST_URLS` is set.
+
 ## 0.50.13 - 2026-11-25
 
 ### Added

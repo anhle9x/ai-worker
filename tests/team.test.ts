@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { buildHelp, skillLine } from '../hooks/help'
 import { claudeCandidate, isClaudeCodeVersion, findHostApp, parseLinuxHost, parseWindowsHost, hasSigningKeys, parseHash, parseSignatureResult, parseManifest, releaseKeys, shouldOfferUpdate } from '../hooks/update'
-import { ROUTE_REST_FIRST_MS, ROUTE_REST_MAX_MS, ROUTE_TTL_DEFAULT_MS, ROUTE_TTL_MAX_MS, ROUTE_TTL_MIN_MS, receiverAllowed, receiverOutcome, routeFrom, routeRested, routeTarget } from '../hooks/team'
+import { WEBHOOK_BACKOFF_FIRST_MS, WEBHOOK_BACKOFF_MAX_MS, backoff, webhookDown, ROUTE_REST_FIRST_MS, ROUTE_REST_MAX_MS, ROUTE_TTL_DEFAULT_MS, ROUTE_TTL_MAX_MS, ROUTE_TTL_MIN_MS, receiverAllowed, receiverOutcome, routeFrom, routeRested, routeTarget } from '../hooks/team'
 import { BUSY_MAX_MS, DEVICE_ID_LENGTH, OPEN_MS, PACE_MAX_MS, PACE_MIN_MS, paceFrom, REFUSED_FIRST_MS, REFUSED_MAX_MS, buildMachineSummary, deviceKeyIn, refusalAfter, newDeviceId, hardwareMark, parseHardwareId, sha256Hex, isLanIp, mergeShare, mergeTeam, parseLanIp, parseSessionFile, readShareConfig, summarySignature, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, answerModel, toQuota, quotaWarning } from '../hooks/team'
 
 const H = 3_600_000
@@ -555,7 +555,7 @@ test('the machine sends to the receiver while the route holds, and rests on the 
   expect(routeTarget(undefined, NOW)).toBeUndefined()
   expect(routeTarget(route, NOW)).toBe('https://ingest.example.com')
   expect(routeTarget(route, NOW + ROUTE_TTL_DEFAULT_MS)).toBeUndefined()
-  const rested = routeRested(route, NOW)
+  const rested = routeRested(route, NOW, () => 0.5)
   expect(rested.rest).toEqual({ until: NOW + ROUTE_REST_FIRST_MS, wait: ROUTE_REST_FIRST_MS })
   expect(routeTarget(rested, NOW + 1)).toBeUndefined()
   expect(routeTarget(rested, NOW + ROUTE_REST_FIRST_MS)).toBe('https://ingest.example.com')
@@ -582,4 +582,36 @@ test('a busy receiver is waited for, any other failure sends that one to the web
 test('the package may list hosts of the receiver', () => {
   expect(readShareConfig({ ingestHosts: ['Ingest.Other.com', 'bad host', 'nodot', 7] }, '/h').ingestHosts).toEqual(['ingest.other.com'])
   expect(readShareConfig({}, '/h').ingestHosts).toEqual([])
+})
+
+test('waiting longer each time, spread so a crowd that failed together does not come back together', () => {
+  const mid = () => 0.5
+  let b = backoff(undefined, NOW, 5_000, 300_000, 0.5, mid)
+  expect(b).toEqual({ until: NOW + 5_000, wait: 5_000 })
+  b = backoff(b, NOW, 5_000, 300_000, 0.5, mid)
+  expect(b.wait).toBe(10_000)
+  for (let i = 0; i < 20; i++) b = backoff(b, NOW, 5_000, 300_000, 0.5, mid)
+  expect(b.wait).toBe(300_000)
+  // spread by up to half either way, the doubling going on from the wait before it was moved
+  // lệch tới một nửa mỗi phía, việc gấp đôi tính tiếp từ thời gian chờ trước khi lệch
+  expect(backoff(undefined, NOW, 60_000, 600_000, 0.5, () => 0).until).toBe(NOW + 30_000)
+  expect(backoff(undefined, NOW, 60_000, 600_000, 0.5, () => 1).until).toBe(NOW + 90_000)
+  expect(backoff({ wait: 60_000 }, NOW, 60_000, 600_000, 0.5, () => 0).wait).toBe(120_000)
+  // a rest from the receiver is spread too
+  // thời gian nghỉ bộ nhận cũng có lệch
+  const route = { urls: ['https://ingest.example.com'], until: NOW + ROUTE_TTL_DEFAULT_MS }
+  expect(routeRested(route, NOW, () => 0).rest).toEqual({ until: NOW + ROUTE_REST_FIRST_MS / 2, wait: ROUTE_REST_FIRST_MS })
+})
+
+test('the webhook is down when it does not answer or answers 5xx without saying when to come back', () => {
+  expect(webhookDown(undefined)).toBe(true)
+  expect(webhookDown({ status: 0 })).toBe(true)
+  expect(webhookDown({ status: 502 })).toBe(true)
+  expect(webhookDown({ status: 503, headers: {} })).toBe(true)
+  // a busy server that says when is waited for by paceFrom; a refusal or a success is not the webhook being down
+  // máy chủ bận có nói khi nào thì đã được paceFrom chờ; từ chối hay thành công không phải là webhook dừng
+  expect(webhookDown({ status: 503, headers: { 'retry-after': '40' } })).toBe(false)
+  expect(webhookDown({ status: 401 })).toBe(false)
+  expect(webhookDown({ status: 200 })).toBe(false)
+  expect(WEBHOOK_BACKOFF_FIRST_MS).toBeLessThan(WEBHOOK_BACKOFF_MAX_MS)
 })

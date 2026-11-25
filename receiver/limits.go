@@ -6,13 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"aiworker/receiver/internal/ingest"
 )
 
 // The receiver's own ceilings, so that too many computers make it refuse some of them instead of running the machine out of memory and
@@ -55,6 +56,58 @@ const sendsPerCPU = 2500
 // maxPaceMs: the longest gap asked, the most INGEST_MIN_GAP_MS allows
 // maxPaceMs: khoảng cách dài nhất được dặn, mức INGEST_MIN_GAP_MS cho phép cao nhất
 const maxPaceMs = 120_000
+
+// readingShare and holdingShare: the parts of the memory limit for the bodies being read and cleaned and for the rows waiting for
+// Python (ingest.Budget); past either a send is answered busy. rssHigh and rssLow: past rssHigh of the limit, measured on the process
+// itself, every new send is refused until it is back under rssLow, since the limit given to Go is only a target its collector aims at
+// (a v: 1 book of 8 days per send ran it to 4.5 GB over a limit of 3.1 GB, docs/RECEIVER.md, section 7).
+// readingShare và holdingShare: các phần của giới hạn bộ nhớ cho các thân đang đọc và làm sạch và cho các dòng chờ Python
+// (ingest.Budget); quá một trong hai thì lần gửi được trả bận. rssHigh và rssLow: quá rssHigh của giới hạn, đo trên chính tiến trình,
+// thì mọi lần gửi mới bị từ chối cho tới khi về dưới rssLow, vì giới hạn trao cho Go chỉ là mức bộ dọn rác của nó nhắm tới (sổ v: 1
+// 8 ngày mỗi lần gửi đã đẩy nó lên 4,5 GB trên giới hạn 3,1 GB, docs/RECEIVER.vi.md, mục 7).
+const (
+	readingShare = 0.25
+	holdingShare = 0.35
+	rssHigh      = 0.90
+	rssLow       = 0.80
+)
+
+// budgets are the two budgets of a memory limit, none without one.
+// budgets là hai ngân sách của một giới hạn bộ nhớ, không có khi không có giới hạn.
+func budgets(memory int64) (reading, holding *ingest.Budget) {
+	if memory <= 0 || memory == math.MaxInt64 {
+		return nil, nil
+	}
+	return ingest.NewBudget(int64(float64(memory) * readingShare)), ingest.NewBudget(int64(float64(memory) * holdingShare))
+}
+
+// overloaded says, from the resident memory of the process and whether it was over already, whether it is over now: on past rssHigh
+// of the limit, off again only under rssLow.
+// overloaded cho biết, từ bộ nhớ thường trú của tiến trình và việc nó đã quá chưa, giờ nó có đang quá không: bật khi quá rssHigh của
+// giới hạn, chỉ tắt lại khi dưới rssLow.
+func overloaded(rss, memory int64, was bool) bool {
+	if memory <= 0 || memory == math.MaxInt64 || rss <= 0 {
+		return false
+	}
+	if was {
+		return float64(rss) > float64(memory)*rssLow
+	}
+	return float64(rss) > float64(memory)*rssHigh
+}
+
+// residentBytes reads the resident memory of this process from /proc/self/statm (Linux); 0 elsewhere.
+// residentBytes đọc bộ nhớ thường trú của tiến trình này từ /proc/self/statm (Linux); 0 ở nơi khác.
+func residentBytes(statm string, pageSize int) int64 {
+	f := strings.Fields(statm)
+	if len(f) < 2 {
+		return 0
+	}
+	pages, err := strconv.ParseInt(f[1], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return pages * int64(pageSize)
+}
 
 type limits struct {
 	// sends: the sends a second the machine is to answer, 0 for no pacing
@@ -232,7 +285,7 @@ func refuseOver(l *capListener, next http.Handler) http.Handler {
 		if over, _ := r.Context().Value(overKey{}).(bool); over && !passes {
 			l.refused.Add(1)
 			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Retry-After", strconv.Itoa(30+rand.Intn(61)))
+			w.Header().Set("Retry-After", ingest.RetryAfter(30, 90))
 			w.Header().Set("Connection", "close")
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = w.Write([]byte(`{"error":"busy"}`))

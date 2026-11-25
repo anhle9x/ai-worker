@@ -13,7 +13,7 @@ import threading
 import time
 from datetime import date, datetime, timedelta
 
-from board import devicestore
+from board import devicestore, settings
 from board.db import data_db, dumps
 from board.settings import (
     CONNECTOR_OFFLINE_SECONDS,
@@ -1235,6 +1235,38 @@ def save_device(d: dict) -> None:
     """Replace one device's whole record, its hour book inside it; seen_at is the server's time of the send, used by the 30-day limit.
     Thay cả bản ghi của một máy, sổ giờ nằm trong đó; seen_at là giờ máy chủ nhận, dùng cho hạn 30 ngày."""
     DEVICES.save(d, int(time.time()))
+
+
+class SendPace:
+    """The gap between sends told to the computers on /ingest: INGEST_MIN_GAP_MS while the computers that sent in the last minute fit in
+    INGEST_SENDS_PER_SECOND, wider past it (computers over sends a second), at most 2 minutes. Counts only, nothing about who.
+    Khoảng cách giữa hai lần gửi dặn các máy trên /ingest: INGEST_MIN_GAP_MS khi số máy đã gửi trong phút vừa qua còn vừa
+    INGEST_SENDS_PER_SECOND, rộng hơn khi quá (số máy chia số lần gửi mỗi giây), tối đa 2 phút. Chỉ đếm, không ghi gì về ai."""
+
+    WINDOW = 60.0
+    MAX_GAP_MS = 120_000
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.seen = {}
+        self.pruned = 0.0
+
+    def note(self, device: str, now: float) -> int:
+        """Counts this computer's send and gives the gap to tell it, in milliseconds.
+        Đếm lần gửi của máy này và cho khoảng cách cần dặn nó, tính bằng mili giây."""
+        with self.lock:
+            self.seen[device] = now
+            if now - self.pruned > 5:
+                self.pruned = now
+                self.seen = {d: t for d, t in self.seen.items() if now - t < self.WINDOW}
+            computers = len(self.seen)
+        rate = settings.INGEST_SENDS_PER_SECOND
+        if rate <= 0:
+            return settings.INGEST_MIN_GAP_MS
+        return int(min(self.MAX_GAP_MS, max(settings.INGEST_MIN_GAP_MS, math.ceil(computers / rate * 1000))))
+
+
+SEND_PACE = SendPace()
 
 
 class IngestGate:

@@ -44,10 +44,10 @@ func TestRowsOfOneComputerPutTogether(t *testing.T) {
 	if p.kind != "hours" || p.ip != "b" || p.at != 2 {
 		t.Fatalf("kind %s, ip %s, at %d", p.kind, p.ip, p.at)
 	}
-	if got := ledgerOf(t, p.d); got != `{"497545": {}, "497546": {"usd": 2e-06, "usdMicro": 2}}` {
+	if got := ledgerOf(t, p.row()); got != `{"497545": {}, "497546": {"usd": 2e-06, "usdMicro": 2}}` {
 		t.Fatalf("hours put together: %s", got)
 	}
-	if w, _ := p.d.Get("working"); !pyjson.Equal(w, pyjson.IntN(1)) {
+	if w, _ := p.row().Get("working"); !pyjson.Equal(w, pyjson.IntN(1)) {
 		t.Fatalf("the newest state: %v", w)
 	}
 	// a send whose numbers are not written only adds its records
@@ -63,7 +63,7 @@ func TestRowsOfOneComputerPutTogether(t *testing.T) {
 	if p.kind != "full" {
 		t.Fatalf("kind %s", p.kind)
 	}
-	if got := ledgerOf(t, p.d); got != `{"497540": {"usd": 5e-06, "usdMicro": 5}, "497547": {"usd": 7e-06, "usdMicro": 7}}` {
+	if got := ledgerOf(t, p.row()); got != `{"497540": {"usd": 5e-06, "usdMicro": 5}, "497547": {"usd": 7e-06, "usdMicro": 7}}` {
 		t.Fatalf("hours on the whole book: %s", got)
 	}
 	// only records, with nothing waiting: a row of records alone

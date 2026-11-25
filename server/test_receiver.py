@@ -406,9 +406,11 @@ class IngestRoute(unittest.TestCase):
         settings.RECEIVER_INGEST_URLS, settings.RECEIVER_INGEST_DEVICES, settings.RECEIVER_INGEST_PERCENT = self.was
         Receiver.tearDown(self)
 
-    def send(self, device: str, key: str):
-        return self.call("POST", "/ingest", {"v": 1, "device": device, "name": "Rae", "account": device + "@example.com",
-                                             "updatedAt": int(time.time() * 1000)}, Authorization="Bearer " + key)
+    def send(self, device: str, key: str, v: int = 2):
+        body = {"v": v, "device": device, "name": "Rae", "account": device + "@example.com", "updatedAt": int(time.time() * 1000)}
+        if v == 2:
+            body.update({"full": True, "hours": {}})
+        return self.call("POST", "/ingest", body, Authorization="Bearer " + key)
 
     def test_nothing_is_said_by_default(self):
         key = self.enrol(DEVICES[0])
@@ -429,7 +431,13 @@ class IngestRoute(unittest.TestCase):
         key = answer["deviceKey"]
         status, answer = self.send(DEVICES[0], key)
         self.assertEqual((status, answer["ingestUrls"], answer["ingestTtlMs"]), (200, self.URLS, 3600000))
-        self.assertEqual(self.call("GET", "/ingest/route", Authorization="Bearer " + key), (200, {"ingestUrls": self.URLS, "ingestTtlMs": 3600000}))
+        self.assertEqual(self.call("GET", "/ingest/route?v=2", Authorization="Bearer " + key), (200, {"ingestUrls": self.URLS, "ingestTtlMs": 3600000}))
+        # a plugin that sends v: 1 (0.50.13) is never told: its whole book of 8 days in every send is too heavy for the receiver
+        # plugin gửi v: 1 (0.50.13) không bao giờ được báo: cả sổ 8 ngày trong mỗi lần gửi quá nặng cho bộ nhận
+        status, answer = self.send(DEVICES[0], key, v=1)
+        self.assertEqual(status, 200)
+        self.assertNotIn("ingestUrls", answer)
+        self.assertEqual(self.call("GET", "/ingest/route", Authorization="Bearer " + key)[1]["ingestUrls"], [])
         self.assertEqual(self.call("GET", "/ingest/route", Authorization="Bearer " + settings.INGEST_KEY)[0], 403)
         self.assertEqual(self.call("GET", "/ingest/route")[0], 401)
         # another computer, not on the list, is not told
@@ -440,7 +448,7 @@ class IngestRoute(unittest.TestCase):
         # tắt bộ nhận: không ai được báo, và đường tuyến đưa mọi máy về lại đây
         settings.RECEIVER_ENABLED = False
         self.assertNotIn("ingestUrls", self.send(DEVICES[0], key)[1])
-        self.assertEqual(self.call("GET", "/ingest/route", Authorization="Bearer " + key)[1]["ingestUrls"], [])
+        self.assertEqual(self.call("GET", "/ingest/route?v=2", Authorization="Bearer " + key)[1]["ingestUrls"], [])
 
     def test_the_percentage_is_stable_and_only_adds(self):
         settings.RECEIVER_INGEST_URLS = list(self.URLS)
@@ -460,6 +468,37 @@ class IngestRoute(unittest.TestCase):
                                                  " https://d.example.com:8443, https://e.example.com, https://f.example.com, https://g.example.com"),
                          ["https://a.example.com", "https://d.example.com:8443", "https://e.example.com", "https://f.example.com"])
         self.assertEqual(settings._https_origins(""), [])
+
+
+class SendPaceTest(unittest.TestCase):
+    """The gap told on /ingest widens with the computers that sent in the last minute, past INGEST_SENDS_PER_SECOND.
+    Khoảng cách dặn trên /ingest giãn theo số máy đã gửi trong phút vừa qua, khi quá INGEST_SENDS_PER_SECOND."""
+
+    def setUp(self):
+        self.was = settings.INGEST_SENDS_PER_SECOND
+
+    def tearDown(self):
+        settings.INGEST_SENDS_PER_SECOND = self.was
+
+    def test_the_gap_widens_with_the_computers(self):
+        settings.INGEST_SENDS_PER_SECOND = 100.0
+        pace, t = devices.SendPace(), 1000.0
+        gaps = [pace.note("device-%05d" % i, t) for i in range(1000)]
+        # up to 200 computers fit in 100 sends a second at 2 seconds; 1,000 need 10 seconds
+        # tới 200 máy vừa 100 lần gửi mỗi giây với 2 giây; 1.000 máy cần 10 giây
+        self.assertEqual(gaps[0], settings.INGEST_MIN_GAP_MS)
+        self.assertEqual(gaps[199], settings.INGEST_MIN_GAP_MS)
+        self.assertEqual(gaps[-1], 10_000)
+        # the same computer again does not count twice; a minute later the quiet ones are forgotten
+        # cùng một máy gửi lại không đếm hai lần; một phút sau các máy đã im bị quên
+        self.assertEqual(pace.note("device-00000", t + 1), 10_000)
+        self.assertEqual(pace.note("device-00000", t + 61), settings.INGEST_MIN_GAP_MS)
+        # never past 2 minutes, and 0 turns it off
+        # không bao giờ quá 2 phút, và 0 thì tắt
+        settings.INGEST_SENDS_PER_SECOND = 0.001
+        self.assertEqual(pace.note("device-x", t + 62), devices.SendPace.MAX_GAP_MS)
+        settings.INGEST_SENDS_PER_SECOND = 0.0
+        self.assertEqual(pace.note("device-y", t + 62), settings.INGEST_MIN_GAP_MS)
 
 
 class TurningTheSecret(unittest.TestCase):

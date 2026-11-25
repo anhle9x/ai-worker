@@ -40,6 +40,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -199,6 +200,10 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	r := ingest.New(c.webhook, secrets, c.every)
+	// the memory of bodies being read and of rows waiting is bounded, and every new send is refused while the process is near its limit
+	// bộ nhớ của các thân đang đọc và các dòng chờ có giới hạn, và mọi lần gửi mới bị từ chối khi tiến trình gần chạm giới hạn của nó
+	r.Reading, r.Holding = budgets(lim.memory)
+	go watchMemory(ctx, &r.Overloaded, lim.memory)
 	// the policy first, then the books a page at a time; sends are answered "starting" until the policy is here
 	// chính sách trước, rồi các sổ từng trang một; các lần gửi được trả "starting" cho tới khi có chính sách
 	for {
@@ -292,5 +297,29 @@ func listen(addr string, wait time.Duration) (net.Listener, error) {
 			return ln, err
 		}
 		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+// watchMemory checks the resident memory of the process once a second and sets over past rssHigh of the limit, until under rssLow.
+// watchMemory xem bộ nhớ thường trú của tiến trình mỗi giây và bật over khi quá rssHigh của giới hạn, tới khi dưới rssLow.
+func watchMemory(ctx context.Context, over *atomic.Bool, memory int64) {
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		statm, err := os.ReadFile("/proc/self/statm")
+		if err != nil {
+			return
+		}
+		was := over.Load()
+		now := overloaded(residentBytes(string(statm), os.Getpagesize()), memory, was)
+		if now != was {
+			over.Store(now)
+			log.Printf("receiver: near the memory limit, refusing new sends: %v", now)
+		}
 	}
 }

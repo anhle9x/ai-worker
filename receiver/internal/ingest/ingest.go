@@ -43,7 +43,6 @@ const (
 	maxBatchRows  = 2000
 	maxPending    = 200_000
 	maxChecks     = 1000
-	busyRetry     = "5"
 	policyEvery   = 15 * time.Second
 	peopleEvery   = 15 * time.Second
 	devicesPage   = 1000
@@ -52,15 +51,25 @@ const (
 	// dòng chờ lâu nhất được chờ Python bao lâu trước khi /health báo bộ nhận đang chậm; các dòng vẫn chờ tiếp, mỗi máy một dòng
 	behindAfter = 60 * time.Second
 	forwardMax  = 16
+	// maxBatchBytes: a batch also stops past this many bytes of rows, so a batch of whole books of 8 days stays a few megabytes
+	// maxBatchBytes: một lô cũng dừng khi quá bấy nhiêu byte dòng, để một lô toàn sổ đủ 8 ngày chỉ vài megabyte
+	maxBatchBytes = 8 << 20
+	// readCost: the memory one byte of a body takes while it is read, parsed and cleaned (a v: 1 book of 11 KB became about 150 KB of
+	// objects, measured with pprof at 10,000 computers)
+	// readCost: bộ nhớ một byte của thân chiếm trong lúc được đọc, phân tích và làm sạch (một sổ v: 1 11 KB thành khoảng 150 KB đối
+	// tượng, đo bằng pprof ở 10.000 máy)
+	readCost = 16
 )
+
+// busyRetry is the wait told to a computer refused because this side or Python is full: 5 to 15 seconds, spread.
+// busyRetry là thời gian chờ báo cho máy bị từ chối vì bên này hay Python đã đầy: 5 tới 15 giây, rải ra.
+func busyRetry() string { return RetryAfter(5, 15) }
 
 // startingRetry is the wait told to a computer whose book is not read yet while the books load: 15 to 45 seconds, spread so the
 // computers do not all come back in the same second; loading 100,000 books takes about 15 seconds when Python is free.
 // startingRetry là thời gian chờ báo cho máy chưa có sổ trong lúc nạp sổ: 15 tới 45 giây, rải ra để các máy không cùng quay lại một
 // giây; nạp 100.000 sổ mất khoảng 15 giây khi Python rảnh.
-func startingRetry() string {
-	return strconv.Itoa(15 + mrand.IntN(31))
-}
+func startingRetry() string { return RetryAfter(15, 45) }
 
 // Policy is the numbered policy document of the Python server (board/receiver.py, Policy.document).
 // Policy là tài liệu chính sách có số thứ tự của máy chủ Python (board/receiver.py, Policy.document).
@@ -179,6 +188,14 @@ type Receiver struct {
 	// Pace, khi được đặt, cho khoảng cách ngắn nhất theo mili giây mà các máy được dặn giữ giữa hai lần gửi theo tải lúc này, 0 là không
 	// có; khoảng cách trong chính sách vẫn là mức thấp nhất
 	Pace func() int64
+	// Reading and Holding, when set, bound the memory of the bodies being read and cleaned (readCost bytes for one byte of a body) and of
+	// the rows waiting for Python; past either a send is answered busy. Overloaded, set when the process is near its memory limit, refuses
+	// every new send the same way (main.go watches it).
+	// Reading và Holding, khi được đặt, giới hạn bộ nhớ của các thân đang đọc và làm sạch (readCost byte cho một byte thân) và của các
+	// dòng chờ Python; quá một trong hai thì lần gửi được trả bận. Overloaded, bật khi tiến trình gần chạm giới hạn bộ nhớ, từ chối mọi
+	// lần gửi mới cùng cách đó (main.go theo dõi nó).
+	Reading, Holding *Budget
+	Overloaded       atomic.Bool
 }
 
 // batch is a numbered batch of rows on its way to Python.
@@ -199,7 +216,13 @@ type batch struct {
 // trước. Các giờ gửi dạng "hours" được gộp, giờ gửi sau thắng (giờ rỗng vẫn xoá giờ đó); các giờ gửi trên một sổ đủ được đặt lên sổ
 // đó, để Python ghi một lần đúng thứ nó đã ghi qua từng lần gửi.
 type waiting struct {
+	// d is the row as objects while it may still be merged with changed hours; a whole book (v1, full) is kept encoded in enc instead,
+	// about a tenth of the memory, and read back when a batch is made. size is what the row counts in Holding
+	// d là dòng dạng đối tượng khi còn có thể được ghép với các giờ đã đổi; một sổ đủ (v1, full) được giữ đã mã hoá trong enc, khoảng
+	// một phần mười bộ nhớ, và được đọc lại khi làm lô. size là phần dòng tính vào Holding
 	d           *pyjson.Object
+	enc         []byte
+	size        int64
 	kind, ip    string
 	at          int64
 	delegations []pyjson.Value
@@ -213,16 +236,39 @@ func (p *waiting) add(d *pyjson.Object, kind, ip string, at int64, delegations [
 	p.ip, p.at = ip, at
 	switch {
 	case kind == "delegations":
-		if p.d == nil {
-			p.d, p.kind = d, kind
+		if p.kind == "" {
+			p.keep(d, kind)
 		}
 	case kind == "hours" && p.kind == "hours":
-		p.d = withHours(d, unionHours(p.d, d))
+		p.keep(withHours(d, unionHours(p.row(), d)), kind)
 	case kind == "hours" && (p.kind == "v1" || p.kind == "full"):
-		p.d = withHours(d, clean.MergeHours(p.d, d))
+		p.keep(withHours(d, clean.MergeHours(p.row(), d)), p.kind)
 	default:
-		p.d, p.kind = d, kind
+		p.keep(d, kind)
 	}
+}
+
+// keep holds d as the row of kind: encoded when it is a whole book, as objects otherwise, and counts its size.
+// keep giữ d làm dòng loại kind: đã mã hoá khi là sổ đủ, dạng đối tượng nếu không, và đếm cỡ của nó.
+func (p *waiting) keep(d *pyjson.Object, kind string) {
+	enc := pyjson.Encode(d)
+	p.kind, p.size = kind, int64(len(enc))
+	if kind == "v1" || kind == "full" {
+		p.d, p.enc = nil, enc
+	} else {
+		p.d, p.enc = d, nil
+	}
+}
+
+// row is the row held, as objects.
+// row là dòng đang giữ, dạng đối tượng.
+func (p *waiting) row() *pyjson.Object {
+	if p.d != nil || p.enc == nil {
+		return p.d
+	}
+	v, _ := pyjson.Parse(p.enc)
+	o, _ := v.(*pyjson.Object)
+	return o
 }
 
 // unionHours puts the hours of b over those of a, each kind apart, empty tables kept: they remove an hour.
@@ -718,6 +764,15 @@ func (r *Receiver) ingest(w http.ResponseWriter, req *http.Request) {
 	// refused as io.ReadAll's would have been refused by net/http
 	// độ dài đã biết và đã kiểm ở trên: một vùng nhớ đúng cỡ đó, không nhân đôi dần như io.ReadAll; thân ngắn hơn đã khai thì bị từ chối
 	// như net/http đã làm với io.ReadAll
+	// past the memory this side may spend on bodies being read, or near its memory limit: come back later, before reading anything
+	// quá phần bộ nhớ bên này được dùng cho các thân đang đọc, hoặc gần chạm giới hạn bộ nhớ: quay lại sau, trước khi đọc gì
+	cost := req.ContentLength * readCost
+	if r.Overloaded.Load() || !r.Reading.Take(cost) {
+		w.Header().Set("Connection", "close")
+		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry())
+		return
+	}
+	defer r.Reading.Add(-cost)
 	body := make([]byte, req.ContentLength)
 	if _, err := io.ReadFull(http.MaxBytesReader(w, req.Body, limit), body); err != nil {
 		refuse(w, http.StatusRequestEntityTooLarge, "too large")
@@ -766,10 +821,10 @@ func (r *Receiver) ingest(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	e.tokens--
-	if !r.isWaiting(claims.Device) && r.waitingCount() >= maxPending {
+	if !r.isWaiting(claims.Device) && (r.waitingCount() >= maxPending || r.Holding.Full()) {
 		// Python has not taken the rows for a long while: refuse, so the computers keep their hours instead of this side dropping them
 		// Python đã lâu không nhận các dòng: từ chối, để các máy giữ giờ của chúng thay vì bên này phải bỏ đi
-		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry)
+		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry())
 		return
 	}
 	if !e.loaded && r.isQueued(claims.Device) {
@@ -777,7 +832,7 @@ func (r *Receiver) ingest(w http.ResponseWriter, req *http.Request) {
 		// them, so the computer comes back once they are written
 		// sổ đã bị bỏ (Python khởi động lại, hoặc Python tự ghi) trong lúc các dòng của nó còn chờ ở đây: đọc lúc này sẽ thiếu
 		// chúng, nên máy quay lại khi chúng đã được ghi
-		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry)
+		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry())
 		return
 	}
 	if !e.loaded && r.loading.Load() {
@@ -787,7 +842,7 @@ func (r *Receiver) ingest(w http.ResponseWriter, req *http.Request) {
 	if err := r.load(req.Context(), claims.Device, e); err != nil {
 		r.unloaded.note(claims.Device, err)
 		r.unloaded.say(time.Now())
-		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry)
+		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry())
 		return
 	}
 	kind := clean.SendKind(raw)
@@ -905,7 +960,9 @@ func (r *Receiver) enqueue(device string, d *pyjson.Object, kind, ip string, at 
 		r.pending[device] = p
 		r.order = append(r.order, device)
 	}
+	before := p.size
 	p.add(d, kind, ip, at, delegations)
+	r.Holding.Add(p.size - before)
 	r.qmu.Unlock()
 	r.nudge()
 }
@@ -1006,13 +1063,21 @@ func (r *Receiver) take() *batch {
 	rows := make([]pyjson.Value, 0, n+c)
 	devices := make(map[string]bool, n)
 	oldest := time.Now().UnixMilli()
+	taken, bytes := 0, int64(0)
 	for _, device := range r.order[:n] {
 		p := r.pending[device]
+		if taken > 0 && bytes+p.size > maxBatchBytes {
+			break
+		}
+		taken++
+		bytes += p.size
 		delete(r.pending, device)
 		devices[device] = true
-		rows = append(rows, row(p.d, p.kind, p.ip, p.at, p.delegations, nil))
+		rows = append(rows, row(p.row(), p.kind, p.ip, p.at, p.delegations, nil))
+		r.Holding.Add(-p.size)
 		oldest = min(oldest, p.since)
 	}
+	n = taken
 	r.order = append([]string(nil), r.order[n:]...)
 	r.sorted = max(0, r.sorted-n)
 	rows = append(rows, r.checks[:c]...)
@@ -1259,7 +1324,7 @@ func (r *Receiver) forward(w http.ResponseWriter, req *http.Request, body []byte
 	case r.forwardSlots <- struct{}{}:
 		defer func() { <-r.forwardSlots }()
 	default:
-		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry)
+		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry())
 		return
 	}
 	out, err := http.NewRequestWithContext(req.Context(), http.MethodPost, r.webhook+"/internal/ingest", bytes.NewReader(body))
@@ -1273,7 +1338,7 @@ func (r *Receiver) forward(w http.ResponseWriter, req *http.Request, body []byte
 	out.Header.Set("Content-Type", "application/json")
 	resp, err := r.client.Do(out)
 	if err != nil {
-		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry)
+		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry())
 		return
 	}
 	defer resp.Body.Close()

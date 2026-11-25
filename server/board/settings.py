@@ -4,6 +4,7 @@ Cấu hình máy chủ bảng tổng: biến môi trường, giới hạn và kh
 import http.client
 import ipaddress
 import os
+import random
 import re
 import sys
 from datetime import timedelta, timezone
@@ -78,7 +79,9 @@ CONNECTION_DEADLINE_SECONDS = 120
 # Số yêu cầu đang được trả lời cùng lúc mà quá mức đó thì máy chủ đang bận: khi đó một lần gửi, hay yêu cầu của người chưa đăng nhập, nhận 503
 # ngay kèm Retry-After, thay vì xếp hàng sau các yêu cầu khác cho tới khi tất cả hết giờ. Người đã đăng nhập và thiết bị có khoá vẫn được trả lời.
 BUSY_REQUESTS = max(1, int(os.environ.get("BUSY_REQUESTS", "32")))
-BUSY_RETRY_SECONDS = 30
+# how long a turned-away sender is told to wait: 30 to 90 seconds, spread so a crowd of computers does not all come back in the same second
+# máy gửi bị từ chối được dặn chờ bao lâu: 30 tới 90 giây, rải ra để cả đám máy không cùng quay lại trong một giây
+BUSY_RETRY_SECONDS = (30, 90)
 # the most of a turned-away request's body the server still reads, so the sender gets the 503; past it the connection is just closed
 # phần thân nhiều nhất của yêu cầu bị từ chối mà máy chủ vẫn đọc, để máy gửi nhận được 503; quá mức đó thì chỉ đóng kết nối
 BUSY_READ_BYTES = 16 * 1024
@@ -266,6 +269,12 @@ INGEST_PER_SECOND = max(0.01, float(os.environ.get("INGEST_PER_SECOND", "1")))
 INGEST_MIN_GAP_MS = min(max(1000, int(os.environ.get("INGEST_MIN_GAP_MS", "2000"))), 120_000)
 INGEST_STATE_GAP_MS = min(max(1000, int(os.environ.get("INGEST_STATE_GAP_MS", "2000"))), 120_000)
 INGEST_MAX_GAP_MS = min(max(30_000, int(os.environ.get("INGEST_MAX_GAP_MS", "240000"))), 300_000)
+# the sends a second this server is to take on /ingest: past it the gap told to the computers (minGapMs) widens with the computers that
+# sent in the last minute, up to 2 minutes, so a crowd falling back here from a stopped Go receiver slows down instead of failing; 0 keeps
+# INGEST_MIN_GAP_MS for every count
+# số lần gửi mỗi giây máy chủ này nhận trên /ingest: quá mức đó thì khoảng cách dặn các máy (minGapMs) giãn theo số máy đã gửi trong
+# phút vừa qua, tới 2 phút, để cả đám máy quay về đây khi bộ nhận Go dừng thì chậm lại thay vì hỏng; 0 giữ INGEST_MIN_GAP_MS với mọi số
+INGEST_SENDS_PER_SECOND = max(0.0, float(os.environ.get("INGEST_SENDS_PER_SECOND", "").strip() or "1000"))
 # a computer may replace its whole hour book (full: true) once in this many seconds unless the server asked; a send above that is merged
 # hour by hour instead, so nothing is lost
 # một máy được thay cả sổ giờ (full: true) một lần trong ngần này giây nếu máy chủ không yêu cầu; gửi dày hơn thì được ghép từng giờ,
@@ -303,6 +312,12 @@ RECEIVER_FAST_APPLY = os.environ.get("RECEIVER_FAST_APPLY", "1").strip() != "0"
 # Luồng số trực tiếp của bảng từ bộ nhận (docs/RECEIVER.vi.md, mục 3): RECEIVER_LIVE_URL là địa chỉ của bộ nhận như các bảng tới được
 # (https://ingest.example.com), RECEIVER_BOARD_ORIGIN là địa chỉ của chính bảng (https://board.example.com), trang duy nhất bộ nhận cho mở
 # luồng. Có cả hai, cùng RECEIVER=1, thì mở POST /sse/ticket và thêm bộ nhận vào connect-src của các trang; thiếu một thì không có gì.
+def retry_after(span) -> str:
+    """A Retry-After within span = (lo, hi) seconds, spread at random.
+    Một Retry-After trong khoảng span = (lo, hi) giây, rải ngẫu nhiên."""
+    return str(random.randint(span[0], span[1]))
+
+
 def _origin(v: str) -> str:
     v = v.strip().rstrip("/")
     return v if re.fullmatch(r"https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?", v) else ""

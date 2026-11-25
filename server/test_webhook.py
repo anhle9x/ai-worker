@@ -5170,7 +5170,8 @@ class BusyServer(unittest.TestCase):
         body = json.dumps({"v": 1, "device": "device-busy", "name": "Busy", "updatedAt": int(time.time() * 1000)})
         status, headers, _ = self.while_busy("POST", "/ingest", body, {"Authorization": "Bearer test", "Content-Type": "application/json"})
         self.assertEqual(status, 503)
-        self.assertEqual(headers.get("Retry-After"), str(settings.BUSY_RETRY_SECONDS))
+        lo, hi = settings.BUSY_RETRY_SECONDS
+        self.assertTrue(lo <= int(headers.get("Retry-After")) <= hi, headers.get("Retry-After"))
         self.assertIsNone(devices.read_device("device-busy"))
 
     def test_a_large_body_is_not_read_when_busy(self):

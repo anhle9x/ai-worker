@@ -433,8 +433,18 @@ export const REFUSED_MAX_MS = 10 * 60_000
 /** When to send again after a refusal, given the wait before it (none after a send that went through). */
 /** Khi nào gửi lại sau một lần bị từ chối, biết thời gian chờ trước đó (không có sau một lần gửi thành công). */
 export function refusalAfter(previous: { wait?: number } | undefined, now: number): { until: number; wait: number } {
-  const wait = Math.min(REFUSED_MAX_MS, previous?.wait ? previous.wait * 2 : REFUSED_FIRST_MS)
-  return { until: now + wait, wait }
+  return backoff(previous, now, REFUSED_FIRST_MS, REFUSED_MAX_MS)
+}
+
+/**
+ * Waiting longer each time something fails: `first` the first time, doubled after each failure up to `max`. With a `spread` of 0.5 the
+ * wait used is moved by up to half either way at random, so many computers that failed together do not all try again together; the
+ * doubling goes on from the wait before it was moved.
+ */
+/** Chờ lâu dần mỗi lần một việc hỏng: `first` lần đầu, gấp đôi sau mỗi lần hỏng tới `max`. Với `spread` 0,5 thời gian chờ dùng thật lệch ngẫu nhiên tới một nửa mỗi phía, để nhiều máy cùng hỏng một lúc không cùng thử lại một lúc; việc gấp đôi tính tiếp từ thời gian chờ trước khi lệch. */
+export function backoff(previous: { wait?: number } | undefined, now: number, first: number, max: number, spread = 0, random: () => number = Math.random): { until: number; wait: number } {
+  const wait = Math.min(max, previous?.wait ? previous.wait * 2 : first)
+  return { until: now + Math.round(wait * (1 - spread + 2 * spread * random())), wait }
 }
 
 /** The gap between sends the plugin keeps by default, and the longest a server may ask (as its INGEST_MIN_GAP_MS allows). */
@@ -549,11 +559,28 @@ export function receiverOutcome(r: { status: number; headers?: Record<string, st
   return 'fallback'
 }
 
-/** The route after the receiver failed: a rest, one minute the first time, doubling up to ten. */
-/** Tuyến sau khi bộ nhận hỏng: một lần nghỉ, một phút lần đầu, gấp đôi dần tới mười phút. */
-export function routeRested(route: IngestRoute, now: number): IngestRoute {
-  const wait = Math.min(ROUTE_REST_MAX_MS, route.rest?.wait ? route.rest.wait * 2 : ROUTE_REST_FIRST_MS)
-  return { ...route, rest: { until: now + wait, wait } }
+/** The route after the receiver failed: a rest of about one minute the first time, doubling up to ten, each spread by up to half. */
+/** Tuyến sau khi bộ nhận hỏng: nghỉ khoảng một phút lần đầu, gấp đôi dần tới mười phút, mỗi lần lệch tới một nửa. */
+export function routeRested(route: IngestRoute, now: number, random: () => number = Math.random): IngestRoute {
+  return { ...route, rest: backoff(route.rest, now, ROUTE_REST_FIRST_MS, ROUTE_REST_MAX_MS, 0.5, random) }
+}
+
+/** After the receiver failed, the send waits this long at most, at random, before it goes to the webhook: a crowd that lost the receiver together reaches the webhook spread over it. */
+/** Sau khi bộ nhận hỏng, lần gửi chờ tối đa ngần này, ngẫu nhiên, rồi mới đi tới webhook: cả đám máy cùng mất bộ nhận tới webhook rải trong khoảng đó. */
+export const FALLBACK_SPREAD_MS = 30_000
+
+/** When the webhook itself did not answer, or answered 5xx without Retry-After: the next send waits 5 seconds, doubling up to 5 minutes, spread. */
+/** Khi chính webhook không trả lời, hoặc trả 5xx không có Retry-After: lần gửi sau chờ 5 giây, gấp đôi dần tới 5 phút, có lệch. */
+export const WEBHOOK_BACKOFF_FIRST_MS = 5_000
+export const WEBHOOK_BACKOFF_MAX_MS = 5 * 60_000
+
+/** Whether the webhook's answer means it is down or overwhelmed (no answer, 5xx without Retry-After), so the next sends back off. */
+/** Câu trả lời của webhook có nghĩa là nó đã dừng hoặc quá tải không (không trả lời, 5xx không có Retry-After), để các lần gửi sau lùi lại. */
+export function webhookDown(r: { status: number; headers?: Record<string, string> } | undefined): boolean {
+  if (!r || r.status === 0) return true
+  if (r.status < 500) return false
+  const seconds = Number(r.headers?.['retry-after'])
+  return !(Number.isFinite(seconds) && seconds > 0)
 }
 
 export function deviceKeyIn(answer: string): string | undefined {
