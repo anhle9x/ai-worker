@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.22 - 2026-11-26
+
+### Fixed
+- After the server started again (sessions live in memory, so everyone logs in again), an office sharing one address was locked out of the login page for 15 minutes once about 20 boards were open: each open board's 401 for its ended session counted as probing, and so did the 404 of `/sse/ticket` each board asks without the Go receiver. Those are no longer counted, nor is a board with an ended session loading the login page; a request with no session at all still is.
+
 ## 0.50.21 - 2026-11-26
 
 ### Added

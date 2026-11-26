@@ -75,7 +75,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | New devices | 10 per IP per day, 300 in total |
 | Wrong logins | 5 per IP and 20 per account, in 15 minutes |
 | Connections | 256 in total, 16 per IP, 120 seconds each |
-| Probing | 20 errors (401/404) in 10 minutes blocks an IP that is not logged in for 15 minutes |
+| Probing | 20 errors (401/404) in 10 minutes blocks an IP that is not logged in for 15 minutes; a 401 for a session that ended (the server started again) and the 404 of `/sse/ticket` for someone logged in without the receiver are not counted, nor is a board with an ended session loading the login page, so an office sharing one address is not locked out after a restart |
 | TV screens | 20 joined, 3 waiting per IP, 30 waiting in total |
 | Keys for AI tools (MCP) | 50 keys; 120 requests per key in 10 minutes; a message of 16 KB |
 | Keys for AI projects and applications | 20 keys; 120 sends per key in 10 minutes; a send of at most 256 KB and 500 turns; 100,000 turns per key a day |

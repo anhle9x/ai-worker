@@ -2180,6 +2180,26 @@ class TelegramAsk(unittest.TestCase):
         self.assertIn(429, statuses)
         self.assertEqual(self.bot(msg)[0], 200)
 
+    def test_boards_whose_session_ended_do_not_lock_the_office_out(self):
+        # the server started again (sessions live in memory): each board open in the office asks /data once with a session that is gone and
+        # gets 401. An office shares one address, so those 401s are not probing; without a session they still are
+        # máy chủ khởi động lại (phiên nằm trong bộ nhớ): mỗi bảng đang mở trong văn phòng hỏi /data một lần với phiên đã mất và nhận 401.
+        # Cả văn phòng chung một địa chỉ, nên các lần 401 đó không phải đang dò; không có phiên thì vẫn là dò
+        # each board opened while logged in asks /sse/ticket, which is not there without the Go receiver: an ordinary 404, not probing
+        # mỗi bảng mở khi đã đăng nhập đều hỏi /sse/ticket, đường không có khi không có bộ nhận Go: 404 bình thường, không phải dò
+        statuses = [self.call("POST", "/sse/ticket", "{}", Cookie="session=tok-tg-adm", Origin="http://127.0.0.1:%d" % self.port)[0]
+                    for _ in range(25)]
+        self.assertEqual(set(statuses), {404})
+        # then the server starts again: 40 boards ask /data with a session that is gone, get 401, and load the login page, its script too
+        # rồi máy chủ khởi động lại: 40 bảng hỏi /data với phiên đã mất, nhận 401, rồi tải trang đăng nhập, cả script của nó
+        for i in range(40):
+            cookie = "session=gone-%d" % i
+            self.assertEqual([self.call("GET", p, Cookie=cookie)[0] for p in ("/data", "/", "/login.js")], [401, 200, 200], i)
+        # without a session, the same calls still count as probing
+        # không có phiên thì các lời gọi đó vẫn bị tính là dò
+        statuses = [self.call("GET", "/data")[0] for _ in range(30)]
+        self.assertIn(429, statuses)
+
     def test_only_post(self):
         self.assertEqual(self.call("GET", "/bot/telegram", Authorization="Bearer " + self.KEY)[0], 404)
 

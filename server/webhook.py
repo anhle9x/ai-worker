@@ -248,6 +248,12 @@ class Handler(BaseHTTPRequestHandler):
         # bộ nhận Go của chính máy này trên các đường nội bộ của nó cũng vậy
         if self.path.startswith("/internal/") and settings.RECEIVER_ENABLED and self.from_this_machine():
             return False
+        # nor is a board whose session ended (this server started again) loading the login page: a whole office shares one address and
+        # reloads together, which would pass the limit of a minute; the page and its script are small and the same for everyone
+        # bảng có phiên đã hết (máy chủ này khởi động lại) tải trang đăng nhập cũng vậy: cả văn phòng chung một địa chỉ và cùng tải lại,
+        # sẽ vượt giới hạn mỗi phút; trang và script của nó nhỏ và như nhau cho mọi người
+        if self.command == "GET" and self.path.split("?", 1)[0] in ("/", "/login.js") and SESSIONS.token_of(cookie):
+            return False
         if SESSIONS.user_of(cookie, now) or not BOT.is_blocked(self.client_ip(), now):
             return False
         self.send_response(429)
@@ -413,10 +419,13 @@ class Handler(BaseHTTPRequestHandler):
             d = None
         # and for the Go receiver's internal paths, which are there only with RECEIVER=1
         # và cho các đường nội bộ của bộ nhận Go, chỉ có mặt khi có RECEIVER=1
-        if d and d.receiver and not settings.RECEIVER_ENABLED:
+        off = bool(d and d.receiver and not settings.RECEIVER_ENABLED)
+        if off:
             d = None
         if not d:
-            return self.reply(404, {"error": tx("Not found")})
+            # a board opened while logged in asks /sse/ticket, which is not there without the receiver: an ordinary 404, not probing
+            # bảng mở khi đã đăng nhập đều hỏi /sse/ticket, đường không có khi không có bộ nhận: 404 bình thường, không phải dò
+            return self.reply(404, {"error": tx("Not found")}, quiet=off and bool(SESSIONS.user_of(self.headers.get("Cookie", ""), time.time())))
         y = self.gate(d)
         if y:
             d.handler(self, y)
@@ -546,7 +555,12 @@ class Handler(BaseHTTPRequestHandler):
             if d.is_page:
                 self.reply_page(200, page_login())
             else:
-                self.reply(401, {"error": tx("Not logged in")})
+                # a session that ended (this server started again, or it ran out) is an ordinary 401, not probing: an office shares one
+                # address, and counting each open board would lock the whole office out of the login page. 404s and the limit of requests
+                # per minute still count (security.BOT)
+                # phiên đã hết (máy chủ này khởi động lại, hoặc hết hạn) là 401 bình thường, không phải dò: cả văn phòng chung một địa chỉ,
+                # và đếm từng bảng đang mở sẽ khoá cả văn phòng khỏi trang đăng nhập. 404 và giới hạn số yêu cầu mỗi phút vẫn được đếm
+                self.reply(401, {"error": tx("Not logged in")}, quiet=bool(SESSIONS.token_of(cookie)))
             return None
         # the browser always sends Origin with a fetch POST; account actions require it
         # trình duyệt luôn gửi Origin với fetch POST; thao tác về tài khoản thì bắt buộc phải có

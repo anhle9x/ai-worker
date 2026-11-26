@@ -75,7 +75,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | Máy mới | 10 mỗi IP mỗi ngày, tổng 300 |
 | Đăng nhập sai | 5 mỗi IP và 20 mỗi tài khoản, trong 15 phút |
 | Kết nối | Tổng 256, 16 mỗi IP, mỗi kết nối 120 giây |
-| Dò quét | 20 lỗi (401/404) trong 10 phút thì chặn IP chưa đăng nhập 15 phút |
+| Dò quét | 20 lỗi (401/404) trong 10 phút thì chặn IP chưa đăng nhập 15 phút; 401 vì phiên đã hết (máy chủ khởi động lại) và 404 của `/sse/ticket` cho người đã đăng nhập khi không có bộ nhận thì không tính, bảng có phiên đã hết tải trang đăng nhập cũng không tính, để văn phòng chung một địa chỉ không bị khoá sau một lần khởi động lại |
 | Màn hình TV | 20 đã ghép, 3 đang chờ mỗi IP, tổng 30 đang chờ |
 | Khoá cho công cụ AI (MCP) | 50 khoá; mỗi khoá 120 yêu cầu trong 10 phút; mỗi thông điệp 16 KB |
 | Khoá cho dự án hay ứng dụng AI | 20 khoá; mỗi khoá 120 lần gửi trong 10 phút; mỗi lần gửi tối đa 256 KB và 500 lượt; mỗi khoá 100.000 lượt một ngày |
