@@ -34,8 +34,11 @@ class Plugin:
     """A pretend plugin on one computer: its hour book, its state, and what it last had accepted by the server, per hour.
     Plugin giả lập trên một máy: sổ giờ, trạng thái, và bản cuối của từng giờ mà máy chủ đã nhận."""
 
-    def __init__(self, device: str, name: str, account: str, clock_ms: int = 0):
+    def __init__(self, device: str, name: str, account: str, clock_ms: int = 0, numbered: bool = False):
         self.device, self.name, self.account, self.clock_ms = device, name, account, clock_ms
+        # numbered: the plugin numbers its sends, seq = max(clock, last seq + 1) (hooks/sendv2.ts, nextSeq)
+        # numbered: plugin đánh số các lần gửi, seq = max(đồng hồ, seq trước + 1) (hooks/sendv2.ts, nextSeq)
+        self.numbered, self.seq = numbered, 0
         self.book = {kind: {} for kind in KINDS}
         self.state = {"openSessions": 1, "working": 1, "waiting": 0}
         self.accepted = None
@@ -76,8 +79,12 @@ class Plugin:
             self.book[kind] = {h: v for h, v in self.book[kind].items() if int(h) > hour - LEDGER_HOURS}
 
     def base(self, at: int, v: int) -> dict:
-        return dict({"v": v, "device": self.device, "name": self.name, "account": self.account, "updatedAt": at * 1000 + self.clock_ms,
-                     "pluginVersion": "0.50.0"}, **self.state)
+        out = dict({"v": v, "device": self.device, "name": self.name, "account": self.account, "updatedAt": at * 1000 + self.clock_ms,
+                    "pluginVersion": "0.50.0"}, **self.state)
+        if self.numbered:
+            self.seq = max(out["updatedAt"], self.seq + 1)
+            out["seq"] = self.seq
+        return out
 
     def send_v1(self, at: int) -> dict:
         """The whole book at the top, money in dollars as a v: 1 plugin sends it.
@@ -288,6 +295,18 @@ def cases() -> list:
     a.spend(t + 4, 5_000, 10)
     c.send(t + 4, a)
     c.steps.append({"at": t + 5, "device": a.device, "v1": None, "v2": older, "delivered": True, "expectV2": "stale", "compare": True})
+    out.append(c)
+
+    c = Case("clock-back-with-seq", "The clock of a computer that numbers its sends goes back 30 seconds: its next send is stamped older "
+                                    "by updatedAt, but its seq is newer, so it is written, not dropped as out of order. Without seq the "
+                                    "window of a minute dropped it. v: 1 has no window, so this case is for v: 2 only.", v2_only=True)
+    a = c.plugin("device-ctrl", "Contract L", "contract-l@example.com", numbered=True)
+    t = START + 600
+    a.spend(t, 10_000, 10)
+    c.send(t, a)
+    a.clock_ms = -30_000
+    a.spend(t + 10, 4_000, 10)
+    c.send(t + 10, a)
     out.append(c)
 
     c = Case("receiver-row-around-a-straight-send", "Through the Go receiver, a send waits with an hour; a newer send of that hour goes "

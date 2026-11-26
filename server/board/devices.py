@@ -538,9 +538,10 @@ def _window_values(rows) -> tuple:
 
 
 def _steady(m: dict) -> tuple:
-    """What a send changes besides its time: everything but updatedAt, and the IP history without the moment each address was last seen.
-    Những gì một lần gửi làm đổi ngoài thời điểm: mọi thứ trừ updatedAt, và lịch sử IP bỏ lúc mỗi địa chỉ được thấy lần cuối."""
-    rest = {k: v for k, v in m.items() if k not in ("updatedAt", "ipHistory")}
+    """What a send changes besides its time: everything but updatedAt and seq, and the IP history without the moment each address was last
+    seen.
+    Những gì một lần gửi làm đổi ngoài thời điểm: mọi thứ trừ updatedAt và seq, và lịch sử IP bỏ lúc mỗi địa chỉ được thấy lần cuối."""
+    rest = {k: v for k, v in m.items() if k not in ("updatedAt", "seq", "ipHistory")}
     return rest, [(e.get("ip"), e.get("from")) for e in m.get("ipHistory") or ()]
 
 
@@ -1249,7 +1250,9 @@ def save_ingest(d: dict, now: float, kind: str = "v1", decided: bool = False, st
             return NEED_FULL
         # decided: the Go receiver already dropped what came out of order and chose between replacing and merging (board/receiver.py)
         # decided: bộ nhận Go đã bỏ gói tới sai thứ tự và đã chọn giữa thay cả sổ và ghép (board/receiver.py)
-        if not decided and kind != "v1" and old and 0 < old["updatedAt"] - d["updatedAt"] <= REORDER_WINDOW_MS:
+        # by the time of the sends (seq, else updatedAt): a computer whose clock went back is not out of order
+        # theo thời điểm của các lần gửi (seq, không thì updatedAt): máy có đồng hồ lùi không bị coi là tới sai thứ tự
+        if not decided and kind != "v1" and old and 0 < order.stamp_of(old) - order.stamp_of(d) <= REORDER_WINDOW_MS:
             return STALE
         if not decided and kind == "full" and old is not None and now - _FULL_AT.get(d["device"], -FULL_BOOK_SECONDS) < FULL_BOOK_SECONDS:
             # a whole book again too soon: its hours are merged one by one instead, which loses nothing
@@ -1257,9 +1260,9 @@ def save_ingest(d: dict, now: float, kind: str = "v1", decided: bool = False, st
             kind = "hours"
         if kind == "full":
             _FULL_AT[d["device"]] = now
-        # seq only orders the sends: kept in the record it would make the row of the computer written at every send
-        # seq chỉ để xếp thứ tự các lần gửi: giữ trong bản ghi thì nó làm dòng của máy phải ghi lại mỗi lần gửi
-        new = {k: v for k, v in d.items() if k not in HOUR_KINDS and k != "seq"}
+        # seq stays in the record for the window above; like updatedAt it never makes the row written again by itself (_steady)
+        # seq ở lại trong bản ghi cho cửa sổ ở trên; như updatedAt, tự nó không bao giờ làm dòng phải ghi lại (_steady)
+        new = {k: v for k, v in d.items() if k not in HOUR_KINDS}
         ip = new.get("lanIp") or new.get("ip")
         history = (old or {}).get("ipHistory", [])
         new["ipHistory"] = add_ip_history(history, ip, int(now * 1000)) if ip else history

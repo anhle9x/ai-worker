@@ -250,10 +250,10 @@ TICKETS = Tickets()
 
 
 def book_for_receiver(device: str, whole: bool = False):
-    """One computer's record as the receiver loads it: {device, updatedAt, the STATE_FIELDS it has, ledger, tasks, blocks?, stamps} with
+    """One computer's record as the receiver loads it: {device, updatedAt, seq?, the STATE_FIELDS it has, ledger, tasks, blocks?, stamps} with
     the hours of today and later only (the receiver keeps no more), or the whole book; stamps is the time of the send that wrote each hour,
     {kind: {hour: time}} (proto 3). None if there is none.
-    Bản ghi của một máy như bộ nhận nạp: {device, updatedAt, các trường STATE_FIELDS nó có, ledger, tasks, blocks?, stamps} chỉ với các
+    Bản ghi của một máy như bộ nhận nạp: {device, updatedAt, seq?, các trường STATE_FIELDS nó có, ledger, tasks, blocks?, stamps} chỉ với các
     giờ từ hôm nay trở đi (bộ nhận không giữ hơn), hoặc cả sổ; stamps là thời điểm của lần gửi đã ghi từng giờ, {loại: {giờ: thời điểm}}
     (proto 3). None nếu không có."""
     stamps = {}
@@ -263,7 +263,10 @@ def book_for_receiver(device: str, whole: bool = False):
     if not m:
         return None
     state = {k: m[k] for k in STATE_FIELDS if k in m}
-    return dict({"device": device, "updatedAt": m["updatedAt"]}, **state, **(book or {}), stamps=stamps)
+    # seq: the number of its last send, which the receiver's window of a minute compares (clean.Decide)
+    # seq: số của lần gửi cuối, thứ cửa sổ một phút của bộ nhận đem so (clean.Decide)
+    number = {"seq": m["seq"]} if "seq" in m else {}
+    return dict({"device": device, "updatedAt": m["updatedAt"]}, **number, **state, **(book or {}), stamps=stamps)
 
 
 def devices_page(after: str, limit: int, device: str = "", whole: bool = False) -> dict:

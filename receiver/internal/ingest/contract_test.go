@@ -170,7 +170,7 @@ func TestSharedSampleThroughPython(t *testing.T) {
 				book := h.pythonBook(device, true)
 				// the record without its time and the state the live numbers read (STATE_FIELDS in server/board/receiver.py): the book
 				// bản ghi bỏ thời điểm và trạng thái mà số trực tiếp đọc (STATE_FIELDS trong server/board/receiver.py): còn lại là sổ
-				for _, k := range []string{"device", "updatedAt", "openSessions", "working", "waiting", "delegating", "tools", "stamps"} {
+				for _, k := range []string{"device", "updatedAt", "seq", "openSessions", "working", "waiting", "delegating", "tools", "stamps"} {
 					book.Delete(k)
 				}
 				if !pyjson.Equal(stripOrder(book), stripOrder(get(expect.Vals[i], "book"))) {

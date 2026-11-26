@@ -439,18 +439,22 @@ class Receiver(unittest.TestCase):
         self.assertEqual(receiver.book_for_receiver("device-rcva")["stamps"]["ledger"], {h0: t + 20_000, h1: t + 10_000})
 
     def test_seq_orders_the_sends_of_a_computer_whose_clock_went_back(self):
-        # the plugin numbers its sends (seq): one made after the clock went back two minutes is still the newer one, and seq is not kept
-        # in the record, so it never makes the row of the computer written again
-        # plugin đánh số các lần gửi (seq): lần gửi sau khi đồng hồ lùi hai phút vẫn là lần mới hơn, và seq không giữ trong bản ghi, nên nó
-        # không bao giờ làm dòng của máy phải ghi lại
+        # the plugin numbers its sends (seq): one made after the clock went back two minutes is still the newer one, and so is one made
+        # after it went back another 30 seconds, which the window of a minute (REORDER_WINDOW_MS) would have dropped by updatedAt. seq is
+        # kept in the record for that window but, like updatedAt, never makes the row of the computer written again by itself
+        # plugin đánh số các lần gửi (seq): lần gửi sau khi đồng hồ lùi hai phút vẫn là lần mới hơn, lần gửi sau khi lùi thêm 30 giây cũng
+        # vậy, dù cửa sổ một phút (REORDER_WINDOW_MS) mà so theo updatedAt thì đã bỏ nó. seq được giữ trong bản ghi cho cửa sổ đó nhưng,
+        # như updatedAt, tự nó không bao giờ làm dòng của máy phải ghi lại
         key, t = self.enrol("device-rcva"), int(time.time() * 1000)
         h = str(t // 3_600_000 - 1)
-        for at, seq, usd in ((t, t, 100), (t - 120_000, t + 1, 200)):
+        for at, seq, usd in ((t, t, 100), (t - 120_000, t + 1, 200), (t - 150_000, t + 2, 300)):
             status, _ = self.call("POST", "/ingest", {"v": 2, "device": "device-rcva", "updatedAt": at, "seq": seq,
                                                       "hours": {"ledger": {h: {"usdMicro": usd}}}}, Authorization="Bearer " + key)
             self.assertEqual(status, 200)
-        self.assertEqual(self.ledger_of("device-rcva"), {h: 200})
-        self.assertNotIn("seq", devices.DEVICES.get("device-rcva"))
+        self.assertEqual(self.ledger_of("device-rcva"), {h: 300})
+        self.assertEqual(receiver.book_for_receiver("device-rcva")["seq"], t + 2)
+        m = devices.DEVICES.get("device-rcva")
+        self.assertEqual(devices._steady(dict(m, seq=1)), devices._steady(dict(m, seq=2)))
         now = time.time()
         self.assertEqual(devices.clean_payload({"v": 1, "device": "device-rcva", "updatedAt": 5, "seq": 9}, now)["seq"], 9)
         self.assertNotIn("seq", devices.clean_payload({"v": 1, "device": "device-rcva", "updatedAt": 5, "seq": True}, now))

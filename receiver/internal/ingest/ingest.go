@@ -353,10 +353,12 @@ func withHours(d, hours *pyjson.Object) *pyjson.Object {
 // held là thứ bên này giữ của sổ một máy: updatedAt của lần gửi cuối, các giờ ledger và tasks từ hôm nay trở đi, và thời điểm của lần gửi
 // mà từng giờ đến từ đó: base cho phần lớn, các giờ khác giữ riêng trong stamps, xếp theo heldKey (order.go).
 type held struct {
-	updatedAt     pyjson.Value
-	ledger, tasks map[int64]totals.Hour
-	base          int64
-	stamps        []hourStamp
+	// updatedAt and seq of the last send: Decide's window compares them (clean.StampOf)
+	// updatedAt và seq của lần gửi cuối: cửa sổ của Decide đem so chúng (clean.StampOf)
+	updatedAt, seq pyjson.Value
+	ledger, tasks  map[int64]totals.Hour
+	base           int64
+	stamps         []hourStamp
 }
 
 // heldFrom keeps of a record ({device, updatedAt, ledger, tasks, ...}) its time and its hours from hour lo on.
@@ -365,7 +367,7 @@ func heldFrom(rec *pyjson.Object, lo int64) *held {
 	if rec == nil {
 		return nil
 	}
-	h := &held{updatedAt: field(rec, "updatedAt"), ledger: map[int64]totals.Hour{}, tasks: map[int64]totals.Hour{}, base: -1}
+	h := &held{updatedAt: field(rec, "updatedAt"), seq: field(rec, "seq"), ledger: map[int64]totals.Hour{}, tasks: map[int64]totals.Hour{}, base: -1}
 	h.put(rec, lo, false, -1, nil)
 	h.stampsFrom(rec, lo)
 	return h
@@ -407,7 +409,7 @@ func (h *held) put(d *pyjson.Object, lo int64, removing bool, s int64, was *held
 // giữ từ một lần gửi mới hơn d thì ở lại, như ở Python (order.go).
 func (h *held) next(d *pyjson.Object, kind string, lo int64) *held {
 	s := clean.StampOf(d)
-	out := &held{updatedAt: field(d, "updatedAt"), ledger: map[int64]totals.Hour{}, tasks: map[int64]totals.Hour{}, base: s}
+	out := &held{updatedAt: field(d, "updatedAt"), seq: field(d, "seq"), ledger: map[int64]totals.Hour{}, tasks: map[int64]totals.Hour{}, base: s}
 	if h != nil {
 		if kind == "hours" {
 			out.base = h.base
@@ -441,6 +443,9 @@ func (h *held) kept(device string) *pyjson.Object {
 	o := pyjson.NewObject()
 	o.Set("device", device)
 	o.Set("updatedAt", h.updatedAt)
+	if h.seq != nil {
+		o.Set("seq", h.seq)
+	}
 	return o
 }
 

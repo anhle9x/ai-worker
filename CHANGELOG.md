@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.20 - 2026-11-26
+
+### Fixed
+- A computer whose clock went back less than a minute no longer has its next sends dropped as out of order. The window of a minute (`REORDER_WINDOW_MS`) that drops a send older than the one kept now compares the number the plugin gives its sends (`seq`, from 0.50.19) before `updatedAt`, on the server and on the Go receiver, so a numbered send made after the clock went back is written at once; before, it was answered 200 and left out until the clock caught up. An older plugin is compared by `updatedAt` as before.
+
 ## 0.50.19 - 2026-11-26
 
 ### Fixed
