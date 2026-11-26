@@ -423,6 +423,19 @@ class Receiver(unittest.TestCase):
         self.assertEqual(self.internal("POST", "/internal/rows", {"src": "go-merged", "boot": "b1", "seq": 1, "rows": [row]})[0], 200)
         self.assertEqual(self.ledger_of("device-rcva"), {h: 300, other: 7})
 
+    def test_the_admin_page_counts_the_hours_left_as_older(self):
+        # an hour of an older send left as it was counts once, with its computer, and the Admin page reads both
+        # một giờ của lần gửi cũ hơn được giữ nguyên thì đếm một lần, cùng máy của nó, và trang Quản trị đọc cả hai
+        from board import order
+        order.reset()
+        self.assertEqual(views.admin_data(time.time(), "", "")["olderHours"], {"hours": 0, "computers": 0})
+        key, t = self.enrol("device-rcva"), int(time.time() * 1000)
+        h = str(t // 3_600_000)
+        self.straight(key, "device-rcva", t + 10_000, {h: {"usdMicro": 300}})
+        self.straight(key, "device-rcva", t - 90_000, {h: {"usdMicro": 100}})
+        self.straight(key, "device-rcva", t - 80_000, {h: {"usdMicro": 200}})
+        self.assertEqual(views.admin_data(time.time(), "", "")["olderHours"], {"hours": 2, "computers": 1})
+
     def test_a_whole_book_in_a_row_keeps_what_its_stamps_say(self):
         # a whole book with a newer hour put on it (proto 3): an hour gone at a time older than a straight send stays, one gone after it
         # leaves, and the book's own hours keep the book's time

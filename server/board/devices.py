@@ -581,7 +581,7 @@ def write_book(c, device: str, book: dict, old_days=None, stamp=None) -> tuple:
     for key, body in old.items():
         if key not in new and stamp is not None and not order.wins(stamp.of(*key), kept.get(key)):
             new[key], older = body, older + 1
-    order.note_older(older)
+    order.note_older(older, device)
     put = [(hour, kind, device, body) + ((stamp.of(kind, hour),) if stamp is not None else ()) for (kind, hour), body in new.items()
            if old.get((kind, hour)) != body]
     drop = [(hour, kind, device) for (kind, hour) in old if (kind, hour) not in new]
@@ -918,7 +918,7 @@ class DeviceCache:
                         # giờ do một lần gửi mới hơn ghi thì giữ nguyên
                         kept = devicestore.stamps(c, device, (kind,), min(these), max(these) + 1)
                         older = {h for h in these if not order.wins(stamp.of(kind, h), kept.get((kind, h)))}
-                        order.note_older(len(older))
+                        order.note_older(len(older), device)
                         these = {h: t for h, t in these.items() if h not in older}
                     put, drop = [], []
                     for h, table in these.items():

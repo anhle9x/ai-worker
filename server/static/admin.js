@@ -953,6 +953,11 @@
     if (snapshot.receiver && snapshot.receiver.behind) {
       column.append(o('div', 'qt-hint', tx('The Go receiver is behind: the newest numbers reached the tables {n} seconds after they were sent, more than a minute. The boards still show them live, and nothing is lost: the tables catch up once this server is less busy. If it lasts, see docs/RECEIVER.md.', { n: snapshot.receiver.waitSeconds })))
     }
+    // hours of a send older than what the tables held, left as they were since this server started (board/order.py): the newer numbers stay
+    // các giờ của lần gửi cũ hơn thứ bảng đang giữ, được giữ nguyên kể từ khi máy chủ này khởi động (board/order.py): số mới hơn vẫn ở lại
+    if (snapshot.olderHours && snapshot.olderHours.hours > 0) {
+      column.append(o('div', 'qt-hint', tx('Since this server started, {hours} hours sent by {computers} computers came older than the numbers already kept and were left out: a send that arrived late, or a computer whose clock went back. The newer numbers stay, so nothing is lost. If the count keeps growing, check the clock of those computers.', { hours: snapshot.olderHours.hours, computers: snapshot.olderHours.computers })))
+    }
     column.append(accountsSection(), tvSection(), computersSection(), ...(snapshot.projectsOn ? [projectsSection()] : []), ...(snapshot.mcpCalls.length ? [mcpCallsSection()] : []), ...(snapshot.pluginMsi ? [pluginSection()] : []), menubarSection(), locationsSection(), teamSection(), sessionsSection(), ...(snapshot.blocked7d ? [blockedSection()] : []), ...((snapshot.delegations || []).length ? [delegationsSection()] : []), auditSection())
     root.replaceChildren(head, notice, column)
   }

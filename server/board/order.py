@@ -13,8 +13,13 @@ import sys
 import threading
 import time
 
+# the most computers the count remembers: past that only the hours are counted on
+# số máy nhiều nhất bộ đếm nhớ: quá mức đó chỉ còn đếm tiếp số giờ
+DEVICES_KEEP = 100_000
+
 _lock = threading.Lock()
 _older = 0
+_devices = set()
 _said = (0, 0.0)
 
 
@@ -45,15 +50,17 @@ def wins(stamp, kept) -> bool:
     return kept is None or stamp >= kept
 
 
-def note_older(n: int) -> None:
-    """n hours of a send were left as they were, older than what is kept.
-    n giờ của một lần gửi được giữ nguyên, vì cũ hơn thứ đang giữ."""
+def note_older(n: int, device: str = "") -> None:
+    """n hours of a send of that computer were left as they were, older than what is kept.
+    n giờ của một lần gửi của máy đó được giữ nguyên, vì cũ hơn thứ đang giữ."""
     global _older, _said
     if n <= 0:
         return
     now = time.time()
     with _lock:
         _older += n
+        if device and len(_devices) < DEVICES_KEEP:
+            _devices.add(device)
         said, at = _said
         due = now - at >= 60
         if due:
@@ -68,3 +75,18 @@ def older() -> int:
     Đã có bao nhiêu giờ được giữ nguyên kể từ khi máy chủ này khởi động."""
     with _lock:
         return _older
+
+
+def counts() -> dict:
+    """For the Admin page: the hours left as they were since this server started, and from how many computers.
+    Cho trang Quản trị: số giờ được giữ nguyên kể từ khi máy chủ này khởi động, và từ bao nhiêu máy."""
+    with _lock:
+        return {"hours": _older, "computers": len(_devices)}
+
+
+def reset() -> None:
+    """Forget the counts (tests).
+    Quên các số đếm (cho test)."""
+    global _older, _devices, _said
+    with _lock:
+        _older, _devices, _said = 0, set(), (0, 0.0)

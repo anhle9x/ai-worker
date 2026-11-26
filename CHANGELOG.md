@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.21 - 2026-11-26
+
+### Added
+- The Admin page says how many hours of a send came older than the numbers already kept and were left out since the server started, and from how many computers: a send that arrived late, or a computer whose clock went back. Before, only the server's log said it, once a minute. It is the count to watch before deciding whether the server should guess a clock put back.
+
 ## 0.50.20 - 2026-11-26
 
 ### Fixed

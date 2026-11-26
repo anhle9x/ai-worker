@@ -2,6 +2,7 @@
 // Bản tiếng Việt của trang Quản trị (admin.js). Mỗi khoá đúng nguyên văn chữ tiếng Anh trong mã.
 window.I18n.add({
   'Admin': 'Quản trị',
+  'Since this server started, {hours} hours sent by {computers} computers came older than the numbers already kept and were left out: a send that arrived late, or a computer whose clock went back. The newer numbers stay, so nothing is lost. If the count keeps growing, check the clock of those computers.': 'Từ khi máy chủ này khởi động, {hours} giờ do {computers} máy gửi tới cũ hơn số đang giữ nên không được ghi: lần gửi tới muộn, hoặc máy bị lùi đồng hồ. Số mới hơn vẫn giữ nguyên, không mất gì. Nếu con số này cứ tăng, hãy kiểm đồng hồ của các máy đó.',
   'The Go receiver is behind: the newest numbers reached the tables {n} seconds after they were sent, more than a minute. The boards still show them live, and nothing is lost: the tables catch up once this server is less busy. If it lasts, see docs/RECEIVER.md.': 'Bộ nhận Go đang chậm: số mới nhất vào bảng muộn {n} giây so với lúc gửi, quá một phút. Các bảng vẫn hiện số trực tiếp và không mất gì: bảng sẽ bắt kịp khi máy chủ này bớt bận. Nếu kéo dài, xem docs/RECEIVER.vi.md.',
   'View only': 'Chỉ xem',
   'Wall display': 'Treo tường',

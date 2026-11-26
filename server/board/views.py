@@ -14,7 +14,7 @@ import threading
 import time
 from datetime import datetime
 
-from board import packages, settings
+from board import order, packages, settings
 from board.assets import UI_VERSION
 from board.daily import NUMBERS, PERIODS, DailyStore, totals_by_day
 from board.db import data_db, drop_old_legacy_accounts, dumps, keys_db
@@ -784,7 +784,10 @@ def admin_data(now: float, cookie: str, month: str) -> dict:
             "projectsRevoked": revoked_projects() if settings.PROJECTS_ENABLED else [],
             # with the Go receiver: how late the newest numbers reached the tables, so the page says when the receiver is behind
             # khi có bộ nhận Go: số mới nhất vào bảng muộn bao lâu, để trang báo khi bộ nhận đang chậm
-            "receiver": receiver_lag(now)}
+            "receiver": receiver_lag(now),
+            # hours of a send older than what the tables held, left as they were, since this server started (board/order.py)
+            # các giờ của lần gửi cũ hơn thứ bảng đang giữ, được giữ nguyên, kể từ khi máy chủ này khởi động (board/order.py)
+            "olderHours": order.counts()}
 
 
 def receiver_lag(now: float):
