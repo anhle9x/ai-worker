@@ -1514,7 +1514,9 @@
       const rate = snapshot.usdRate || 26000
       hoverCard.replaceChildren(cardCloseButton, o('b', '', p.name), o('br'))
       for (const lines of M && M.cardLines ? M.cardLines(p) : [
-        wallMode ? '' : `${p.account}${p.lanIps.length ? ' · ' + p.lanIps.join(', ') : ''}`,
+        // the account and the addresses each on a line of their own, so a long email does not leave the address hanging
+        // tài khoản và địa chỉ mỗi thứ một dòng riêng, để email dài không đẩy địa chỉ xuống lửng lơ
+        ...(wallMode ? [''] : [p.account, ...(p.lanIps.length ? [p.lanIps.join(', ')] : [])]),
         `STATUS   ${STATUS_INFO[p.status].name}`,
         ...(openTools(p).length ? [`TOOLS    ${openTools(p).map(t => `${t[0]} ${p.tools[t[2]].openSessions} ${STATUS_INFO[t[1]].name}`).join(' · ')}`] : []),
         ...(subagentNames(p) ? [tx('ASSISTANTS {list}', { list: subagentNames(p) })] : []),
@@ -1524,7 +1526,9 @@
           `MODEL    ${Object.keys(p.models || {}).map(modelName).join(', ') || '—'}`,
           `TODAY    ${money(p.usdToday, rate)} · 7D ${money(p.usd7d, rate)}`,
           `TOKENS   ${compact(p.tokensIn)} in / ${compact(p.tokensOut)} out`,
-          `AI TASKS Gemini ${p.tasks[0]} · ChatGPT ${p.tasks[1]} · Gemma ${p.tasks[2]}`,
+          // a no-break space keeps each assistant with its number, so a narrow card wraps only between assistants
+          // dấu cách không ngắt giữ mỗi trợ lý liền với số của nó, để thẻ hẹp chỉ xuống dòng giữa các trợ lý
+          `AI TASKS Gemini\u00a0${p.tasks[0]} · ChatGPT\u00a0${p.tasks[1]} · Gemma\u00a0${p.tasks[2]}`,
         ]),
       ]) hoverCard.append(lines, o('br'))
       hoverCard.hidden = false

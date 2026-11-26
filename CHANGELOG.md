@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.24 - 2026-11-26
+
+### Fixed
+- On the board, the card of a person no longer breaks its lines in odd places: the account and the computer's address are each on a line of their own, the card is a little wider (never wider than the screen), and the **AI TASKS** line keeps each assistant next to its number.
+
 ## 0.50.23 - 2026-11-26
 
 ### Security

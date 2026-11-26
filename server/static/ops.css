@@ -113,7 +113,7 @@ body.ops-mode{margin:0}
 .o-legend{display:flex;gap:14px;font-size:10.5px;color:var(--o-muted);letter-spacing:.06em;margin-top:6px}
 .o-legend i{display:inline-block;width:10px;height:3px;margin-right:6px;vertical-align:middle}
 
-#o-card{position:absolute;z-index:8;right:14px;top:36px;width:250px;background:rgba(4,12,18,.94);border:1px solid var(--o-cyan);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.7;box-shadow:0 0 18px rgba(94,230,240,.2);cursor:grab;touch-action:none}
+#o-card{position:absolute;z-index:8;right:14px;top:36px;width:330px;max-width:calc(100vw - 28px);box-sizing:border-box;background:rgba(4,12,18,.94);border:1px solid var(--o-cyan);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.7;box-shadow:0 0 18px rgba(94,230,240,.2);cursor:grab;touch-action:none}
 #o-card.dragging{cursor:grabbing;user-select:none;-webkit-user-select:none}
 #o-card b{color:#e8fbff;font-size:13px}
 .o-card-close{position:absolute;right:6px;top:4px;width:24px;height:24px;background:none;border:0;color:var(--o-muted);font:inherit;font-size:17px;line-height:1;cursor:pointer}.o-card-close:hover{color:#e8fbff}
