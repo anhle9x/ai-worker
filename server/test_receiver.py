@@ -593,10 +593,15 @@ class IngestRoute(unittest.TestCase):
 
     def setUp(self):
         Receiver.setUp(self)
-        self.was = (settings.RECEIVER_INGEST_URLS, settings.RECEIVER_INGEST_DEVICES, settings.RECEIVER_INGEST_PERCENT)
+        self.was = (settings.RECEIVER_INGEST_URLS, settings.RECEIVER_INGEST_DEVICES, settings.RECEIVER_INGEST_PERCENT, settings.TRUST_PROXY,
+                    settings.OFFICE_NETS)
+        # no rule of the office here, unless a test sets one
+        # ở đây không có luật văn phòng, trừ khi một test đặt
+        settings.TRUST_PROXY, settings.OFFICE_NETS = False, settings.parse_office_nets("")
 
     def tearDown(self):
-        settings.RECEIVER_INGEST_URLS, settings.RECEIVER_INGEST_DEVICES, settings.RECEIVER_INGEST_PERCENT = self.was
+        (settings.RECEIVER_INGEST_URLS, settings.RECEIVER_INGEST_DEVICES, settings.RECEIVER_INGEST_PERCENT, settings.TRUST_PROXY,
+         settings.OFFICE_NETS) = self.was
         Receiver.tearDown(self)
 
     def send(self, device: str, key: str, v: int = 2):
@@ -642,6 +647,23 @@ class IngestRoute(unittest.TestCase):
         settings.RECEIVER_ENABLED = False
         self.assertNotIn("ingestUrls", self.send(DEVICES[0], key)[1])
         self.assertEqual(self.call("GET", "/ingest/route?v=2", Authorization="Bearer " + key)[1]["ingestUrls"], [])
+
+    def test_a_computer_kept_to_the_office_stays_here(self):
+        # the receiver does not know which computers may send only from the office: where that rule can apply (OFFICE_NETS, or Caddy in
+        # front that marks a send from outside), only a computer an admin let send from any network goes to it
+        # bộ nhận không biết máy nào chỉ được gửi từ văn phòng: ở nơi luật đó có thể áp (OFFICE_NETS, hay Caddy đứng trước đánh dấu lần
+        # gửi từ bên ngoài), chỉ máy quản trị đã cho gửi từ mọi mạng mới đi tới nó
+        settings.RECEIVER_INGEST_URLS, settings.RECEIVER_INGEST_DEVICES = list(self.URLS), frozenset({DEVICES[0]})
+        key = self.enrol(DEVICES[0])
+        self.assertIn("ingestUrls", self.send(DEVICES[0], key)[1])
+        settings.TRUST_PROXY = True
+        self.assertNotIn("ingestUrls", self.send(DEVICES[0], key)[1])
+        self.assertEqual(self.call("GET", "/ingest/route?v=2", Authorization="Bearer " + key)[1]["ingestUrls"], [])
+        self.assertTrue(devicekeys.DEVICE_KEYS.set_roaming(DEVICES[0], True, "test", time.time()))
+        self.assertEqual(self.send(DEVICES[0], key)[1]["ingestUrls"], self.URLS)
+        self.assertTrue(devicekeys.DEVICE_KEYS.set_roaming(DEVICES[0], False, "test", time.time()))
+        settings.TRUST_PROXY, settings.OFFICE_NETS = False, settings.parse_office_nets("10.0.0.0/8")
+        self.assertIsNone(receiver.ingest_route(DEVICES[0]))
 
     def test_the_percentage_is_stable_and_only_adds(self):
         settings.RECEIVER_INGEST_URLS = list(self.URLS)

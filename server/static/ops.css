@@ -321,7 +321,7 @@ body.wall .o-ring{display:block}
 /* từng phạm vi một (luồng số trực tiếp của bộ nhận): ô chọn phạm vi và trang, và thẻ các chi nhánh của cả tổ chức */
 .o-scope{display:flex;flex:none;gap:6px;min-width:0;margin:0 0 8px}
 .o-scope[hidden]{display:none}
-.o-scope select{flex:1 1 0;min-width:0;font:inherit;font-size:11px;color:var(--o-fg);background:rgba(9,20,28,.9);border:1px solid var(--o-border);border-radius:6px;padding:4px 6px;color-scheme:dark;cursor:pointer}
+.o-scope select{flex:1 1 0;min-width:0;font:inherit;font-size:11px;color:var(--o-fg);border:1px solid var(--o-border);border-radius:6px;padding:4px 26px 4px 8px;color-scheme:dark;cursor:pointer;-webkit-appearance:none;appearance:none;background:rgba(9,20,28,.9) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237fd8e6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 9px center/10px 6px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
 .o-scope select:hover,.o-scope select:focus-visible{border-color:var(--o-cyan);outline:none}
 .o-org{display:none}
 .o-stage.o-org-on:not(.map) .o-org{position:absolute;inset:0;z-index:2;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));align-content:start;gap:10px;padding:4px;overflow:auto;background:var(--o-bg)}

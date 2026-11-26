@@ -121,6 +121,7 @@ Bộ nhận chỉ nói HTTP/1.1 (HTTP/2 tốn hơn ở đây), chờ phần head
 
 ### Máy nào gửi tới bộ nhận
 
+- Bộ nhận không biết máy nào chỉ được gửi từ văn phòng (**Chỉ văn phòng** trên trang Quản trị). Ở nơi luật đó có thể áp (có `OFFICE_NETS`, hoặc `TRUST_PROXY` với Caddy đứng trước, nơi có thể đánh dấu lần gửi từ bên ngoài), máy bị giữ trong văn phòng không bao giờ được báo địa chỉ bộ nhận và tiếp tục gửi tới webhook, nơi kiểm nó gửi từ đâu; chỉ máy quản trị đã cho gửi từ **Mọi mạng** mới đi tới bộ nhận.
 - `RECEIVER_INGEST_URLS` liệt kê tới 4 địa chỉ `https` của bộ nhận. Để trống (mặc định): mọi máy gửi tới webhook như trước.
 - Máy nào được báo: `RECEIVER_INGEST_DEVICES` (mã máy, cách nhau dấu phẩy) và `RECEIVER_INGEST_PERCENT` (0 tới 100, theo băm ổn định của mã máy, nên tăng lên chỉ thêm máy). Bắt đầu với vài máy phòng IT, rồi 5, 25, 100, kèm `RECEIVER_CHECK_PERCENT=100` trong lúc thử.
 - Máy chủ chỉ báo cho máy được chọn khi máy gửi `v: 2` (lần gửi `v: 1` mang cả sổ 8 ngày, và đã làm bộ nhận hết bộ nhớ ở 40.000 máy, mục 7), trong câu trả lời cho lần gửi bằng khoá riêng của máy (`ingestUrls`, `ingestTtlMs`, [DATA-MODEL.vi.md](DATA-MODEL.vi.md)); khoá chung không bao giờ đi tới bộ nhận. Plugin giữ địa chỉ `RECEIVER_INGEST_TTL_SECONDS` (mặc định một giờ, lệch tới một phần năm), rồi hỏi `GET /ingest/route?v=2` trên webhook, việc này không ghi gì (không có `?v=2` thì câu trả lời luôn là danh sách rỗng); danh sách rỗng đưa máy về lại webhook.

@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.23 - 2026-11-26
+
+### Security
+- With the Go receiver, a computer kept to the office (**Office only** on the Admin page) is no longer sent to the receiver: the receiver does not check where a send comes from, so such a computer could have sent from any network through it. Where that rule can apply (`OFFICE_NETS`, or Caddy in front with `TRUST_PROXY`), only a computer an admin let send from **Any network** now goes to the receiver; the others keep sending to the webhook, which checks them as before.
+
+### Fixed
+- On the board, the arrow of the scope picker in **Active operations** (the Go receiver's branch list) no longer sits against the right edge: it now stands inside the box, as far from the edge as the text is on the left, and a long branch name ends in "…" before it.
+
 ## 0.50.22 - 2026-11-26
 
 ### Fixed

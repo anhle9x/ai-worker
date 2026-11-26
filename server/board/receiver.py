@@ -92,6 +92,14 @@ def ingest_route(device: str):
     bucket = int.from_bytes(hashlib.sha256(device.encode("utf-8")).digest()[:4], "big") % 10000
     if device not in settings.RECEIVER_INGEST_DEVICES and bucket >= settings.RECEIVER_INGEST_PERCENT * 100:
         return None
+    # the receiver does not know which computers may send only from the office (Office only on the Admin page): where that rule can
+    # apply (OFFICE_NETS, or Caddy in front that marks a send from outside), a computer kept to the office stays on this server, which
+    # checks where it sends from; only one an admin let send from any network goes to the receiver
+    # bộ nhận không biết máy nào chỉ được gửi từ văn phòng (Chỉ văn phòng trên trang Quản trị): ở nơi luật đó có thể áp (OFFICE_NETS,
+    # hay Caddy đứng trước đánh dấu lần gửi từ bên ngoài), máy bị giữ trong văn phòng ở lại máy chủ này, nơi kiểm nó gửi từ đâu; chỉ máy
+    # quản trị đã cho gửi từ mọi mạng mới đi tới bộ nhận
+    if (settings.OFFICE_NETS or settings.TRUST_PROXY) and not DEVICE_KEYS.roams(device):
+        return None
     return {"ingestUrls": list(settings.RECEIVER_INGEST_URLS), "ingestTtlMs": settings.RECEIVER_INGEST_TTL_SECONDS * 1000}
 
 
