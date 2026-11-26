@@ -26,6 +26,7 @@ AI Worker's own code is under the MIT License in [LICENSE](LICENSE). These parts
 | `ui-ux-pro-max` | nextlevelbuilder/ui-ux-pro-max-skill | Next Level Builder | MIT, `LICENSE` in the folder |
 | `tdd`, `diagnosing-bugs`, `codebase-design`, `domain-modeling`, `improve-codebase-architecture`, `grilling` | see `skills/SOURCES.md` | Matt Pocock | MIT, `LICENSE` in each folder |
 | `security-audit` | see `skills/SOURCES.md` | Cloudflare, Inc. | MIT, `LICENSE` in the folder |
+| the commit message check (`hooks/committrail.ts`, rewritten in TypeScript from `commit-trail.mjs`) | kennetvn/nextcore-skills | NextCore | MIT, `hooks/committrail.LICENSE` |
 
 ## Optional download, not included
 

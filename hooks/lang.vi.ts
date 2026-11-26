@@ -1,6 +1,14 @@
 // Vietnamese text for the plugin. English in the code is the source; each key is that exact English text.
 // Bản tiếng Việt cho plugin. Chữ tiếng Anh trong mã là bản gốc; mỗi khoá đúng nguyên văn chữ đó.
 export const VI: Record<string, string> = {
+  'the subject is not "type(scope): summary" with a type from: {types}': 'dòng tiêu đề không theo dạng "type(scope): summary" với type thuộc: {types}',
+  'the subject has {n} characters, keep it at most 72': 'dòng tiêu đề dài {n} ký tự, giữ tối đa 72',
+  'the subject ends with a period': 'dòng tiêu đề kết thúc bằng dấu chấm',
+  'a fix needs a "Root cause:" line with the proven cause (file:line), or "unknown — hypothesis: …"': 'commit sửa lỗi cần một dòng "Root cause:" ghi nguyên nhân đã chứng minh (file:dòng), hoặc "unknown — hypothesis: …"',
+  'a {type} commit needs a "Measured:" line with the command that was run, in backticks, and its real result': 'commit {type} cần một dòng "Measured:" ghi lệnh đã chạy, trong dấu backtick, và kết quả thật của nó',
+  '"Measured: not run" needs the reason, as in "not run — needs the production mailbox"': '"Measured: not run" cần ghi lý do, ví dụ "not run — needs the production mailbox"',
+  '"Measured: {what}" cannot be checked: give the command in backticks and its number': '"Measured: {what}" không kiểm được: ghi lệnh trong dấu backtick và con số của nó',
+  'ai-worker (commitTrail): the commit just made has a message that lacks: {list}. Amend the message with git commit --amend (only if it is not pushed yet), keeping what it says and adding what is missing; never invent a result you did not see. The shape: "fix(scope): summary", then lines "Root cause: …" (a fix), "Measured: `command` → result" (fix, feat, perf, security).': 'ai-worker (commitTrail): lời của commit vừa tạo còn thiếu: {list}. Sửa lời commit bằng git commit --amend (chỉ khi chưa đẩy lên), giữ những gì nó đã nói và thêm phần còn thiếu; không bao giờ bịa một kết quả bạn chưa thấy. Dạng: "fix(scope): summary", rồi các dòng "Root cause: …" (sửa lỗi), "Measured: `lệnh` → kết quả" (fix, feat, perf, security).',
   '- If the user pastes something that looks like a password, a key or someone else\'s personal data, point it out before going on.': '- Người dùng dán thứ có vẻ là mật khẩu, khoá hay dữ liệu cá nhân của người khác thì nhắc trước khi làm tiếp.',
   '- After changing an interface, open the real page and look at both the desktop and the phone size before saying it is done; if you could not look, say clearly that you did not.': '- Sửa giao diện xong, mở trang thật và xem cả khổ máy tính lẫn điện thoại trước khi báo xong; không xem được thì nói rõ là chưa xem.',
   '- Facts such as prices, dates, versions and rules: open at least one original source to check and name the source; if you could not check, say clearly "not verified".': '- Dữ kiện như giá, ngày, phiên bản, quy định: mở ít nhất một nguồn gốc để kiểm và ghi nguồn; không kiểm được thì ghi rõ "chưa kiểm chứng".',

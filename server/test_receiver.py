@@ -365,7 +365,11 @@ class Receiver(unittest.TestCase):
         self.assertEqual([sorted(one[0])], [sorted(["device", "updatedAt", "openSessions", "working", "waiting", "delegating", "ledger", "tasks", "stamps"])])
 
     def ledger_of(self, device: str) -> dict:
-        return {h: v["usdMicro"] for h, v in receiver.book_for_receiver(device)["ledger"].items()}
+        """The whole book's ledger of a computer: the tests take the hour before this one too, which falls on yesterday in the first hour
+        after midnight and is left out of the book of today and later.
+        Sổ tiền cả sổ của một máy: các test dùng cả giờ trước giờ này, giờ đó rơi sang hôm qua trong giờ đầu sau nửa đêm và bị bỏ khỏi sổ
+        từ hôm nay trở đi."""
+        return {h: v["usdMicro"] for h, v in receiver.book_for_receiver(device, whole=True)["ledger"].items()}
 
     def test_an_older_row_of_the_receiver_never_writes_over_a_newer_send(self):
         # the computer sent straight here after the receiver took an older row of it, then this server started again: nothing kept in
@@ -466,7 +470,7 @@ class Receiver(unittest.TestCase):
         row["stamp"], row["stamps"] = t + 5_000, {"ledger": {h0: t + 20_000, h2: t + 20_000}}
         self.assertEqual(self.internal("POST", "/internal/rows", {"src": "go-whole", "boot": "b1", "seq": 1, "rows": [row]})[0], 200)
         self.assertEqual(self.ledger_of("device-rcva"), {h0: 5, h1: 11})
-        self.assertEqual(receiver.book_for_receiver("device-rcva")["stamps"]["ledger"], {h0: t + 20_000, h1: t + 10_000})
+        self.assertEqual(receiver.book_for_receiver("device-rcva", whole=True)["stamps"]["ledger"], {h0: t + 20_000, h1: t + 10_000})
 
     def test_seq_orders_the_sends_of_a_computer_whose_clock_went_back(self):
         # the plugin numbers its sends (seq): one made after the clock went back two minutes is still the newer one, and so is one made

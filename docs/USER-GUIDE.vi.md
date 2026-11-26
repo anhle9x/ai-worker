@@ -127,7 +127,7 @@ Hai file trong thư mục người dùng, ở `.local/share/ai-worker/` (Windows
 | File | Sửa được gì |
 |---|---|
 | `user.json` | Họ tên, email, và `language` (`"en"` hoặc `"vi"`) |
-| `config.js` | Tên hiển thị, `usdRate` (tỉ giá đô la ra đồng, chỉ dùng khi hiện tiếng Việt), bật tắt từng trợ lý trong `workers`, và `"askBeforeDestructive": false` để tắt câu hỏi trước lệnh phá huỷ công việc |
+| `config.js` | Tên hiển thị, `usdRate` (tỉ giá đô la ra đồng, chỉ dùng khi hiện tiếng Việt), bật tắt từng trợ lý trong `workers`, và `"askBeforeDestructive": false` để tắt câu hỏi trước lệnh phá huỷ công việc, và `"commitTrail": true` để Claude được nhắc, sau mỗi commit nó tạo, sửa lại lời commit thiếu loại thay đổi, nguyên nhân của lỗi hay thứ đã đo (`hooks/committrail.ts`; mặc định tắt, không bao giờ chặn commit) |
 
 Cập nhật không bao giờ ghi đè `config.js`. Các trang trên trình duyệt còn có nút **EN / VI** ở trên cùng.
 

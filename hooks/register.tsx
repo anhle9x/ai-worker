@@ -26,6 +26,7 @@ import { voiceSettingsCommand, voiceSteps } from './voice'
 import { dangerNote, dangerQuestion, destructiveCommand } from './guard'
 import { findSecrets, secretRefusal } from './secrets'
 import { commitIn, commitQuestion, diffCommand, newFileDiffCommand, secretsInDiff, untrackedCommand } from './commitscan'
+import { trailNote, trailProblems } from './committrail'
 import { OUTSIDE_TEXT_TOOL, findInjection, injectionNote, injectionToast } from './injection'
 import { findRepoConfig, readRepoFiles, rememberRepo, repoKey, repoNews, repoNote, repoToast } from './repoconfig'
 import type { RepoSeen } from './repoconfig'
@@ -126,6 +127,38 @@ async function commitSecretQuestion($: EngineInterface, command: string): Promis
   commitChecked.clear()
   commitChecked.set(command, { at: now, question })
   return question
+}
+
+// the commit message check (committrail.ts): HEAD before a git commit runs, then the new commit's message once it has
+// kiểm lời commit (committrail.ts): HEAD trước khi một lệnh git commit chạy, rồi lời của commit mới khi nó đã chạy
+type TrailStart = { where: { cwd?: string }; head: string }
+async function trailStart($: EngineInterface, command: string): Promise<TrailStart | undefined> {
+  const run = commitIn(command)
+  if (!run) return undefined
+  try {
+    const home = (await $.env.get('HOME')) || (await $.env.get('USERPROFILE')) || ''
+    const dir = run.dir.startsWith('~') ? home + run.dir.slice(1) : run.dir
+    const where = dir ? { cwd: dir } : {}
+    const r = await $.process.run(['git', 'rev-parse', '--verify', '-q', 'HEAD'], { ...where, timeoutMs: 5_000 })
+    // a repository with no commit yet has no HEAD: any commit made is new
+    // repo chưa có commit nào thì không có HEAD: commit nào được tạo cũng là mới
+    return { where, head: r.exitCode === 0 ? r.stdout.trim() : '' }
+  } catch {
+    return undefined
+  }
+}
+async function trailEnd($: EngineInterface, start: TrailStart): Promise<string | undefined> {
+  try {
+    const head = await $.process.run(['git', 'rev-parse', '--verify', '-q', 'HEAD'], { ...start.where, timeoutMs: 5_000 })
+    // no new commit (it failed, or nothing to commit): nothing to say
+    // không có commit mới (hỏng, hoặc không có gì để commit): không có gì để nói
+    if (head.exitCode !== 0 || head.stdout.trim() === start.head) return undefined
+    const log = await $.process.run(['git', 'log', '-1', '--format=%B'], { ...start.where, timeoutMs: 5_000 })
+    const problems = log.exitCode === 0 ? trailProblems(log.stdout) : []
+    return problems.length ? trailNote(problems) : undefined
+  } catch {
+    return undefined
+  }
 }
 
 const PENDING = /job_id:\s*([A-Za-z0-9_-]+)/
@@ -1304,6 +1337,9 @@ async function loadConfig($: EngineInterface, dir: string) {
   // on unless this computer's config.js says false: someone who writes code all day may turn the question off
   // bật, trừ khi config.js của máy này ghi false: người viết code cả ngày có thể tắt câu hỏi
   askBeforeDestructive = (mine as Record<string, unknown> | undefined)?.askBeforeDestructive !== false
+  // off unless this computer's config.js says true: a team that wants each commit to state its cause and what was measured
+  // tắt, trừ khi config.js của máy này ghi true: nhóm muốn mỗi commit ghi nguyên nhân và thứ đã đo
+  commitTrail = (mine as Record<string, unknown> | undefined)?.commitTrail === true
   share = readShareConfig(mergeShare(shipped?.sharing, mine?.sharing, person), dir.slice(0, -WEB_DIR.length))
 }
 
@@ -1893,6 +1929,7 @@ async function runVoice($: EngineInterface): Promise<{ text: string }> {
 }
 
 let askBeforeDestructive = true
+let commitTrail = false
 
 // what a session is told about the handoff notes on this computer; read once, when the session starts
 // điều một phiên được báo về các ghi chú bàn giao trên máy này; đọc một lần, khi phiên bắt đầu
@@ -2335,6 +2372,7 @@ export const register: Register = on => {
         await commit($, st => ({ ...st, asking: false }))
         return answered
       }
+      const trail = commitTrail && SHELL_TOOL.test(e.tool) && typeof args.command === 'string' ? await trailStart($, args.command) : undefined
       const ran = await next(e)
       if (e.tool === 'Agent' && ran.deny === undefined) {
         await refreshAssistants($, await $.clock.now())
@@ -2366,6 +2404,12 @@ export const register: Register = on => {
           if (!e.agentId) await Promise.resolve($.ui.toast(injectionToast(found))).catch(() => undefined)
           return { ...ran, context: [...(ran.context ?? []), injectionNote(found, e.tool)] }
         }
+      }
+      // a commit Claude just made whose message lacks its cause or what was measured: Claude is told to amend it
+      // một commit Claude vừa tạo mà lời commit thiếu nguyên nhân hay thứ đã đo: Claude được nhắc sửa lại
+      if (trail && ran.deny === undefined) {
+        const note = await trailEnd($, trail)
+        if (note) return { ...ran, context: [...(ran.context ?? []), note] }
       }
       return ran
     }

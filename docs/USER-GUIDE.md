@@ -127,7 +127,7 @@ Two files in your user folder, under `.local/share/ai-worker/` (Windows: `%USERP
 | File | What you can change |
 |---|---|
 | `user.json` | Your name, your email, and `language` (`"en"` or `"vi"`) |
-| `config.js` | Display names, `usdRate` (dollar to dong, used only in Vietnamese), each assistant on or off under `workers`, and `"askBeforeDestructive": false` to turn off the question before a command that destroys work |
+| `config.js` | Display names, `usdRate` (dollar to dong, used only in Vietnamese), each assistant on or off under `workers`, and `"askBeforeDestructive": false` to turn off the question before a command that destroys work, and `"commitTrail": true` to have Claude reminded, after each commit it makes, to amend a message that lacks its type, the cause of a fix or what was measured (`hooks/committrail.ts`; off by default, never blocks a commit) |
 
 Updates never overwrite `config.js`. Pages in the browser also have an **EN / VI** switch at the top.
 

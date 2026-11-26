@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.27 - 2026-11-27
+
+### Added
+- `"commitTrail": true` in a computer's `config.js` turns on a check of the messages of the commits Claude makes: after each commit, Claude is reminded to amend a message that is not `type(scope): summary`, a fix without a `Root cause:` line, or a fix, feature, speed or security change without a `Measured:` line giving the command that was run and its result. Off by default; it never blocks a commit. The rules come from commit-trail in kennetvn/nextcore-skills (MIT), without its demand for an issue number.
+
 ## 0.50.26 - 2026-11-26
 
 ### Fixed
