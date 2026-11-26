@@ -148,13 +148,17 @@ class Case:
         return p
 
     def send(self, at: int, p: Plugin, delivered: bool = True, full: bool = False, expect: str = "saved", compare: bool = True,
-             drop_row_first: bool = False) -> None:
-        """One send of the same moment in both formats. delivered=False: lost on the way, the server never sees it.
-        Một lần gửi của cùng một thời điểm ở cả hai định dạng. delivered=False: mất trên đường, máy chủ không bao giờ thấy."""
+             drop_row_first: bool = False, straight: bool = False) -> None:
+        """One send of the same moment in both formats. delivered=False: lost on the way, the server never sees it. straight=True: with
+        the Go receiver, the send goes straight to the Python server while the rows of the receiver wait (its address had run out).
+        Một lần gửi của cùng một thời điểm ở cả hai định dạng. delivered=False: mất trên đường, máy chủ không bao giờ thấy. straight=True:
+        khi có bộ nhận Go, lần gửi đi thẳng tới máy chủ Python trong lúc các dòng của bộ nhận đang chờ (địa chỉ bộ nhận đã hết hạn)."""
         step = {"at": at, "device": p.device, "v1": p.send_v1(at), "v2": p.send_v2(at, full), "delivered": delivered,
                 "expectV2": expect, "compare": compare and delivered}
         if drop_row_first:
             step["dropRowFirst"] = True
+        if straight:
+            step["straight"] = True
         if delivered and expect == "saved":
             p.accept()
         if expect == "need-full":
@@ -284,6 +288,23 @@ def cases() -> list:
     a.spend(t + 4, 5_000, 10)
     c.send(t + 4, a)
     c.steps.append({"at": t + 5, "device": a.device, "v1": None, "v2": older, "delivered": True, "expectV2": "stale", "compare": True})
+    out.append(c)
+
+    c = Case("receiver-row-around-a-straight-send", "Through the Go receiver, a send waits with an hour; a newer send of that hour goes "
+                                                   "straight to the server; a later send through the receiver joins the row waiting with "
+                                                   "another hour only. The hour of the older send in that row must not write over the "
+                                                   "straight one (each hour keeps the time of its send, proto 3).")
+    a = c.plugin("device-ctrk", "Contract K", "contract-k@example.com")
+    t = START
+    a.spend(t, 10_000, 10)
+    c.send(t, a)
+    a.spend(t + 3600, 20_000, 10)
+    c.send(t + 3600, a)
+    a.spend(t + 3602, 5_000, 10)
+    a.task(t + 3602, "gemini")
+    c.send(t + 3602, a, straight=True)
+    a.spend(t + 7200, 7_000, 10)
+    c.send(t + 7200, a)
     out.append(c)
     return out
 

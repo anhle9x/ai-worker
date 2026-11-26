@@ -98,6 +98,9 @@ type harness struct {
 	front   *httptest.Server
 	python  string
 	secrets string
+	// seq: the batches written as sends straight to Python (straight, contract_test.go)
+	// seq: các lô ghi như lần gửi thẳng tới Python (straight, contract_test.go)
+	seq int64
 }
 
 func start(t *testing.T) *harness {
@@ -119,7 +122,7 @@ func startWith(t *testing.T, judged bool) (*harness, *judge) {
 	}
 	front := httptest.NewServer(r)
 	t.Cleanup(front.Close)
-	return &harness{t, r, front, url, secretsFile}, j
+	return &harness{t: t, r: r, front: front, python: url, secrets: secretsFile}, j
 }
 
 func (h *harness) send(auth string, packet any) (int, map[string]any) {

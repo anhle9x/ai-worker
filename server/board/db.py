@@ -133,6 +133,13 @@ DATA_STEPS = [
     [
         "CREATE TABLE device_roaming (device TEXT PRIMARY KEY, since INTEGER NOT NULL, by TEXT NOT NULL DEFAULT '')",
     ],
+    # version 8: each hour keeps the updatedAt of the send that wrote it, so an older send that arrives late (a send left waiting, a row of
+    # the Go receiver after a restart of this server) never writes over a newer hour; 0 for the hours written before, which any send replaces
+    # phiên bản 8: mỗi giờ giữ updatedAt của lần gửi đã ghi nó, để một lần gửi cũ hơn tới muộn (lần gửi bị treo, dòng của bộ nhận Go sau khi
+    # máy chủ này khởi động lại) không bao giờ ghi đè một giờ mới hơn; 0 cho các giờ ghi từ trước, lần gửi nào cũng thay được
+    [
+        "ALTER TABLE device_hours ADD COLUMN sent_at INTEGER NOT NULL DEFAULT 0",
+    ],
 ]
 KEYS_STEPS = [
     [

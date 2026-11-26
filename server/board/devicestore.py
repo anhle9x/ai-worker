@@ -2,12 +2,12 @@
 and kind) and device_days (its totals per local day). board/devices.py keeps them in memory and decides what to write; only this file
 knows the tables, so another database can take their place later without rewriting the code that uses them. Plain SQL that SQLite and
 PostgreSQL both run: values only as parameters, INSERT ... ON CONFLICT ... DO UPDATE (never INSERT OR REPLACE; see UPSERT), no JSON
-function of the database; the JSON is read and written by Python. Tables: docs/DATA-MODEL.md, schema version 6.
+function of the database; the JSON is read and written by Python. Tables: docs/DATA-MODEL.md, schema version 8.
   SQL của bản ghi các máy ở một chỗ: devices (mỗi máy đang làm gì), device_hours (sổ giờ của máy, mỗi giờ mỗi loại một dòng) và
   device_days (tổng của máy theo từng ngày địa phương). board/devices.py giữ chúng trong bộ nhớ và quyết định ghi gì; chỉ file này
   biết các bảng, để sau này cơ sở dữ liệu khác thay được mà không phải viết lại mã dùng chúng. SQL thường mà SQLite và PostgreSQL
   đều chạy: giá trị chỉ qua tham số, INSERT ... ON CONFLICT ... DO UPDATE (không bao giờ INSERT OR REPLACE), không dùng hàm JSON của
-  cơ sở dữ liệu; JSON do Python đọc và ghi. Các bảng: docs/DATA-MODEL.vi.md, lược đồ phiên bản 6."""
+  cơ sở dữ liệu; JSON do Python đọc và ghi. Các bảng: docs/DATA-MODEL.vi.md, lược đồ phiên bản 8."""
 
 import sqlite3
 
@@ -95,7 +95,7 @@ class Held:
         if rows["days_of"]:
             c.executemany("DELETE FROM device_days WHERE device = ?", rows["days_of"])
         if rows["hours"]:
-            _upsert(c, "device_hours", ("hour", "kind", "device"), ("body",), rows["hours"])
+            _put_hours(c, rows["hours"])
         if rows["hours_drop"]:
             c.executemany("DELETE FROM device_hours WHERE hour = ? AND kind = ? AND device = ?", rows["hours_drop"])
         if rows["days"]:
@@ -179,14 +179,15 @@ def drop_devices(c, names: list) -> None:
             c.execute("DELETE FROM %s WHERE device IN (%s)" % (table, marks), part)
 
 
-def hours(c, device: str, kinds: tuple, lo: int = -_FAR, hi: int = _FAR) -> list:
-    """One computer's rows (kind, hour, body) of these kinds with lo <= hour < hi, oldest first.
-    Các dòng (loại, giờ, nội dung) của một máy thuộc các loại này với lo <= giờ < hi, cũ trước mới sau."""
+def hours(c, device: str, kinds: tuple, lo: int = -_FAR, hi: int = _FAR, stamped: bool = False) -> list:
+    """One computer's rows (kind, hour, body) of these kinds with lo <= hour < hi, oldest first; with stamped, (kind, hour, body, sent_at).
+    Các dòng (loại, giờ, nội dung) của một máy thuộc các loại này với lo <= giờ < hi, cũ trước mới sau; với stamped, (loại, giờ, nội
+    dung, sent_at)."""
     _before_read(c, device, *("hours:" + k for k in kinds))
     out = []
     for kind in kinds:
-        out += c.execute("SELECT kind, hour, body FROM device_hours WHERE device = ? AND kind = ? AND hour >= ? AND hour < ? ORDER BY hour",
-                         (device, kind, lo, hi)).fetchall()
+        out += c.execute("SELECT kind, hour, body%s FROM device_hours WHERE device = ? AND kind = ? AND hour >= ? AND hour < ? ORDER BY hour"
+                         % (", sent_at" if stamped else ""), (device, kind, lo, hi)).fetchall()
     return out
 
 
@@ -217,11 +218,34 @@ def all_hours(c) -> list:
     return c.execute("SELECT device, kind, hour, body FROM device_hours WHERE kind IN ('ledger', 'tasks') ORDER BY device").fetchall()
 
 
+def stamps(c, device: str, kinds: tuple, lo: int = -_FAR, hi: int = _FAR) -> dict:
+    """The sent_at of one computer's hours of these kinds with lo <= hour < hi: {(kind, hour): the time of the send that wrote it}.
+    sent_at của các giờ của một máy thuộc các loại này với lo <= giờ < hi: {(loại, giờ): thời điểm của lần gửi đã ghi nó}."""
+    _before_read(c, device, *("hours:" + k for k in kinds))
+    out = {}
+    for kind in kinds:
+        for hour, sent_at in c.execute("SELECT hour, sent_at FROM device_hours WHERE device = ? AND kind = ? AND hour >= ? AND hour < ?",
+                                       (device, kind, lo, hi)):
+            out[(kind, hour)] = sent_at
+    return out
+
+
+def _put_hours(c, rows: list) -> None:
+    # rows of (hour, kind, device, body, sent_at); of (hour, kind, device, body) only in the upgrade to version 6, before sent_at exists
+    # các dòng (giờ, loại, máy, nội dung, sent_at); dạng (giờ, loại, máy, nội dung) chỉ trong lần nâng lên phiên bản 6, khi chưa có sent_at
+    four = [r for r in rows if len(r) == 4]
+    five = [r for r in rows if len(r) == 5]
+    if four:
+        _upsert(c, "device_hours", ("hour", "kind", "device"), ("body",), four)
+    if five:
+        _upsert(c, "device_hours", ("hour", "kind", "device"), ("body", "sent_at"), five)
+
+
 def put_hours(c, rows: list) -> None:
-    """Write rows (hour, kind, device, body), each over the one with the same key.
-    Ghi các dòng (giờ, loại, máy, nội dung), mỗi dòng đè lên dòng cùng khoá."""
+    """Write rows (hour, kind, device, body, sent_at), each over the one with the same key.
+    Ghi các dòng (giờ, loại, máy, nội dung, sent_at), mỗi dòng đè lên dòng cùng khoá."""
     if not _hold(c, "hours", rows, {(r[2], "hours:" + r[1]) for r in rows}):
-        _upsert(c, "device_hours", ("hour", "kind", "device"), ("body",), rows)
+        _put_hours(c, rows)
 
 
 def drop_hours(c, keys: list) -> None:

@@ -34,9 +34,12 @@ SAMPLE = load_sample()
 
 
 def drop_rows(names) -> None:
+    # the hours too: each keeps the time of the send that wrote it, and a case played again sends the same times (board/order.py)
+    # cả các giờ: mỗi giờ giữ thời điểm của lần gửi đã ghi nó, và một ca chạy lại gửi đúng các thời điểm đó (board/order.py)
     with db.data_db().tx() as c:
         for device in names:
-            c.execute("DELETE FROM devices WHERE device = ?", (device,))
+            for table in ("devices", "device_hours", "device_days"):
+                c.execute("DELETE FROM %s WHERE device = ?" % table, (device,))
     devices.DEVICES.forget()
     for device in names:
         devices._FULL_AT.pop(device, None)
@@ -243,14 +246,23 @@ class IngestAnswers(unittest.TestCase):
         self.send(self.packet("device-v2d", full=True, hours={"ledger": {h: {"usdMicro": 6}}}))
         self.assertEqual(sorted(devices.read_device("device-v2d")["ledger"]), [h])
 
-    def test_a_send_older_than_what_is_kept_is_dropped_but_a_clock_put_back_is_not(self):
+    def test_a_send_older_than_what_is_kept_never_writes_over_an_hour(self):
         h, now_ms = self.hour(), int(time.time() * 1000)
         self.send(self.packet("device-v2e", full=True, hours={"ledger": {h: {"usdMicro": 9}}}, updatedAt=now_ms))
         status, answer = self.send(self.packet("device-v2e", hours={"ledger": {h: {"usdMicro": 8}}}, updatedAt=now_ms - 1000, waiting=1))
         self.assertEqual(status, 200)
         m = devices.read_device("device-v2e")
         self.assertEqual((m["ledger"][h]["usdMicro"], m["waiting"]), (9, 0))
-        self.send(self.packet("device-v2e", hours={"ledger": {h: {"usdMicro": 10}}}, updatedAt=now_ms - settings.REORDER_WINDOW_MS - 1000))
+        # older than the window too (a send left waiting, or a clock put back): the hour stays; a hour it alone carries is written
+        # cũ hơn cả cửa sổ (lần gửi bị treo, hay đồng hồ bị chỉnh lùi): giờ đó giữ nguyên; giờ chỉ nó mang thì được ghi
+        other = str(int(h) - 1)
+        status, _ = self.send(self.packet("device-v2e", hours={"ledger": {h: {"usdMicro": 7}, other: {"usdMicro": 3}}},
+                                          updatedAt=now_ms - settings.REORDER_WINDOW_MS - 1000))
+        self.assertEqual(status, 200)
+        self.assertEqual({k: v["usdMicro"] for k, v in devices.read_device("device-v2e")["ledger"].items()}, {h: 9, other: 3})
+        # a newer send writes again
+        # lần gửi mới hơn thì ghi lại được
+        self.send(self.packet("device-v2e", hours={"ledger": {h: {"usdMicro": 10}}}, updatedAt=now_ms + 1000))
         self.assertEqual(devices.read_device("device-v2e")["ledger"][h]["usdMicro"], 10)
 
     def test_a_wrong_version_or_hours_that_are_not_a_table_are_handled(self):

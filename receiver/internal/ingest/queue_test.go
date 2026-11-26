@@ -81,7 +81,7 @@ func TestRowsOfOneComputerPutTogether(t *testing.T) {
 // TestBatchesGoInTheOrderOfTheComputers: ở đầu một nhịp các máy đang chờ được sắp theo mã, nên các lô phủ những dải mã liền nhau; máy tới
 // sau đó chờ phía sau, kể cả khi mã nhỏ hơn.
 func TestBatchesGoInTheOrderOfTheComputers(t *testing.T) {
-	r := &Receiver{pending: map[string]*waiting{}}
+	r := &Receiver{pending: map[string]*waiting{}, rows: newSizer(minBatchRows, maxBatchRows)}
 	send := func(device string) {
 		r.enqueue(device, cleaned(t, `{"v": 2, "device": "`+device+`", "updatedAt": 1791165600000, "hours": {}}`), "hours", "a", 1, nil)
 	}
@@ -106,7 +106,7 @@ func TestBatchesGoInTheOrderOfTheComputers(t *testing.T) {
 // TestBatchesStayInOrderWhilePythonIsBehind: khi số máy chờ nhiều hơn một lô, các lô đi theo thứ tự mã; các máy tới trong lúc đó được
 // sắp phía sau những máy đã sắp, không bao giờ chen lên trước, kể cả khi mã nhỏ hơn.
 func TestBatchesStayInOrderWhilePythonIsBehind(t *testing.T) {
-	r := &Receiver{pending: map[string]*waiting{}}
+	r := &Receiver{pending: map[string]*waiting{}, rows: newSizer(minBatchRows, maxBatchRows)}
 	send := func(device string) {
 		r.enqueue(device, cleaned(t, `{"v": 2, "device": "`+device+`", "updatedAt": 1791165600000, "hours": {}}`), "hours", "a", 1, nil)
 	}
@@ -153,7 +153,7 @@ func TestBatchesStayInOrderWhilePythonIsBehind(t *testing.T) {
 // TestHealthSaysWhenRowsWaitTooLong: /health gives the rows waiting and how long the oldest has waited, and says behind past a minute.
 // TestHealthSaysWhenRowsWaitTooLong: /health cho số dòng đang chờ và dòng chờ lâu nhất đã chờ bao lâu, và báo chậm khi quá một phút.
 func TestHealthSaysWhenRowsWaitTooLong(t *testing.T) {
-	r := &Receiver{pending: map[string]*waiting{}}
+	r := &Receiver{pending: map[string]*waiting{}, rows: newSizer(minBatchRows, maxBatchRows)}
 	for _, d := range []string{"device-h1", "device-h2"} {
 		r.enqueue(d, cleaned(t, `{"v": 2, "device": "`+d+`", "updatedAt": 1791165600000, "hours": {}}`), "hours", "a", 1, nil)
 	}

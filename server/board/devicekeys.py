@@ -212,16 +212,28 @@ class DeviceKeys:
         when the Go receiver checked the key and did not say which one.
         Một máy vừa gửi bằng khoá riêng: từ giờ khoá chung không gửi thay nó được nữa. iat là của khoá đó, hoặc None khi bộ nhận Go đã
         kiểm khoá mà không nói là khoá nào."""
+        self.note_used_many([device], iat, now)
+
+    def note_used_many(self, devices, iat: Optional[int], now: float) -> None:
+        """note_used for several computers in one transaction: a batch of the Go receiver notes all of its computers at once. Written one
+        transaction each, the first batch of 2,000 new computers wrote 2,000 commits, about 8 KB to the disk for each computer.
+        note_used cho nhiều máy trong một giao dịch: một lô của bộ nhận Go ghi nhận mọi máy của nó một lần. Ghi mỗi máy một giao dịch thì
+        lô đầu của 2.000 máy mới ghi 2.000 lần commit, khoảng 8 KB xuống đĩa cho mỗi máy."""
         with self.lock:
             db = self._rows()
-            row = self.rows.get(device)
-            if row and (row[1] or iat is None or row[0] >= iat):
-                return
             at = int(now) if iat is None else int(iat)
+            new = []
+            for device in dict.fromkeys(devices):
+                row = self.rows.get(device)
+                if not (row and (row[1] or iat is None or row[0] >= iat)):
+                    new.append((device, row))
+            if not new:
+                return
             with db.tx() as c:
-                c.execute("INSERT INTO device_keys (device, iat, revoked_at) VALUES (?, ?, 0) "
-                          "ON CONFLICT(device) DO UPDATE SET iat = MAX(iat, excluded.iat) WHERE revoked_at = 0", (device, at))
-            self.rows[device] = (max(at, row[0] if row else 0), 0)
+                c.executemany("INSERT INTO device_keys (device, iat, revoked_at) VALUES (?, ?, 0) "
+                              "ON CONFLICT(device) DO UPDATE SET iat = MAX(iat, excluded.iat) WHERE revoked_at = 0", [(d, at) for d, _ in new])
+            for device, row in new:
+                self.rows[device] = (max(at, row[0] if row else 0), 0)
 
     def check(self, token: str, now: float):
         """The key's fields when it is well formed, signed by a known secret, not too old and not revoked; else (None, reason).

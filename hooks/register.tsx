@@ -802,6 +802,9 @@ async function shareOnce($: EngineInterface) {
           // v: 1 cho tới khi máy chủ nói nó đọc v: 2, sau đó chỉ các giờ đã đổi, và cả sổ mỗi giờ một lần
           const sendState = (await $.store.get(SEND_KEY).catch(() => undefined)) as SendState | undefined
           const packet = packetFor(summary, sendState, now)
+          // the number is kept before the send: a send whose answer is lost may still have been written, and the next one must be above it
+          // số được giữ trước khi gửi: lần gửi mất câu trả lời vẫn có thể đã được ghi, và lần sau phải có số cao hơn
+          await $.store.set(SEND_KEY, { ...sendState, seq: packet.seq }).catch(() => undefined)
           const body = JSON.stringify(packet.body)
           const post = (base: string) => $.http.fetch(`${base}/ingest`, {
             method: 'POST',

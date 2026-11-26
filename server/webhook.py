@@ -1088,8 +1088,6 @@ class Handler(BaseHTTPRequestHandler):
             # written here, not by the Go receiver: it drops the book it may hold for this computer (board/receiver.py)
             # ghi ở đây, không phải do bộ nhận Go: nó bỏ sổ nó có thể đang giữ cho máy này (board/receiver.py)
             receiver.POLICY.note_written(d["device"])
-            if self.device_claims is not None:
-                receiver.note_direct(d["device"], time.time())
         # which formats this server reads, the pace it wants, whether it needs the whole hour book, and which start of the server this is
         # (docs/DATA-MODEL.md, "Format v: 2"). An older plugin reads only ok and deviceKey
         # máy chủ này đọc được định dạng nào, muốn nhịp gửi ra sao, có cần cả sổ giờ không, và đây là lần khởi động nào của máy chủ

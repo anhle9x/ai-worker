@@ -2,6 +2,17 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.19 - 2026-11-26
+
+### Fixed
+- A send that arrives late no longer writes an older value over a newer one, which lost money in tests at 40,000 computers after a `kill -9`. Each hour now keeps the time of the send that wrote it (schema version 8, `device_hours.sent_at`), and an older send leaves that hour as it is: a send the computer gave up waiting for that the server still took a minute later, or a row of the Go receiver written after the server started again (the server only remembered in memory that the computer had sent straight to it since). Before, an older send was dropped only within a minute, and a computer whose clock was put back wrote over its hours at once; it now writes them again once its clock passes the old time, at the latest with its next whole book. The upgrade only adds a column; as with every schema step, an older version then refuses the database, so going back needs a backup made before the upgrade.
+- With the Go receiver, an hour of an older send no longer writes over a newer one sent straight to the server: the receiver put the sends of a computer waiting for a batch into one row under the time of the newest, so an hour of the older send in it could pass a send that went to the webhook in between (its address of the receiver had run out). Each hour of the row now carries the time of its own send (protocol 3), the receiver puts the sends together hour by hour by those times, and it loads them with the books, so its live numbers follow the same rule. Upgrade the server and the receiver together: an older server ignores the times, and an older receiver sends none.
+- The plugin numbers its sends (`seq`: its clock, or one more than the last send when the clock went back), and the server orders a computer's sends by that number before `updatedAt`, so a computer whose clock was put back still writes its newer hours at once.
+- A batch the Go receiver sends again because its answer was lost gets that answer again, so the receiver still learns which computers need their whole book or were left out; before, the second answer was empty.
+- After a crash the Go receiver no longer gives up loading the books at the first slow page: a page that fails is asked again, after a wait doubling up to 30 seconds, and the pages get smaller while Python is slow; only after 5 minutes of failing pages are the rest read when needed. A page of books and a batch may each take up to 2 minutes instead of the 30 seconds of the other calls, and a batch taking over 10 seconds halves the next ones (down to 100 rows), doubled back once they are quick.
+- The Go receiver does not take a computer's book from a page of books when a batch with that computer's rows was written while the page was on its way: the book could lack the batch's hours. It is read again once the page is in. A slow page, with Python not holding its lock for the whole page, lost money after a `kill -9` in a test at 40,000 computers; Python keeps holding it.
+- A batch of the Go receiver notes that its computers used their own keys in one transaction instead of one each: the first batch of 2,000 computers new to the server wrote 2,000 commits, about 13 KB to the disk per computer instead of 5.
+
 ## 0.50.18 - 2026-11-26
 
 ### Fixed

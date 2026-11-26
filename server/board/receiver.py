@@ -42,13 +42,14 @@ import threading
 import time
 from collections import deque
 
-from board import devicestore, settings, turns
+from board import devicestore, order, settings, turns
 from board.db import data_db
 from board.devicekeys import DEVICE_KEYS
 from board.login import SESSIONS
 from board.devices import (
     BOOT_ID,
     DEVICES,
+    HOUR_KINDS,
     NEED_FULL,
     SAVED,
     STALE,
@@ -57,7 +58,6 @@ from board.devices import (
     branch_facts,
     person_key,
     read_all_devices,
-    read_book,
     save_ingest,
     today_first_hour,
 )
@@ -68,7 +68,7 @@ WRITTEN_KEEP = 20_000
 DEVICES_PAGE_MAX = 2000
 # the version of the internal protocol between the receiver and this server, in every policy document
 # phiên bản giao thức nội bộ giữa bộ nhận và máy chủ này, có trong mọi tài liệu chính sách
-PROTO = 2
+PROTO = 3
 PEOPLE_PAGE_MAX = 5000
 # how many computers gone the table of people remembers, for a receiver fallen behind
 # bảng người nhớ bao nhiêu máy đã mất, cho bộ nhận đang tụt lại
@@ -78,19 +78,6 @@ PEOPLE_GONE_MAX = 100_000
 # thứ bộ nhận giữ về trạng thái của một máy ngoài các giờ, để đưa trạng thái lên số trực tiếp (receiver/internal/live): số phiên, số việc
 # đang giao cho trợ lý, và số theo từng công cụ của bộ nối. Không tên, không email, không địa chỉ.
 STATE_FIELDS = ("openSessions", "working", "waiting", "delegating", "tools")
-
-
-# when this server last wrote a computer's send itself with the computer's own key (straight to /ingest, or passed on by the receiver),
-# by this server's clock: a row the receiver took before that is older than the book here (board/receiver.py, apply_row)
-# lần cuối máy chủ này tự ghi một lần gửi của máy bằng khoá riêng của máy (thẳng tới /ingest, hay do bộ nhận chuyển nguyên văn), theo
-# đồng hồ của máy chủ này: một dòng bộ nhận đã nhận trước lúc đó thì cũ hơn sổ ở đây (board/receiver.py, apply_row)
-DIRECT_AT = {}
-
-
-def note_direct(device: str, now: float) -> None:
-    """A send of this computer, with its own key, written here at now (webhook.py, ingest).
-    Một lần gửi của máy này, bằng khoá riêng, được ghi ở đây lúc now (webhook.py, ingest)."""
-    DIRECT_AT[device] = now
 
 
 def ingest_route(device: str):
@@ -146,6 +133,11 @@ class Policy:
         # (src, boot) of a receiver -> the newest batch written, so a batch sent again is answered without being written twice
         # (src, boot) của một bộ nhận -> lô mới nhất đã ghi, để lô gửi lại được trả lời mà không ghi hai lần
         self.batches = {}
+        # (src, boot) -> (seq, answer) of the newest batch written: a batch sent again because its answer was lost gets that answer, so the
+        # receiver still learns which computers need their whole book or were left out
+        # (src, boot) -> (seq, câu trả lời) của lô mới nhất đã ghi: lô gửi lại vì mất câu trả lời nhận lại đúng câu trả lời đó, để bộ nhận
+        # vẫn biết máy nào cần cả sổ hay bị bỏ ra
+        self.answers = {}
         # rows the third check found cleaned differently by the receiver, since this server started
         # các dòng mà lớp đối chiếu thứ ba thấy bộ nhận làm sạch khác, kể từ khi máy chủ này khởi động
         self.mismatches = 0
@@ -171,8 +163,11 @@ class Policy:
             # một lần khởi động khác của máy chủ này, hoặc chậm hơn chỗ danh sách còn nhớ: bắt đầu lại từ đầu
             reset = boot != BOOT_ID or since > seq or (since < oldest - 1 and since < seq)
             written = [] if reset else sorted({d for s, d in self.written if s > since})
-        # proto 2: one row per computer per batch, the books it loads hold only today's hours, the third check comes in rows of its own
-        # proto 2: mỗi máy một dòng mỗi lô, sổ nó nạp chỉ có các giờ của hôm nay, lớp đối chiếu thứ ba đến bằng các dòng riêng
+        # proto 2: one row per computer per batch, the books it loads hold only today's hours, the third check comes in rows of its own;
+        # proto 3: a row and a book bring the time of the send that wrote each hour (row_stamps), so an hour of an older send never
+        # writes over a newer one
+        # proto 2: mỗi máy một dòng mỗi lô, sổ nó nạp chỉ có các giờ của hôm nay, lớp đối chiếu thứ ba đến bằng các dòng riêng; proto 3:
+        # dòng và sổ mang thời điểm của lần gửi đã ghi từng giờ (row_stamps), để giờ của lần gửi cũ hơn không bao giờ đè giờ mới hơn
         return {"proto": PROTO, "seq": seq, "boot": BOOT_ID, "reset": reset, "written": written, "revoked": DEVICE_KEYS.revoked(),
                 "renewBefore": DEVICE_KEYS.renewal_moment(), "sharedKeyMode": settings.SHARED_KEY_MODE,
                 "minGapMs": settings.INGEST_MIN_GAP_MS, "stateGapMs": settings.INGEST_STATE_GAP_MS, "maxGapMs": settings.INGEST_MAX_GAP_MS,
@@ -255,17 +250,20 @@ TICKETS = Tickets()
 
 
 def book_for_receiver(device: str, whole: bool = False):
-    """One computer's record as the receiver loads it: {device, updatedAt, the STATE_FIELDS it has, ledger, tasks, blocks?} with the hours
-    of today and later only (the receiver keeps no more), or the whole book; None if there is none.
-    Bản ghi của một máy như bộ nhận nạp: {device, updatedAt, các trường STATE_FIELDS nó có, ledger, tasks, blocks?} chỉ với các giờ từ hôm
-    nay trở đi (bộ nhận không giữ hơn), hoặc cả sổ; None nếu không có."""
+    """One computer's record as the receiver loads it: {device, updatedAt, the STATE_FIELDS it has, ledger, tasks, blocks?, stamps} with
+    the hours of today and later only (the receiver keeps no more), or the whole book; stamps is the time of the send that wrote each hour,
+    {kind: {hour: time}} (proto 3). None if there is none.
+    Bản ghi của một máy như bộ nhận nạp: {device, updatedAt, các trường STATE_FIELDS nó có, ledger, tasks, blocks?, stamps} chỉ với các
+    giờ từ hôm nay trở đi (bộ nhận không giữ hơn), hoặc cả sổ; stamps là thời điểm của lần gửi đã ghi từng giờ, {loại: {giờ: thời điểm}}
+    (proto 3). None nếu không có."""
+    stamps = {}
     with DEVICES.lock:
         m = DEVICES.get(device)
-        book = (read_book(device) if whole else DEVICES.book(device, today_first_hour(time.time()))) if m else None
+        book = DEVICES.book(device, None if whole else today_first_hour(time.time()), stamps) if m else None
     if not m:
         return None
     state = {k: m[k] for k in STATE_FIELDS if k in m}
-    return dict({"device": device, "updatedAt": m["updatedAt"]}, **state, **(book or {}))
+    return dict({"device": device, "updatedAt": m["updatedAt"]}, **state, **(book or {}), stamps=stamps)
 
 
 def devices_page(after: str, limit: int, device: str = "", whole: bool = False) -> dict:
@@ -277,6 +275,11 @@ def devices_page(after: str, limit: int, device: str = "", whole: bool = False) 
         one = book_for_receiver(device, whole)
         return {"devices": [one] if one else [], "next": None}
     limit = min(max(1, limit), DEVICES_PAGE_MAX)
+    # the lock of the devices for the whole page, as a batch holds it for the whole batch (apply_rows): a batch is never written between two
+    # books of a page. Without it (cee1e81) a batch written while a slow page was read left that page's older books in the receiver, and
+    # money was lost after a kill -9 (run C48)
+    # khoá các máy giữ cả trang, như một lô giữ nó cả lô (apply_rows): không lô nào được ghi xen giữa hai sổ của một trang. Bỏ khoá này
+    # (cee1e81) thì một lô ghi trong lúc trang chậm đang đọc để lại các sổ cũ của trang đó ở bộ nhận, và mất tiền sau kill -9 (lượt C48)
     with turns.writing(), DEVICES.lock:
         ids = DEVICES.ids_after(after, limit + 1)
         page = [book for book in (book_for_receiver(k) for k in ids[:limit]) if book]
@@ -309,8 +312,9 @@ def apply_rows(batch, now: float):
         if isinstance(wait, int) and not isinstance(wait, bool) and 0 <= wait < 10 ** 10:
             POLICY.waited = (wait / 1000, now)
         done = POLICY.batches.get(source, -1)
+        last = POLICY.answers.get(source)
     if seq <= done:
-        return {"ok": True, "seq": seq, "needFull": [], "unknown": [], "incomplete": [], "bad": []}
+        return dict(last[1]) if last and last[0] == seq else {"ok": True, "seq": seq, "needFull": [], "unknown": [], "incomplete": [], "bad": []}
     # the builds of the board rest while the batch is written (board/turns.py)
     # các lần dựng bảng nghỉ trong lúc lô được ghi
     with turns.writing(), DEVICES.lock:
@@ -321,11 +325,13 @@ def apply_rows(batch, now: float):
     # the receiver takes only sends made with a computer's own key: each computer written here has used it
     # bộ nhận chỉ nhận lần gửi bằng khoá riêng của máy: mỗi máy được ghi ở đây đều đã dùng khoá đó
     skipped = set(out["unknown"]) | set(out["bad"])
+    used = []
     for row in batch["rows"]:
         k = row.get("k") if isinstance(row, dict) else None
         if isinstance(k, list) and row.get("kind") in ("v1", "hours", "full") and len(k) == 2 and k[0] == "m" and isinstance(k[1], str) \
                 and k[1] in INGEST_GATE.identities and k[1] not in skipped:
-            DEVICE_KEYS.note_used(k[1], None, now)
+            used.append(k[1])
+    DEVICE_KEYS.note_used_many(used, None, now)
     for d, records in delegations:
         AUDIT_LOG.write_delegations(d["device"], d.get("name", ""), d.get("account", ""), records)
     # the history of the board: with RECEIVER_FAST_APPLY it is left to history_loop, which looks at everyone every 30 seconds, so a
@@ -337,7 +343,11 @@ def apply_rows(batch, now: float):
     if not settings.RECEIVER_FAST_APPLY:
         for person in people:
             record_history(person)
-    return dict({"ok": True, "seq": seq}, **{k: sorted(set(v)) for k, v in out.items()})
+    answer = dict({"ok": True, "seq": seq}, **{k: sorted(set(v)) for k, v in out.items()})
+    with POLICY.lock:
+        if POLICY.batches.get(source) == seq:
+            POLICY.answers[source] = (seq, answer)
+    return answer
 
 
 def _apply_fast(rows: list, now: float, identities: dict):
@@ -458,11 +468,11 @@ def apply_row(row, now: float, identities: dict, out: dict, people: set, delegat
     if row["kind"] == "delegations":
         delegations.append((d, clean_delegations(row["v"].get("delegations"), at * 1000)))
         return
-    # the computer sent straight here after the receiver took this row (its address of the receiver ran out, or the receiver could not be
-    # reached): the row is older than the book here and would put it back, so its numbers are left out
-    # máy đã gửi thẳng tới đây sau khi bộ nhận nhận dòng này (địa chỉ bộ nhận đã hết hạn, hoặc không tới được bộ nhận): dòng cũ hơn sổ ở
-    # đây và sẽ kéo sổ lùi lại, nên số của nó bị bỏ
-    outcome = STALE if DIRECT_AT.get(d["device"], 0) > at else save_ingest(d, now, row["kind"], decided=True)
+    # an hour the computer sent straight here after the receiver took this row is newer than the row's: it stays (board/order.py), even
+    # after a restart of this server, and the row's other hours are written
+    # giờ máy gửi thẳng tới đây sau khi bộ nhận nhận dòng này thì mới hơn giờ của dòng: nó được giữ (board/order.py), kể cả sau khi máy
+    # chủ này khởi động lại, và các giờ khác của dòng vẫn được ghi
+    outcome = save_ingest(d, now, row["kind"], decided=True, stamp=row_stamps(row, d))
     if outcome == NEED_FULL:
         out["needFull"].append(d["device"])
     elif outcome == SAVED:
@@ -474,6 +484,29 @@ def apply_row(row, now: float, identities: dict, out: dict, people: set, delegat
         delegations.append((d, clean_delegations(row["v"].get("delegations"), at * 1000)))
     if "raw" in row and settings.RECEIVER_CHECK_PERCENT > 0:
         check_row(row, at)
+
+
+def _time(v) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 10 ** 15
+
+
+def row_stamps(row: dict, d: dict):
+    """The times a row of the receiver writes its hours with (order.Stamps): proto 3 brings stamp, the time of the row's whole book or of
+    its newest send, and stamps, the time of each hour it put together from several sends, there or gone ({kind: {hour: time}}); a row of
+    proto 2 has neither, and every hour takes the time of its send.
+    Các thời điểm một dòng của bộ nhận dùng để ghi các giờ (order.Stamps): proto 3 mang stamp, thời điểm của sổ đủ trong dòng hoặc của
+    lần gửi mới nhất, và stamps, thời điểm của từng giờ nó gộp từ nhiều lần gửi, có mặt hay đã vắng ({loại: {giờ: thời điểm}}); dòng proto
+    2 không có cả hai, và mọi giờ lấy thời điểm của lần gửi đó."""
+    base = row.get("stamp")
+    if not _time(base):
+        return order.Stamps(order.stamp_of(d))
+    hours, given = {}, row.get("stamps")
+    for kind in HOUR_KINDS:
+        table = given.get(kind) if isinstance(given, dict) else None
+        for hour, at in (table.items() if isinstance(table, dict) else ()):
+            if isinstance(hour, str) and hour.isdigit() and len(hour) < 12 and _time(at):
+                hours[(kind, int(hour))] = at
+    return order.Stamps(base, hours)
 
 
 def check_row(row: dict, at: float) -> None:

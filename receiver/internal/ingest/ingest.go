@@ -39,13 +39,17 @@ import (
 // Limits of this side; the ones the computers are told come from Python's policy.
 // Các giới hạn của bên này; những gì dặn các máy thì lấy từ chính sách của Python.
 const (
-	MaxBodyBytes  = 256 * 1024
-	maxBatchRows  = 2000
-	maxPending    = 200_000
-	maxChecks     = 1000
-	policyEvery   = 15 * time.Second
-	peopleEvery   = 15 * time.Second
-	devicesPage   = 1000
+	MaxBodyBytes = 256 * 1024
+	maxBatchRows = 2000
+	maxPending   = 200_000
+	maxChecks    = 1000
+	policyEvery  = 15 * time.Second
+	peopleEvery  = 15 * time.Second
+	devicesPage  = 1000
+	// the fewest books a page asks and rows a batch takes once slow calls made them smaller (sizer)
+	// số sổ ít nhất một trang hỏi và số dòng ít nhất một lô lấy khi các lời gọi chậm đã làm chúng nhỏ lại (sizer)
+	minPage       = 50
+	minBatchRows  = 100
 	maxRetryPause = 30 * time.Second
 	// how long the oldest row may wait for Python before /health says the receiver is behind; rows keep waiting, one per computer
 	// dòng chờ lâu nhất được chờ Python bao lâu trước khi /health báo bộ nhận đang chậm; các dòng vẫn chờ tiếp, mỗi máy một dòng
@@ -118,6 +122,11 @@ type entry struct {
 	askName bool
 	tokens  float64
 	counted float64
+	// wrote: the seq of the newest batch Python wrote with a row of this computer, set before that batch leaves inflight; a page of books
+	// asked before it holds an older book (LoadBooks)
+	// wrote: seq của lô mới nhất Python đã ghi có dòng của máy này, đặt trước khi lô đó rời inflight; trang sổ hỏi trước lô đó mang sổ cũ
+	// hơn (LoadBooks)
+	wrote int64
 }
 
 // Receiver holds the books, the rows waiting for Python and the latest policy.
@@ -175,6 +184,12 @@ type Receiver struct {
 	// sorted: bao nhiêu máy ở đầu order đang theo thứ tự mã (xem take); behind: /health đang báo chậm
 	sorted int
 	behind bool
+	// rows: how many rows the next new batch takes, smaller while Python is slow (sizer); a batch on its way keeps its rows
+	// rows: lô mới kế tiếp lấy bao nhiêu dòng, ít đi khi Python chậm (sizer); lô đang đi giữ nguyên các dòng của nó
+	rows sizer
+	// timing: the deadlines of the calls to Python and when a page or a batch is slow
+	// timing: hạn của các lời gọi tới Python và lúc nào một trang hay một lô bị coi là chậm
+	timing timing
 	// unloaded: the books that could not be read, said once a minute
 	// unloaded: các sổ không đọc được, báo mỗi phút một lần
 	unloaded unloaded
@@ -210,11 +225,13 @@ type batch struct {
 }
 
 // waiting is what waits for Python for one computer: its newest cleaned send, the kind of the row, and the records of work handed to
-// helpers of every send since the last batch. Hours sent as "hours" are put together, the later one of an hour winning (an empty one
+// helpers of every send since the last batch. Hours sent as "hours" are put together, the newer send of an hour winning (an empty one
 // still removes it); hours sent on a whole book are put on that book, so Python writes once what it would have written send by send.
+// Each hour keeps the time of its send (order.go), so an older send never replaces a newer one, here or at Python.
 // waiting là thứ chờ Python của một máy: lần gửi đã làm sạch mới nhất, loại của dòng, và biên bản giao việc của mọi lần gửi kể từ lô
-// trước. Các giờ gửi dạng "hours" được gộp, giờ gửi sau thắng (giờ rỗng vẫn xoá giờ đó); các giờ gửi trên một sổ đủ được đặt lên sổ
-// đó, để Python ghi một lần đúng thứ nó đã ghi qua từng lần gửi.
+// trước. Các giờ gửi dạng "hours" được gộp, lần gửi mới hơn của một giờ thắng (giờ rỗng vẫn xoá giờ đó); các giờ gửi trên một sổ đủ được
+// đặt lên sổ đó, để Python ghi một lần đúng thứ nó đã ghi qua từng lần gửi. Mỗi giờ giữ thời điểm của lần gửi của nó (order.go), để lần
+// gửi cũ hơn không bao giờ thay lần mới hơn, ở đây hay ở Python.
 type waiting struct {
 	// d is the row as objects while it may still be merged with changed hours; a whole book (v1, full) is kept encoded in enc instead,
 	// about a tenth of the memory, and read back when a batch is made. size is what the row counts in Holding
@@ -229,21 +246,47 @@ type waiting struct {
 	// since is when this computer began to wait for the next batch, in milliseconds
 	// since là lúc máy này bắt đầu chờ lô kế tiếp, tính bằng mili giây
 	since int64
+	// base: the time of the row's main send; stamps: the time of each hour that came from another send, there or gone (order.go)
+	// base: thời điểm của lần gửi chính của dòng; stamps: thời điểm của từng giờ đến từ lần gửi khác, có mặt hay đã vắng (order.go)
+	base   int64
+	stamps map[hourKey]int64
 }
 
 func (p *waiting) add(d *pyjson.Object, kind, ip string, at int64, delegations []pyjson.Value) {
 	p.delegations = append(p.delegations, delegations...)
 	p.ip, p.at = ip, at
+	s := clean.StampOf(d)
+	hasHours := p.kind == "hours" || isWhole(p.kind)
 	switch {
 	case kind == "delegations":
 		if p.kind == "" {
 			p.keep(d, kind)
+			p.base = s
 		}
-	case kind == "hours" && p.kind == "hours":
-		p.keep(withHours(d, unionHours(p.row(), d)), kind)
-	case kind == "hours" && (p.kind == "v1" || p.kind == "full"):
-		p.keep(withHours(d, clean.MergeHours(p.row(), d)), p.kind)
+	case hasHours && (kind == "hours" || isWhole(kind) && isWhole(p.kind) && s < p.base):
+		// changed hours, or a whole book older than the one waiting: each hour newer than the row's goes on it
+		// các giờ đã đổi, hoặc một sổ đủ cũ hơn sổ đang chờ: từng giờ mới hơn giờ của dòng được đặt lên dòng
+		row := p.row()
+		sent := d
+		if kind != "hours" {
+			sent = clean.ReplaceHours(d)
+		}
+		newer := p.newerHours(row, sent, s)
+		merged := clean.MergeHours(row, newer)
+		if p.kind == "hours" {
+			merged = unionHours(row, newer)
+		}
+		p.mark(newer, s)
+		p.keep(withHours(newest(row, d), merged), p.kind)
+	case hasHours && isWhole(kind):
+		// a whole book: the hours the row holds from newer sends stay on it
+		// một sổ đủ: các giờ dòng đang giữ từ các lần gửi mới hơn vẫn nằm trên nó
+		row := p.row()
+		over, times := p.above(row, s)
+		p.base, p.stamps = s, times
+		p.keep(withHours(newest(row, d), clean.MergeHours(d, over)), kind)
 	default:
+		p.base, p.stamps = s, nil
 		p.keep(d, kind)
 	}
 }
@@ -252,7 +295,7 @@ func (p *waiting) add(d *pyjson.Object, kind, ip string, at int64, delegations [
 // keep giữ d làm dòng loại kind: đã mã hoá khi là sổ đủ, dạng đối tượng nếu không, và đếm cỡ của nó.
 func (p *waiting) keep(d *pyjson.Object, kind string) {
 	enc := pyjson.Encode(d)
-	p.kind, p.size = kind, int64(len(enc))
+	p.kind, p.size = kind, int64(len(enc))+int64(len(p.stamps))*stampBytes
 	if kind == "v1" || kind == "full" {
 		p.d, p.enc = nil, enc
 	} else {
@@ -305,11 +348,15 @@ func withHours(d, hours *pyjson.Object) *pyjson.Object {
 	return out
 }
 
-// held is what this side keeps of a computer's book: the updatedAt of its last send, and its ledger and tasks hours of today and later.
-// held là thứ bên này giữ của sổ một máy: updatedAt của lần gửi cuối, và các giờ ledger và tasks từ hôm nay trở đi.
+// held is what this side keeps of a computer's book: the updatedAt of its last send, its ledger and tasks hours of today and later, and
+// the time of the send each of them came from: base for most, the others apart in stamps, sorted by heldKey (order.go).
+// held là thứ bên này giữ của sổ một máy: updatedAt của lần gửi cuối, các giờ ledger và tasks từ hôm nay trở đi, và thời điểm của lần gửi
+// mà từng giờ đến từ đó: base cho phần lớn, các giờ khác giữ riêng trong stamps, xếp theo heldKey (order.go).
 type held struct {
 	updatedAt     pyjson.Value
 	ledger, tasks map[int64]totals.Hour
+	base          int64
+	stamps        []hourStamp
 }
 
 // heldFrom keeps of a record ({device, updatedAt, ledger, tasks, ...}) its time and its hours from hour lo on.
@@ -318,14 +365,17 @@ func heldFrom(rec *pyjson.Object, lo int64) *held {
 	if rec == nil {
 		return nil
 	}
-	h := &held{updatedAt: field(rec, "updatedAt"), ledger: map[int64]totals.Hour{}, tasks: map[int64]totals.Hour{}}
-	h.put(rec, lo, false)
+	h := &held{updatedAt: field(rec, "updatedAt"), ledger: map[int64]totals.Hour{}, tasks: map[int64]totals.Hour{}, base: -1}
+	h.put(rec, lo, false, -1, nil)
+	h.stampsFrom(rec, lo)
 	return h
 }
 
-// put puts the ledger and tasks hours of d from hour lo on; with removing, an empty hour removes the one held.
-// put đặt các giờ ledger và tasks của d từ giờ lo trở đi; với removing, giờ rỗng xoá giờ đang giữ.
-func (h *held) put(d *pyjson.Object, lo int64, removing bool) {
+// put puts the ledger and tasks hours of d from hour lo on, each with the time s; with removing, an empty hour removes the one held. An
+// hour that was held newer than s in was is left as it is.
+// put đặt các giờ ledger và tasks của d từ giờ lo trở đi, mỗi giờ với thời điểm s; với removing, giờ rỗng xoá giờ đang giữ. Giờ đã được
+// giữ mới hơn s trong was thì để nguyên.
+func (h *held) put(d *pyjson.Object, lo int64, removing bool, s int64, was *held) {
 	for kind, book := range map[string]map[int64]totals.Hour{"ledger": h.ledger, "tasks": h.tasks} {
 		t, ok := field(d, kind).(*pyjson.Object)
 		if !ok {
@@ -333,36 +383,51 @@ func (h *held) put(d *pyjson.Object, lo int64, removing bool) {
 		}
 		for i, hour := range t.Keys {
 			n, err := strconv.ParseInt(hour, 10, 64)
-			if err != nil || n < lo {
+			if err != nil || n < lo || s < was.heldStamp(kind, n) {
 				continue
 			}
 			if v, ok := t.Vals[i].(*pyjson.Object); ok && v.Len() == 0 {
 				if removing {
 					delete(book, n)
+					h.dropStamp(kind, n)
 				}
 				continue
 			}
 			book[n] = totals.HourOf(kind, t.Vals[i])
+			if s >= 0 {
+				h.setStamp(kind, n, s)
+			}
 		}
 	}
 }
 
-// next is what is held after a send of that kind: a whole book replaces the hours, changed hours go on them; hours before lo leave.
-// next là thứ được giữ sau một lần gửi loại đó: sổ đủ thay các giờ, các giờ đã đổi được đặt lên chúng; giờ trước lo thì rời đi.
+// next is what is held after a send of that kind: a whole book replaces the hours, changed hours go on them; hours before lo leave. An
+// hour held from a newer send than d stays, as at Python (order.go).
+// next là thứ được giữ sau một lần gửi loại đó: sổ đủ thay các giờ, các giờ đã đổi được đặt lên chúng; giờ trước lo thì rời đi. Giờ đang
+// giữ từ một lần gửi mới hơn d thì ở lại, như ở Python (order.go).
 func (h *held) next(d *pyjson.Object, kind string, lo int64) *held {
-	out := &held{updatedAt: field(d, "updatedAt"), ledger: map[int64]totals.Hour{}, tasks: map[int64]totals.Hour{}}
-	if kind == "hours" && h != nil {
-		keepFrom(out.ledger, h.ledger, lo)
-		keepFrom(out.tasks, h.tasks, lo)
+	s := clean.StampOf(d)
+	out := &held{updatedAt: field(d, "updatedAt"), ledger: map[int64]totals.Hour{}, tasks: map[int64]totals.Hour{}, base: s}
+	if h != nil {
+		if kind == "hours" {
+			out.base = h.base
+		}
+		keepFrom(out, h, "ledger", out.ledger, h.ledger, lo, kind == "hours", s)
+		keepFrom(out, h, "tasks", out.tasks, h.tasks, lo, kind == "hours", s)
 	}
-	out.put(d, lo, kind == "hours")
+	out.put(d, lo, kind == "hours", s, h)
 	return out
 }
 
-func keepFrom(dst, src map[int64]totals.Hour, lo int64) {
+// keepFrom keeps the hours of src from lo on, with their times in out: all of them for changed hours, only those of a newer send than s
+// for a whole book.
+// keepFrom giữ các giờ của src từ lo trở đi, cùng thời điểm của chúng trong out: tất cả với các giờ đã đổi, chỉ các giờ của lần gửi mới
+// hơn s với một sổ đủ.
+func keepFrom(out, h *held, kind string, dst, src map[int64]totals.Hour, lo int64, all bool, s int64) {
 	for n, v := range src {
-		if n >= lo {
+		if at := h.heldStamp(kind, n); n >= lo && (all || at > s) {
 			dst[n] = v
+			out.setStamp(kind, n, at)
 		}
 	}
 }
@@ -388,7 +453,9 @@ func New(webhook string, secrets *devicekey.Secrets, every time.Duration) *Recei
 	return &Receiver{
 		Totals: t, Live: live.New(t),
 		webhook: strings.TrimRight(webhook, "/"), secrets: secrets, every: every, Boot: hex.EncodeToString(b), src: "go-" + hex.EncodeToString(b[:4]),
-		client: &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{MaxIdleConnsPerHost: 8, MaxConnsPerHost: 16, DisableCompression: true,
+		// no deadline of the client: each call has its own (timing)
+		// client không có hạn chung: mỗi lời gọi có hạn riêng (timing)
+		client: &http.Client{Transport: &http.Transport{MaxIdleConnsPerHost: 8, MaxConnsPerHost: 16, DisableCompression: true,
 			// the Python server answers HTTP/1.0 and closes the connection after each answer
 			// máy chủ Python trả lời HTTP/1.0 và đóng kết nối sau mỗi câu trả lời
 			DisableKeepAlives: true, ForceAttemptHTTP2: false, Proxy: nil}},
@@ -396,23 +463,41 @@ func New(webhook string, secrets *devicekey.Secrets, every time.Duration) *Recei
 		wake:         make(chan struct{}, 1),
 		pending:      map[string]*waiting{},
 		forwardSlots: make(chan struct{}, forwardMax),
+		rows:         newSizer(minBatchRows, maxBatchRows),
+		timing:       defaultTiming(),
 	}
 }
 
-func (r *Receiver) internal(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
+// internal calls Python with the internal code, within limit; the deadline ends when the answer is closed.
+// internal gọi Python bằng mã nội bộ, trong hạn limit; hạn kết thúc khi câu trả lời được đóng.
+func (r *Receiver) internal(ctx context.Context, limit time.Duration, method, path string, body []byte) (*http.Response, error) {
+	ctx, cancel := context.WithTimeout(ctx, limit)
 	req, err := http.NewRequestWithContext(ctx, method, r.webhook+path, bytes.NewReader(body))
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+r.secrets.Internal())
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	return r.client.Do(req)
+	resp, err := r.client.Do(req)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	resp.Body = cancelOnClose{resp.Body, cancel}
+	return resp, nil
 }
 
+// getJSON reads one answer of Python within the deadline of a call (timing.call).
+// getJSON đọc một câu trả lời của Python trong hạn của một lời gọi (timing.call).
 func (r *Receiver) getJSON(ctx context.Context, path string, into any) error {
-	resp, err := r.internal(ctx, http.MethodGet, path, nil)
+	return r.getJSONWithin(ctx, r.timing.call, path, into)
+}
+
+func (r *Receiver) getJSONWithin(ctx context.Context, limit time.Duration, path string, into any) error {
+	resp, err := r.internal(ctx, limit, http.MethodGet, path, nil)
 	if err != nil {
 		return err
 	}
@@ -489,18 +574,45 @@ func (r *Receiver) RefreshPeople(ctx context.Context) ([]string, error) {
 	return r.People.Refresh(ctx, r.getJSON)
 }
 
-// LoadBooks reads every book Python holds, a page at a time; a book already loaded or changed here is left as it is.
-// LoadBooks đọc mọi sổ Python đang giữ, từng trang một; sổ đã nạp hoặc đã đổi ở đây thì để nguyên.
+// LoadBooks reads every book Python holds, a page at a time; a book already loaded or changed here is left as it is. A page that fails
+// is asked again, after a wait doubling from timing.pause, and a slow or failed page makes the next one smaller (a page of 1,000 books
+// took over 30 seconds behind the batches of Python after a crash, and the load gave up at once); it gives up only when the pages kept
+// failing for timing.loadFor, and the rest are then read when needed.
+// LoadBooks đọc mọi sổ Python đang giữ, từng trang một; sổ đã nạp hoặc đã đổi ở đây thì để nguyên. Trang hỏng được hỏi lại, sau một
+// lần chờ gấp đôi dần từ timing.pause, và một trang chậm hay hỏng làm trang sau nhỏ lại (một trang 1.000 sổ đã mất hơn 30 giây sau
+// các lô của Python khi có sự cố, và việc nạp bỏ ngay); chỉ thôi khi các trang hỏng liên tục trong timing.loadFor, và phần còn lại
+// khi đó được đọc khi cần.
 func (r *Receiver) LoadBooks(ctx context.Context) (int, error) {
 	after, count := "", 0
+	size := newSizer(minPage, devicesPage)
+	var failing time.Time
+	pause := time.Duration(0)
 	for {
 		var page struct {
 			Devices []json.RawMessage `json:"devices"`
 			Next    *string           `json:"next"`
 		}
-		if err := r.getJSON(ctx, "/internal/devices?limit="+strconv.Itoa(devicesPage)+"&after="+url.QueryEscape(after), &page); err != nil {
-			return count, err
+		// the newest batch written before the page is asked: a book of a computer written by a later one is older than Python's
+		// lô mới nhất đã ghi trước khi hỏi trang: sổ của máy được ghi bởi một lô sau đó thì cũ hơn sổ của Python
+		before := r.written()
+		began := time.Now()
+		err := r.getJSONWithin(ctx, r.timing.page, "/internal/devices?limit="+strconv.Itoa(size.n)+"&after="+url.QueryEscape(after), &page)
+		size.took(time.Since(began), r.timing.slow, err == nil)
+		if err != nil {
+			if failing.IsZero() {
+				failing = began
+			}
+			if ctx.Err() != nil || time.Since(failing) >= r.timing.loadFor {
+				return count, err
+			}
+			pause = backoff(pause, r.timing.pause)
+			log.Printf("receiver: a page of books: %v; asked again in %s, %d books a page", err, pause.Round(time.Millisecond), size.n)
+			if !sleep(ctx, pause) {
+				return count, ctx.Err()
+			}
+			continue
 		}
+		failing, pause = time.Time{}, 0
 		for _, raw := range page.Devices {
 			rec, err := pyjson.Parse(raw)
 			o, ok := rec.(*pyjson.Object)
@@ -511,9 +623,11 @@ func (r *Receiver) LoadBooks(ctx context.Context) (int, error) {
 			name, _ := device.(string)
 			e := r.entry(name)
 			e.mu.Lock()
-			if !e.loaded && r.isQueued(name) {
-				// rows of it still wait: the page lacks them, so the book is read after they are written (Resync)
-				// các dòng của nó còn chờ: trang này thiếu chúng, nên sổ được đọc sau khi chúng đã ghi (Resync)
+			if !e.loaded && (r.isQueued(name) || e.wrote > before) {
+				// rows of it still wait, or a batch wrote some while the page was read: the page lacks them, so the book is read after
+				// they are written (Resync)
+				// các dòng của nó còn chờ, hoặc một lô đã ghi vài dòng trong lúc đọc trang: trang này thiếu chúng, nên sổ được đọc sau khi
+				// chúng đã ghi (Resync)
 				r.markStale(name)
 			} else if !e.loaded {
 				e.loaded, e.rec = true, heldFrom(o, r.today())
@@ -1051,8 +1165,8 @@ func (r *Receiver) take() *batch {
 	if r.inflight != nil {
 		return r.inflight
 	}
-	n := min(len(r.order), maxBatchRows)
-	c := min(len(r.checks), maxBatchRows-n)
+	n := min(len(r.order), r.rows.n)
+	c := min(len(r.checks), r.rows.n-n)
 	if n == 0 && c == 0 {
 		return nil
 	}
@@ -1073,7 +1187,7 @@ func (r *Receiver) take() *batch {
 		bytes += p.size
 		delete(r.pending, device)
 		devices[device] = true
-		rows = append(rows, row(p.row(), p.kind, p.ip, p.at, p.delegations, nil))
+		rows = append(rows, p.batchRow())
 		r.Holding.Add(-p.size)
 		oldest = min(oldest, p.since)
 	}
@@ -1138,8 +1252,10 @@ func (r *Receiver) Flush(ctx context.Context) (int, error) {
 	// how long the oldest row of the batch has waited, so the Admin page of Python can say when the receiver is behind
 	// dòng chờ lâu nhất của lô đã chờ bao lâu, để trang Quản trị của Python báo được khi bộ nhận đang chậm
 	out.Set("waitMs", pyjson.IntN(max(0, time.Now().UnixMilli()-b.oldest)))
-	resp, err := r.internal(ctx, http.MethodPost, "/internal/rows", pyjson.Encode(out))
+	began := time.Now()
+	resp, err := r.internal(ctx, r.timing.batch, http.MethodPost, "/internal/rows", pyjson.Encode(out))
 	if err != nil {
+		r.batchTook(time.Since(began), false)
 		return 0, err
 	}
 	defer resp.Body.Close()
@@ -1152,7 +1268,17 @@ func (r *Receiver) Flush(ctx context.Context) (int, error) {
 		Bad        []string `json:"bad"`
 	}
 	if resp.StatusCode != http.StatusOK || json.NewDecoder(io.LimitReader(resp.Body, 16<<20)).Decode(&got) != nil || got.Seq != b.seq {
+		r.batchTook(time.Since(began), false)
 		return 0, fmt.Errorf("batch %d: %s", b.seq, resp.Status)
+	}
+	r.batchTook(time.Since(began), true)
+	// before the batch leaves inflight, so a page of books never sees its computers neither waiting nor written (LoadBooks)
+	// trước khi lô rời inflight, để một trang sổ không bao giờ thấy các máy của nó vừa không chờ vừa chưa ghi (LoadBooks)
+	for d := range b.devices {
+		e := r.entry(d)
+		e.mu.Lock()
+		e.wrote = max(e.wrote, b.seq)
+		e.mu.Unlock()
 	}
 	r.qmu.Lock()
 	if r.inflight == b {
@@ -1196,6 +1322,35 @@ func (r *Receiver) Flush(ctx context.Context) (int, error) {
 		r.markStale(d)
 	}
 	return n, nil
+}
+
+// batchTook sizes the next new batch by how long this one took (sizer): over timing.slow, or failed, it is halved.
+// batchTook định cỡ lô mới kế tiếp theo thời gian lô này đã mất (sizer): quá timing.slow, hoặc hỏng, thì giảm một nửa.
+func (r *Receiver) batchTook(d time.Duration, ok bool) {
+	r.qmu.Lock()
+	before := r.rows.n
+	r.rows.took(d, r.timing.slow, ok)
+	after := r.rows.n
+	r.qmu.Unlock()
+	if after < before {
+		log.Printf("receiver: a batch took %s: the next ones take %d rows", d.Round(time.Millisecond), after)
+	}
+}
+
+// written is the seq of the newest batch Python wrote.
+// written là seq của lô mới nhất Python đã ghi.
+func (r *Receiver) written() int64 {
+	r.qmu.Lock()
+	defer r.qmu.Unlock()
+	return r.seq
+}
+
+// batchRows is how many rows a full new batch takes now.
+// batchRows là số dòng một lô mới đầy lấy lúc này.
+func (r *Receiver) batchRows() int {
+	r.qmu.Lock()
+	defer r.qmu.Unlock()
+	return r.rows.n
 }
 
 // Start reads the table of people at once, reads every book a page at a time, and only then sends the batches, asks for the table of
@@ -1297,11 +1452,11 @@ func (r *Receiver) sendBatches(ctx context.Context) {
 				if !errors.Is(err, context.Canceled) {
 					log.Printf("receiver: %v", err)
 				}
-				pause = min(maxRetryPause, max(time.Second, pause*2))
+				pause = backoff(pause, time.Second)
 				break
 			}
 			pause = 0
-			if n < maxBatchRows {
+			if n < r.batchRows() {
 				break
 			}
 		}
@@ -1327,7 +1482,9 @@ func (r *Receiver) forward(w http.ResponseWriter, req *http.Request, body []byte
 		reply(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"}, "Retry-After", busyRetry())
 		return
 	}
-	out, err := http.NewRequestWithContext(req.Context(), http.MethodPost, r.webhook+"/internal/ingest", bytes.NewReader(body))
+	ctx, cancel := context.WithTimeout(req.Context(), r.timing.call)
+	defer cancel()
+	out, err := http.NewRequestWithContext(ctx, http.MethodPost, r.webhook+"/internal/ingest", bytes.NewReader(body))
 	if err != nil {
 		refuse(w, http.StatusBadGateway, "cannot pass on")
 		return

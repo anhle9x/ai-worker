@@ -13,7 +13,7 @@ import threading
 import time
 from datetime import date, datetime, timedelta
 
-from board import devicestore, settings, turns
+from board import devicestore, order, settings, turns
 from board.db import data_db, dumps
 from board.settings import (
     CONNECTOR_OFFLINE_SECONDS,
@@ -231,6 +231,16 @@ def is_fresh(m: dict, now: float) -> bool:
     return now - m["updatedAt"] / 1000 < (CONNECTOR_OFFLINE_SECONDS if from_connector(m) else OFFLINE_SECONDS)
 
 
+def _clean_seq(d: dict, out: dict, now_ms: float) -> None:
+    # the number the plugin gives its sends, so they keep their order when the computer's clock goes back (board/order.py): a whole number,
+    # no further ahead than a day, as for updatedAt
+    # số plugin đánh cho các lần gửi, để chúng giữ thứ tự khi đồng hồ của máy lùi lại (board/order.py): một số nguyên, không vượt quá một
+    # ngày phía trước, như với updatedAt
+    seq = clean_number(d.get("seq"))
+    if isinstance(seq, int):
+        out["seq"] = min(seq, int(now_ms) + 86_400_000)
+
+
 def clean_payload(d, now: float):
     """Rebuild what a device sent from a fixed list of fields, types and sizes; None if it is not a device report.
     Runs on /ingest and again when a row is loaded from the table into memory, so one bad row cannot take down the pages for everyone.
@@ -245,6 +255,7 @@ def clean_payload(d, now: float):
     if updated_at is None:
         return None
     out = {"v": 1, "device": d["device"], "updatedAt": min(updated_at, now_ms + 86_400_000)}
+    _clean_seq(d, out, now_ms)
     for field, limit in (("name", 120), ("account", 120), ("enteredAccount", 120), ("lanIp", 45), ("ip", 45), ("pluginVersion", 20)):
         text = clean_text(d.get(field), limit)
         if text:
@@ -330,6 +341,7 @@ def _clean_again(d: dict, now: float):
     if updated_at is None:
         return None
     out = {"v": 1, "device": d["device"], "updatedAt": min(updated_at, now * 1000 + 86_400_000)}
+    _clean_seq(d, out, now * 1000)
     for field in ("name", "account", "enteredAccount", "lanIp", "ip", "pluginVersion"):
         text = clean_text(d.get(field), _SET_AFTER[field]) if field in _SET_AFTER else d.get(field)
         if text:
@@ -546,34 +558,49 @@ def _identity(m: dict) -> tuple:
     return tuple(m.get(k) for k in IDENTITY_FIELDS), [(e.get("ip"), e.get("from")) for e in m.get("ipHistory") or ()]
 
 
-def write_book(c, device: str, book: dict, old_days=None) -> tuple:
-    """Make device_hours and device_days hold exactly this book for one computer, inside the caller's transaction: only the hours that
-    differ from the rows there are written, only the days that change. old_days is the days kept in memory, or None to write them all
-    again. Returns the days of the book.
-    Làm cho device_hours và device_days chứa đúng sổ này của một máy, trong giao dịch của bên gọi: chỉ ghi các giờ khác với dòng đang có,
-    chỉ các ngày có đổi. old_days là các ngày đang giữ trong bộ nhớ, hoặc None để ghi lại tất cả. Trả về các ngày của sổ."""
+def write_book(c, device: str, book: dict, old_days=None, stamp=None) -> tuple:
+    """Make device_hours and device_days hold this book for one computer, inside the caller's transaction: only the hours that differ from
+    the rows there are written, only the days that change. old_days is the days kept in memory, or None to write them all again. stamp,
+    the times of the send (order.Stamps), keeps every hour written by a newer send as it is, there or not in the book (board/order.py);
+    None (the upgrade to version 6, a record replaced by hand) writes the book exactly. Returns (the days, the book now held).
+    Làm cho device_hours và device_days chứa sổ này của một máy, trong giao dịch của bên gọi: chỉ ghi các giờ khác với dòng đang có, chỉ
+    các ngày có đổi. old_days là các ngày đang giữ trong bộ nhớ, hoặc None để ghi lại tất cả. stamp, các thời điểm của lần gửi
+    (order.Stamps), giữ nguyên mọi giờ do một lần gửi mới hơn ghi, dù có trong sổ hay không (board/order.py); None (lần nâng lên phiên bản
+    6, bản ghi thay bằng tay) ghi đúng sổ. Trả về (các ngày, sổ đang giữ sau khi ghi)."""
     old = {(kind, hour): body for kind, hour, body in devicestore.hours(c, device, HOUR_KINDS)}
-    new = {}
+    kept = devicestore.stamps(c, device, HOUR_KINDS) if stamp is not None else {}
+    new, older = {}, 0
     for kind in HOUR_KINDS:
         for hour, table in (book.get(kind) or {}).items():
-            new[(kind, int(hour))] = dumps(table)
-    put = [(hour, kind, device, body) for (kind, hour), body in new.items() if old.get((kind, hour)) != body]
+            key = (kind, int(hour))
+            if order.wins(stamp.of(*key), kept.get(key)) if stamp is not None else True:
+                new[key] = dumps(table)
+            elif key in old:
+                new[key], older = old[key], older + 1
+    for key, body in old.items():
+        if key not in new and stamp is not None and not order.wins(stamp.of(*key), kept.get(key)):
+            new[key], older = body, older + 1
+    order.note_older(older)
+    put = [(hour, kind, device, body) + ((stamp.of(kind, hour),) if stamp is not None else ()) for (kind, hour), body in new.items()
+           if old.get((kind, hour)) != body]
     drop = [(hour, kind, device) for (kind, hour) in old if (kind, hour) not in new]
     devicestore.put_hours(c, put)
     devicestore.drop_hours(c, drop)
+    if older:
+        book = _rows_to_book([(kind, hour, body) for (kind, hour), body in new.items()])
     if old_days is None:
         days = _add_up(book)["days"]
         devicestore.drop_days_of(c, device)
         devicestore.put_days(c, [_day_row(device, day, v) for day, v in days.items()])
-        return days
+        return days, book
     touched = {local_day_of_hour(r[0]) for r in put + drop if r[1] != "blocks"}
     if not touched:
-        return old_days
+        return old_days, book
     fresh = _add_up(book, touched)["days"]
     days = {day: v for day, v in old_days.items() if day not in touched}
     days.update(fresh)
     _write_days(c, device, touched, fresh, old_days)
-    return days
+    return days, book
 
 
 def _hour_numbers(kind: str, body: str) -> tuple:
@@ -809,13 +836,15 @@ class DeviceCache:
         devicestore.put_state(c, device, str(d.get("account") or ""), str(d.get("name") or ""), seen_at, dumps(body))
         self.written[device] = seen_at
 
-    def save(self, d: dict, seen_at: int, lazy: bool = False, cleaned: bool = False, again: bool = False) -> None:
+    def save(self, d: dict, seen_at: int, lazy: bool = False, cleaned: bool = False, again: bool = False, stamp=None) -> None:
         """Write one device's whole record (its hour book inside it, replacing the one kept) to the tables, then to the cache, under the
         same lock, so a read never sees one without the other. cleaned: d already came out of clean_payload, so its book is not cleaned
         again. lazy: see STATE_REWRITE_SECONDS. again: d is what _clean_again takes, so only the fields set after cleaning are cleaned again.
+        stamp: the times of the send (order.Stamps), see write_book.
         Ghi cả bản ghi của một máy (sổ giờ nằm trong đó, thay sổ đang giữ) vào các bảng rồi vào bộ nhớ đệm, dưới cùng một khoá, để lần
         đọc không bao giờ thấy cái này mà thiếu cái kia. cleaned: d đã qua clean_payload, nên sổ của nó không làm sạch lại.
-        lazy: xem STATE_REWRITE_SECONDS. again: d là thứ _clean_again nhận, nên chỉ các trường được đặt sau khi làm sạch được làm sạch lại."""
+        lazy: xem STATE_REWRITE_SECONDS. again: d là thứ _clean_again nhận, nên chỉ các trường được đặt sau khi làm sạch được làm sạch lại.
+        stamp: các thời điểm của lần gửi (order.Stamps), xem write_book."""
         now = time.time()
         with self.lock:
             db = self._fresh()
@@ -832,21 +861,21 @@ class DeviceCache:
                     devicestore.drop_hours(c, [(h, k, device) for k, h, _ in devicestore.hours(c, device, HOUR_KINDS)])
                     self._set(device, seen_at, None, None)
                     return
-                book = book_of(whole)
-                days = write_book(c, device, book, summary["days"] if summary else None)
+                days, book = write_book(c, device, book_of(whole), summary["days"] if summary else None, stamp)
             lo, blo = _window(state, now)
             ledger = {int(h): ledger_micro(v) for h, v in book.get("ledger", {}).items()}
             tasks = {int(h): _counts(v) for h, v in book.get("tasks", {}).items()}
             blocks = {int(h): v for h, v in book.get("blocks", {}).items()}
             self._set(device, seen_at, state, _summary(days, ledger, tasks, blocks, lo, blo))
 
-    def merge(self, d: dict, sent: dict, seen_at: int, lazy: bool = True, again: bool = False) -> None:
+    def merge(self, d: dict, sent: dict, seen_at: int, lazy: bool = True, again: bool = False, stamp=None) -> None:
         """Write a record whose hours come as a v: 2 send has them (merge_hours): each hour sent replaces the row of that hour, an empty
         one removes it, the newest MAX_HOURS_PER_DEVICE of each kind are kept; only those hours and the days they fall in are written.
         d is the record without hours, already cleaned; sent is {kind: {hour: table}}. again: as for save.
         Ghi một bản ghi có các giờ đến như gói v: 2 mang chúng (merge_hours): mỗi giờ gửi lên thay dòng của giờ đó, giờ rỗng thì xoá nó,
         mỗi loại giữ MAX_HOURS_PER_DEVICE giờ mới nhất; chỉ các giờ đó và các ngày chúng rơi vào được ghi. d là bản ghi không kèm giờ,
-        đã làm sạch; sent là {loại: {giờ: bảng}}. again: như với save."""
+        đã làm sạch; sent là {loại: {giờ: bảng}}. again: như với save. stamp: các thời điểm của lần gửi (order.Stamps); giờ do một lần
+        gửi mới hơn ghi thì giữ nguyên (board/order.py)."""
         now = time.time()
         with self.lock:
             db = self._fresh()
@@ -883,12 +912,19 @@ class DeviceCache:
                     if not these:
                         continue
                     was = {h: body for _, h, body in devicestore.hours(c, device, (kind,), min(these), max(these) + 1) if h in these}
+                    if stamp is not None:
+                        # an hour written by a newer send stays as it is
+                        # giờ do một lần gửi mới hơn ghi thì giữ nguyên
+                        kept = devicestore.stamps(c, device, (kind,), min(these), max(these) + 1)
+                        older = {h for h in these if not order.wins(stamp.of(kind, h), kept.get((kind, h)))}
+                        order.note_older(len(older))
+                        these = {h: t for h, t in these.items() if h not in older}
                     put, drop = [], []
                     for h, table in these.items():
                         if table:
                             body = dumps(table)
                             if was.get(h) != body:
-                                put.append((h, kind, device, body))
+                                put.append((h, kind, device, body) + ((stamp.of(kind, h),) if stamp is not None else ()))
                                 if changed is not None and kind != "blocks":
                                     changed.append((kind, h, was.get(h), body))
                                 self._hold(kind, h, table, ledger, tasks, blocks)
@@ -961,21 +997,27 @@ class DeviceCache:
                 self._set(device, row[1], *self._read(c, device, row[2], time.time(), days, [], far, far))
                 self.written[device] = row[1]
 
-    def book(self, device: str, lo: int = None):
+    def book(self, device: str, lo: int = None, stamps: dict = None):
         """The hour book of a device with a good record, read from device_hours and cleaned: the whole book, or its hours from lo on;
-        None if there is no good record.
-        Sổ giờ của một máy có bản ghi tốt, đọc từ device_hours và làm sạch: cả sổ, hoặc các giờ từ lo trở đi; None nếu không có bản ghi tốt."""
+        None if there is no good record. A dict given as stamps gets the time of the send that wrote each hour of it, {kind: {hour: time}}.
+        Sổ giờ của một máy có bản ghi tốt, đọc từ device_hours và làm sạch: cả sổ, hoặc các giờ từ lo trở đi; None nếu không có bản ghi
+        tốt. Dict truyền vào stamps nhận thời điểm của lần gửi đã ghi từng giờ của sổ, {loại: {giờ: thời điểm}}."""
         with self.lock:
             db = self._fresh()
             if not self._kept(device)[0]:
                 return None
             with db.lock:
-                raw = _rows_to_book(devicestore.hours(db.conn, device, HOUR_KINDS, -(1 << 62) if lo is None else lo))
+                rows = devicestore.hours(db.conn, device, HOUR_KINDS, -(1 << 62) if lo is None else lo, stamped=True)
+        raw = _rows_to_book([r[:3] for r in rows])
         now_ms = time.time() * 1000
         out = {"ledger": clean_ledger_hours(raw.get("ledger"), now_ms), "tasks": clean_hours(raw.get("tasks"), now_ms, _WORKERS)}
         blocks = clean_hours(raw.get("blocks"), now_ms, BLOCK_KINDS)
         if blocks:
             out["blocks"] = blocks
+        if stamps is not None:
+            for kind, hour, _, sent_at in rows:
+                if str(hour) in out.get(kind, ()):
+                    stamps.setdefault(kind, {})[str(hour)] = sent_at
         return out
 
     def holds(self, m: dict) -> bool:
@@ -1190,13 +1232,15 @@ def merge_hours(kept: dict, sent: dict) -> dict:
     return out
 
 
-def save_ingest(d: dict, now: float, kind: str = "v1", decided: bool = False) -> str:
+def save_ingest(d: dict, now: float, kind: str = "v1", decided: bool = False, stamp=None) -> str:
     """Save one send and say what was done (SAVED, NEED_FULL or STALE). The IP history comes from the device's previous row, never from the device.
-    kind is send_kind() of what was sent. Reading the row kept, merging and writing happen under one lock, so two sends of one computer
-    at the same moment (one per Claude Code session) never merge on the same old row and lose each other's hours.
+    kind is send_kind() of what was sent. stamp: the times its hours are written with (order.Stamps), by default the send's own
+    (order.stamp_of). Reading the row kept, merging and writing happen under one lock, so two sends of one computer at the same moment (one
+    per Claude Code session) never merge on the same old row and lose each other's hours.
     Ghi một lần máy gửi và cho biết đã làm gì (SAVED, NEED_FULL hay STALE). Lịch sử IP lấy từ dòng cũ của máy, không lấy từ máy gửi.
-    kind là send_kind() của gói đã gửi. Đọc dòng đang giữ, ghép và ghi nằm trong một khoá, để hai lần gửi cùng lúc của một máy
-    (mỗi phiên Claude Code một lần) không bao giờ ghép trên cùng một dòng cũ rồi làm mất giờ của nhau."""
+    kind là send_kind() của gói đã gửi. stamp: các thời điểm dùng để ghi các giờ của nó (order.Stamps), mặc định là của chính lần gửi
+    (order.stamp_of). Đọc dòng đang giữ, ghép và ghi nằm trong một khoá, để hai lần gửi cùng lúc của một máy (mỗi phiên Claude Code một
+    lần) không bao giờ ghép trên cùng một dòng cũ rồi làm mất giờ của nhau."""
     with DEVICES.lock:
         old = DEVICES.get(d["device"])
         if kind == "hours" and old is None:
@@ -1213,7 +1257,9 @@ def save_ingest(d: dict, now: float, kind: str = "v1", decided: bool = False) ->
             kind = "hours"
         if kind == "full":
             _FULL_AT[d["device"]] = now
-        new = {k: v for k, v in d.items() if k not in HOUR_KINDS}
+        # seq only orders the sends: kept in the record it would make the row of the computer written at every send
+        # seq chỉ để xếp thứ tự các lần gửi: giữ trong bản ghi thì nó làm dòng của máy phải ghi lại mỗi lần gửi
+        new = {k: v for k, v in d.items() if k not in HOUR_KINDS and k != "seq"}
         ip = new.get("lanIp") or new.get("ip")
         history = (old or {}).get("ipHistory", [])
         new["ipHistory"] = add_ip_history(history, ip, int(now * 1000)) if ip else history
@@ -1224,10 +1270,13 @@ def save_ingest(d: dict, now: float, kind: str = "v1", decided: bool = False) ->
         # decided: d came out of clean_payload in board/receiver.py, and only name, account and ip were set since (see _clean_again)
         # decided: d đã ra từ clean_payload trong board/receiver.py, và từ đó chỉ name, account và ip được đặt (xem _clean_again)
         again = decided and RECEIVER_FAST_APPLY
+        # the hours keep the send's own time, so an older one that comes later, here or from the receiver, writes none over (board/order.py)
+        # các giờ giữ thời điểm của chính lần gửi, để lần gửi cũ hơn tới sau, ở đây hay từ bộ nhận, không ghi đè giờ nào (board/order.py)
+        stamp = stamp or order.Stamps(order.stamp_of(d))
         if kind == "hours":
-            DEVICES.merge(new, {k: d.get(k) or {} for k in HOUR_KINDS}, int(time.time()), again=again)
+            DEVICES.merge(new, {k: d.get(k) or {} for k in HOUR_KINDS}, int(time.time()), again=again, stamp=stamp)
         else:
-            DEVICES.save(dict(new, **replace_hours(d)), int(time.time()), lazy=True, cleaned=True, again=again)
+            DEVICES.save(dict(new, **replace_hours(d)), int(time.time()), lazy=True, cleaned=True, again=again, stamp=stamp)
         return SAVED
 
 

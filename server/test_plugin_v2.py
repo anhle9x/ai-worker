@@ -199,5 +199,18 @@ class PluginToServer(unittest.TestCase):
         self.assertSameBook(ledger)
 
 
+    def test_a_clock_put_back_two_minutes_still_writes_the_newer_hours(self):
+        # the sends are numbered (seq), so the server takes a send made after the clock went back as the newer one
+        # các lần gửi được đánh số (seq), nên máy chủ nhận lần gửi sau khi đồng hồ lùi là lần mới hơn
+        ledger = {self.hour(1): {"usd": 1.0}}
+        state, _ = self.send(dict(ledger), None)
+        state, _ = self.send(dict(ledger), state)
+        self.clock -= 120_000
+        ledger[self.hour(1)] = {"usd": 2.0}
+        state, p = self.send(dict(ledger), state)
+        self.assertGreater(p["body"]["seq"], p["body"]["updatedAt"])
+        self.assertSameBook(ledger)
+
+
 if __name__ == "__main__":
     unittest.main()

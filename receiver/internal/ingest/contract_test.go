@@ -116,6 +116,7 @@ func TestSharedSampleThroughPython(t *testing.T) {
 				continue
 			}
 			keys := map[string]string{}
+			straight := false
 			for i, step := range get(c, "steps").([]pyjson.Value) {
 				device := get(step, "device").(string) + run.suffix
 				sent, _ := get(step, run.form).(*pyjson.Object)
@@ -147,6 +148,11 @@ func TestSharedSampleThroughPython(t *testing.T) {
 					continue
 				}
 				at := atOf(get(step, "at"))
+				if get(step, "straight") == true {
+					straight = true
+					h.straight(sent, at)
+					continue
+				}
 				h.r.Now = func() int64 { return int64(at * 1000) }
 				status, ans := h.send(resign(t, h.secrets, keys[device], int64(at)), json.RawMessage(pyjson.Encode(sent)))
 				want := run.form == "v2" && get(step, "expectV2") == clean.NeedFull
@@ -164,7 +170,7 @@ func TestSharedSampleThroughPython(t *testing.T) {
 				book := h.pythonBook(device, true)
 				// the record without its time and the state the live numbers read (STATE_FIELDS in server/board/receiver.py): the book
 				// bản ghi bỏ thời điểm và trạng thái mà số trực tiếp đọc (STATE_FIELDS trong server/board/receiver.py): còn lại là sổ
-				for _, k := range []string{"device", "updatedAt", "openSessions", "working", "waiting", "delegating", "tools"} {
+				for _, k := range []string{"device", "updatedAt", "openSessions", "working", "waiting", "delegating", "tools", "stamps"} {
 					book.Delete(k)
 				}
 				if !pyjson.Equal(stripOrder(book), stripOrder(get(expect.Vals[i], "book"))) {
@@ -176,8 +182,10 @@ func TestSharedSampleThroughPython(t *testing.T) {
 				}
 				// what this side keeps: the hours of the day of the last send and later, with that day's totals
 				// thứ bên này giữ: các giờ của ngày của lần gửi cuối trở đi, với tổng của ngày đó
+				// a send straight to Python reaches this side through the policy, which loads the book again; the case does not wait for that
+				// lần gửi thẳng tới Python đến được bên này qua chính sách, khi đó sổ được nạp lại; ca này không chờ việc đó
 				e := h.r.entry(device)
-				if e.rec != nil {
+				if e.rec != nil && !straight {
 					mine := daysOf(totals.DaysOf(e.rec.ledger, e.rec.tasks, tz))
 					for j, day := range mine.Keys {
 						if w, ok := wantDays.Get(day); !ok || !pyjson.Equal(stripOrder(mine.Vals[j]), stripOrder(w)) {
@@ -192,8 +200,31 @@ func TestSharedSampleThroughPython(t *testing.T) {
 	if err := h.r.RefreshPolicy(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if p := h.r.Policy(); p.Proto != 2 || p.Mismatches != 0 {
+	if p := h.r.Policy(); p.Proto != 3 || p.Mismatches != 0 {
 		t.Fatalf("proto %d, %d sends cleaned differently", p.Proto, p.Mismatches)
+	}
+}
+
+// straight writes one send at Python as if it had come straight there, at the time of the case: a batch of its own from another source,
+// without the times of the hours (proto 2), so Python takes the send's own; a send to /ingest would be cleaned at the real time instead.
+// straight ghi một lần gửi ở Python như thể nó tới thẳng đó, theo thời điểm của ca: một lô riêng từ một nguồn khác, không kèm thời điểm của
+// các giờ (proto 2), nên Python lấy thời điểm của chính lần gửi; gửi tới /ingest thì sẽ bị làm sạch theo giờ thật.
+func (h *harness) straight(sent *pyjson.Object, at float64) {
+	h.t.Helper()
+	d := clean.Payload(sent, at)
+	h.seq++
+	b := pyjson.NewObject()
+	b.Set("src", "straight")
+	b.Set("boot", "test")
+	b.Set("seq", pyjson.IntN(h.seq))
+	b.Set("rows", []pyjson.Value{row(d, clean.SendKind(sent), "198.51.100.1", int64(at*1000), nil, nil)})
+	resp, err := h.r.internal(context.Background(), time.Minute, http.MethodPost, "/internal/rows", pyjson.Encode(b))
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		h.t.Fatalf("straight to Python: %d", resp.StatusCode)
 	}
 }
 

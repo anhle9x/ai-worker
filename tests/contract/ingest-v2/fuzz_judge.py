@@ -23,7 +23,7 @@ sys.path.insert(0, SERVER)
 from board import devices  # noqa: E402
 
 NOW = 1795200000.0
-FIELDS = ("v", "device", "updatedAt", "name", "account", "enteredAccount", "lanIp", "ip", "pluginVersion", "openSessions", "working",
+FIELDS = ("v", "device", "updatedAt", "seq", "name", "account", "enteredAccount", "lanIp", "ip", "pluginVersion", "openSessions", "working",
           "waiting", "tools", "hardwareMark", "ipHistory", "delegating", "models", "subagents", "ledger", "tasks", "blocks", "hours", "full",
           "assistants", "quota", "delegations")
 INNER = ("usd", "usdMicro", "input", "output", "cacheRead", "cacheWrite", "gemini", "chatgpt", "gemma", "secret", "commit", "risky", "page",

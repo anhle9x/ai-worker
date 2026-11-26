@@ -38,8 +38,8 @@ test('v: 1 until the server says it reads v: 2, then only what changed', () => {
 test('an older server, which answers only ok, keeps getting v: 1', () => {
   const m = summary({ [HOUR]: { usd: 1 } })
   const p = packetFor(m, { v2: true, acked: hourMarks(m), fullAfter: NOW + H }, NOW)
-  expect(afterAnswer({ v2: true }, '{"ok": true}', p, NOW)).toEqual({})
-  expect(afterAnswer({ v2: true }, 'not json', p, NOW)).toEqual({})
+  expect(afterAnswer({ v2: true }, '{"ok": true}', p, NOW)).toEqual({ seq: NOW })
+  expect(afterAnswer({ v2: true }, 'not json', p, NOW)).toEqual({ seq: NOW })
   expect(packetFor(m, {}, NOW).body.v).toBe(1)
 })
 
@@ -48,7 +48,7 @@ test('needFull, a missing book of marks, and the hour due each send the whole bo
   const state = afterAnswer(undefined, OK(), packetFor(m, undefined, NOW), NOW, () => 0.5)
   expect(state.fullAfter).toBe(NOW + FULL_EVERY_MS + FULL_SPREAD_MS / 2)
   const asked = afterAnswer(state, OK('b1', { needFull: true }), packetFor(m, state, NOW + 2000), NOW + 2000)
-  expect(asked).toEqual({ v2: true, boot: 'b1', needFull: true })
+  expect(asked).toEqual({ v2: true, boot: 'b1', needFull: true, seq: NOW + 2000 })
   for (const s of [asked, { v2: true }, { ...state, fullAfter: NOW + 1000 }] as SendState[]) {
     const p = packetFor(m, s, NOW + 2000)
     expect(p.full).toBe(true)
@@ -70,6 +70,24 @@ test('another start of the server sends the last two days again, not the older h
   // the same start again: nothing to send
   // vẫn lần khởi động đó: không có gì để gửi
   expect(hoursOf(packetFor(m, afterAnswer(restarted, OK('b2'), quiet, NOW + 4000), NOW + 6000)).ledger).toEqual({})
+})
+
+test('each send is numbered above the last one, even when the clock goes back', () => {
+  const m = summary({ [HOUR]: { usd: 1 } })
+  const first = packetFor(m, undefined, NOW)
+  expect([first.seq, first.body.seq]).toEqual([NOW, NOW])
+  const state = afterAnswer(undefined, OK(), first, NOW)
+  expect(state.seq).toBe(NOW)
+  // the clock went back two minutes: the number still goes up
+  // đồng hồ lùi hai phút: số vẫn tăng
+  const back = packetFor(m, state, NOW - 120_000)
+  expect([back.seq, back.body.seq]).toEqual([NOW + 1, NOW + 1])
+  expect(packetFor(m, { ...state, seq: back.seq }, NOW - 100_000).seq).toBe(NOW + 2)
+  // needFull and an older server keep the number; an answer never takes it back below the one held (another session sent since)
+  // needFull và máy chủ cũ vẫn giữ số; một câu trả lời không bao giờ kéo số xuống dưới số đang giữ (phiên khác đã gửi sau đó)
+  expect(afterAnswer(state, OK('b1', { needFull: true }), back, NOW).seq).toBe(NOW + 1)
+  expect(afterAnswer(state, '{"ok": true}', back, NOW).seq).toBe(NOW + 1)
+  expect(afterAnswer({ ...state, seq: NOW + 5 }, OK(), back, NOW).seq).toBe(NOW + 5)
 })
 
 // The server as docs/DATA-MODEL.md says (merge_hours, replace_hours in server/board/devices.py): a v: 1 or full book replaces, a send of

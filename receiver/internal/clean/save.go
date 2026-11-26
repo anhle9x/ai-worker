@@ -1,6 +1,7 @@
 package clean
 
 import (
+	"math"
 	"math/big"
 
 	"aiworker/receiver/internal/pyjson"
@@ -77,4 +78,22 @@ func asFloat(n num) float64 {
 		return f
 	}
 	return float64(n.I)
+}
+
+// StampOf copies order.stamp_of: the time a cleaned send is ordered by, its seq when the plugin numbers its sends, else its updatedAt.
+// StampOf chép order.stamp_of: thời điểm dùng để xếp thứ tự một lần gửi đã làm sạch, seq khi plugin đánh số các lần gửi, không thì updatedAt.
+func StampOf(d *pyjson.Object) int64 {
+	v, ok := d.Get("seq")
+	if !ok {
+		v, _ = d.Get("updatedAt")
+	}
+	n, ok := v.(num)
+	if !ok {
+		return 0
+	}
+	n = toInt(n)
+	if n.Big != nil {
+		return math.MaxInt64
+	}
+	return n.I
 }

@@ -362,7 +362,119 @@ class Receiver(unittest.TestCase):
         self.assertTrue(set(DEVICES) <= set(seen))
         self.assertEqual(seen, sorted(seen))
         one = self.internal("GET", "/internal/devices?device=device-rcvb")[1]["devices"]
-        self.assertEqual([sorted(one[0])], [sorted(["device", "updatedAt", "openSessions", "working", "waiting", "delegating", "ledger", "tasks"])])
+        self.assertEqual([sorted(one[0])], [sorted(["device", "updatedAt", "openSessions", "working", "waiting", "delegating", "ledger", "tasks", "stamps"])])
+
+    def ledger_of(self, device: str) -> dict:
+        return {h: v["usdMicro"] for h, v in receiver.book_for_receiver(device)["ledger"].items()}
+
+    def test_an_older_row_of_the_receiver_never_writes_over_a_newer_send(self):
+        # the computer sent straight here after the receiver took an older row of it, then this server started again: nothing kept in
+        # memory, but the hour keeps the time of the send that wrote it (board/order.py), so the older row leaves it; C48 and C50 lost
+        # money this way
+        # máy gửi thẳng tới đây sau khi bộ nhận đã nhận một dòng cũ hơn của nó, rồi máy chủ này khởi động lại: không còn gì trong bộ nhớ,
+        # nhưng giờ giữ thời điểm của lần gửi đã ghi nó (board/order.py), nên dòng cũ hơn để nguyên giờ đó; C48 và C50 mất tiền theo cách này
+        key, t = self.enrol("device-rcva"), int(time.time() * 1000)
+        h, other = str(t // 3_600_000), str(t // 3_600_000 - 1)
+        status, _ = self.call("POST", "/ingest", {"v": 2, "device": "device-rcva", "updatedAt": t, "hours": {"ledger": {h: {"usdMicro": 200}}}},
+                              Authorization="Bearer " + key)
+        self.assertEqual(status, 200)
+        devices.DEVICES.forget()
+        row = self.row("device-rcva", {"ledger": {h: {"usdMicro": 100}, other: {"usdMicro": 5}}})
+        row["at"] = row["v"]["updatedAt"] = t - 30_000
+        self.assertEqual(self.internal("POST", "/internal/rows", {"src": "go-order", "boot": "b1", "seq": 1, "rows": [row]})[0], 200)
+        self.assertEqual(self.ledger_of("device-rcva"), {h: 200, other: 5})
+
+    def test_a_batch_sent_again_gets_the_answer_it_had(self):
+        # its answer was lost (the receiver gave up waiting): sent again, it is not written twice and says again who needs a whole book
+        # câu trả lời của nó bị mất (bộ nhận thôi chờ): gửi lại, nó không bị ghi hai lần và vẫn nói lại máy nào cần cả sổ
+        self.enrol("device-rcva")
+        drop_rows(["device-rcva"])
+        batch = {"src": "go-again", "boot": "b1", "seq": 1, "rows": [self.row("device-rcva", {"ledger": {}})]}
+        first = self.internal("POST", "/internal/rows", batch)[1]
+        self.assertEqual(first["needFull"], ["device-rcva"])
+        self.assertEqual(self.internal("POST", "/internal/rows", batch)[1], first)
+
+    def test_a_send_left_waiting_never_writes_over_a_newer_one(self):
+        # a send the computer gave up waiting for, taken here 90 seconds later, after a newer one: past the window of 60 seconds too
+        # lần gửi máy đã thôi chờ, được nhận ở đây 90 giây sau, sau một lần gửi mới hơn: vượt cả cửa sổ 60 giây
+        key, t = self.enrol("device-rcva"), int(time.time() * 1000)
+        h = str(t // 3_600_000)
+        for at, usd in ((t, 200), (t - 90_000, 100)):
+            status, _ = self.call("POST", "/ingest", {"v": 2, "device": "device-rcva", "updatedAt": at, "hours": {"ledger": {h: {"usdMicro": usd}}}},
+                                  Authorization="Bearer " + key)
+            self.assertEqual(status, 200)
+        self.assertEqual(self.ledger_of("device-rcva"), {h: 200})
+
+    def straight(self, key: str, device: str, at: int, ledger: dict) -> None:
+        status, _ = self.call("POST", "/ingest", {"v": 2, "device": device, "updatedAt": at, "hours": {"ledger": ledger}}, Authorization="Bearer " + key)
+        self.assertEqual(status, 200)
+
+    def test_an_hour_of_an_older_send_in_a_merged_row_never_writes_over_a_straight_send(self):
+        # the receiver put two sends of the computer in one row (proto 3): an hour of the older one comes with its own time, so a send
+        # straight here between the two keeps that hour, and the row's newer hour is written
+        # bộ nhận gộp hai lần gửi của máy thành một dòng (proto 3): giờ của lần cũ hơn đi kèm thời điểm của chính nó, nên một lần gửi thẳng
+        # tới đây ở giữa hai lần đó giữ được giờ ấy, và giờ mới hơn của dòng vẫn được ghi
+        key, t = self.enrol("device-rcva"), int(time.time() * 1000)
+        h, other = str(t // 3_600_000), str(t // 3_600_000 - 1)
+        self.straight(key, "device-rcva", t + 10_000, {h: {"usdMicro": 300}})
+        row = self.row("device-rcva", {"ledger": {h: {"usdMicro": 100}, other: {"usdMicro": 7}}})
+        row["at"] = row["v"]["updatedAt"] = t + 20_000
+        row["stamp"], row["stamps"] = t + 20_000, {"ledger": {h: t + 5_000, other: t + 20_000}}
+        self.assertEqual(self.internal("POST", "/internal/rows", {"src": "go-merged", "boot": "b1", "seq": 1, "rows": [row]})[0], 200)
+        self.assertEqual(self.ledger_of("device-rcva"), {h: 300, other: 7})
+
+    def test_a_whole_book_in_a_row_keeps_what_its_stamps_say(self):
+        # a whole book with a newer hour put on it (proto 3): an hour gone at a time older than a straight send stays, one gone after it
+        # leaves, and the book's own hours keep the book's time
+        # một sổ đủ có giờ mới hơn đặt lên (proto 3): giờ vắng ở thời điểm cũ hơn một lần gửi thẳng thì ở lại, giờ vắng sau lần đó thì đi,
+        # và các giờ của chính sổ giữ thời điểm của sổ
+        key, t = self.enrol("device-rcva"), int(time.time() * 1000)
+        h0, h1, h2 = (str(t // 3_600_000 - i) for i in range(3))
+        self.straight(key, "device-rcva", t + 10_000, {h1: {"usdMicro": 11}, h2: {"usdMicro": 22}})
+        row = self.row("device-rcva", {"ledger": {h0: {"usdMicro": 5}}}, kind="full")
+        row["at"] = row["v"]["updatedAt"] = t + 20_000
+        row["stamp"], row["stamps"] = t + 5_000, {"ledger": {h0: t + 20_000, h2: t + 20_000}}
+        self.assertEqual(self.internal("POST", "/internal/rows", {"src": "go-whole", "boot": "b1", "seq": 1, "rows": [row]})[0], 200)
+        self.assertEqual(self.ledger_of("device-rcva"), {h0: 5, h1: 11})
+        self.assertEqual(receiver.book_for_receiver("device-rcva")["stamps"]["ledger"], {h0: t + 20_000, h1: t + 10_000})
+
+    def test_seq_orders_the_sends_of_a_computer_whose_clock_went_back(self):
+        # the plugin numbers its sends (seq): one made after the clock went back two minutes is still the newer one, and seq is not kept
+        # in the record, so it never makes the row of the computer written again
+        # plugin đánh số các lần gửi (seq): lần gửi sau khi đồng hồ lùi hai phút vẫn là lần mới hơn, và seq không giữ trong bản ghi, nên nó
+        # không bao giờ làm dòng của máy phải ghi lại
+        key, t = self.enrol("device-rcva"), int(time.time() * 1000)
+        h = str(t // 3_600_000 - 1)
+        for at, seq, usd in ((t, t, 100), (t - 120_000, t + 1, 200)):
+            status, _ = self.call("POST", "/ingest", {"v": 2, "device": "device-rcva", "updatedAt": at, "seq": seq,
+                                                      "hours": {"ledger": {h: {"usdMicro": usd}}}}, Authorization="Bearer " + key)
+            self.assertEqual(status, 200)
+        self.assertEqual(self.ledger_of("device-rcva"), {h: 200})
+        self.assertNotIn("seq", devices.DEVICES.get("device-rcva"))
+        now = time.time()
+        self.assertEqual(devices.clean_payload({"v": 1, "device": "device-rcva", "updatedAt": 5, "seq": 9}, now)["seq"], 9)
+        self.assertNotIn("seq", devices.clean_payload({"v": 1, "device": "device-rcva", "updatedAt": 5, "seq": True}, now))
+
+    def test_no_batch_is_written_between_two_books_of_a_page(self):
+        # the lock of the devices is held for the whole page, so a batch (apply_rows holds it too) waits for the page to end
+        # khoá các máy được giữ cả trang, nên một lô (apply_rows cũng giữ nó) phải chờ trang xong
+        for device in DEVICES:
+            self.enrol(device)
+        got, one = [], receiver.book_for_receiver
+
+        def book(device, whole=False):
+            other = threading.Thread(target=lambda: got.append(devices.DEVICES.lock.acquire(timeout=0.5) and devices.DEVICES.lock.release() is None))
+            other.start()
+            other.join()
+            return one(device, whole)
+
+        receiver.book_for_receiver = book
+        try:
+            page = receiver.devices_page("", 1000)
+        finally:
+            receiver.book_for_receiver = one
+        self.assertTrue(set(DEVICES) <= {m["device"] for m in page["devices"]})
+        self.assertTrue(got and not any(got), got)
 
     def test_the_record_carries_the_state_of_the_board(self):
         # what the receiver's live numbers need of a computer besides its hours (STATE_FIELDS), and nothing that tells who it is
@@ -426,6 +538,25 @@ class NoWaitingForTheInternalCode(unittest.TestCase):
             t.join(2)
         self.assertEqual(got, [code])
         self.assertTrue(code)
+
+    def test_the_computers_of_a_batch_are_noted_in_one_transaction(self):
+        """note_used_many writes the device_keys rows of new computers in one transaction, and leaves alone those already noted.
+        note_used_many ghi các dòng device_keys của máy mới trong một giao dịch, và để yên các máy đã ghi nhận."""
+        keys, database = devicekeys.DEVICE_KEYS, db.data_db()
+        names = ["device-many%d" % i for i in range(5)]
+        keys.note_used(names[0], None, time.time())
+        begins = []
+        database.conn.set_trace_callback(lambda sql: begins.append(sql) if sql.startswith("BEGIN") else None)
+        try:
+            keys.note_used_many(names + names[:2], None, time.time())
+            self.assertEqual(len(begins), 1)
+            keys.note_used_many(names, None, time.time())
+            self.assertEqual(len(begins), 1)
+        finally:
+            database.conn.set_trace_callback(None)
+        with database.lock:
+            got = {r[0] for r in database.conn.execute("SELECT device FROM device_keys WHERE device LIKE 'device-many%'")}
+        self.assertEqual(got, set(names))
 
     def test_the_switch_interval(self):
         self.assertEqual(settings.SWITCH_MS, 0.5)

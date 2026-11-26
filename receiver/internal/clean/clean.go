@@ -362,6 +362,14 @@ func Payload(d pyjson.Value, now float64) *obj {
 		updatedAt = pyjson.FloatN(bound)
 	}
 	out.Set("updatedAt", updatedAt)
+	// the number the plugin gives its sends (_clean_seq): a whole number, no further ahead than a day
+	// số plugin đánh cho các lần gửi (_clean_seq): một số nguyên, không vượt quá một ngày phía trước
+	if seq, ok := cleanNumber(get(o, "seq"), defaultHigh); ok && seq.Int && seq.Big == nil {
+		if bound := int64(nowMs) + dayMs; seq.I > bound {
+			seq = pyjson.IntN(bound)
+		}
+		out.Set("seq", seq)
+	}
 	for _, f := range []struct {
 		name  string
 		limit int
