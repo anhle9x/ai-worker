@@ -120,6 +120,18 @@ func (p *waiting) above(row *pyjson.Object, s int64) (*pyjson.Object, map[hourKe
 	return out, times
 }
 
+// hourCount is the number of hours in the hour tables of d, empty ones included: an empty table removes an hour, and is an hour of the send.
+// hourCount là số giờ trong các bảng giờ của d, kể cả bảng rỗng: bảng rỗng xoá một giờ, và vẫn là một giờ của lần gửi.
+func hourCount(d *pyjson.Object) int {
+	n := 0
+	for _, kind := range clean.HourKinds {
+		if t, ok := field(d, kind).(*pyjson.Object); ok {
+			n += len(t.Keys)
+		}
+	}
+	return n
+}
+
 func has(o *pyjson.Object, k string) bool {
 	_, ok := o.Get(k)
 	return ok
@@ -139,6 +151,9 @@ func newest(a, b *pyjson.Object) *pyjson.Object {
 func (p *waiting) batchRow() pyjson.Value {
 	out := row(p.row(), p.kind, p.ip, p.at, p.delegations, nil).(*pyjson.Object)
 	out.Set("stamp", pyjson.IntN(p.base))
+	if p.older > 0 {
+		out.Set("older", pyjson.IntN(int64(p.older)))
+	}
 	if len(p.stamps) > 0 {
 		keys := make([]hourKey, 0, len(p.stamps))
 		for k := range p.stamps {

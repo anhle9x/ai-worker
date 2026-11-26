@@ -250,6 +250,11 @@ type waiting struct {
 	// base: thời điểm của lần gửi chính của dòng; stamps: thời điểm của từng giờ đến từ lần gửi khác, có mặt hay đã vắng (order.go)
 	base   int64
 	stamps map[hourKey]int64
+	// older: the hours of sends put together here that were left out, older than what the row holds of them; Python counts them as
+	// it counts its own (order.note_older), since it never sees them
+	// older: số giờ của các lần gửi gộp ở đây bị để ra ngoài, vì cũ hơn thứ dòng đang giữ của giờ đó; Python đếm chúng như đếm của chính
+	// nó (order.note_older), vì nó không bao giờ thấy chúng
+	older int
 }
 
 func (p *waiting) add(d *pyjson.Object, kind, ip string, at int64, delegations []pyjson.Value) {
@@ -272,6 +277,7 @@ func (p *waiting) add(d *pyjson.Object, kind, ip string, at int64, delegations [
 			sent = clean.ReplaceHours(d)
 		}
 		newer := p.newerHours(row, sent, s)
+		p.older += hourCount(sent) - hourCount(newer)
 		merged := clean.MergeHours(row, newer)
 		if p.kind == "hours" {
 			merged = unionHours(row, newer)
@@ -283,6 +289,7 @@ func (p *waiting) add(d *pyjson.Object, kind, ip string, at int64, delegations [
 		// một sổ đủ: các giờ dòng đang giữ từ các lần gửi mới hơn vẫn nằm trên nó
 		row := p.row()
 		over, times := p.above(row, s)
+		p.older += hourCount(over)
 		p.base, p.stamps = s, times
 		p.keep(withHours(newest(row, d), clean.MergeHours(d, over)), kind)
 	default:

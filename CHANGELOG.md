@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.26 - 2026-11-26
+
+### Fixed
+- With the Go receiver, the count on the Admin page of hours left as they were (older than what the server holds) now includes the hours the receiver itself left out when it put several sends of a computer together. Python never sees those hours, so they were not counted before; the receiver now says on each row how many (`older`) and Python adds them. The receiver and the server should be updated together; an older server ignores the new field.
+
 ## 0.50.25 - 2026-11-26
 
 ### Changed

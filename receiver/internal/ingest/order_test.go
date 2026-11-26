@@ -87,3 +87,37 @@ func TestTheHoursHeldKeepTheTimeOfTheirSend(t *testing.T) {
 		t.Fatalf("times held: base %d, apart %v", after.base, after.stamps)
 	}
 }
+
+// TestTheRowSaysHowManyHoursItLeftOut: the hours of an older send left out when sends are put together are counted on the row, so Python
+// counts them on the Admin page as it counts its own (order.note_older): it never sees them.
+// TestTheRowSaysHowManyHoursItLeftOut: các giờ của lần gửi cũ hơn bị để ra ngoài khi gộp các lần gửi được đếm trên dòng, để Python đếm
+// chúng trên trang Quản trị như đếm của chính nó (order.note_older): nó không bao giờ thấy chúng.
+func TestTheRowSaysHowManyHoursItLeftOut(t *testing.T) {
+	const device = `"device": "device-o2"`
+	olderOf := func(row pyjson.Value) string { return string(pyjson.Encode(field(row, "older"))) }
+	p := &waiting{}
+	p.add(cleaned(t, `{"v": 2, `+device+`, "updatedAt": 1791165600000, "hours": {"ledger": {"497546": {"usdMicro": 1}, "497545": {"usdMicro": 9}}}}`), "hours", "a", 1, nil)
+	if got := olderOf(p.batchRow()); got != "null" {
+		t.Fatalf("one send leaves nothing out: %s", got)
+	}
+	// late and older: 497545 is left out, 497544 is new and goes on the row
+	// tới muộn và cũ hơn: 497545 bị để ra ngoài, 497544 là giờ mới và vào dòng
+	p.add(cleaned(t, `{"v": 2, `+device+`, "updatedAt": 1791165500000, "hours": {"ledger": {"497545": {"usdMicro": 4}, "497544": {"usdMicro": 3}}}}`), "hours", "a", 2, nil)
+	if got := olderOf(p.batchRow()); got != "1" {
+		t.Fatalf("older hours: %s", got)
+	}
+	// a newer send leaves out nothing more
+	// lần gửi mới hơn không để thêm giờ nào ra ngoài
+	p.add(cleaned(t, `{"v": 2, `+device+`, "updatedAt": 1791165700000, "hours": {"ledger": {"497546": {"usdMicro": 2}}}}`), "hours", "a", 3, nil)
+	if got := olderOf(p.batchRow()); got != "1" {
+		t.Fatalf("after a newer send: %s", got)
+	}
+	// a whole book older than two hours waiting: both stay as they are, and are counted
+	// một sổ đủ cũ hơn hai giờ đang chờ: cả hai giữ nguyên, và được đếm
+	q := &waiting{}
+	q.add(cleaned(t, `{"v": 2, `+device+`, "updatedAt": 1791165700000, "hours": {"ledger": {"497546": {"usdMicro": 8}, "497540": {}}}}`), "hours", "a", 1, nil)
+	q.add(cleaned(t, `{"v": 2, `+device+`, "updatedAt": 1791165600000, "full": true, "hours": {"ledger": {"497546": {"usdMicro": 5}, "497540": {"usdMicro": 6}, "497541": {"usdMicro": 7}}}}`), "full", "a", 2, nil)
+	if got := olderOf(q.batchRow()); got != "2" {
+		t.Fatalf("whole book: %s", got)
+	}
+}

@@ -66,6 +66,9 @@ from board.devices import (
 # chính sách nhớ bao nhiêu máy được ghi thẳng ở đây; bộ nhận chậm hơn mức đó thì bỏ mọi sổ nó đang giữ
 WRITTEN_KEEP = 20_000
 DEVICES_PAGE_MAX = 2000
+# the most hours one row of the receiver may say it left out: 3 kinds of hours for 8 days, for many sends, with room to spare
+# số giờ nhiều nhất một dòng của bộ nhận được báo đã để ra ngoài: 3 loại giờ cho 8 ngày, của nhiều lần gửi, còn dư
+OLDER_MAX = 100_000
 # the version of the internal protocol between the receiver and this server, in every policy document
 # phiên bản giao thức nội bộ giữa bộ nhận và máy chủ này, có trong mọi tài liệu chính sách
 PROTO = 3
@@ -342,6 +345,13 @@ def apply_rows(batch, now: float):
         if isinstance(k, list) and row.get("kind") in ("v1", "hours", "full") and len(k) == 2 and k[0] == "m" and isinstance(k[1], str) \
                 and k[1] in INGEST_GATE.identities and k[1] not in skipped:
             used.append(k[1])
+            # the hours the receiver left out when it put several sends together, older than what the row holds (proto 3): counted as
+            # the ones this server leaves out itself, since they never come here
+            # các giờ bộ nhận để ra ngoài khi gộp nhiều lần gửi, cũ hơn thứ dòng đang giữ (proto 3): đếm như các giờ máy chủ này tự để
+            # ra ngoài, vì chúng không bao giờ tới đây
+            n = row.get("older")
+            if isinstance(n, int) and not isinstance(n, bool) and 0 < n <= OLDER_MAX:
+                order.note_older(n, k[1])
     DEVICE_KEYS.note_used_many(used, None, now)
     for d, records in delegations:
         AUDIT_LOG.write_delegations(d["device"], d.get("name", ""), d.get("account", ""), records)

@@ -436,6 +436,23 @@ class Receiver(unittest.TestCase):
         self.straight(key, "device-rcva", t - 80_000, {h: {"usdMicro": 200}})
         self.assertEqual(views.admin_data(time.time(), "", "")["olderHours"], {"hours": 2, "computers": 1})
 
+    def test_the_hours_the_receiver_left_out_are_counted_too(self):
+        # the receiver says on a row how many hours of older sends it left out when it put them together; they are counted with this
+        # server's own, once, and a batch sent again is not counted again
+        # bộ nhận báo trên dòng số giờ của các lần gửi cũ hơn nó để ra ngoài khi gộp; chúng được đếm cùng các giờ của máy chủ này, một
+        # lần, và lô gửi lại không được đếm lần nữa
+        from board import order
+        order.reset()
+        self.enrol("device-rcva")
+        self.enrol("device-rcvb")
+        h = str(int(time.time()) // 3600)
+        rows = [dict(self.row("device-rcva", {"ledger": {h: {"usdMicro": 5}}}), stamp=int(time.time() * 1000), older=3),
+                dict(self.row("device-rcvb", {"ledger": {h: {"usdMicro": 5}}}), stamp=int(time.time() * 1000), older=True)]
+        batch = {"src": "go-older", "boot": "b1", "seq": 1, "rows": rows}
+        self.assertEqual(self.internal("POST", "/internal/rows", batch)[0], 200)
+        self.internal("POST", "/internal/rows", batch)
+        self.assertEqual(views.admin_data(time.time(), "", "")["olderHours"], {"hours": 3, "computers": 1})
+
     def test_a_whole_book_in_a_row_keeps_what_its_stamps_say(self):
         # a whole book with a newer hour put on it (proto 3): an hour gone at a time older than a straight send stays, one gone after it
         # leaves, and the book's own hours keep the book's time
