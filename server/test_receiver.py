@@ -472,6 +472,22 @@ class Receiver(unittest.TestCase):
         self.assertEqual(devices.clean_payload({"v": 1, "device": "device-rcva", "updatedAt": 5, "seq": 9}, now)["seq"], 9)
         self.assertNotIn("seq", devices.clean_payload({"v": 1, "device": "device-rcva", "updatedAt": 5, "seq": True}, now))
 
+    def test_the_books_of_computers_enrolled_out_of_order_come_in_order(self):
+        # the pages follow the order of the ids, not the order the computers were enrolled in, so no computer is skipped or given twice
+        # các trang theo thứ tự mã, không theo thứ tự ghi danh, nên không máy nào bị bỏ sót hay đưa hai lần
+        for device in reversed(DEVICES):
+            self.enrol(device)
+        for limit in (1, 2, 1000):
+            seen, after = [], ""
+            while True:
+                page = receiver.devices_page(after, limit)
+                seen += [m["device"] for m in page["devices"]]
+                if not page["next"]:
+                    break
+                after = page["next"]
+            self.assertEqual(seen, sorted(set(seen)), limit)
+            self.assertTrue(set(DEVICES) <= set(seen), limit)
+
     def test_no_batch_is_written_between_two_books_of_a_page(self):
         # the lock of the devices is held for the whole page, so a batch (apply_rows holds it too) waits for the page to end
         # khoá các máy được giữ cả trang, nên một lô (apply_rows cũng giữ nó) phải chờ trang xong

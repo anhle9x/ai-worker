@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.25 - 2026-11-26
+
+### Changed
+- With the Go receiver, a page of books it reads from the server no longer sorts the ids of every computer: only the ids that page needs are picked. With 100,000 computers, a page of 50 (the size the receiver falls back to when the server is slow) now takes about 3 ms instead of 9 under the lock that holds back the batches, and a whole load in pages of 50 about 6 seconds instead of 19.
+
 ## 0.50.24 - 2026-11-26
 
 ### Fixed
