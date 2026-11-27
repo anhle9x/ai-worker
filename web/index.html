@@ -1106,7 +1106,7 @@
       const link = /^\[([^\]\n]+)\]\([^)\s]+\)$/.exec(part)
       if (link) { inline(into, link[1]); continue }
       if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) into.append(el('code', '', part.slice(1, -1)))
-      else if (part.length > 4 && part.startsWith('**') && part.endsWith('**')) into.append(el('b', '', part.slice(2, -2)))
+      else if (part.length > 4 && part.startsWith('**') && part.endsWith('**')) into.append(inline(el('b'), part.slice(2, -2)))
       else into.append(part)
     }
     return into

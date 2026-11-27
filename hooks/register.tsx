@@ -10,7 +10,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, ToolCallResult } from 'claude-code'
 
 import type { Activity, BlockKind, Job, TeamState, WorkerId } from '../types'
-import { MAX_SHOT_BYTES, applyPlan, describeTool, finishPlan, folderName, savedActivity, sayEntry, shotFile, shotName, staleSessionFiles, unusedShots, youEntry } from './activity'
+import { MAX_SHOT_BYTES, applyPlan, describeTool, finishPlan, folderName, mergeActivity, savedActivity, sayEntry, shotFile, shotName, staleSessionFiles, unusedShots, youEntry } from './activity'
 import { EDIT_TOOLS, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextNoteForClaude, contextWarning, costDelta, formatUsd, shortCount, toUsage } from './edits'
 import { answerModel, buildMachineSummary, PACE_MIN_MS, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, toQuota } from './team'
 import { chatTitle, cleanTitle, newTitles, nextTitle, notePrompt, noteRename, titleDue } from './titles'
@@ -309,6 +309,25 @@ async function list($: EngineInterface, isIn: boolean) {
   listedAt = await $.clock.now()
 }
 
+/**
+ * Takes back, once, the feed lines this session's own file still holds. Every write of that file waits for it:
+ * a message sent while the session is still starting would otherwise write the empty memory over the file first.
+ */
+/** Lấy lại, một lần, các dòng hoạt động mà file của chính phiên còn giữ. Mọi lần ghi file đó đều chờ việc này: nếu không, một tin nhắn gửi trong lúc phiên còn đang bắt đầu sẽ ghi bộ nhớ rỗng đè lên file trước. */
+let restored: Promise<void> | undefined
+function restoreFeed($: EngineInterface): Promise<void> {
+  restored ??= (async () => {
+    try {
+      const kept = savedActivity(await $.fs.read(`${await webFolder($)}/sessions/${(await whoAmI($)).id}.js`), MAX_ACTIVITY)
+      if (kept.length) await update($, team, s => ({ ...s, activity: mergeActivity(kept, s.activity ?? [], MAX_ACTIVITY) }))
+    } catch {
+      // a first start has no file yet
+      // lần bắt đầu đầu tiên chưa có file
+    }
+  })()
+  return restored
+}
+
 async function save($: EngineInterface, s: TeamState) {
   try {
     const dir = await webFolder($)
@@ -335,6 +354,7 @@ async function beat($: EngineInterface) {
     const dir = await webFolder($)
     const { id, name } = await whoAmI($)
     const now = await $.clock.now()
+    await restoreFeed($)
     const s = await read($, team)
     const body = JSON.stringify({ ...s, name, updatedAt: activeAt || now, seenAt: now })
     await $.fs.write(`${dir}/sessions/${id}.js`, `window.__aiWorkerIn && window.__aiWorkerIn(${JSON.stringify(id)}, ${body});\n`)
@@ -1574,6 +1594,7 @@ async function noteBlock($: EngineInterface, kind: BlockKind, key: string): Prom
 }
 
 async function commit($: EngineInterface, fn: (s: TeamState) => TeamState): Promise<TeamState> {
+  await restoreFeed($)
   const s = await update($, team, fn)
   await save($, s)
   return s
@@ -1845,15 +1866,7 @@ export const register: Register = on => {
     // the lines its own file still holds are taken back before that file is written over
     // luồng hoạt động nằm trong bộ nhớ của phiên, vốn lại rỗng sau khi cập nhật hoặc khi app mở lại:
     // các dòng mà file của chính phiên còn giữ được lấy lại trước khi file đó bị ghi đè
-    try {
-      if (!(await read($, team)).activity?.length) {
-        const kept = savedActivity(await $.fs.read(`${await webFolder($)}/sessions/${(await whoAmI($)).id}.js`), MAX_ACTIVITY)
-        if (kept.length) await update($, team, s => (s.activity?.length ? s : { ...s, activity: kept }))
-      }
-    } catch {
-      // a first start has no file yet
-      // lần bắt đầu đầu tiên chưa có file
-    }
+    await restoreFeed($)
     await save($, await read($, team))
     try {
       await list($, true)

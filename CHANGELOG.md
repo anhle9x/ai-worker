@@ -2,6 +2,12 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.36 - 2026-11-28
+
+### Fixed
+- The Activity tab still lost the lines of a session when a message was sent while that session was starting again (the session `/update` was typed in, most often): the message was written to the session's file before the kept lines were taken back. Every write of that file now waits for them.
+- In what Claude said, a link inside bold text still showed its brackets and address.
+
 ## 0.50.35 - 2026-11-28
 
 ### Added

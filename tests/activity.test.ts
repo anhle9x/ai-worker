@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { MAX_SHOT_BYTES, STALE_MS, applyPlan, describeTool, finishPlan, folderName, mediaPaths, ownWords, savedActivity, sayEntry, shotFile, shotName, staleSessionFiles, unusedShots, youEntry } from '../hooks/activity'
+import { MAX_SHOT_BYTES, STALE_MS, applyPlan, describeTool, finishPlan, folderName, mediaPaths, mergeActivity, ownWords, savedActivity, sayEntry, shotFile, shotName, staleSessionFiles, unusedShots, youEntry } from '../hooks/activity'
 
 test('tool calls read as short lines', () => {
   expect(describeTool('Bash', { command: 'ls -la', description: 'List files' })).toEqual({ verb: 'run', text: 'List files' })
@@ -123,4 +123,13 @@ test('copies of pasted images go when no line shows them or after a week', () =>
   ]
   const feed = [{ at: 1, kind: 'you' as const, text: '', pasted: 1, shots: ['me.1.1', 'me.3.1'] }]
   expect(unusedShots(files, now, 'me', feed)).toEqual(['me.2.1.js', 'other.0.1.js', 'me.3.1.js'])
+})
+
+test('lines kept in the file go before the lines the memory holds, none twice', () => {
+  const line = (at: number) => ({ at, kind: 'say' as const, text: `t${at}` })
+  expect(mergeActivity([line(1), line(2)], []).map(a => a.at)).toEqual([1, 2])
+  expect(mergeActivity([line(1), line(2)], [line(5)]).map(a => a.at)).toEqual([1, 2, 5])
+  expect(mergeActivity([line(1), line(2), line(5)], [line(2), line(5), line(6)]).map(a => a.at)).toEqual([1, 2, 5, 6])
+  expect(mergeActivity([], [line(5)]).map(a => a.at)).toEqual([5])
+  expect(mergeActivity([line(1), line(2), line(3)], [line(4)], 2).map(a => a.at)).toEqual([3, 4])
 })

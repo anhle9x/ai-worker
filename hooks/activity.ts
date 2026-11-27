@@ -261,6 +261,17 @@ export function savedActivity(file: string, max = 80): Activity[] {
   }
 }
 
+/**
+ * The feed after a session started again: the lines its file kept, then the
+ * lines its memory already holds. A kept line the memory has too counts once,
+ * and one newer than the memory's first line is left out, so nothing is doubled.
+ */
+/** Luồng hoạt động sau khi một phiên bắt đầu lại: các dòng file của nó còn giữ, rồi tới các dòng bộ nhớ đang có. Dòng mà bộ nhớ cũng có thì tính một lần, và dòng mới hơn dòng đầu của bộ nhớ thì bỏ ra, để không gì bị lặp. */
+export function mergeActivity(kept: readonly Activity[], now: readonly Activity[], max = 80): Activity[] {
+  const first = now[0]?.at ?? Infinity
+  return [...kept.filter(a => a.at < first), ...now].slice(-max)
+}
+
 /** The last folder of a working directory, on macOS, Linux (`/`) or Windows (`\`). */
 /** Thư mục cuối của một thư mục làm việc, trên macOS, Linux (`/`) hoặc Windows (`\`). */
 export function folderName(cwd: string): string {
