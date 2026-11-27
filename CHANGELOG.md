@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.37 - 2026-11-28
+
+### Fixed
+- The Activity tab still lost a session's lines when the app reopened, for any session that has a title: the title arrives on a start event of its own, and that event wrote the starting session's empty memory over the session's file before the kept lines were read. The kept lines are now taken back inside the one function that writes the file, so no caller can write first. The copies of pasted images of those lines stay with them.
+
 ## 0.50.36 - 2026-11-28
 
 ### Fixed

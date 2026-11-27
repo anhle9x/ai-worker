@@ -328,8 +328,14 @@ function restoreFeed($: EngineInterface): Promise<void> {
   return restored
 }
 
-async function save($: EngineInterface, s: TeamState) {
+async function save($: EngineInterface, given: TeamState) {
   try {
+    // the kept lines come back before the file is written, whoever asks for the write: the chat's title arrives
+    // on its own start event and used to write a starting session's empty memory over the file
+    // các dòng còn giữ được lấy lại trước khi ghi file, bất kể ai yêu cầu ghi: tiêu đề cuộc trò chuyện tới
+    // theo sự kiện bắt đầu riêng của nó và từng ghi bộ nhớ rỗng của phiên đang bắt đầu đè lên file
+    await restoreFeed($)
+    const s = (await read($, team)) ?? given
     const dir = await webFolder($)
     const { id, name } = await whoAmI($)
     const now = await $.clock.now()
