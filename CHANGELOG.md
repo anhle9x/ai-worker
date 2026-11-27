@@ -2,6 +2,13 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.33 - 2026-11-28
+
+### Changed
+- The architecture page draws the Go receiver's flow as two diagrams, sending the numbers and reading the live numbers, in place of one with five columns that GitHub showed too small to read.
+- The installer of the Go receiver was tried against a real firewalld and a real Caddy on Ubuntu 24.04: the firewall check in its three states, Caddy holding port 443 on every address and freed by the lines the installer prints, and the dashboard's sub-domain guessed from Caddy's own file.
+- Three small things the documents and comments had wrong or unclear: the help of `tests/load/load_test.py --quick` said about 30 seconds where it takes about 15; the receiver's page gave two speeds for Python's writes without saying they came from two measurements; a comment in the tests' workflow counted two Windows jobs where there are three.
+
 ## 0.50.32 - 2026-11-28
 
 ### Added

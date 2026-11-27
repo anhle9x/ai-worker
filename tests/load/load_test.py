@@ -550,7 +550,7 @@ def machine_info() -> str:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Load test of the AI Worker board server on this computer. Talks only to 127.0.0.1.")
-    parser.add_argument("--quick", action="store_true", help="a short run to check the test itself works (about 30 seconds)")
+    parser.add_argument("--quick", action="store_true", help="a short run to check the test itself works (about 15 seconds)")
     parser.add_argument("--seconds", type=float, default=60, help="length of each run in seconds (default 60)")
     parser.add_argument("--levels", default="20,50,150,300", help="numbers of computers for the office runs (default 20,50,150,300)")
     parser.add_argument("--processes", type=int, default=max(1, min(8, (os.cpu_count() or 2) // 2)), help="load processes (default half the cores, at most 8)")

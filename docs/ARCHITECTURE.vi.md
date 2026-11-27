@@ -215,7 +215,6 @@ sequenceDiagram
   participant W as webhook.py
   participant R as Bộ nhận (Go)
   participant D as data/
-  participant B as Trang bảng
   P->>W: POST /ingest kèm khoá riêng của máy, như trên
   W-->>P: 200 kèm ingestUrls, chỉ cho máy được chọn và gửi v 2
   P->>R: Các lần gửi sau tới bộ nhận, qua TLS ở địa chỉ riêng của nó
@@ -228,10 +227,22 @@ sequenceDiagram
   W-->>R: Số của lô, và các máy cần đọc lại
   Note over P,R: Mã chung, hoặc khoá tới hạn đổi, được chuyển nguyên cho webhook
   Note over P,W: Bộ nhận không trả lời thì plugin quay về /ingest
+```
+
+Sau đó trang bảng đọc số trực tiếp từ bộ nhận, bằng một vé do webhook cấp:
+
+```mermaid
+sequenceDiagram
+  participant B as Trang bảng
+  participant W as webhook.py
+  participant R as Bộ nhận (Go)
   B->>W: POST /sse/ticket, kèm phiên đã đăng nhập
+  W->>W: Đã đăng nhập, và từ chính trang của bảng? Không thì 404
   W-->>B: Một vé cho một phạm vi, 5 phút
   B->>R: GET /live kèm vé
+  R->>R: Kiểm vé và phạm vi của nó, sai thì 401 hoặc 403
   R-->>B: Số của phạm vi đó khi chúng đổi, không có tên
+  Note over B,W: Tên và phần còn lại của bảng vẫn lấy từ /data
 ```
 
 Các đường dưới `/internal/` chỉ trả lời lời gọi từ chính máy đó kèm mã nội bộ; từ nơi khác thì chúng như không tồn tại (404). Bộ nhận không giữ tên hay email nào, và không ghi file nào; địa chỉ của máy đi kèm dòng của nó tới webhook. Máy nào sang bộ nhận là do quản trị chọn (`RECEIVER_INGEST_DEVICES`, `RECEIVER_INGEST_PERCENT`), và để trống `RECEIVER_INGEST_URLS`, hoặc dừng bộ nhận, là đưa tất cả về lại webhook.

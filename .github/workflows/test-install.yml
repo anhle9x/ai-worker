@@ -3,12 +3,12 @@
 # GitHub counts minutes in a private repository against the account's spending, and free in a public one. So on a push the
 # jobs run only in a public repository (the published one, and public forks); a private one, such as the development copy,
 # skips them at once and spends nothing: its tests run on the developer's computer before each release. Started by hand
-# (workflow_dispatch), they run anywhere. When they run, the two Windows jobs, which cost the most minutes, run only when a
+# (workflow_dispatch), they run anywhere. When they run, the three Windows jobs, which cost the most minutes, run only when a
 # push changes something they test (see "Decide whether the Windows jobs run") or when the workflow is started by hand.
 # GitHub tính số phút ở repo riêng tư vào mức chi của tài khoản, còn ở repo công khai thì miễn phí. Nên khi đẩy code, các việc
 # chỉ chạy ở repo công khai (repo phát hành và các bản fork công khai); repo riêng tư, như bản phát triển, bỏ qua ngay và không
 # tốn gì: bài kiểm của nó chạy trên máy người phát triển trước mỗi lần phát hành. Bấm chạy tay (workflow_dispatch) thì chạy ở
-# mọi nơi. Khi chạy, hai việc trên Windows, tốn nhiều phút nhất, chỉ chạy khi lần đẩy đổi thứ mà chúng kiểm (xem
+# mọi nơi. Khi chạy, ba việc trên Windows, tốn nhiều phút nhất, chỉ chạy khi lần đẩy đổi thứ mà chúng kiểm (xem
 # "Decide whether the Windows jobs run") hoặc khi workflow được bấm chạy tay.
 # Only the normal package is used (no packaging/company.json, no company send code).
 # Chỉ dùng gói thường (không có packaging/company.json, không có mã gửi của công ty).

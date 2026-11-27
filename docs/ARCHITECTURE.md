@@ -215,7 +215,6 @@ sequenceDiagram
   participant W as webhook.py
   participant R as Receiver (Go)
   participant D as data/
-  participant B as Board page
   P->>W: POST /ingest with the computer's own key, as above
   W-->>P: 200 with ingestUrls, only for a chosen computer that sends v 2
   P->>R: Next sends go to the receiver, over TLS on its own address
@@ -228,10 +227,22 @@ sequenceDiagram
   W-->>R: The batch number, and the computers to read again
   Note over P,R: The shared key, or a key due for renewal, is passed to the webhook as it came
   Note over P,W: The receiver not answering sends the plugin back to /ingest
+```
+
+The board then reads its live numbers from the receiver, with a ticket the webhook gives:
+
+```mermaid
+sequenceDiagram
+  participant B as Board page
+  participant W as webhook.py
+  participant R as Receiver (Go)
   B->>W: POST /sse/ticket, with a logged-in session
+  W->>W: Logged in, and from the board's own page? Else 404
   W-->>B: A ticket for one scope, 5 minutes
   B->>R: GET /live with the ticket
+  R->>R: Check the ticket and its scope, else 401 or 403
   R-->>B: The numbers of that scope as they change, no name
+  Note over B,W: Names and the rest of the board still come from /data
 ```
 
 The paths under `/internal/` answer only a call from the machine itself with the internal code; from anywhere else they are not there (404). The receiver holds no name and no email, and writes no file; the computer's address goes to the webhook with its row. Which computers go to it is the admin's choice (`RECEIVER_INGEST_DEVICES`, `RECEIVER_INGEST_PERCENT`), and emptying `RECEIVER_INGEST_URLS`, or stopping the receiver, sends them all back to the webhook.
