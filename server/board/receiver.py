@@ -42,8 +42,7 @@ import threading
 import time
 from collections import deque
 
-from board import devicestore, order, settings, turns
-from board.db import data_db
+from board import order, settings
 from board.devicekeys import DEVICE_KEYS
 from board.login import SESSIONS
 from board.devices import (
@@ -294,7 +293,7 @@ def devices_page(after: str, limit: int, device: str = "", whole: bool = False) 
     # money was lost after a kill -9 (run C48)
     # khoá các máy giữ cả trang, như một lô giữ nó cả lô (apply_rows): không lô nào được ghi xen giữa hai sổ của một trang. Bỏ khoá này
     # (cee1e81) thì một lô ghi trong lúc trang chậm đang đọc để lại các sổ cũ của trang đó ở bộ nhận, và mất tiền sau kill -9 (lượt C48)
-    with turns.writing(), DEVICES.lock:
+    with DEVICES.exclusive():
         ids = DEVICES.ids_after(after, limit + 1)
         page = [book for book in (book_for_receiver(k) for k in ids[:limit]) if book]
     return {"devices": page, "next": ids[limit - 1] if len(ids) > limit else None}
@@ -331,9 +330,9 @@ def apply_rows(batch, now: float):
         return dict(last[1]) if last and last[0] == seq else {"ok": True, "seq": seq, "needFull": [], "unknown": [], "incomplete": [], "bad": []}
     # the builds of the board rest while the batch is written (board/turns.py)
     # các lần dựng bảng nghỉ trong lúc lô được ghi
-    with turns.writing(), DEVICES.lock:
-        result = _apply_fast(batch["rows"], now, INGEST_GATE.identities) if settings.RECEIVER_FAST_APPLY else None
-        out, people, delegations = result or _apply_one_by_one(batch["rows"], now, INGEST_GATE.identities)
+    job = _Batch(now, INGEST_GATE.identities)
+    job.out["bad"] = DEVICES.write_batch(batch["rows"], job, settings.RECEIVER_FAST_APPLY)
+    out, people, delegations = job.out, job.people, job.delegations
     with POLICY.lock:
         POLICY.batches[source] = max(seq, POLICY.batches.get(source, -1))
     # the receiver takes only sends made with a computer's own key: each computer written here has used it
@@ -371,63 +370,33 @@ def apply_rows(batch, now: float):
     return answer
 
 
-def _apply_fast(rows: list, now: float, identities: dict):
-    """Write a batch in one transaction without a savepoint for each row, the writes held and written together (devicestore.held).
-    If any row or the writing fails, the transaction and the cache are taken back whole and None is returned: then the batch is
-    written again row by row (_apply_one_by_one), which takes back and names the row that fails, as before. Under DEVICES.lock.
-    Ghi một lô trong một giao dịch, không có điểm lưu cho từng dòng, các lệnh ghi được giữ và ghi chung (devicestore.held).
-    Nếu một dòng hay lần ghi hỏng, giao dịch và bộ nhớ đệm bị rút lại cả và trả về None: khi đó lô được ghi lại từng dòng
-    (_apply_one_by_one), cách này rút lại và nêu tên dòng hỏng như trước. Gọi khi giữ DEVICES.lock."""
-    out = {"needFull": [], "unknown": [], "incomplete": [], "bad": []}
-    people, delegations = set(), []
-    devices = {r["k"][1] for r in rows if isinstance(r, dict) and isinstance(r.get("k"), list) and len(r["k"]) == 2 and isinstance(r["k"][1], str)}
-    kept = DEVICES.keep(devices)
-    with POLICY.lock:
-        counts = POLICY.checked, POLICY.mismatches
-    try:
-        with data_db().tx() as c, devicestore.held(c) as held, DEVICES.pin():
-            for row in rows:
-                held.next_row()
-                apply_row(row, now, identities, out, people, delegations)
-    except Exception as e:
-        sys.stderr.write("receiver: batch written again row by row: %r\n" % (e,))
-        DEVICES.put_back(kept)
+class _Batch:
+    """The receiver's side of a batch for DEVICES.write_batch: each row is written by apply_row into out, people and delegations, which
+    begin() empties for each try; a fast try given up also takes back the counts of the third check it made (check_row).
+    Phía bộ nhận của một lô cho DEVICES.write_batch: mỗi dòng được apply_row ghi vào out, people và delegations, begin() làm rỗng chúng cho
+    mỗi lần thử; lần thử nhanh bị bỏ cũng rút lại các số đếm của lớp đối chiếu thứ ba nó đã làm (check_row)."""
+
+    def __init__(self, now: float, identities: dict):
+        self.now, self.identities, self.counts = now, identities, None
+
+    def begin(self) -> None:
+        self.out = {"needFull": [], "unknown": [], "incomplete": [], "bad": []}
+        self.people, self.delegations = set(), []
+        if self.counts is None:
+            with POLICY.lock:
+                self.counts = POLICY.checked, POLICY.mismatches
+
+    def write(self, row) -> None:
+        apply_row(row, self.now, self.identities, self.out, self.people, self.delegations)
+
+    def undo(self) -> None:
         with POLICY.lock:
-            POLICY.checked, POLICY.mismatches = counts
-        return None
-    return out, people, delegations
+            POLICY.checked, POLICY.mismatches = self.counts
 
-
-def _apply_one_by_one(rows: list, now: float, identities: dict) -> tuple:
-    """Write a batch in one transaction, each row with a savepoint of its own. Under DEVICES.lock.
-    Ghi một lô trong một giao dịch, mỗi dòng một điểm lưu riêng. Gọi khi giữ DEVICES.lock."""
-    out = {"needFull": [], "unknown": [], "incomplete": [], "bad": []}
-    people, delegations = set(), []
-    try:
-        with data_db().tx() as c:
-            for i, row in enumerate(rows):
-                # each row has a savepoint of its own: a row that fails is taken back alone and named in the answer, so one bad row
-                # never holds up the batch, and the receiver never sends the same batch for ever
-                # mỗi dòng có một điểm lưu riêng: dòng hỏng được rút lại một mình và nêu tên trong câu trả lời, để một dòng hỏng
-                # không bao giờ chặn cả lô, và bộ nhận không phải gửi lại mãi cùng một lô
-                c.execute("SAVEPOINT receiver_row")
-                try:
-                    apply_row(row, now, identities, out, people, delegations)
-                    c.execute("RELEASE receiver_row")
-                except Exception as e:
-                    c.execute("ROLLBACK TO receiver_row")
-                    c.execute("RELEASE receiver_row")
-                    device = row.get("k", [None, None])[1] if isinstance(row, dict) and isinstance(row.get("k"), list) and len(row["k"]) == 2 else None
-                    sys.stderr.write("receiver: row %d (%s) not written: %r\n" % (i, device, e))
-                    if isinstance(device, str):
-                        DEVICES.reload_one(device)
-                        out["bad"].append(device)
-    except Exception:
-        # the whole batch failed (the disk, the commit): what the cache took in is read again from the table
-        # cả lô hỏng (đĩa, lúc chốt giao dịch): những gì bộ nhớ đệm đã nhận được đọc lại từ bảng
-        DEVICES.forget()
-        raise
-    return out, people, delegations
+    @staticmethod
+    def device_of(row):
+        k = row.get("k") if isinstance(row, dict) else None
+        return k[1] if isinstance(k, list) and len(k) == 2 and isinstance(k[1], str) else None
 
 
 # past this many seconds of waiting at the receiver, the Admin page says the receiver is behind (its /health says so too)

@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.28 - 2026-11-27
+
+### Changed
+- The server and the plugin were restructured with no change in what they do, so later fixes land in one place: the rule that decides which hours of a send are written (`order.plan`), the choice of what a send becomes (`decide`, the same as the Go receiver's) and the way a batch of the receiver is written (`DEVICES.write_batch`) each live in one module now; in the plugin, sending the numbers moved to `hooks/send.ts`, and the board tool, the cost ledger and the session titles left `register.tsx`. New tests hold each of them, and a table test keeps side by side what a send straight to the server and a row of the receiver do after they are saved.
+
 ## 0.50.27 - 2026-11-27
 
 ### Added

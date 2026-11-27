@@ -38,7 +38,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | ID | Requirement | Where |
 |---|---|---|
 | F1 | Without a server the plugin still works on one computer | `hooks/register.tsx` |
-| F2 | A computer sends a summary when its numbers change, and at least every 5 minutes while Claude is open | `hooks/register.tsx`, `hooks/team.ts`, `hooks/sendv2.ts` |
+| F2 | A computer sends a summary when its numbers change, and at least every 5 minutes while Claude is open | `hooks/register.tsx`, `hooks/send.ts`, `hooks/team.ts`, `hooks/sendv2.ts` |
 | F3 | The server accepts only known fields and writes the sender's IP itself | `clean_payload` in `server/board/devices.py`, `Handler.ingest` in `server/webhook.py` |
 | F4 | One device stays tied to one person | `IngestGate` |
 | F5 | The dashboard needs an OTP login, and the server applies each role itself | `LoginGate`, `Handler.gate`, `role_view` |
@@ -140,7 +140,7 @@ flowchart TD
 
 | Folder | Holds |
 |---|---|
-| `hooks/` | The plugin. `register.tsx` connects to the Claude app and does all input and output; the other files are pure logic |
+| `hooks/` | The plugin. `register.tsx` connects to the Claude app; the other files are pure logic, or take their input and output as parameters (`hooks/io.ts`: the store and the network), as `hooks/send.ts` does |
 | `web/` | The page opened by `/office` on the computer |
 | `server/` | The webhook, its pages in `static/`, its tests, the installer |
 | `server/menubar/` | The menu bar icon for managers: an app for macOS, an app for Windows (`windows-app/`, C#, installed from an .msi; the PowerShell tray script stays as the fallback), an AppIndicator program in a .deb for Ubuntu (the Argos script still works) |
@@ -468,7 +468,7 @@ flowchart TD
 | Allow-list on the way out (field projection by role) | `role_view` copies only the fields listed for a role | A new field stays hidden until someone chooses to show it |
 | Allow-list on the way in (rebuild, do not trust input) | `clean_payload` rebuilds each send from a fixed list of fields, and again when a row is loaded from the table into memory | A bad send or a damaged file cannot reach the pages |
 | Small classes for state (shared base class, one owner per rule) | `Store` keeps a table in memory and writes changed rows in one transaction; `Accounts`, `TvStore`, `RevokedKeys` and `DocumentStore` build on it. `LoginGate`, `IngestGate`, `BotBlocker` each own one set of limits | Each rule lives in one place and can be tested alone |
-| Pure logic apart from input and output (functional core, imperative shell) | `hooks/*.ts` are pure functions; `register.tsx` is the only file using the app's `$` interface | The logic can be tested without running the app |
+| Pure logic apart from input and output (functional core, imperative shell) | `hooks/*.ts` are pure, or take their input and output as parameters (`hooks/io.ts`); `register.tsx` is the only file using the app's `$` interface | The logic can be tested without running the app |
 | Trust the signature, not the server (signed manifest) | The computer checks a signed manifest with keys in its own package | Taking over the server is not enough to reach staff computers |
 | English in the code, Vietnamese in dictionaries (message catalog) | `tx("...")` looks up `*.vi.js`, `webhook_vi.py`, `lang.vi.ts`; the menu bar scripts use `server/menubar/vi.json` and the extension `extensions/manager/_locales/` | One source of text; `tests/check-i18n.py` finds what is missing |
 | No outside libraries on the server | Only the Python standard library; the optional receiver only the Go standard library | Nothing extra to install, update or audit |
@@ -477,6 +477,19 @@ flowchart TD
 ### Storage: SQLite
 
 The server keeps everything in two SQLite files: `data/board.db` for the numbers and `keys/accounts.db` for accounts, apart so a data backup never holds OTP secrets. SQLite comes with Python, so nothing is added to install. It gives transactions, queries across months for the audit log, and room for new tables such as chat. Versions up to 0.24 used one JSON file per table; the server moves them in at its first start. Details: [DATA-MODEL.md](DATA-MODEL.md).
+
+### Considered and not chosen
+
+Written down so a later review does not propose them again without a new reason.
+
+| Idea | Why not |
+|---|---|
+| Rewrite the Go receiver in Rust | Its memory goes to the connections and the data it holds, not to the language; Rust would be weighed again only for the heaviest part, and only if Go still falls short |
+| Put the Go receiver and the Python server on two machines | One machine of 4 cores and 8 GB served 40,000 computers in the measurements; a second machine adds a network hop and a second thing to run |
+| `/data` sent as changes since the last read | The cost is in grouping the rows by person, which changes would not remove |
+| `gc.freeze()`, a hand-written HTTP loop instead of `net/http` | Decided against in November 2026: not worth the code they add next to what was measured to matter more |
+| One cleaning of a send, in one language | The Python server and the Go receiver each clean every send on their own on purpose; shared cases in `tests/contract/` keep the two the same |
+| One "accept a send" module shared by `/ingest` and the rows of the receiver | The two ways share only a few lines; the rest differs on purpose: one send against a batch written in one transaction, which side decides the order, when the history is written, where the name and account come from. A shared module would take a flag for each, as wide as what it does. `server/test_two_paths.py` keeps the differences in one table instead |
 
 ## 5. Checking changes
 
@@ -502,7 +515,7 @@ Each push also runs `.github/workflows/test-install.yml`: on Ubuntu it builds th
 - **HTTP without a proxy.** The connection is encrypted only behind Caddy or nginx.
 - **People with sudo on the server** can read all numbers and issue accounts for themselves. Keep them few.
 - **The audit log's chain** catches a row changed or taken out by hand, not someone who can rewrite the whole database and `audit_head` together: note the fingerprint the Admin page shows now and then. The secret and page checks go by the shape of keys and the wording of orders, so a secret with no known shape, or an order worded otherwise, passes.
-- **Large files.** The server is split into `server/board/` (settings, login, devices, daily totals, stores, views, pages, packages) with `server/webhook.py` keeping the request handler and routes. `hooks/register.tsx` and `server/static/ops.js` are still large: their parts share state in one closure and have no tests of their own yet, so they wait for those tests before being split.
+- **Large files.** The server is split into `server/board/` (settings, login, devices, daily totals, stores, views, pages, packages) with `server/webhook.py` keeping the request handler and routes. `hooks/register.tsx` and `server/static/ops.js` are still large: their parts share state in one closure and have no tests of their own yet, so they wait for those tests before being split. The send of a computer's numbers was the first part to leave `register.tsx`, for `hooks/send.ts`, once `tests/share.test.ts` covered it end to end.
 - **The connector knows less than the plugin.** It sends only on an event, so a tool closed without its end event stays on the board for up to 2 hours. A turn that fails sends no event either: seen with Codex CLI 0.164.0, where a refused model request left the session as working. (A turn cut short with Esc sends `Interrupt` instead of `Stop`, and that one is hooked.) The server therefore believes "working" from the connector for 30 minutes after the last send; in Cursor, which has no hook after each step, a turn that runs longer than that shows as idle until it ends. It knows no tokens, cost, quota or model. Its copy of the send key sits in a second place on the computer. Its name and email must be the ones the plugin sends, or the person shows as two rows. Cursor, Gemini CLI and Windows have not been tried in the real tools yet.
 - **The MCP endpoint.** Tried in the real tools on macOS only: Claude Code, Codex CLI, and the Chat tab of the Claude desktop app through a claude.ai connector. Cursor, Gemini CLI and every tool on Windows and Linux have not been tried. What a tool reads goes to the company that makes it. A key that reads totals only still shows a team or a leftover group of one or two people through the totals. Calls are logged in the audit table, not a table of their own, so that an older server version can still open the database. More in [SECURITY.md](../SECURITY.md).
 - **Asking from Telegram.** Tried with the real Telegram by hand on macOS, and installed on one production server so far, with a chat that reads totals only and, once, a chat that reads each person; of the answers with names in them only the cost answer was seen. What a chat reads goes through Telegram, a third party, and stays in the chat. The allow-list of Telegram's networks is a copy of Telegram's published list: if Telegram moves, the bot stops until the list is updated.

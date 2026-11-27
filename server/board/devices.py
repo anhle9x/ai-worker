@@ -1,6 +1,7 @@
 """Numbers sent by each computer: checking, cleaning, saving and grouping them by person.
 Số liệu từng máy gửi: kiểm, làm sạch, lưu và gộp theo người."""
 
+import contextlib
 import heapq
 import hmac
 import ipaddress
@@ -571,25 +572,15 @@ def write_book(c, device: str, book: dict, old_days=None, stamp=None) -> tuple:
     6, bản ghi thay bằng tay) ghi đúng sổ. Trả về (các ngày, sổ đang giữ sau khi ghi)."""
     old = {(kind, hour): body for kind, hour, body in devicestore.hours(c, device, HOUR_KINDS)}
     kept = devicestore.stamps(c, device, HOUR_KINDS) if stamp is not None else {}
-    new, older = {}, 0
-    for kind in HOUR_KINDS:
-        for hour, table in (book.get(kind) or {}).items():
-            key = (kind, int(hour))
-            if order.wins(stamp.of(*key), kept.get(key)) if stamp is not None else True:
-                new[key] = dumps(table)
-            elif key in old:
-                new[key], older = old[key], older + 1
-    for key, body in old.items():
-        if key not in new and stamp is not None and not order.wins(stamp.of(*key), kept.get(key)):
-            new[key], older = body, older + 1
-    order.note_older(older, device)
-    put = [(hour, kind, device, body) + ((stamp.of(kind, hour),) if stamp is not None else ()) for (kind, hour), body in new.items()
-           if old.get((kind, hour)) != body]
-    drop = [(hour, kind, device) for (kind, hour) in old if (kind, hour) not in new]
+    sent = {(kind, int(hour)): dumps(table) for kind in HOUR_KINDS for hour, table in (book.get(kind) or {}).items()}
+    plan = order.plan(sent, old, kept, stamp, whole=True)
+    order.note_older(plan.lost, device)
+    put = [(hour, kind, device, body) + ((at,) if stamp is not None else ()) for (kind, hour), body, at in plan.put]
+    drop = [(hour, kind, device) for kind, hour in plan.drop]
     devicestore.put_hours(c, put)
     devicestore.drop_hours(c, drop)
-    if older:
-        book = _rows_to_book([(kind, hour, body) for (kind, hour), body in new.items()])
+    if plan.lost:
+        book = _rows_to_book([(kind, hour, body) for (kind, hour), body in plan.after.items()])
     if old_days is None:
         days = _add_up(book)["days"]
         devicestore.drop_days_of(c, device)
@@ -722,11 +713,11 @@ class DeviceCache:
         # STATE_REWRITE_SECONDS. state_loop ghi chúng mỗi LATE_WRITE_SECONDS, nên sau khi sập bảng chậm nhiều nhất khoảng một phút về
         # việc các máy đang làm, không bao giờ về máy là của ai hay đã tiêu bao nhiêu (các giờ được ghi ngay)
         self.late = {}
-        # the database while a batch is written inside its own write transaction (see pin): no other program can write it then
-        # cơ sở dữ liệu trong lúc một lô được ghi bên trong giao dịch ghi của nó (xem pin): khi đó không chương trình nào khác ghi được
+        # the database while a batch is written inside its own write transaction (see _pin): no other program can write it then
+        # cơ sở dữ liệu trong lúc một lô được ghi bên trong giao dịch ghi của nó (xem _pin): khi đó không chương trình nào khác ghi được
         self.pinned = None
 
-    def pin(self):
+    def _pin(self):
         """For a batch written inside one write transaction (BEGIN IMMEDIATE): look at data_version once, at the start, instead of at
         each row; while the transaction holds the lock no other program can write. A context manager, under self.lock.
         Cho một lô ghi bên trong một giao dịch ghi (BEGIN IMMEDIATE): xem data_version một lần, lúc đầu, thay vì ở mỗi dòng; trong lúc
@@ -914,29 +905,25 @@ class DeviceCache:
                     if not these:
                         continue
                     was = {h: body for _, h, body in devicestore.hours(c, device, (kind,), min(these), max(these) + 1) if h in these}
-                    if stamp is not None:
-                        # an hour written by a newer send stays as it is
-                        # giờ do một lần gửi mới hơn ghi thì giữ nguyên
-                        kept = devicestore.stamps(c, device, (kind,), min(these), max(these) + 1)
-                        older = {h for h in these if not order.wins(stamp.of(kind, h), kept.get((kind, h)))}
-                        order.note_older(len(older), device)
-                        these = {h: t for h, t in these.items() if h not in older}
+                    # an hour written by a newer send stays as it is (order.plan); the stamps read over the same hours as the bodies
+                    # giờ do một lần gửi mới hơn ghi thì giữ nguyên (order.plan); mốc được đọc trên cùng các giờ như nội dung
+                    kept = devicestore.stamps(c, device, (kind,), min(these), max(these) + 1) if stamp is not None else {}
+                    plan = order.plan({(kind, h): dumps(t) if t else None for h, t in these.items()},
+                                      {(kind, h): body for h, body in was.items()}, kept, stamp, whole=False)
+                    order.note_older(plan.lost, device)
                     put, drop = [], []
-                    for h, table in these.items():
-                        if table:
-                            body = dumps(table)
-                            if was.get(h) != body:
-                                put.append((h, kind, device, body) + ((stamp.of(kind, h),) if stamp is not None else ()))
-                                if changed is not None and kind != "blocks":
-                                    changed.append((kind, h, was.get(h), body))
-                                self._hold(kind, h, table, ledger, tasks, blocks)
-                                if h not in was:
-                                    added.add(kind)
-                        elif h in was:
-                            drop.append((h, kind, device))
-                            if kind != "blocks":
-                                changed = None
-                            self._hold(kind, h, None, ledger, tasks, blocks)
+                    for (_, h), body, at in plan.put:
+                        put.append((h, kind, device, body) + ((at,) if stamp is not None else ()))
+                        if changed is not None and kind != "blocks":
+                            changed.append((kind, h, was.get(h), body))
+                        self._hold(kind, h, these[h], ledger, tasks, blocks)
+                        if h not in was:
+                            added.add(kind)
+                    for _, h in plan.drop:
+                        drop.append((h, kind, device))
+                        if kind != "blocks":
+                            changed = None
+                        self._hold(kind, h, None, ledger, tasks, blocks)
                     if RECEIVER_FAST_APPLY and kind in added:
                         have = set(devicestore.hour_numbers(c, device, kind)) | {r[0] for r in put}
                         numbers[kind] = sorted(have - {r[0] for r in drop}, reverse=True)
@@ -1070,11 +1057,11 @@ class DeviceCache:
                     self.late.pop(k, None)
             return [cleaned for _, cleaned in self.devices.values() if cleaned]
 
-    def keep(self, devices) -> tuple:
-        """What the cache holds for these devices, and the order of every device in memory, for put_back: before a batch is written
-        the fast way, which is taken back whole if a row of it fails (board/receiver.py). Under self.lock.
-        Những gì bộ nhớ đệm giữ cho các máy này, và thứ tự mọi máy trong bộ nhớ, cho put_back: trước khi ghi một lô theo cách nhanh,
-        cách này bị rút lại cả lô nếu một dòng của nó hỏng (board/receiver.py). Gọi khi giữ self.lock."""
+    def _keep(self, devices) -> tuple:
+        """What the cache holds for these devices, and the order of every device in memory, for _put_back: before a batch is written
+        the fast way, which is taken back whole if a row of it fails (write_batch). Under self.lock.
+        Những gì bộ nhớ đệm giữ cho các máy này, và thứ tự mọi máy trong bộ nhớ, cho _put_back: trước khi ghi một lô theo cách nhanh,
+        cách này bị rút lại cả lô nếu một dòng của nó hỏng (write_batch). Gọi khi giữ self.lock."""
         none = object()
         kept = {}
         for device in devices:
@@ -1083,9 +1070,9 @@ class DeviceCache:
             kept[device] = (entry, summary, self.written.get(device, none), _FULL_AT.get(device, none), self.late.get(device, none))
         return self.devices, self.db, self.version, list(self.devices), kept, none
 
-    def put_back(self, kept: tuple) -> None:
-        """Make the cache hold again what keep() saw, in the same order. If it was loaded again since, it is loaded again at the next use.
-        Làm bộ nhớ đệm giữ lại đúng những gì keep() đã thấy, cùng thứ tự. Nếu từ đó nó đã được nạp lại, thì nạp lại ở lần dùng sau."""
+    def _put_back(self, kept: tuple) -> None:
+        """Make the cache hold again what _keep() saw, in the same order. If it was loaded again since, it is loaded again at the next use.
+        Làm bộ nhớ đệm giữ lại đúng những gì _keep() đã thấy, cùng thứ tự. Nếu từ đó nó đã được nạp lại, thì nạp lại ở lần dùng sau."""
         table, db, version, order, saved, none = kept
         if table is not self.devices or db is not self.db or version != self.version:
             self.db = None
@@ -1106,10 +1093,77 @@ class DeviceCache:
         self.devices = {d: devices[d] for d in order if d in devices}
         self.devices.update((d, v) for d, v in devices.items() if d not in self.devices)
 
+    @contextlib.contextmanager
+    def exclusive(self):
+        """Hold the devices for a write that must not interleave with another (a batch, a page of books, the rows held back): the builds of
+        the board rest first (board/turns.py), then self.lock, always in this order. A page of books read without it while a batch was
+        written lost money after a kill -9 (run C48).
+        Giữ các máy cho một lần ghi không được xen với lần khác (một lô, một trang sổ, các dòng để sau): các lần dựng bảng nghỉ trước
+        (board/turns.py), rồi tới self.lock, luôn theo thứ tự này. Một trang sổ đọc không có nó trong lúc một lô được ghi đã làm mất tiền
+        sau kill -9 (lượt C48)."""
+        with turns.writing(), self.lock:
+            yield
+
+    def write_batch(self, rows: list, job, fast: bool) -> list:
+        """Write a batch of rows in one transaction, holding the devices (exclusive), and return the devices whose row failed and was taken
+        back alone. job is what writes a row: job.begin() starts again with nothing written, job.write(row) writes one row (raises if it
+        fails), job.undo() takes back what job.write did outside the database and the cache when a fast try is given up, job.device_of(row)
+        names the row's device or None. With fast, the rows are written without a savepoint each, the writes held and written together
+        (devicestore.held); if any row or the writing fails, the transaction and the cache are taken back whole and the batch is written
+        again row by row, each row with a savepoint of its own, so a row that fails is taken back alone and named. If the whole transaction
+        fails (the disk, the commit) the cache is read again from the tables and the error goes on.
+        Ghi một lô dòng trong một giao dịch, giữ các máy (exclusive), và trả về các máy có dòng hỏng bị rút lại riêng. job là thứ ghi một
+        dòng: job.begin() bắt đầu lại khi chưa ghi gì, job.write(row) ghi một dòng (báo lỗi nếu hỏng), job.undo() rút lại những gì job.write
+        đã làm ngoài cơ sở dữ liệu và bộ nhớ đệm khi bỏ một lần thử nhanh, job.device_of(row) cho biết máy của dòng hoặc None. Với fast, các
+        dòng được ghi không có điểm lưu cho từng dòng, các lệnh ghi được giữ và ghi chung (devicestore.held); nếu một dòng hay lần ghi hỏng,
+        giao dịch và bộ nhớ đệm bị rút lại cả và lô được ghi lại từng dòng, mỗi dòng một điểm lưu riêng, để dòng hỏng bị rút lại riêng và
+        được nêu tên. Nếu cả giao dịch hỏng (đĩa, lúc chốt) bộ nhớ đệm được đọc lại từ các bảng và lỗi được đẩy tiếp."""
+        with self.exclusive():
+            if fast:
+                kept = self._keep({d for d in map(job.device_of, rows) if isinstance(d, str)})
+                job.begin()
+                try:
+                    with data_db().tx() as c, devicestore.held(c) as held, self._pin():
+                        for row in rows:
+                            held.next_row()
+                            job.write(row)
+                    return []
+                except Exception as e:
+                    sys.stderr.write("receiver: batch written again row by row: %r\n" % (e,))
+                    self._put_back(kept)
+                    job.undo()
+            job.begin()
+            bad = []
+            try:
+                with data_db().tx() as c:
+                    for i, row in enumerate(rows):
+                        # each row has a savepoint of its own: a row that fails is taken back alone and named in the answer, so one bad row
+                        # never holds up the batch, and the receiver never sends the same batch for ever
+                        # mỗi dòng có một điểm lưu riêng: dòng hỏng được rút lại một mình và nêu tên trong câu trả lời, để một dòng hỏng
+                        # không bao giờ chặn cả lô, và bộ nhận không phải gửi lại mãi cùng một lô
+                        c.execute("SAVEPOINT receiver_row")
+                        try:
+                            job.write(row)
+                            c.execute("RELEASE receiver_row")
+                        except Exception as e:
+                            c.execute("ROLLBACK TO receiver_row")
+                            c.execute("RELEASE receiver_row")
+                            device = job.device_of(row)
+                            sys.stderr.write("receiver: row %d (%s) not written: %r\n" % (i, device, e))
+                            if isinstance(device, str):
+                                self.reload_one(device)
+                                bad.append(device)
+            except Exception:
+                # the whole batch failed (the disk, the commit): what the cache took in is read again from the table
+                # cả lô hỏng (đĩa, lúc chốt giao dịch): những gì bộ nhớ đệm đã nhận được đọc lại từ bảng
+                self.forget()
+                raise
+            return bad
+
     def write_late(self) -> int:
         """Write the devices rows held back (see self.late) from what the cache holds now; returns how many were written.
         Ghi các dòng devices đang để sau (xem self.late) từ những gì bộ nhớ đệm đang giữ; trả về số dòng đã ghi."""
-        with turns.writing(), self.lock:
+        with self.exclusive():
             if not self.late:
                 return 0
             db = self._fresh()
@@ -1238,6 +1292,32 @@ def merge_hours(kept: dict, sent: dict) -> dict:
     return out
 
 
+def decide(kept, d: dict, now: float, kind: str, last_full=None) -> tuple:
+    """What a send becomes, before anything is written: (NEED_FULL, STALE or SAVED, the kind to apply: "v1", "full" or "hours"). The same
+    choices as clean.Decide in the Go receiver (receiver/internal/clean/save.go). kept is the computer's record or None; last_full is when it
+    last replaced its whole book (time.time()), None if never. Changed hours with no book here ask for the whole book; a v: 2 send stamped up
+    to REORDER_WINDOW_MS older than the record (order.stamp_of: seq, else updatedAt) arrived out of order and is dropped; a whole book again
+    within FULL_BOOK_SECONDS is merged hour by hour instead, which loses nothing. Pure.
+    Một lần gửi sẽ thành gì, trước khi ghi bất cứ gì: (NEED_FULL, STALE hoặc SAVED, loại sẽ áp: "v1", "full" hoặc "hours"). Cùng các lựa chọn
+    như clean.Decide trong bộ nhận Go (receiver/internal/clean/save.go). kept là bản ghi của máy hoặc None; last_full là lần cuối nó thay cả
+    sổ (time.time()), None nếu chưa bao giờ. Các giờ đã đổi mà ở đây không có sổ thì xin cả sổ; gói v: 2 có mốc cũ hơn bản ghi trong vòng
+    REORDER_WINDOW_MS (order.stamp_of: seq, không thì updatedAt) là tới sai thứ tự và bị bỏ; lại cả sổ trong vòng FULL_BOOK_SECONDS thì ghép
+    từng giờ, không mất gì. Mã thuần."""
+    if kind == "hours" and kept is None:
+        # only changed hours, and no book here to put them on (a new computer, a lost or broken row): ask for the whole book
+        # chỉ có các giờ đã đổi mà ở đây không có sổ để đặt lên (máy mới, dòng bị mất hay hỏng): xin cả sổ
+        return NEED_FULL, kind
+    # by the time of the sends (seq, else updatedAt): a computer whose clock went back is not out of order
+    # theo thời điểm của các lần gửi (seq, không thì updatedAt): máy có đồng hồ lùi không bị coi là tới sai thứ tự
+    if kind != "v1" and kept and 0 < order.stamp_of(kept) - order.stamp_of(d) <= REORDER_WINDOW_MS:
+        return STALE, kind
+    if kind == "full" and kept is not None and now - (last_full if last_full is not None else -FULL_BOOK_SECONDS) < FULL_BOOK_SECONDS:
+        # a whole book again too soon: its hours are merged one by one instead
+        # lại cả sổ quá sớm: các giờ của nó được ghép từng giờ
+        kind = "hours"
+    return SAVED, kind
+
+
 def save_ingest(d: dict, now: float, kind: str = "v1", decided: bool = False, stamp=None) -> str:
     """Save one send and say what was done (SAVED, NEED_FULL or STALE). The IP history comes from the device's previous row, never from the device.
     kind is send_kind() of what was sent. stamp: the times its hours are written with (order.Stamps), by default the send's own
@@ -1249,20 +1329,16 @@ def save_ingest(d: dict, now: float, kind: str = "v1", decided: bool = False, st
     lần) không bao giờ ghép trên cùng một dòng cũ rồi làm mất giờ của nhau."""
     with DEVICES.lock:
         old = DEVICES.get(d["device"])
-        if kind == "hours" and old is None:
-            # only changed hours, and no book here to put them on (a new computer, a lost or broken row): ask for the whole book
-            # chỉ có các giờ đã đổi mà ở đây không có sổ để đặt lên (máy mới, dòng bị mất hay hỏng): xin cả sổ
-            return NEED_FULL
-        # decided: the Go receiver already dropped what came out of order and chose between replacing and merging (board/receiver.py)
-        # decided: bộ nhận Go đã bỏ gói tới sai thứ tự và đã chọn giữa thay cả sổ và ghép (board/receiver.py)
-        # by the time of the sends (seq, else updatedAt): a computer whose clock went back is not out of order
-        # theo thời điểm của các lần gửi (seq, không thì updatedAt): máy có đồng hồ lùi không bị coi là tới sai thứ tự
-        if not decided and kind != "v1" and old and 0 < order.stamp_of(old) - order.stamp_of(d) <= REORDER_WINDOW_MS:
-            return STALE
-        if not decided and kind == "full" and old is not None and now - _FULL_AT.get(d["device"], -FULL_BOOK_SECONDS) < FULL_BOOK_SECONDS:
-            # a whole book again too soon: its hours are merged one by one instead, which loses nothing
-            # lại cả sổ quá sớm: các giờ của nó được ghép từng giờ, không mất gì
-            kind = "hours"
+        # decided: the Go receiver already dropped what came out of order and chose between replacing and merging (board/receiver.py);
+        # changed hours with no book here still ask for the whole book
+        # decided: bộ nhận Go đã bỏ gói tới sai thứ tự và đã chọn giữa thay cả sổ và ghép (board/receiver.py); các giờ đã đổi mà ở đây
+        # không có sổ thì vẫn xin cả sổ
+        if decided:
+            done = NEED_FULL if kind == "hours" and old is None else SAVED
+        else:
+            done, kind = decide(old, d, now, kind, _FULL_AT.get(d["device"]))
+        if done != SAVED:
+            return done
         if kind == "full":
             _FULL_AT[d["device"]] = now
         # seq stays in the record for the window above; like updatedAt it never makes the row written again by itself (_steady)

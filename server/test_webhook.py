@@ -4277,7 +4277,9 @@ class PageMatchesServer(unittest.TestCase):
         """A rename once left the plugin writing __aiOffice* while its page read __aiWorker*.
         Một lần đổi tên từng khiến plugin ghi __aiOffice* trong khi trang đọc __aiWorker*."""
         page = read_text("..", "web", "index.html")
-        hooks = read_text("..", "hooks", "register.tsx")
+        # register.tsx and the modules cut out of it (hooks/ledger.ts writes the cost files)
+        # register.tsx và các module tách ra từ nó (hooks/ledger.ts ghi các file chi phí)
+        hooks = "".join(read_text("..", "hooks", f) for f in sorted(os.listdir(os.path.join(HERE, "..", "hooks"))) if f.endswith((".ts", ".tsx")))
         read = set(re.findall(r"window\.(__ai\w+)", page)) - {"__aiWorkerConfig"}
         written = set(re.findall(r"window\.(__ai\w+)(?: =| &&)", hooks))
         self.assertTrue(read)

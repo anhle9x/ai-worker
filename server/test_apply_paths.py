@@ -379,7 +379,7 @@ def _break(name: str, devicestore, devices, receiver) -> None:
     elif name == "cache-not-put-back":
         # a batch taken back whole (RECEIVER_FAST_APPLY) leaves in the cache what it had written
         # lô bị rút lại cả (RECEIVER_FAST_APPLY) để lại trong bộ nhớ đệm những gì nó đã ghi
-        devices.DeviceCache.put_back = lambda self, kept: None
+        devices.DeviceCache._put_back = lambda self, kept: None
     elif name == "clean-again-skips-name":
         # cleaning only what was set after cleaning (RECEIVER_FAST_APPLY) leaves the name as the server keeps it
         # làm sạch lại chỉ những gì được đặt sau khi làm sạch (RECEIVER_FAST_APPLY) để nguyên cái tên như máy chủ giữ

@@ -9,18 +9,21 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, ToolCallResult } from 'claude-code'
 
-import type { Activity, BlockKind, Job, Ledger, TeamState, Usage, WorkerId } from '../types'
+import type { Activity, BlockKind, Job, TeamState, WorkerId } from '../types'
 import { applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, staleSessionFiles } from './activity'
-import { EDIT_TOOLS, addSpend, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextNoteForClaude, contextWarning, costDelta, formatUsd, mergeLongSpend, repairInflatedHours, shortCount, toUsage } from './edits'
-import { answerModel, backoff, buildMachineSummary, deviceKeyIn, FALLBACK_SPREAD_MS, paceFrom, PACE_MIN_MS, receiverOutcome, WEBHOOK_BACKOFF_FIRST_MS, WEBHOOK_BACKOFF_MAX_MS, webhookDown, refusalAfter, routeFrom, routeRested, routeTarget, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, summarySignature, toQuota } from './team'
-import { afterAnswer, packetFor, type SendState } from './sendv2'
-import type { IngestRoute, ShareConfig } from './team'
+import { EDIT_TOOLS, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextNoteForClaude, contextWarning, costDelta, formatUsd, shortCount, toUsage } from './edits'
+import { answerModel, buildMachineSummary, PACE_MIN_MS, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, toQuota } from './team'
+import { chatTitle, cleanTitle, newTitles, nextTitle, notePrompt, noteRename, titleDue } from './titles'
+import { lastCost, logSpend, readLedger, rememberCost, repairLedgerOnce, writeLedger, writeLongSpend, type LedgerIo } from './ledger'
+import { DEVICE_KEY, send, type SendMem, type SendTarget } from './send'
+import type { Store } from './io'
+import type { ShareConfig } from './team'
 import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT, WINDOWS_CLAUDE_SCRIPT, UNIX_CLAUDE_SCRIPT, claudeCandidate, isClaudeCodeVersion, findHostApp, parseLinuxHost, parseWindowsHost, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, releaseKeys, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
 import { AGY_BRAIN, IMAGE_DIR, IMAGE_SCHEMA, IMAGE_SETTLE_MS, OLLAMA_URL, PROMPT_LEVEL_SCHEMA, PROMPT_SCHEMA, WORKER_TIMEOUT_MS, imageArgv, imageTargets, newImages, safeImageName, sendingNeedsAsking, sendingRefusal, agyArgv, codexArgv, codexInput, isBatchLauncher, delegationRules, gemmaAnswer, gemmaRequest, mcpConfigured, ownTools, pickGemma } from './workers'
 import type { OwnWorkers } from './workers'
 import { pageLanguageScript, setLang, tx } from './lang'
-import { BOARD_CODE_MS, BOARD_KEY, BOARD_SCHEMA, BOARD_TOOL, boardToolDescription, boardUnreachable, boardUserAgent, pairedText, pairingSteps, summarizeBoard } from './board'
-import type { BoardPairing } from './board'
+import { BOARD_SCHEMA, BOARD_TOOL, boardToolDescription, boardUserAgent } from './board'
+import { readBoard, readPairing, runBoard as runBoardOn, type BoardIo } from './boardtool'
 import { buildHelp, skillLine } from './help'
 import { voiceSettingsCommand, voiceSteps } from './voice'
 import { dangerNote, dangerQuestion, destructiveCommand } from './guard'
@@ -233,44 +236,24 @@ async function webFolder($: EngineInterface): Promise<string> {
   return webDir
 }
 
-/** The chat's title as the app shows it, from the hook events that carry it; unset until one does. */
-/** Tiêu đề cuộc trò chuyện như app hiển thị, lấy từ các sự kiện hook mang nó; chưa đặt cho tới khi có một sự kiện. */
-let sessionTitle = ''
-
-// ---- the chat's title, renewed as the talk moves on ----------------------------
-// ---- tiêu đề cuộc trò chuyện, làm mới khi cuộc nói chuyện đi tiếp ----------------------------
-/** The person's recent prompts (clipped), the source for a fresh title. */
-/** Các lời nhắc gần đây của người dùng (đã cắt ngắn), nguồn cho một tiêu đề mới. */
-let recentPrompts: string[] = []
-let promptCount = 0
-/** The last title this plugin set, and a newly made one waiting for the next prompt to apply it. */
-/** Tiêu đề cuối cùng mà plugin này đặt, và một tiêu đề mới làm xong đang chờ lời nhắc kế tiếp để áp dụng. */
-let autoTitle = ''
-let pendingTitle = ''
-/** Off once the person renames the chat themselves: their title is never overwritten. */
-/** Tắt khi người dùng tự đổi tên cuộc trò chuyện: tiêu đề của họ không bao giờ bị ghi đè. */
-let autoTitleOff = false
-/** A first fresh title after a few prompts, then one every ten. */
-/** Tiêu đề mới đầu tiên sau vài lời nhắc, rồi cứ mười lời nhắc một lần. */
-const RETITLE_FIRST = 4
-const RETITLE_EVERY = 10
+// ---- the chat's title, renewed as the talk moves on (hooks/titles.ts) ----------------------------
+// ---- tiêu đề cuộc trò chuyện, làm mới khi cuộc nói chuyện đi tiếp (hooks/titles.ts) ----------------------------
+const titles = newTitles()
 
 /** Asks a small model for a short title that fits what the person has been asking lately. */
 /** Nhờ một mô hình nhỏ đặt tiêu đề ngắn hợp với những gì người dùng hỏi gần đây. */
 async function makeTitle($: EngineInterface) {
-  if (autoTitleOff || !recentPrompts.length) return
-  const due = promptCount === RETITLE_FIRST || (promptCount > RETITLE_FIRST && (promptCount - RETITLE_FIRST) % RETITLE_EVERY === 0)
-  if (!due) return
+  if (!titleDue(titles)) return
   try {
     const r = await $.model.complete({
       model: 'haiku',
       maxTokens: 40,
       system: tx('You write short titles for a work chat session. Reply with the title only, no explanation.'),
-      prompt: `${tx('The most recent questions from the user in the session (oldest first, newest last):')}\n${recentPrompts.map(p => '- ' + p).join('\n')}\n\n${tx('Write a title of 3 to 7 words, in the language the questions are written in, naming the main topic of the session and favoring the newer questions. Do not use quotation marks and no full stop at the end.')}`,
+      prompt: `${tx('The most recent questions from the user in the session (oldest first, newest last):')}\n${titles.recent.map(p => '- ' + p).join('\n')}\n\n${tx('Write a title of 3 to 7 words, in the language the questions are written in, naming the main topic of the session and favoring the newer questions. Do not use quotation marks and no full stop at the end.')}`,
     })
     if (!r.isAnswered) return
-    const title = r.text.split('\n')[0]!.replace(/^["'“”\s#*-]+|["'“”\s.]+$/g, '').slice(0, 60)
-    if (title && title !== sessionTitle) pendingTitle = title
+    const title = cleanTitle(r.text)
+    if (title && title !== titles.session) titles.pending = title
   } catch {
     // a missing title is no loss
     // thiếu tiêu đề cũng không mất gì
@@ -280,9 +263,9 @@ async function makeTitle($: EngineInterface) {
 /** Keeps the chat's title when an event brings a new one, and rewrites this session's file. */
 /** Giữ tiêu đề cuộc trò chuyện khi một sự kiện mang tiêu đề mới tới, và ghi lại file của phiên này. */
 async function takeTitle($: EngineInterface, title: unknown) {
-  const t = typeof title === 'string' ? title.replace(/\s+/g, ' ').trim().slice(0, 80) : ''
-  if (t && t !== sessionTitle) {
-    sessionTitle = t
+  const t = chatTitle(title)
+  if (t && t !== titles.session) {
+    titles.session = t
     await save($, await read($, team))
   }
 }
@@ -295,9 +278,9 @@ async function whoAmI($: EngineInterface): Promise<{ id: string; name: string }>
   // the desktop app's folderless sessions run in scratch-<date>-<code>
   // các phiên không thư mục của app trên máy tính chạy trong scratch-<ngày>-<mã>
   const place = folder.startsWith('scratch-')
-    ? (sessionTitle ? tx('no folder') : tx('Session with no folder ({code})', { code: folder.slice(-6) }))
+    ? (titles.session ? tx('no folder') : tx('Session with no folder ({code})', { code: folder.slice(-6) }))
     : folder || id.slice(0, 8)
-  return { id, name: sessionTitle ? `${place}/${sessionTitle}` : place }
+  return { id, name: titles.session ? `${place}/${titles.session}` : place }
 }
 
 const LIST_FILE = (dir: string) => `${dir}/sessions.js`
@@ -400,129 +383,32 @@ async function sessionCost($: EngineInterface): Promise<number | undefined> {
   }
 }
 
-const LEDGER_KEY = 'ledger'
-/** Each session's last known dollar total, kept across app restarts (the session state does not always come back). */
-/** Tổng chi phí biết lần cuối của mỗi phiên, giữ qua các lần khởi động lại app (trạng thái phiên không phải lúc nào cũng quay lại). */
-const LAST_COST_KEY = 'sessionCost'
-const REPAIRED_KEY = 'ledgerRepaired1'
-const LONG_KEY = 'longLedger'
-
-/** The long history behind the page's "1 month" to "1 year" ranges: dollars by hour, on this machine only. */
-/** Lịch sử dài đứng sau mục "1 tháng" tới "1 năm" của trang: chi phí theo giờ, chỉ trên máy này. */
-async function writeLongSpend($: EngineInterface, ledger: Ledger, hour: number) {
-  try {
-    const long = mergeLongSpend((await $.store.get(LONG_KEY)) as Record<string, number> | undefined, ledger, hour)
-    await $.store.set(LONG_KEY, long)
-    await $.fs.write(`${await webFolder($)}/cost-long.js`, `window.__aiWorkerCostLong = ${JSON.stringify(long)};\n`)
-  } catch {
-    // the page falls back to the hourly ledger
-    // trang quay về dùng sổ theo giờ
+/** The ledger's store and the page's folder (hooks/ledger.ts). */
+/** Kho của sổ chi phí và thư mục của trang (hooks/ledger.ts). */
+function ledgerIo($: EngineInterface): LedgerIo {
+  return {
+    store: storeOf($),
+    writePage: async (name, text) => {
+      await $.fs.write(`${await webFolder($)}/${name}`, text)
+    },
   }
 }
-
-async function lastCost($: EngineInterface): Promise<number | undefined> {
-  try {
-    const all = (await $.store.get(LAST_COST_KEY)) as Record<string, number> | undefined
-    return all?.[(await whoAmI($)).id]
-  } catch {
-    return undefined
-  }
-}
-
-async function rememberCost($: EngineInterface, usd: number) {
-  try {
-    const all = ((await $.store.get(LAST_COST_KEY)) as Record<string, number> | undefined) ?? {}
-    const id = (await whoAmI($)).id
-    // newest last, so the oldest sessions fall off
-    // mới nhất để cuối, nên các phiên cũ nhất rơi ra
-    delete all[id]
-    all[id] = usd
-    await $.store.set(LAST_COST_KEY, Object.fromEntries(Object.entries(all).slice(-50)))
-  } catch {
-    // the guard in costDelta still holds
-    // lớp bảo vệ trong costDelta vẫn còn đó
-  }
-}
-
-/** Once per machine: takes out what resumed sessions had already added to the ledger before costDelta stopped it. */
-/** Một lần cho mỗi máy: gỡ ra phần mà các phiên được mở lại đã thêm vào sổ trước khi costDelta chặn lại. */
-async function repairLedgerOnce($: EngineInterface) {
-  try {
-    if (await $.store.get(REPAIRED_KEY)) return
-    const ledger = (await $.store.get(LEDGER_KEY)) as Ledger | undefined
-    if (ledger) {
-      const fixed = repairInflatedHours(ledger)
-      await $.store.set(LEDGER_KEY, fixed)
-      await writeLedger($, fixed)
-    }
-    await $.store.set(REPAIRED_KEY, true)
-  } catch {
-    // tried again next start
-    // thử lại ở lần khởi động sau
-  }
-}
-
-/** Adds a turn's tokens and dollars to the machine's hourly ledger and writes chi-phi.js for the page. */
-/** Cộng token và đô la của một lượt vào sổ theo giờ của máy và ghi chi-phi.js cho trang. */
-async function logSpend($: EngineInterface, now: number, turn: Usage | undefined, usd: number) {
-  try {
-    const hour = Math.floor(now / 3_600_000)
-    const ledger = addSpend((await $.store.get(LEDGER_KEY)) as Ledger | undefined, hour, {
-      usd,
-      input: turn?.input ?? 0,
-      output: turn?.output ?? 0,
-      cacheRead: turn?.cacheRead ?? 0,
-      cacheWrite: turn?.cacheWrite ?? 0,
-    })
-    await $.store.set(LEDGER_KEY, ledger)
-    await writeLedger($, ledger)
-    await writeLongSpend($, ledger, hour)
-  } catch {
-    // the totals are optional
-    // các tổng là tuỳ chọn
-  }
-}
-
-async function writeLedger($: EngineInterface, ledger: Ledger | undefined) {
-  await $.fs.write(`${await webFolder($)}/cost.js`, `window.__aiWorkerCost = ${JSON.stringify(ledger ?? {})};\n`)
-}
+const sessionId = ($: EngineInterface) => async () => (await whoAmI($)).id
 
 // ---- the team board: numbers only, to a common folder, when IT switches it on ----
 // ---- bảng cả team: chỉ có con số, gửi vào một thư mục chung, khi người quản trị bật nó ----
 /** The `chiaSe` block of config.js; off until IT fills it in. */
 /** Khối `chiaSe` của config.js; tắt cho tới khi người quản trị điền vào. */
 let share: ShareConfig = SHARE_OFF
-const SHARE_EVERY_MS = 5 * 60_000
 const MERGE_EVERY_MS = 60_000
 /** A machine whose file is older than this shows as offline on the board. */
 /** Máy có file cũ hơn mức này sẽ hiện là ngoại tuyến trên bảng. */
 const OFFLINE_MS = 12 * 60_000
 let boardCleared = false
 let mergedAt = 0
-/** The last send that reached the server or the folder, kept in the plugin's store so every session on this computer sees it: three open sessions do not send the same change three times. */
-/** Lần gửi gần nhất đã tới máy chủ hay thư mục, giữ trong kho của plugin để mọi phiên trên máy này cùng thấy: ba phiên đang mở không gửi cùng một thay đổi ba lần. */
-const SHARED_KEY = 'sharedLast'
-/** The key of its own the server gave this computer (awd1.…), kept in the plugin's store, never in config.js where the office page reads. */
-/** Khoá riêng máy chủ cấp cho máy này (awd1.…), giữ trong kho của plugin, không bao giờ trong config.js nơi trang văn phòng đọc được. */
-const DEVICE_KEY = 'deviceKey'
-/** After the server refuses a send (401 or 403), no send before `until` (refusalAfter). */
-/** Sau khi máy chủ từ chối một lần gửi (401 hay 403), không gửi trước `until` (refusalAfter). */
-const REFUSED_KEY = 'shareRefused'
-/** What the server's answers ask of the next sends: the gap between them and, after "busy", no send before `until` (paceFrom). */
-/** Các câu trả lời của máy chủ dặn gì cho các lần gửi sau: khoảng cách giữa chúng và, sau "bận", không gửi trước `until` (paceFrom). */
-const PACE_KEY = 'sharePace'
-/** Where this computer sends while the server says so: the Go receiver's addresses and until when (docs/RECEIVER.md, section 4). */
-/** Máy này gửi tới đâu trong lúc máy chủ còn dặn: các địa chỉ của bộ nhận Go và tới khi nào (docs/RECEIVER.vi.md, mục 4). */
-const ROUTE_KEY = 'ingestRoute'
-/** How long the sends wait after the webhook itself did not answer, doubling each time (team.ts, backoff). */
-/** Các lần gửi chờ bao lâu sau khi chính webhook không trả lời, gấp đôi mỗi lần (team.ts, backoff). */
-const WEBHOOK_DOWN_KEY = 'webhookDown'
-/** Whether the server reads v: 2 and which hours it holds (hooks/sendv2.ts). */
-/** Máy chủ có đọc v: 2 không và nó đang giữ những giờ nào (hooks/sendv2.ts). */
-const SEND_KEY = 'sendState'
-/** The gap of the last answer, in this session's memory too, for the timer of the next send. */
-/** Khoảng cách của câu trả lời gần nhất, giữ cả trong bộ nhớ của phiên này, cho bộ hẹn giờ của lần gửi sau. */
-let paceGapMs = PACE_MIN_MS
+/** The gap of the last answer, in this session's memory too, for the timer of the next send (hooks/send.ts keeps the store's keys). */
+/** Khoảng cách của câu trả lời gần nhất, giữ cả trong bộ nhớ của phiên này, cho bộ hẹn giờ của lần gửi sau (hooks/send.ts giữ các khoá của kho). */
+const sendMem: SendMem = { gapMs: PACE_MIN_MS }
 /** A change is sent this long after it is saved, so the changes a turn makes together (cost, then state) leave in one send. */
 /** Một thay đổi được gửi sau khi lưu chừng này, để các thay đổi một lượt làm cùng lúc (chi phí, rồi trạng thái) đi chung một lần gửi. */
 const SHARE_GATHER_MS = 1_000
@@ -536,7 +422,7 @@ let shareSoon: { cancel(): void } | undefined
 /** Một thay đổi vừa được lưu: gửi nó trong vài giây thay vì chờ nhịp tim kế tiếp, để bảng hiện ngay. Các thay đổi đến sát nhau đi chung một lần gửi, nhiều nhất một lần mỗi SHARE_MIN_MS. */
 function shareAfterChange($: EngineInterface, now: number) {
   if (shareSoon || share === SHARE_OFF || !share.enabled) return
-  const gap = Math.max(SHARE_MIN_MS, paceGapMs)
+  const gap = Math.max(SHARE_MIN_MS, sendMem.gapMs)
   const wait = Math.max(SHARE_GATHER_MS, gap - (now - shareStartedAt))
   shareSoon = $.clock.after(wait, () => {
     shareSoon = undefined
@@ -544,7 +430,7 @@ function shareAfterChange($: EngineInterface, now: number) {
       // another send (the heartbeat, the start of the session) may have gone out meanwhile: keep the gap from that one too
       // một lần gửi khác (nhịp tim, lúc mở phiên) có thể đã đi trong lúc chờ: giữ khoảng cách với cả lần đó
       const now = await $.clock.now()
-      if (now - shareStartedAt < Math.max(SHARE_MIN_MS, paceGapMs)) shareAfterChange($, now)
+      if (now - shareStartedAt < Math.max(SHARE_MIN_MS, sendMem.gapMs)) shareAfterChange($, now)
       else await shareTeam($)
     })()
   })
@@ -775,6 +661,20 @@ async function pluginVersion($: EngineInterface): Promise<string | undefined> {
   return version || undefined
 }
 
+/** The plugin's store for a module that takes it as a parameter (hooks/io.ts): the engine reads `$` only where it is called. */
+/** Kho của plugin cho một module nhận nó qua tham số (hooks/io.ts): engine chỉ đọc `$` tại chỗ gọi. */
+function storeOf($: EngineInterface): Store {
+  return {
+    get: k => $.store.get(k),
+    set: async (k, v) => {
+      await $.store.set(k, v)
+    },
+    delete: async k => {
+      await $.store.delete(k)
+    },
+  }
+}
+
 async function shareOnce($: EngineInterface) {
   const viaWeb = share.webhook !== ''
   if (!viaWeb && !share.folders.length) return
@@ -794,7 +694,7 @@ async function shareOnce($: EngineInterface) {
         const s = parseSessionFile(await $.fs.read(`${dir}/sessions/${f.name}`))
         if (s) sessions.push(s)
       }
-      const ledger = (await $.store.get(LEDGER_KEY)) as Ledger | undefined
+      const ledger = await readLedger(storeOf($))
       const device = await machineId($)
       const lanIp = await officeAddress($, now)
       const summary = buildMachineSummary(sessions, ledger, now, {
@@ -815,116 +715,17 @@ async function shareOnce($: EngineInterface) {
       // the records of work handed to helpers go to a server's audit log only, never into a folder others can read
       // biên bản giao việc chỉ gửi vào nhật ký của máy chủ, không bao giờ ghi vào thư mục người khác đọc được
       }, viaWeb ? recentDelegations(sessions, now) : [])
-      const sig = summarySignature(summary)
-      const last = ((await $.store.get(SHARED_KEY).catch(() => undefined)) ?? {}) as { sig?: string; at?: number }
-      const refused = ((await $.store.get(REFUSED_KEY).catch(() => undefined)) ?? {}) as { until?: number; wait?: number }
-      const pace = ((await $.store.get(PACE_KEY).catch(() => undefined)) ?? {}) as { gapMs?: number; until?: number }
-      if (typeof pace.gapMs === 'number') paceGapMs = pace.gapMs
-      // a busy server said when to come back: nothing before then, not even the beat that sends when nothing changed
-      // máy chủ bận đã nói khi nào quay lại: không gửi gì trước lúc đó, kể cả nhịp gửi khi không có gì đổi
-      // and never two sends closer than the gap it asked, the beat's included
-      // và không bao giờ hai lần gửi sát hơn khoảng cách nó dặn, kể cả lần gửi của nhịp tim
-      const busy = viaWeb && (now < (pace.until ?? 0) || now - (last.at ?? 0) < paceGapMs)
-      if ((sig !== last.sig || now - (last.at ?? 0) > SHARE_EVERY_MS) && !(viaWeb && now < (refused.until ?? 0)) && !busy) {
-        if (viaWeb) {
-          // this computer's own key once the server has given it one, else the key of the install package
-          // khoá riêng của máy này khi máy chủ đã cấp, nếu không thì khoá của gói cài
-          const own = await $.store.get(DEVICE_KEY).catch(() => undefined)
-          const key = typeof own === 'string' && own.startsWith('awd1.') ? own : share.ingestKey
-          // v: 1 until the server says it reads v: 2, then only the hours that changed, and the whole book once an hour
-          // v: 1 cho tới khi máy chủ nói nó đọc v: 2, sau đó chỉ các giờ đã đổi, và cả sổ mỗi giờ một lần
-          const sendState = (await $.store.get(SEND_KEY).catch(() => undefined)) as SendState | undefined
-          const packet = packetFor(summary, sendState, now)
-          // the number is kept before the send: a send whose answer is lost may still have been written, and the next one must be above it
-          // số được giữ trước khi gửi: lần gửi mất câu trả lời vẫn có thể đã được ghi, và lần sau phải có số cao hơn
-          await $.store.set(SEND_KEY, { ...sendState, seq: packet.seq }).catch(() => undefined)
-          const body = JSON.stringify(packet.body)
-          const post = (base: string) => $.http.fetch(`${base}/ingest`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-            body,
-          })
-          // the Go receiver takes only a computer's own key: the shared key of the package always goes to the webhook
-          // bộ nhận Go chỉ nhận khoá riêng của máy: khoá chung của gói luôn đi tới webhook
-          const ownKey = key !== share.ingestKey
-          let route = ownKey ? ((await $.store.get(ROUTE_KEY).catch(() => undefined)) as IngestRoute | undefined) : undefined
-          if (route && !(route.until > now)) {
-            // the address ran out: ask the webhook where to send now, which writes nothing; no answer sends to the webhook
-            // địa chỉ đã hết hạn: hỏi webhook giờ gửi tới đâu, việc này không ghi gì; không trả lời thì gửi tới webhook
-            const asked = await $.http.fetch(`${share.webhook}/ingest/route${sendState?.v2 ? '?v=2' : ''}`, { method: 'GET', headers: { Authorization: `Bearer ${key}` } }).catch(() => undefined)
-            route = (asked?.ok ? routeFrom(asked.text, share.webhook, share.ingestHosts, now) : null) ?? undefined
-            if (route) await $.store.set(ROUTE_KEY, route)
-            else await $.store.delete(ROUTE_KEY).catch(() => undefined)
-          }
-          const target = route ? routeTarget(route, now) : undefined
-          // the webhook; no answer at all counts as status 0, as a 5xx without Retry-After does: the sends after it back off
-          // webhook; không trả lời gì được tính là mã 0, như 5xx không có Retry-After: các lần gửi sau đó lùi lại
-          const toWebhook = async () => {
-            const got = (await post(share.webhook).catch(() => undefined)) ?? { ok: false, status: 0, headers: {}, text: '' }
-            const down = (await $.store.get(WEBHOOK_DOWN_KEY).catch(() => undefined)) as { wait?: number } | undefined
-            if (webhookDown(got)) {
-              const b = backoff(down, now, WEBHOOK_BACKOFF_FIRST_MS, WEBHOOK_BACKOFF_MAX_MS, 0.5)
-              await $.store.set(WEBHOOK_DOWN_KEY, b).catch(() => undefined)
-              await $.store.set(PACE_KEY, { gapMs: pace.gapMs, until: b.until }).catch(() => undefined)
-            } else if (down) {
-              await $.store.delete(WEBHOOK_DOWN_KEY).catch(() => undefined)
-            }
-            return got
-          }
-          let r: Awaited<ReturnType<typeof post>> | undefined
-          if (target && route) {
-            const got = await post(target).catch(() => undefined)
-            if (receiverOutcome(got) === 'fallback') {
-              // the receiver could not take it (down, unreachable, its key check, a missing path): the webhook takes the sends for a
-              // while, longer each time, and this one goes there after a wait under 30 seconds at random, so a whole office that lost
-              // the receiver together reaches the webhook spread out
-              // bộ nhận không nhận được (đã dừng, không tới được, kiểm khoá ở đó, thiếu đường): webhook nhận các lần gửi trong một lúc,
-              // lâu dần mỗi lần, và lần này đi tới đó sau một khoảng chờ ngẫu nhiên dưới 30 giây, để cả văn phòng cùng mất bộ nhận tới
-              // webhook rải ra
-              route = routeRested(route, now)
-              await $.store.set(ROUTE_KEY, route)
-              await $.store.set(PACE_KEY, { gapMs: pace.gapMs, until: now + Math.round(Math.random() * FALLBACK_SPREAD_MS) }).catch(() => undefined)
-            } else {
-              r = got!
-              if (route.rest) await $.store.set(ROUTE_KEY, { urls: route.urls, until: route.until })
-            }
-          } else {
-            r = await toWebhook()
-          }
-          // put off to the webhook: nothing was sent, the next beat after the wait sends it
-          // hoãn sang webhook: chưa gửi gì, nhịp sau khi hết chờ sẽ gửi
-          if (!r) return
-          // its own key refused (too old, or the server was set up again): drop it, so the next send asks for a new one
-          // khoá riêng bị từ chối (quá cũ, hoặc máy chủ được cài lại): bỏ nó, để lần gửi sau xin khoá mới
-          if (r.status === 401 && key !== share.ingestKey) await $.store.delete(DEVICE_KEY).catch(() => undefined)
-          // a refusal does not pass by itself: wait longer each time instead of asking again every second
-          // lần từ chối không tự hết: chờ lâu dần thay vì hỏi lại mỗi giây
-          if (r.status === 401 || r.status === 403) {
-            await $.store.set(REFUSED_KEY, refusalAfter(refused, now))
-          }
-          // the gap the server asks, or when to come back after "busy", for every session of this computer
-          // khoảng cách máy chủ dặn, hoặc lúc quay lại sau "bận", cho mọi phiên trên máy này
-          const asked = paceFrom(r, now)
-          if (asked.gapMs !== undefined || asked.until !== undefined) {
-            if (asked.gapMs !== undefined) paceGapMs = asked.gapMs
-            await $.store.set(PACE_KEY, { gapMs: asked.gapMs ?? pace.gapMs, until: asked.until }).catch(() => undefined)
-          }
-          if (!r.ok) throw new Error(`webhook ${r.status}`)
-          await $.store.set(SEND_KEY, afterAnswer(sendState, r.text, packet, now)).catch(() => undefined)
-          if (refused.wait) await $.store.delete(REFUSED_KEY).catch(() => undefined)
-          const given = deviceKeyIn(r.text)
-          if (given) await $.store.set(DEVICE_KEY, given)
-          // the webhook says where to send from now on: the Go receiver, or here again (an empty list); nothing said keeps what is held
-          // webhook dặn từ giờ gửi tới đâu: bộ nhận Go, hoặc lại về đây (danh sách rỗng); không dặn gì thì giữ cái đang có
-          const next = ownKey || given ? routeFrom(r.text, share.webhook, share.ingestHosts, now) : undefined
-          if (next) await $.store.set(ROUTE_KEY, route?.rest && route.urls.join() === next.urls.join() ? { ...next, rest: route.rest } : next)
-          else if (next === null) await $.store.delete(ROUTE_KEY).catch(() => undefined)
-        } else {
-          await $.fs.write(`${folder}/${device}.json`, JSON.stringify(summary))
-        }
-        await $.store.set(SHARED_KEY, { sig, at: now })
-        if (viaWeb) await noteShare($, dir, now)
-      }
+      const target: SendTarget = viaWeb
+        ? { kind: 'web', webhook: share.webhook, ingestKey: share.ingestKey, ingestHosts: share.ingestHosts }
+        : { kind: 'folder', write: async json => {
+          await $.fs.write(`${folder}/${device}.json`, json)
+        } }
+      const sent = await send({ store: storeOf($), fetch: (url, init) => $.http.fetch(url, init) }, target, sendMem, summary, now)
+      // put off to the webhook: nothing was sent, the next beat after the wait sends it
+      // hoãn sang webhook: chưa gửi gì, nhịp sau khi hết chờ sẽ gửi
+      if (sent.kind === 'putOff') return
+      if (sent.kind === 'failed') throw new Error(`webhook ${sent.status}`)
+      if (sent.kind === 'sent' && viaWeb) await noteShare($, dir, now)
     } catch (err) {
       // the server or folder is out of reach: try again next beat, and say so once it lasts
       // máy chủ hoặc thư mục ngoài tầm với: thử lại ở nhịp sau, và báo một lần khi nó kéo dài
@@ -1779,25 +1580,20 @@ async function hostSystem($: EngineInterface): Promise<VoiceSystem> {
   }
 }
 
-/** One request to the board with a key in the Authorization header. A network error reads as status 0, so the caller has one shape to handle. */
-/** Một yêu cầu tới bảng kèm khoá trong header Authorization. Lỗi mạng đọc thành trạng thái 0, để nơi gọi chỉ phải xử lý một dạng. */
-async function boardFetch($: EngineInterface, path: string, key: string | undefined, method: 'GET' | 'POST' = 'GET') {
-  const system = await hostSystem($)
-  try {
-    const r = await $.http.fetch(`${share.webhook}${path}`, {
-      method,
-      headers: { 'User-Agent': boardUserAgent(await pluginVersion($), system), ...(key ? { Authorization: `Bearer ${key}` } : {}) },
-      ...(method === 'POST' ? { body: '' } : {}),
-    })
-    return { ok: r.ok, status: r.status, text: r.text }
-  } catch {
-    return { ok: false, status: 0, text: '' }
+/** What the board (hooks/boardtool.ts) needs from this computer, read where the engine allows: at each call. */
+/** Những gì bảng (hooks/boardtool.ts) cần từ máy này, đọc ở chỗ engine cho phép: tại mỗi lần gọi. */
+function boardIo($: EngineInterface): BoardIo {
+  return {
+    store: storeOf($),
+    fetch: (url, init) => $.http.fetch(url, init),
+    webhook: share.webhook,
+    userAgent: async () => {
+      const system = await hostSystem($)
+      return boardUserAgent(await pluginVersion($), system)
+    },
+    now: () => $.clock.now(),
+    registerTool: () => registerBoardTool($),
   }
-}
-
-async function readPairing($: EngineInterface): Promise<BoardPairing> {
-  const kept = await $.store.get(BOARD_KEY).catch(() => undefined)
-  return kept && typeof kept === 'object' ? (kept as BoardPairing) : {}
 }
 
 /** Put the board tool in this session's list. Called once the computer is paired, never before: an unpaired computer carries no extra tool. */
@@ -1811,59 +1607,10 @@ async function registerBoardTool($: EngineInterface) {
   }
 }
 
-/** /ai-worker:board: shows where the pairing stands and moves it one step: ask for a code, collect the key once an admin approved, or unpair. */
-/** /ai-worker:board: cho biết việc ghép đang ở đâu và đi tiếp một bước: xin mã, nhận khoá khi quản trị đã duyệt, hoặc bỏ ghép. */
-async function runBoard($: EngineInterface, args: string): Promise<{ text: string }> {
-  if (!share.webhook) return { text: tx('This computer has no company server set up, so there is no board to read.') }
-  const now = await $.clock.now()
-  let pairing = await readPairing($)
-  if (/^(unpair|off)$/i.test(args.trim())) {
-    if (pairing.token) await boardFetch($, '/ext/unpair', pairing.token, 'POST')
-    await $.store.set(BOARD_KEY, {})
-    return { text: tx('This computer is no longer paired with the board. Claude here can no longer read it.') }
-  }
-  let note = ''
-  if (pairing.token) {
-    const r = await boardFetch($, '/ext/state', pairing.token)
-    if (r.ok) {
-      await registerBoardTool($)
-      return { text: pairedText(pairing.name || '') }
-    }
-    if (r.status !== 401) return { text: boardUnreachable(r.status) }
-    note = `${tx('The earlier pairing was revoked or has expired.')}\n\n`
-    pairing = {}
-  }
-  if (pairing.pending && now - pairing.pending.at < BOARD_CODE_MS) {
-    const r = await boardFetch($, '/ext/poll', pairing.pending.key, 'POST')
-    if (!r.ok) return { text: boardUnreachable(r.status) }
-    let answer: { status?: unknown; name?: unknown; token?: unknown } = {}
-    try {
-      answer = JSON.parse(r.text)
-    } catch {
-      // treated as an expired code below
-      // bên dưới coi như mã đã hết hạn
-    }
-    if (answer.status === 'done' && typeof answer.token === 'string') {
-      const name = typeof answer.name === 'string' ? answer.name : ''
-      await $.store.set(BOARD_KEY, { token: answer.token, name })
-      await registerBoardTool($)
-      return { text: pairedText(name) }
-    }
-    if (answer.status === 'pending') return { text: `${tx('Not approved yet.')}\n\n${pairingSteps(pairing.pending.code, share.webhook)}` }
-    note = `${tx('The earlier code has expired.')}\n\n`
-  }
-  const r = await boardFetch($, '/ext/request-code', undefined, 'POST')
-  if (!r.ok) return { text: boardUnreachable(r.status) }
-  let fresh: { code?: unknown; key?: unknown } = {}
-  try {
-    fresh = JSON.parse(r.text)
-  } catch {
-    // an answer that is not the server's: reported below
-    // câu trả lời không phải của máy chủ: báo ở dưới
-  }
-  if (typeof fresh.code !== 'string' || typeof fresh.key !== 'string' || !/^\d{8}$/.test(fresh.code)) return { text: tx('The board sent an answer that could not be read.') }
-  await $.store.set(BOARD_KEY, { pending: { key: fresh.key, code: fresh.code, at: now } })
-  return { text: note + pairingSteps(fresh.code, share.webhook) }
+/** /ai-worker:board (hooks/boardtool.ts). */
+/** /ai-worker:board (hooks/boardtool.ts). */
+function runBoard($: EngineInterface, args: string): Promise<{ text: string }> {
+  return runBoardOn(boardIo($), args)
 }
 
 /** The board tool: the wall view as plain lines. It reads from the company server into this conversation and sends nothing out. */
@@ -1872,19 +1619,8 @@ async function serveBoard($: EngineInterface, args: Record<string, unknown>): Pr
   const answer = (text: string, isError = false) => ({ result: text, isError }) as unknown as ToolCallResult
   const verdict = await $.tool.check({ tool: `mcp__ai-worker__${BOARD_TOOL}`, input: toolInput(args) }).catch(() => ({ decision: 'ask' as const }))
   if (verdict.decision === 'deny') return answer(tx('Your permission settings do not allow this.'), true)
-  const pairing = await readPairing($)
-  if (!share.webhook || !pairing.token) return answer(tx('This computer is not paired with the board. Tell the user to type /ai-worker:board to pair it.'), true)
-  const r = await boardFetch($, '/ext/data', pairing.token)
-  if (r.status === 401) {
-    await $.store.set(BOARD_KEY, {}).catch(() => undefined)
-    return answer(tx('The pairing with the board was revoked or has expired. Tell the user to type /ai-worker:board to pair again.'), true)
-  }
-  if (!r.ok) return answer(boardUnreachable(r.status), true)
-  try {
-    return answer(summarizeBoard(JSON.parse(r.text), await $.clock.now()))
-  } catch {
-    return answer(tx('The board sent an answer that could not be read.'), true)
-  }
+  const r = await readBoard(boardIo($))
+  return answer(r.text, r.isError)
 }
 
 async function runHelp($: EngineInterface): Promise<{ text: string }> {
@@ -2027,7 +1763,7 @@ export const register: Register = on => {
     await $.command.register({ name: 'update', description: tx('Check for and install a new version of the plugin from the company server') })
     await $.command.register({ name: 'board', description: tx('For managers: pair this computer with the company board, so Claude can answer questions about the team') })
     try {
-      await writeLedger($, (await $.store.get(LEDGER_KEY)) as Ledger | undefined)
+      await writeLedger(ledgerIo($), await readLedger(storeOf($)))
     } catch {
       // as above
       // như trên
@@ -2040,10 +1776,10 @@ export const register: Register = on => {
       // như trên
     }
     ensureHeartbeat($)
-    await repairLedgerOnce($)
+    await repairLedgerOnce(ledgerIo($))
     {
-      const ledger = (await $.store.get(LEDGER_KEY).catch(() => undefined)) as Ledger | undefined
-      if (ledger) await writeLongSpend($, ledger, Math.floor((await $.clock.now()) / 3_600_000))
+      const ledger = await readLedger(storeOf($)).catch(() => undefined)
+      if (ledger) await writeLongSpend(ledgerIo($), ledger, Math.floor((await $.clock.now()) / 3_600_000))
     }
     void pruneOld($)
     void shareTeam($)
@@ -2065,7 +1801,7 @@ export const register: Register = on => {
     await checkRepoConfig($, await $.session.root().catch(() => e.cwd))
     // a manager's computer already paired with the board: Claude can read it from the first message
     // máy của quản lý đã ghép với bảng: Claude đọc được bảng ngay từ tin nhắn đầu
-    if ((await readPairing($)).token) await registerBoardTool($)
+    if ((await readPairing(storeOf($))).token) await registerBoardTool($)
     await writeOwnWorkers($)
     return next(e)
   })
@@ -2181,16 +1917,11 @@ export const register: Register = on => {
     const ev = e as { session_title?: unknown; prompt?: unknown }
     // a title other than the one this plugin set means the person renamed the chat
     // một tiêu đề khác với tiêu đề plugin này đặt nghĩa là người dùng đã đổi tên cuộc trò chuyện
-    if (autoTitle && typeof ev.session_title === 'string' && ev.session_title && ev.session_title !== autoTitle) autoTitleOff = true
+    noteRename(titles, ev.session_title)
     await takeTitle($, ev.session_title)
-    if (typeof ev.prompt === 'string' && ev.prompt.trim() && !ev.prompt.trim().startsWith('/')) {
-      recentPrompts = [...recentPrompts, ev.prompt.replace(/\s+/g, ' ').trim().slice(0, 240)].slice(-6)
-      promptCount++
-    }
-    if (!autoTitleOff && pendingTitle) {
-      const title = pendingTitle
-      pendingTitle = ''
-      autoTitle = title
+    notePrompt(titles, ev.prompt)
+    const title = nextTitle(titles)
+    if (title) {
       await takeTitle($, title)
       return { ...done, sessionTitle: title }
     }
@@ -2255,9 +1986,9 @@ export const register: Register = on => {
     const turn = e.usage ? toUsage(e.usage, isMain ? 1 : 0) : undefined
     const now = await $.clock.now()
     const costUsd = await sessionCost($)
-    const before = (await read($, team)).costUsd ?? (await lastCost($))
-    if (turn || costUsd !== undefined) await logSpend($, now, turn, costUsd === undefined ? 0 : costDelta(before, costUsd))
-    if (costUsd !== undefined) await rememberCost($, costUsd)
+    const before = (await read($, team)).costUsd ?? (await lastCost(storeOf($), sessionId($)))
+    if (turn || costUsd !== undefined) await logSpend(ledgerIo($), now, turn, costUsd === undefined ? 0 : costDelta(before, costUsd))
+    if (costUsd !== undefined) await rememberCost(storeOf($), sessionId($), costUsd)
     await commit($, s => ({
       ...s,
       now,

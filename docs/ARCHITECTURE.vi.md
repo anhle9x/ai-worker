@@ -38,7 +38,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | Mã | Yêu cầu | Ở đâu |
 |---|---|---|
 | F1 | Không có máy chủ thì plugin vẫn chạy trên từng máy | `hooks/register.tsx` |
-| F2 | Máy gửi bản tóm tắt khi số liệu đổi, và ít nhất 5 phút một lần khi Claude đang mở | `hooks/register.tsx`, `hooks/team.ts`, `hooks/sendv2.ts` |
+| F2 | Máy gửi bản tóm tắt khi số liệu đổi, và ít nhất 5 phút một lần khi Claude đang mở | `hooks/register.tsx`, `hooks/send.ts`, `hooks/team.ts`, `hooks/sendv2.ts` |
 | F3 | Máy chủ chỉ nhận các trường đã biết và tự ghi IP người gửi | `clean_payload` trong `server/board/devices.py`, `Handler.ingest` trong `server/webhook.py` |
 | F4 | Mỗi máy gắn với một người | `IngestGate` |
 | F5 | Xem bảng phải đăng nhập OTP, và máy chủ tự áp dụng từng vai | `LoginGate`, `Handler.gate`, `role_view` |
@@ -140,7 +140,7 @@ flowchart TD
 
 | Thư mục | Chứa |
 |---|---|
-| `hooks/` | Plugin. `register.tsx` nối với app Claude và làm mọi việc đọc ghi; các file khác là logic thuần |
+| `hooks/` | Plugin. `register.tsx` nối với app Claude; các file khác là logic thuần, hoặc nhận vào/ra qua tham số (`hooks/io.ts`: kho và mạng), như `hooks/send.ts` |
 | `web/` | Trang mở bằng `/office` trên máy |
 | `server/` | Webhook, các trang trong `static/`, test, file cài |
 | `server/menubar/` | Biểu tượng thanh menu cho quản lý: app cho macOS, app cho Windows (`windows-app/`, C#, cài từ file .msi; script khay PowerShell giữ làm dự phòng), chương trình AppIndicator trong gói .deb cho Ubuntu (script Argos vẫn dùng được) |
@@ -468,7 +468,7 @@ flowchart TD
 | Danh sách cho phép ở chiều ra (lọc trường theo vai) | `role_view` chỉ chép các trường đã liệt kê cho từng vai | Trường mới vẫn ẩn cho tới khi có người chọn hiện nó |
 | Danh sách cho phép ở chiều vào (dựng lại, không tin dữ liệu vào) | `clean_payload` dựng lại mỗi lần gửi từ danh sách trường cố định, và dựng lại khi một dòng được nạp từ bảng vào bộ nhớ | Dữ liệu xấu hay file hỏng không tới được trang |
 | Lớp nhỏ để giữ trạng thái (lớp cơ sở dùng chung, mỗi quy tắc một chủ) | `Store` giữ một bảng trong bộ nhớ và ghi các dòng đã đổi trong một giao dịch; `Accounts`, `TvStore`, `RevokedKeys`, `DocumentStore` xây trên đó. `LoginGate`, `IngestGate`, `BotBlocker` mỗi lớp giữ một nhóm giới hạn | Mỗi quy tắc ở một chỗ và thử riêng được |
-| Tách logic thuần khỏi đọc ghi (functional core, imperative shell) | `hooks/*.ts` là hàm thuần; `register.tsx` là file duy nhất dùng giao diện `$` của app | Thử được logic mà không cần chạy app |
+| Tách logic thuần khỏi đọc ghi (functional core, imperative shell) | `hooks/*.ts` thuần, hoặc nhận vào/ra qua tham số (`hooks/io.ts`); `register.tsx` là file duy nhất dùng giao diện `$` của app | Thử được logic mà không cần chạy app |
 | Tin chữ ký, không tin máy chủ (signed manifest) | Máy kiểm manifest có chữ ký bằng khoá trong chính gói của nó | Chiếm được máy chủ vẫn chưa tới được máy nhân viên |
 | Tiếng Anh trong mã, tiếng Việt trong từ điển (message catalog) | `tx("...")` tra `*.vi.js`, `webhook_vi.py`, `lang.vi.ts`; script thanh menu dùng `server/menubar/vi.json`, tiện ích dùng `extensions/manager/_locales/` | Chữ có một nguồn; `tests/check-i18n.py` tìm chỗ còn thiếu |
 | Máy chủ không dùng thư viện ngoài | Chỉ dùng thư viện chuẩn của Python; bộ nhận tuỳ chọn chỉ dùng thư viện chuẩn của Go | Không phải cài, cập nhật hay rà soát thêm gì |
@@ -477,6 +477,19 @@ flowchart TD
 ### Lưu trữ: SQLite
 
 Máy chủ lưu mọi thứ trong hai file SQLite: `data/board.db` cho số liệu và `keys/accounts.db` cho tài khoản, tách riêng để bản sao lưu dữ liệu không bao giờ chứa mã bí mật OTP. SQLite có sẵn trong Python nên không phải cài thêm gì. Nó cho giao dịch, truy vấn nhật ký qua nhiều tháng, và chỗ cho bảng mới như chat. Các bản tới 0.24 lưu mỗi bảng một file JSON; máy chủ tự chuyển chúng vào ở lần khởi động đầu. Chi tiết: [DATA-MODEL.vi.md](DATA-MODEL.vi.md).
+
+### Đã cân nhắc nhưng không chọn
+
+Ghi lại để lần rà sau không đề xuất lại khi không có lý do mới.
+
+| Ý tưởng | Vì sao không |
+|---|---|
+| Viết lại bộ nhận Go bằng Rust | Bộ nhớ của nó dồn vào các kết nối và dữ liệu đang giữ, không phải do ngôn ngữ; Rust chỉ được cân nhắc lại cho phần nặng nhất, và chỉ khi Go vẫn không đủ |
+| Đặt bộ nhận Go và máy chủ Python ở hai máy | Theo các lần đo, một máy 4 nhân 8 GB phục vụ được 40.000 máy; máy thứ hai thêm một chặng mạng và thêm một thứ phải vận hành |
+| `/data` gửi phần thay đổi kể từ lần đọc trước | Chi phí nằm ở việc gom dòng theo người, gửi phần thay đổi không bỏ được việc đó |
+| `gc.freeze()`, vòng HTTP tự viết thay cho `net/http` | Đã quyết bỏ trong tháng 11/2026: không đáng phần mã thêm vào so với những chỗ đo được là quan trọng hơn |
+| Một bước làm sạch lần gửi, viết bằng một ngôn ngữ | Máy chủ Python và bộ nhận Go cố ý mỗi bên tự làm sạch mọi lần gửi; các ca dùng chung trong `tests/contract/` giữ hai bên giống nhau |
+| Một module "nhận một lần gửi" dùng chung cho `/ingest` và các dòng của bộ nhận | Hai đường chỉ chung vài dòng; phần còn lại cố ý khác nhau: một lần gửi so với cả lô ghi trong một giao dịch, bên nào quyết thứ tự, lúc nào ghi lịch sử, tên và tài khoản lấy từ đâu. Một module chung sẽ cần một cờ cho mỗi điểm đó, rộng ngang phần nó làm. `server/test_two_paths.py` giữ các điểm khác nhau trong một bảng thay vào đó |
 
 ## 5. Kiểm tra thay đổi
 
@@ -502,7 +515,7 @@ Mỗi lần đẩy code còn chạy `.github/workflows/test-install.yml`: trên 
 - **HTTP khi không có proxy.** Kết nối chỉ được mã hoá khi đi qua Caddy hoặc nginx.
 - **Người có sudo trên máy chủ** đọc được mọi số liệu và tự cấp được tài khoản. Nên giữ ít người.
 - **Chuỗi của nhật ký** bắt được một dòng bị sửa hay bị xoá bằng tay, không bắt được người viết lại được cả cơ sở dữ liệu lẫn `audit_head`: thỉnh thoảng hãy ghi lại dấu vân tay trang Quản trị hiện. Bước kiểm bí mật và kiểm trang dựa vào hình dạng của khoá và câu chữ của lệnh, nên bí mật không có hình dạng quen, hay lệnh viết kiểu khác, vẫn lọt.
-- **File lớn.** Máy chủ đã tách vào `server/board/` (cấu hình, đăng nhập, máy gửi, tổng theo ngày, kho lưu, quyền xem, trang, gói cài), `server/webhook.py` giữ phần nhận yêu cầu và bảng đường dẫn. `hooks/register.tsx` và `server/static/ops.js` vẫn lớn: các phần trong đó dùng chung biến trong một khối và chưa có test riêng, nên chờ có test rồi mới tách.
+- **File lớn.** Máy chủ đã tách vào `server/board/` (cấu hình, đăng nhập, máy gửi, tổng theo ngày, kho lưu, quyền xem, trang, gói cài), `server/webhook.py` giữ phần nhận yêu cầu và bảng đường dẫn. `hooks/register.tsx` và `server/static/ops.js` vẫn lớn: các phần trong đó dùng chung biến trong một khối và chưa có test riêng, nên chờ có test rồi mới tách. Việc gửi số liệu của máy là phần đầu tiên rời `register.tsx`, sang `hooks/send.ts`, sau khi `tests/share.test.ts` che nó đầu-cuối.
 - **Bộ nối biết ít hơn plugin.** Nó chỉ gửi khi có sự kiện, nên công cụ bị đóng mà không có sự kiện kết thúc còn hiện trên bảng tới 2 giờ. Lượt bị lỗi cũng không gửi sự kiện nào: đã thấy với Codex CLI 0.164.0, khi một yêu cầu mô hình bị từ chối để phiên kẹt ở đang làm. (Lượt bị cắt ngang bằng Esc thì gửi `Interrupt` thay cho `Stop`, và sự kiện đó đã được gắn hook.) Vì vậy máy chủ chỉ tin "đang làm" của bộ nối trong 30 phút kể từ lần gửi cuối; trong Cursor, nơi không có hook sau từng bước, một lượt chạy lâu hơn thế sẽ hiện là rảnh cho tới khi lượt đó kết thúc. Nó không biết token, chi phí, hạn mức hay mô hình. Bản sao khoá gửi của nó nằm ở một chỗ thứ hai trên máy. Tên và email của nó phải đúng cặp mà plugin gửi, nếu không một người sẽ hiện thành hai dòng. Cursor, Gemini CLI và Windows chưa được thử trong công cụ thật.
 - **Cổng MCP.** Mới thử trong công cụ thật trên macOS: Claude Code, Codex CLI, và tab Chat của app Claude trên máy tính qua một kết nối của claude.ai. Cursor, Gemini CLI và mọi công cụ trên Windows và Linux chưa được thử. Những gì công cụ đọc sẽ tới hãng làm ra nó. Khoá chỉ đọc số gộp vẫn để lộ một đội hay một nhóm còn lại chỉ một hai người qua số gộp. Các lần gọi được ghi vào bảng nhật ký sẵn có chứ không có bảng riêng, để bản máy chủ cũ hơn vẫn mở được cơ sở dữ liệu. Xem thêm [SECURITY.vi.md](../SECURITY.vi.md).
 - **Hỏi bảng qua Telegram.** Đã thử với Telegram thật bằng cách chạy tay trên macOS, và mới được cài lên một máy chủ thật, với một chat chỉ đọc số gộp và, một lần, một chat đọc từng người; trong các câu trả lời có kèm tên thì mới thấy câu về chi phí. Những gì một chat đọc sẽ đi qua Telegram, một bên thứ ba, và nằm lại trong chat. Danh sách cho phép các mạng của Telegram là bản chép từ danh sách Telegram công bố: nếu Telegram chuyển mạng, bot dừng cho tới khi danh sách được sửa.

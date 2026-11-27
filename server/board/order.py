@@ -50,6 +50,65 @@ def wins(stamp, kept) -> bool:
     return kept is None or stamp >= kept
 
 
+class Plan:
+    """What to do with the hours of one computer for a send (plan): put, [((kind, hour), body, stamp)] to write, in the order sent; drop,
+    [(kind, hour)] to remove; lost, how many hours of the send stayed as they were, older than the ones kept; after, for a whole book, the
+    hours held once it is written {(kind, hour): body}, else None.
+    Việc phải làm với các giờ của một máy cho một lần gửi (plan): put, [((loại, giờ), nội dung, mốc)] cần ghi, theo thứ tự gửi; drop,
+    [(loại, giờ)] cần xoá; lost, số giờ của lần gửi bị giữ nguyên vì cũ hơn giờ đang giữ; after, với một sổ đủ, các giờ đang giữ sau khi
+    ghi {(loại, giờ): nội dung}, không thì None."""
+
+    __slots__ = ("put", "drop", "lost", "after")
+
+    def __init__(self, put: list, drop: list, lost: int, after=None):
+        self.put, self.drop, self.lost, self.after = put, drop, lost, after
+
+
+def plan(sent: dict, stored: dict, kept: dict, stamps, whole: bool) -> Plan:
+    """Which hours of a send are written, which stay as they were and which are removed: the rule of this module in one place, with no
+    database, for write_book (a whole book) and DeviceCache.merge (changed hours, one kind at a time). sent is {(kind, hour): body}, the
+    bodies already encoded; with changed hours a body None is an empty table, which removes the hour. stored is the bodies held of those
+    hours (of every hour for a whole book), kept their stamps; an hour with no stamp kept is written by any send. stamps is the send's
+    Stamps, or None to write the hours exactly (the upgrade to schema version 6, a record replaced by hand), with no stamp on them.
+    A whole book replaces the book: an hour held and not in it is removed unless a newer send wrote it, and a losing hour of the book
+    counts only when an hour is held there. With changed hours every losing hour counts, and an hour not sent is left alone.
+    Giờ nào của một lần gửi được ghi, giờ nào giữ nguyên và giờ nào bị xoá: luật của module này ở một chỗ, không có cơ sở dữ liệu, cho
+    write_book (một sổ đủ) và DeviceCache.merge (các giờ đã đổi, từng loại một). sent là {(loại, giờ): nội dung}, nội dung đã mã hoá; với
+    các giờ đã đổi, nội dung None là bảng rỗng, xoá giờ đó. stored là nội dung đang giữ của các giờ đó (của mọi giờ với một sổ đủ), kept
+    là mốc của chúng; giờ chưa có mốc thì lần gửi nào cũng ghi. stamps là Stamps của lần gửi, hoặc None để ghi đúng các giờ (lần nâng lên
+    lược đồ phiên bản 6, bản ghi thay bằng tay), không kèm mốc. Một sổ đủ thay cả sổ: giờ đang giữ mà không có trong nó thì bị xoá, trừ
+    khi một lần gửi mới hơn đã ghi giờ đó, và một giờ thua của sổ chỉ được đếm khi đang có giờ ở đó. Với các giờ đã đổi, mọi giờ thua đều
+    được đếm, và giờ không gửi thì để nguyên."""
+    def stamp(key):
+        return stamps.of(*key) if stamps is not None else None
+
+    def loses(key) -> bool:
+        return stamps is not None and not wins(stamps.of(*key), kept.get(key))
+
+    if whole:
+        after, lost = {}, 0
+        for key, body in sent.items():
+            if not loses(key):
+                after[key] = body
+            elif key in stored:
+                after[key], lost = stored[key], lost + 1
+        for key, body in stored.items():
+            if key not in after and loses(key):
+                after[key], lost = body, lost + 1
+        put = [(key, body, stamp(key)) for key, body in after.items() if stored.get(key) != body]
+        return Plan(put, [key for key in stored if key not in after], lost, after)
+    put, drop, lost = [], [], 0
+    for key, body in sent.items():
+        if loses(key):
+            lost += 1
+        elif body is not None:
+            if stored.get(key) != body:
+                put.append((key, body, stamp(key)))
+        elif key in stored:
+            drop.append(key)
+    return Plan(put, drop, lost)
+
+
 def note_older(n: int, device: str = "") -> None:
     """n hours of a send of that computer were left as they were, older than what is kept.
     n giờ của một lần gửi của máy đó được giữ nguyên, vì cũ hơn thứ đang giữ."""
