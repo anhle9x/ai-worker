@@ -2,6 +2,18 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.35 - 2026-11-28
+
+### Added
+- The Activity tab of the page on the computer shows the images pasted into a message as small pictures; a click shows one larger. To do so the plugin keeps a copy of each pasted image on this computer, in `shots/` of the page's folder, since the Claude app gives a plugin an image only while the message is being sent. A copy is removed when its line leaves the last 80 of its session, or after a week; images over 6 MB are not copied and keep their label. Nothing of it is sent to the server.
+
+### Changed
+- On the Activity tab each session's lines sit in a box that scrolls by itself: the mouse wheel over one session moves that session only, where it used to move the whole page. A box keeps its place when the page refreshes.
+
+### Fixed
+- The Activity tab showed the message the Claude app sends by itself when it reopens ("The app was quit while you were working…") as the words of "You". It makes no line now, and lines already written are left out when the page draws them.
+- In what Claude said, a link written as `[words](address)` showed its brackets and address; it now shows the words only.
+
 ## 0.50.34 - 2026-11-28
 
 ### Changed

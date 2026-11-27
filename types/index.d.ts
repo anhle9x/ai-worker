@@ -50,6 +50,9 @@ export type Activity = {
   media?: string[]
   /** Images pasted into the prompt: the engine gives a plugin no path for them. */
   pasted?: number
+  /** Copies of the pasted images kept on this computer for the page: file names in `shots/`, without `.js`. */
+  /** Bản sao các ảnh dán được giữ trên máy này cho trang: tên file trong `shots/`, không có `.js`. */
+  shots?: string[]
 }
 
 export type PlanItem = { content: string; status: 'pending' | 'in_progress' | 'completed' }

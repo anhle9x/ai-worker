@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { STALE_MS, applyPlan, describeTool, finishPlan, folderName, mediaPaths, ownWords, savedActivity, sayEntry, staleSessionFiles, youEntry } from '../hooks/activity'
+import { MAX_SHOT_BYTES, STALE_MS, applyPlan, describeTool, finishPlan, folderName, mediaPaths, ownWords, savedActivity, sayEntry, shotFile, shotName, staleSessionFiles, unusedShots, youEntry } from '../hooks/activity'
 
 test('tool calls read as short lines', () => {
   expect(describeTool('Bash', { command: 'ls -la', description: 'List files' })).toEqual({ verb: 'run', text: 'List files' })
@@ -46,6 +46,9 @@ test('a message keeps the words the person typed, not the blocks the app inserte
   expect(ownWords('hello <system-reminder>left open')).toBe('hello')
   expect(ownWords('<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n</task-notification>')).toBe('')
   expect(ownWords('<agent-message from="a1">\n[Subagent hand-back] done\n</agent-message>')).toBe('')
+  expect(ownWords('The app was quit while you were working. Please continue from where you left off.')).toBe('')
+  expect(ownWords(`${linked}\nThe app was quit while you were working. Please continue from where you left off.`)).toBe('')
+  expect(ownWords('The app was quit while you were working. Please continue from where you left off. And fix the tab')).toBe('The app was quit while you were working. Please continue from where you left off. And fix the tab')
   expect(youEntry(`${linked}\n${'x'.repeat(400)}`, 5)?.text.length).toBe(300)
   expect(youEntry(`${linked}\nsee /tmp/a.png`, 5)).toEqual({ at: 5, kind: 'you', text: 'see /tmp/a.png', media: ['/tmp/a.png'] })
   expect(youEntry('<system-reminder>look at /tmp/b.png</system-reminder>', 5)).toBeUndefined()
@@ -94,4 +97,30 @@ test('a session that starts again takes its feed back from its own file', () => 
   expect(savedActivity('')).toEqual([])
   expect(savedActivity('window.__aiWorkerIn && window.__aiWorkerIn("id-1", {broken')).toEqual([])
   expect(savedActivity('window.__aiWorkerIn && window.__aiWorkerIn("id-1", {"jobs":[]});\n')).toEqual([])
+})
+
+test('a pasted image is kept as a script the page loads, for picture types only', () => {
+  expect(shotName('ab-12/../x', 1700.9, 2)).toBe('ab-12x.1700.2')
+  expect(shotFile('s.1.1', 'image/png', 'aGk=')).toBe('window.__aiWorkerShot && window.__aiWorkerShot("s.1.1", "data:image/png;base64,aGk=");\n')
+  expect(shotFile('s.1.1', 'image/svg+xml', 'aGk=')).toBeUndefined()
+  expect(shotFile('s.1.1', 'text/html', 'aGk=')).toBeUndefined()
+  expect(shotFile('s.1.1', 'image/png', 'aGk=");alert(1);("')).toBeUndefined()
+  expect(shotFile('s.1.1', 'image/png', '')).toBeUndefined()
+  expect(MAX_SHOT_BYTES).toBe(6 * 1024 * 1024)
+  expect(youEntry('look', 5, '', 2, ['s.5.1', 's.5.2'])).toEqual({ at: 5, kind: 'you', text: 'look', pasted: 2, shots: ['s.5.1', 's.5.2'] })
+})
+
+test('copies of pasted images go when no line shows them or after a week', () => {
+  const now = 100 * STALE_MS
+  const fresh = now - 1000
+  const files = [
+    { name: 'me.1.1.js', kind: 'file', mtimeMs: fresh },
+    { name: 'me.2.1.js', kind: 'file', mtimeMs: fresh },
+    { name: 'other.1.1.js', kind: 'file', mtimeMs: fresh },
+    { name: 'other.0.1.js', kind: 'file', mtimeMs: now - STALE_MS - 1 },
+    { name: 'me.3.1.js', kind: 'file', mtimeMs: now - STALE_MS - 1 },
+    { name: 'note.txt', kind: 'file', mtimeMs: 0 },
+  ]
+  const feed = [{ at: 1, kind: 'you' as const, text: '', pasted: 1, shots: ['me.1.1', 'me.3.1'] }]
+  expect(unusedShots(files, now, 'me', feed)).toEqual(['me.2.1.js', 'other.0.1.js', 'me.3.1.js'])
 })

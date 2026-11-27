@@ -10,7 +10,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, ToolCallResult } from 'claude-code'
 
 import type { Activity, BlockKind, Job, TeamState, WorkerId } from '../types'
-import { applyPlan, describeTool, finishPlan, folderName, savedActivity, sayEntry, staleSessionFiles, youEntry } from './activity'
+import { MAX_SHOT_BYTES, applyPlan, describeTool, finishPlan, folderName, savedActivity, sayEntry, shotFile, shotName, staleSessionFiles, unusedShots, youEntry } from './activity'
 import { EDIT_TOOLS, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextNoteForClaude, contextWarning, costDelta, formatUsd, shortCount, toUsage } from './edits'
 import { answerModel, buildMachineSummary, PACE_MIN_MS, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, toQuota } from './team'
 import { chatTitle, cleanTitle, newTitles, nextTitle, notePrompt, noteRename, titleDue } from './titles'
@@ -224,6 +224,9 @@ let me: { id: string; name: string } | undefined
 /** Images pasted into the prompt being submitted, until its turn starts. */
 /** Số ảnh được dán vào lời nhắc đang gửi, cho tới khi lượt của nó bắt đầu. */
 let pastedImages = 0
+/** The copies of those images kept for the page on this computer, by name in `shots/`. */
+/** Các bản sao của những ảnh đó được giữ cho trang trên máy này, theo tên trong `shots/`. */
+let pastedShots: string[] = []
 let listedAt = 0
 /** When this session last did something (saved a change); a heartbeat keeps it, only `seenAt` moves. */
 /** Lần cuối phiên này làm gì đó (lưu một thay đổi); nhịp tim giữ nó, chỉ `seenAt` đổi. */
@@ -351,6 +354,76 @@ function ensureHeartbeat($: EngineInterface) {
 
 /** Removes office files of sessions closed over a week ago (the chats themselves are untouched). */
 /** Xoá file văn phòng của các phiên đã đóng hơn một tuần (bản thân các cuộc trò chuyện không bị động tới). */
+/** No delete on $.fs: rm on macOS and Linux, del on Windows. */
+/** $.fs không có lệnh xoá: rm trên macOS và Linux, del trên Windows. */
+async function removeFiles($: EngineInterface, paths: string[]) {
+  if (paths.length === 0) return
+  for (const argv of [['rm', '-f', ...paths], ['cmd', '/c', 'del', '/q', ...paths.map(p => p.replaceAll('/', '\\'))]]) {
+    try {
+      if ((await $.process.run(argv)).exitCode === 0) return
+    } catch {
+      // not this system's command; try the next
+      // không phải lệnh của hệ thống này; thử lệnh kế tiếp
+    }
+  }
+}
+
+/**
+ * Keeps a copy of each image pasted into the prompt being submitted, for the Activity tab of the page on this
+ * computer. The engine hands the bytes over only while the prompt is being submitted, and writes text only, so
+ * each copy is a small script the page loads. Nothing of it is sent anywhere.
+ */
+/** Giữ một bản sao của từng ảnh dán vào lời nhắc đang gửi, cho tab Hoạt động của trang trên máy này. Engine chỉ đưa dữ liệu ảnh trong lúc lời nhắc đang được gửi, và chỉ ghi được chữ, nên mỗi bản sao là một script nhỏ mà trang nạp. Không phần nào của nó được gửi đi đâu. */
+async function keepShots($: EngineInterface, attachments: readonly { type: string; id?: string }[]): Promise<string[]> {
+  const kept: string[] = []
+  try {
+    const dir = `${await webFolder($)}/shots`
+    const { id: session } = await whoAmI($)
+    const at = await $.clock.now()
+    let index = 0
+    for (const item of attachments) {
+      if (item.type !== 'image') continue
+      index++
+      if (!item.id) continue
+      let base64 = ''
+      let mediaType = ''
+      let offset: number | undefined
+      for (let slice = 0; slice < 8; slice++) {
+        const part = await $.prompt.media(offset === undefined ? { id: item.id } : { id: item.id, offset })
+        if (part.base64 === undefined || part.size > MAX_SHOT_BYTES) { base64 = ''; break }
+        base64 += part.base64
+        mediaType = part.mediaType
+        offset = part.next
+        if (offset === undefined) break
+      }
+      const name = shotName(session, at, index)
+      const file = offset === undefined ? shotFile(name, mediaType, base64) : undefined
+      if (!file) continue
+      await $.fs.write(`${dir}/${name}.js`, file)
+      kept.push(name)
+    }
+  } catch {
+    // the line still says how many images there were
+    // dòng vẫn ghi có bao nhiêu ảnh
+  }
+  return kept
+}
+
+/** Removes the copies of pasted images no line shows any more, and those older than a week. */
+/** Xoá các bản sao ảnh dán mà không dòng nào còn hiện, và các bản cũ hơn một tuần. */
+async function pruneShots($: EngineInterface) {
+  try {
+    const dir = `${await webFolder($)}/shots`
+    if (!(await $.fs.exists(dir))) return
+    const { id } = await whoAmI($)
+    const old = unusedShots(await $.fs.list(dir), await $.clock.now(), id, (await read($, team)).activity ?? [])
+    await removeFiles($, old.map(n => `${dir}/${n}`))
+  } catch {
+    // tidying is optional
+    // dọn dẹp là tuỳ chọn
+  }
+}
+
 async function pruneOld($: EngineInterface) {
   try {
     const dir = `${await webFolder($)}/sessions`
@@ -1795,6 +1868,7 @@ export const register: Register = on => {
       if (ledger) await writeLongSpend(ledgerIo($), ledger, Math.floor((await $.clock.now()) / 3_600_000))
     }
     void pruneOld($)
+    void pruneShots($)
     void shareTeam($)
     // staff machines: the plugin's own delegation tools, one per helper installed here
     // máy nhân viên: các công cụ giao việc riêng của plugin, mỗi trợ lý cài ở đây một công cụ
@@ -1948,6 +2022,7 @@ export const register: Register = on => {
     !o || o.kind === 'composer' || o.kind === 'bridge' || o.kind === 'sdk' || o.kind === 'unclassified' || (o.kind === 'plugin' && o.asUser === true)
   on('prompt.submit', async ($, e, next) => {
     if (!e.command) pastedImages = e.attachments?.filter(a => a.type === 'image').length ?? 0
+    if (!e.command) pastedShots = pastedImages ? await keepShots($, e.attachments ?? []) : []
     // the person's own message, once the context passed 80%: Claude is told too, once per climb, so it suggests a handoff
     // tin nhắn của chính người dùng, khi context đã vượt 80%: Claude cũng được báo, mỗi lần leo một lần, để đề nghị bàn giao
     if (!e.command && personsOwn(e.origin)) {
@@ -1978,7 +2053,9 @@ export const register: Register = on => {
         const st = { ...s, now, claudeBusySince: now, claudeTool: undefined, asking: false }
         const pasted = pastedImages
         pastedImages = 0
-        const you = youEntry(e.text, now, cwd, pasted)
+        const shots = pastedShots
+        pastedShots = []
+        const you = youEntry(e.text, now, cwd, pasted, shots)
         if (you?.media) you.media = you.media.map(p => (p.startsWith('~/') ? home + p.slice(1) : p))
         return you ? pushActivity(st, you) : st
       })

@@ -52,6 +52,10 @@ export function mediaPaths(text: string, cwd = ''): string[] {
 const INSERTED = 'system-reminder|task-notification|agent-message|scheduled-task|side-sessions-event|ci-monitor-event|local-command-stdout|local-command-stderr|local-command-caveat'
 const INSERTED_BLOCK = new RegExp(`<(${INSERTED})\\b[^>]*>[\\s\\S]*?(?:</\\1>|$)`, 'g')
 
+/** Whole messages the app sends by itself, with no tag around them: the one that resumes a session after the app was closed. */
+/** Các tin nhắn trọn vẹn mà app tự gửi, không có thẻ bao quanh: câu cho phiên làm tiếp sau khi app bị đóng. */
+const APP_SENT = new Set(['The app was quit while you were working. Please continue from where you left off.'])
+
 /**
  * What the person typed, without the blocks the app inserted around it. A
  * block left open runs to the end of the message. Empty when the whole
@@ -59,20 +63,22 @@ const INSERTED_BLOCK = new RegExp(`<(${INSERTED})\\b[^>]*>[\\s\\S]*?(?:</\\1>|$)
  */
 /** Điều người dùng đã gõ, bỏ các khối app chèn quanh nó. Khối không đóng thì kéo tới hết tin nhắn. Rỗng khi cả tin nhắn là của app. */
 export function ownWords(text: string): string {
-  return text.replace(INSERTED_BLOCK, '\n').replace(/\n{3,}/g, '\n\n').trim()
+  const own = text.replace(INSERTED_BLOCK, '\n').replace(/\n{3,}/g, '\n\n').trim()
+  return APP_SENT.has(own) ? '' : own
 }
 
 const MAX_ASKED = 300
 
 /** The feed line for a message the person sent, or undefined when nothing in it is theirs. */
 /** Dòng hoạt động cho một tin nhắn người dùng gửi, hoặc undefined khi không có gì trong đó là của họ. */
-export function youEntry(text: string, at: number, cwd = '', pasted = 0): Activity | undefined {
+export function youEntry(text: string, at: number, cwd = '', pasted = 0, shots: readonly string[] = []): Activity | undefined {
   const asked = ownWords(text)
   if (!asked && !pasted) return undefined
   const you: Activity = { at, kind: 'you', text: asked.length > MAX_ASKED ? `${asked.slice(0, MAX_ASKED - 1)}…` : asked }
   const media = mediaPaths(asked, cwd)
   if (media.length) you.media = media
   if (pasted) you.pasted = pasted
+  if (shots.length) you.shots = [...shots]
   return you
 }
 
@@ -188,6 +194,48 @@ export function applyPlan(plan: PlanItem[] | undefined, raw: Record<string, unkn
 /** Khi kết thúc công việc (wrap-up), mọi bước đều tính là xong. */
 export function finishPlan(plan: PlanItem[] | undefined): PlanItem[] | undefined {
   return plan?.map(i => ({ ...i, status: 'completed' }))
+}
+
+/** The image types a browser draws as a picture and nothing else; no SVG, which can carry script. */
+/** Các loại ảnh mà trình duyệt vẽ thành hình và không gì khác; không có SVG, thứ có thể mang script. */
+const SHOT_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+/** A pasted image larger than this (decoded) is not copied: its line keeps the count only. */
+/** Ảnh dán lớn hơn mức này (sau giải mã) thì không chép: dòng của nó chỉ giữ con số. */
+export const MAX_SHOT_BYTES = 6 * 1024 * 1024
+
+/** The name of the copy of pasted image `index` of a message sent at `at`: letters, digits, dots and dashes only. */
+/** Tên bản sao của ảnh dán thứ `index` trong tin nhắn gửi lúc `at`: chỉ gồm chữ, số, dấu chấm và gạch nối. */
+export function shotName(session: string, at: number, index: number): string {
+  return `${session.replace(/[^A-Za-z0-9-]/g, '')}.${Math.trunc(at)}.${Math.trunc(index)}`
+}
+
+/**
+ * The file that holds one pasted image for the page on this computer: a
+ * script the page loads, since the engine writes text only. Undefined for a
+ * type the page will not draw or for bytes that are not base64.
+ */
+/** File giữ một ảnh dán cho trang trên máy này: một script mà trang nạp, vì engine chỉ ghi được chữ. Undefined với loại ảnh trang không vẽ hoặc với dữ liệu không phải base64. */
+export function shotFile(name: string, mediaType: string, base64: string): string | undefined {
+  if (!SHOT_TYPES.has(mediaType) || !base64 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) return undefined
+  return `window.__aiWorkerShot && window.__aiWorkerShot(${JSON.stringify(name)}, ${JSON.stringify(`data:${mediaType};base64,${base64}`)});\n`
+}
+
+/**
+ * Copies of pasted images to remove from `shots/`: this session's own that no
+ * line of its feed shows any more, and anyone's older than STALE_MS.
+ */
+/** Các bản sao ảnh dán cần xoá khỏi `shots/`: của chính phiên này mà không dòng nào trong luồng còn hiện, và của bất kỳ phiên nào cũ hơn STALE_MS. */
+export function unusedShots(
+  entries: readonly { name: string; kind: string; mtimeMs: number }[],
+  now: number,
+  session: string,
+  activity: readonly Activity[],
+): string[] {
+  const shown = new Set(activity.flatMap(a => a.shots ?? []).map(n => `${n}.js`))
+  const mine = `${session.replace(/[^A-Za-z0-9-]/g, '')}.`
+  return entries
+    .filter(f => f.kind === 'file' && f.name.endsWith('.js') && (now - f.mtimeMs > STALE_MS || (f.name.startsWith(mine) && !shown.has(f.name))))
+    .map(f => f.name)
 }
 
 const KINDS = new Set(['you', 'say', 'tool'])

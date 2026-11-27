@@ -199,8 +199,14 @@
   .act .prose b { color: var(--white); font-weight: 700; }
   .act .prose code, .act .prose pre { font: inherit; background: rgba(94,230,240,.08); border: 1px solid var(--border-soft); border-radius: 3px; padding: 0 4px; }
   .act .prose pre { padding: 0 8px; white-space: pre-wrap; }
+  .act .shots { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .act .shot { max-width: 220px; max-height: 120px; border: 1px solid var(--border); border-radius: 4px; cursor: zoom-in; object-fit: contain; background: rgba(0,0,0,.25); }
+  .act .shot.big { max-width: 100%; max-height: none; cursor: zoom-out; }
   .act .more { display: block; margin-top: 2px; color: var(--cyan); font-size: 11px; text-decoration: underline; text-underline-offset: 2px; }
-  .act-head { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; padding: 16px 0 6px; border-bottom: 1px solid var(--border); font-size: 11.5px; }
+  .act-box { max-height: min(60vh, 520px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--border) transparent; padding-right: 6px; }
+  .act-box:focus-visible { outline: 1px solid rgba(94,230,240,.5); outline-offset: 2px; }
+  .act-box .act:last-child { border-bottom: 0; }
+  .act-head { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; padding: 18px 0 6px; border-bottom: 1px solid var(--border); font-size: 11.5px; }
   .act-head:first-child { padding-top: 0; }
   .act-head .name { color: var(--title); font-weight: 700; overflow-wrap: anywhere; }
   .act .attach { display: inline-block; margin: 2px 6px 2px 0; padding: 1px 8px; border: 1px solid var(--border); border-radius: 10px; color: var(--cyan); font-size: 11px; }
@@ -1093,8 +1099,12 @@
   /* Claude's words as paragraphs, lists, bold and code, built node by node: no HTML from the text is ever run */
   /* lời của Claude thành đoạn, danh sách, chữ đậm và mã, dựng từng nút một: không HTML nào từ chữ được chạy */
   function inline(into, text) {
-    for (const part of text.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*)/)) {
+    for (const part of text.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*|\[[^\]\n]+\]\([^)\s]+\))/)) {
       if (!part) continue
+      /* a link shows its words only: the address may be a session id or a file path, and the page opens nothing */
+      /* một liên kết chỉ hiện phần chữ: địa chỉ có thể là mã phiên hay đường dẫn file, và trang không mở gì cả */
+      const link = /^\[([^\]\n]+)\]\([^)\s]+\)$/.exec(part)
+      if (link) { inline(into, link[1]); continue }
       if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) into.append(el('code', '', part.slice(1, -1)))
       else if (part.length > 4 && part.startsWith('**') && part.endsWith('**')) into.append(el('b', '', part.slice(2, -2)))
       else into.append(part)
@@ -1125,12 +1135,23 @@
     return box
   }
 
+  /* a pasted image the plugin kept: a script in shots/ that hands over a data: address; loaded once, when a line needs it */
+  /* một ảnh dán plugin đã giữ: một script trong shots/ đưa ra một địa chỉ data:; nạp một lần, khi có dòng cần tới */
+  const shots = new Map()
+  window.__aiWorkerShot = (name, url) => { if (/^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(url)) shots.set(name, url) }
+  function shot(name) {
+    if (!shots.has(name)) shots.set(name, load(`shots/${name}.js`).then(() => { const url = shots.get(name); if (typeof url !== 'string') shots.set(name, ''); return shots.get(name) }))
+    return Promise.resolve(shots.get(name))
+  }
+
   let filter = 'all', activityKey = ''
   const openLines = new Set()
   function drawActivity(ids) {
-    /* lines written before the plugin left the app's own blocks out of a message still hold them: they are cut here too */
-    /* các dòng ghi từ trước khi plugin bỏ khối của app ra khỏi tin nhắn vẫn còn chứa chúng: ở đây cũng cắt bỏ */
-    const own = a => (a.kind === 'you' ? { ...a, text: (a.text || '').replace(/<system-reminder>[\s\S]*?(<\/system-reminder>|$)/g, '').trim() } : a)
+    /* lines written before the plugin left the app's own blocks and its resume message out still hold them: they are cut here too */
+    /* các dòng ghi từ trước khi plugin bỏ khối của app và câu làm tiếp của nó vẫn còn chứa chúng: ở đây cũng cắt bỏ */
+    const APP_SENT = 'The app was quit while you were working. Please continue from where you left off.'
+    const cut = t => { const own = t.replace(/<system-reminder>[\s\S]*?(<\/system-reminder>|$)/g, '').trim(); return own === APP_SENT ? '' : own }
+    const own = a => (a.kind === 'you' ? { ...a, text: cut(a.text || '') } : a)
     const keep = a => (a.text || a.pasted) && (filter === 'all' || (filter === 'talk' ? a.kind !== 'tool' : a.kind === 'tool'))
     /* one group per session, the session with the newest line first; inside a group, newest first */
     /* mỗi phiên một nhóm, phiên có dòng mới nhất đứng trước; trong một nhóm, mới nhất ở trên */
@@ -1162,11 +1183,18 @@
     for (const g of shown) {
       const head = el('div', 'act-head')
       head.append(el('span', 'name', g.name), el('span', 'muted', tx('{n} lines, newest {time}', { n: g.count, time: hourText(g.rows[0].at) })))
-      out.push(head)
+      /* each session's lines sit in a box of their own that scrolls by itself, so the wheel over one session moves that session only */
+      /* các dòng của mỗi phiên nằm trong một khung riêng tự cuộn, nên lăn chuột trên một phiên chỉ làm phiên đó chạy */
+      const box = el('div', 'act-box')
+      box.dataset.session = g.id
+      box.tabIndex = 0
+      box.setAttribute('role', 'group')
+      box.setAttribute('aria-label', g.name)
+      out.push(head, box)
       let prevDay = dayLabel(Date.now())
       for (const a of g.lines) {
         const dayText = dayLabel(a.at)
-        if (dayText !== prevDay) { out.push(el('div', 'day-sep', dayText)); prevDay = dayText }
+        if (dayText !== prevDay) { box.append(el('div', 'day-sep', dayText)); prevDay = dayText }
         const h = el('div', 'act' + (a.kind === 'tool' ? ' tool' : ''))
         const actor = a.kind === 'you' ? tx('You') : a.kind === 'say' ? 'Claude' : a.tools.length === 1 ? VERB_LABELS[a.tools[0].verb] || tx('Tool') : tx('Tool')
         const text = el('div')
@@ -1185,13 +1213,39 @@
         }
         /* pasted images have no path a plugin can read, so the line says how many; files named in the message are listed by name */
         /* ảnh dán không có đường dẫn nào plugin đọc được, nên dòng ghi số ảnh; file nêu trong tin nhắn được liệt kê theo tên */
-        if (a.pasted) text.append(el('span', 'attach', a.pasted > 1 ? tx('{n} images pasted into this message', { n: a.pasted }) : tx('1 image pasted into this message')))
+        if (a.pasted) {
+          const label = text.appendChild(el('span', 'attach', a.pasted > 1 ? tx('{n} images pasted into this message', { n: a.pasted }) : tx('1 image pasted into this message')))
+          /* the copies the plugin kept on this computer show as small pictures; one that is gone leaves the label alone */
+          /* các bản sao plugin giữ trên máy này hiện thành hình nhỏ; bản nào đã mất thì chỉ còn lại nhãn */
+          const names = (a.shots || []).filter(n => /^[A-Za-z0-9.-]+$/.test(n))
+          if (names.length) {
+            const row = text.appendChild(el('div', 'shots'))
+            for (const name of names) {
+              const img = row.appendChild(el('img', 'shot'))
+              img.alt = tx('Image pasted into this message')
+              img.title = tx('Click to see it larger or smaller')
+              img.hidden = true
+              img.addEventListener('click', () => img.classList.toggle('big'))
+              shot(name).then(url => {
+                if (!url) return img.remove()
+                img.src = url
+                img.hidden = false
+                if (names.length === a.pasted) label.hidden = true
+              })
+            }
+          }
+        }
         for (const p of a.media || []) text.append(el('span', 'attach', tx('File: {name}', { name: p.split('/').pop() })))
         h.append(el('span', 'muted num', hourText(a.at)), el('span', 'actor' + (a.kind === 'you' ? ' you' : ''), actor), text)
-        out.push(h)
+        box.append(h)
       }
     }
+    /* a redraw keeps each box where the person had scrolled it */
+    /* vẽ lại vẫn giữ mỗi khung ở chỗ người dùng đã cuộn tới */
+    const was = {}
+    for (const b of $('activity-list').querySelectorAll('.act-box')) was[b.dataset.session] = b.scrollTop
     $('activity-list').replaceChildren(...out)
+    for (const b of $('activity-list').querySelectorAll('.act-box')) if (was[b.dataset.session]) b.scrollTop = was[b.dataset.session]
     /* the button shows only where the words are really cut */
     /* nút chỉ hiện ở chỗ chữ thật sự bị cắt */
     for (const b of $('activity-list').querySelectorAll('.more')) {

@@ -5,6 +5,8 @@ window.I18n.add({
   '1 image pasted into this message': 'Tin này kèm 1 ảnh dán',
   '{n} images pasted into this message': 'Tin này kèm {n} ảnh dán',
   'File: {name}': 'File: {name}',
+  'Image pasted into this message': 'Ảnh dán vào tin nhắn này',
+  'Click to see it larger or smaller': 'Bấm để xem to hơn hoặc nhỏ lại',
   'Show less': 'Thu gọn',
   'Show the whole message': 'Xem hết lời này',
   '{n} lines, newest {time}': '{n} dòng, mới nhất {time}',
