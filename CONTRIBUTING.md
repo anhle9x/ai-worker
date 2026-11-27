@@ -20,7 +20,7 @@ Thank you for helping. Bug reports, fixes, translations and documents are all we
 
 ## Checks to run
 
-Run all twelve from the repository root before sending a change. GitHub Actions runs the same checks, except that of the server's tests it runs only the modules named in `.github/workflows/test-install.yml`: the whole `python3 -m unittest` runs only on your computer, so run it there.
+Run all twelve from the repository root before sending a change. GitHub Actions runs the same ones.
 
 ```bash
 claude plugin test .

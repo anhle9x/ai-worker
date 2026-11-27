@@ -115,7 +115,7 @@ check 'the webhook is still active' '[ "$(systemctl is-active $SERVICE)" = activ
 
 # the board's window inside Telegram: the installer derives the webhook's key from the token, and never writes the token there
 # khung bảng bên trong Telegram: bộ cài suy ra khoá của webhook từ khoá bot, và không bao giờ ghi khoá bot vào đó
-printf 'TELEGRAM_APP=1\nTELEGRAM_APP_URL=https://board.example.com/tg/app\n' >> "$ENV_FILE"
+printf 'TELEGRAM_APP=1\nTELEGRAM_APP_URL=https://aiworker.example.com/tg/app\n' >> "$ENV_FILE"
 AI_WORKER_LANG=en bash server/install.sh > /tmp/server-ask.txt 2>&1
 RESULT=$?
 sleep 2

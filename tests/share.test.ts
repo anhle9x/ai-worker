@@ -15,7 +15,7 @@ type Engine = Parameters<TestBody>[0]
 // a clock far from 0: at 0 every send is too close to the last one (never sent, at 0) and waits
 // đồng hồ xa mốc 0: ở mốc 0 mọi lần gửi đều quá sát lần trước (chưa gửi, ở 0) nên phải chờ
 const NOW = 1_800_000_000_000
-const WEBHOOK = 'https://board.example.com'
+const WEBHOOK = 'https://aiworker.example.com'
 const RECEIVER = 'https://ingest.example.com'
 // a key-shaped value put together here, so this file holds none the commit check flags (as in tests/commitscan.test.ts)
 // giá trị có hình dạng khoá ghép ở đây, để file này không chứa giá trị nào bị bước kiểm commit bắt (như trong tests/commitscan.test.ts)

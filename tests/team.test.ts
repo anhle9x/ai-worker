@@ -508,10 +508,10 @@ test('the plugin keeps the gap between sends the server asks, and comes back whe
 
 
 test('only a receiver under the webhook\'s own domain, or listed in the package, is trusted with the sends', () => {
-  const hook = 'https://board.example.com'
+  const hook = 'https://aiworker.example.com'
   expect(receiverAllowed('https://ingest.example.com', hook, [])).toBe(true)
   expect(receiverAllowed('https://ingest.example.com:8443', hook, [])).toBe(true)
-  expect(receiverAllowed('https://board.example.com:8443', hook, [])).toBe(true)
+  expect(receiverAllowed('https://aiworker.example.com:8443', hook, [])).toBe(true)
   // not https, a path, an account, another domain, a look-alike
   // không phải https, có đường dẫn, có tài khoản, tên miền khác, tên giả giống
   expect(receiverAllowed('http://ingest.example.com', hook, [])).toBe(false)
@@ -528,12 +528,12 @@ test('only a receiver under the webhook\'s own domain, or listed in the package,
   expect(receiverAllowed('https://x.com.vn', 'https://congty.com.vn', [])).toBe(false)
   expect(receiverAllowed('https://x.com.vn', 'https://board.com.vn', [])).toBe(false)
   expect(receiverAllowed('https://ingest.congty.com.vn', 'https://board.congty.com.vn', [])).toBe(true)
-  expect(receiverAllowed('https://ingest.example.com', 'http://board.example.com', [])).toBe(false)
+  expect(receiverAllowed('https://ingest.example.com', 'http://aiworker.example.com', [])).toBe(false)
   expect(receiverAllowed('https://10.0.0.3', 'https://10.0.0.2', [])).toBe(false)
 })
 
 test('the route the server gives is kept for a bounded, spread time, and an empty list sends the machine back', () => {
-  const hook = 'https://board.example.com'
+  const hook = 'https://aiworker.example.com'
   const mid = () => 0.5
   expect(routeFrom('{"ok": true}', hook, [], NOW)).toBeUndefined()
   expect(routeFrom('not json', hook, [], NOW)).toBeUndefined()

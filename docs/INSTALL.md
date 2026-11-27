@@ -9,12 +9,12 @@ For the admin who deploys AI Worker: what you need, the first deployment, releas
 To look at the board before deploying anything, run `python3 server/demo.py` (on Windows: `py server\demo.py`) on your own computer: it shows the board with sample people and needs no server (see the [README](../README.md#quick-start)).
 
 - **A Linux server** with `python3` 3.8 or newer and systemd. The webhook needs no outside libraries.
-- **A dedicated subdomain**, for example `board.company.com`, with a DNS `A` record pointing to the server IP.
+- **A dedicated subdomain**, for example `aiworker.company.com`, with a DNS `A` record pointing to the server IP.
 - **Caddy** (or nginx) on the server for HTTPS. The webhook listens only inside the server; Caddy takes the outside connections.
 - **An allow-list of IPs:** the network IPs of the offices. A computer outside the list cannot see the dashboard, send numbers or download updates, unless an admin lets that computer send from any network ([Sending from outside the office](#sending-from-outside-the-office-chosen-computers)).
 - **One signing computer** with `ssh-keygen` to keep the update signing key.
 
-Real addresses, the `INGEST_KEY` and the keys do not go into git. The repo only uses sample addresses such as `https://board.company.com`.
+Real addresses, the `INGEST_KEY` and the keys do not go into git. The repo only uses sample addresses such as `https://aiworker.company.com`.
 
 ## Which setup for your size
 
@@ -32,7 +32,6 @@ When the limit is reached, a new computer is refused (`507 device limit reached`
 
 1. **Install the webhook.** Copy `server/` to the server and run `sudo bash install.sh`. The first time, the script prints the `INGEST_KEY` and creates the first admin account. Details in [`server/README.md`](../server/README.md).
 2. **Turn on HTTPS.** Add a Caddy block for the domain with the allow-list of IPs (template: `server/aiworker.caddy`, change it to your domain and IPs), then add `TRUST_PROXY=1` to `/etc/ai-worker.env` and run `install.sh` again.
-   With many thousands of computers, the optional Go receiver goes beside the webhook with one command, `sudo sh install-receiver.sh`, which also checks the second IP, Caddy, DNS, the certificate and the firewall ([RECEIVER.md](RECEIVER.md#the-installer)). An office does not need it.
 3. **Make the signing keys**, on the signing computer:
    ```bash
    mkdir -p ~/.ai-worker-keys && chmod 700 ~/.ai-worker-keys
@@ -47,7 +46,16 @@ When the limit is reached, a new computer is refused (`507 device limit reached`
    This makes `dist/AI-Worker-<version>-company.zip`.
 5. **Employees install.** Unzip, double-click `INSTALL-Mac.command` or `INSTALL-Windows.bat` (on Linux run `bash INSTALL-Linux.sh`), type the full name. The package contains the send code, so give it out inside the company only.
    On Windows there is also one installer file, `AI-Worker-Plugin.msi`, which the server fills with its own address and send code: see [Plugin installer for Windows (.msi)](#plugin-installer-for-windows-msi).
-6. **View the dashboard.** Open the board in a browser: `https://<board domain>` behind your HTTPS proxy (for example `https://board.example.com`). The webhook listens only inside the server, so there is no address to open before the proxy is set up. Sign in with the OTP code. The `/board` page has a Plugin column showing which computers are not on the latest version yet.
+6. **View the dashboard.** Open the board in a browser: `https://<board domain>` behind your HTTPS proxy (for example `https://aiworker.example.com`). The webhook listens only inside the server, so there is no address to open before the proxy is set up. Sign in with the OTP code. The `/board` page has a Plugin column showing which computers are not on the latest version yet.
+7. **Add the Go receiver** (optional; only with tens of thousands of computers, see [Which setup for your size](#which-setup-for-your-size)). An office skips this step.
+   - **Before:** a second IP for the server, or another port of the same IP such as 8443; a DNS record for the receiver's sub-domain (for example `ingest.example.com`) when it has a name of its own; a TLS certificate for that name under `/etc`, readable by the account `ai-worker`; the port open in the firewall. On the computer with the repository run `sh packaging/build-receiver.sh`, then copy `server/` to the server again (without Go, take the three files from the project's Releases page on GitHub and put them in `server/receiver-bin/`).
+   - **Where:** on the server, in the `server/` folder. **Do:**
+     ```bash
+     sudo sh install-receiver.sh
+     ```
+     It asks five questions, each with an answer guessed from the server (Enter takes it), shows the whole and waits for Enter before it changes anything.
+   - **Right result:** five lines with ✔, then `✔ The receiver answers on https://<the receiver's sub-domain>/health`. A line with ✘ says what is missing and the command that fixes it; nothing was changed, so fix it and run the same command again.
+   - **After:** no computer sends to the receiver yet. Choosing which do, trying it with a few first, going back and taking it away are in [RECEIVER.md](RECEIVER.md#the-installer). From then on every `sudo bash install.sh` updates the receiver too.
 
 ## Commands on an employee's computer
 
@@ -68,7 +76,7 @@ Someone who works in Codex, Cursor or Gemini CLI can show on the same board, wit
 - Ubuntu: open Terminal in the unzipped folder and type `bash INSTALL-Other-Tools-Linux.sh`.
 - Windows: double-click `INSTALL-Other-Tools-Windows.bat`.
 
-From a copy of this repository instead of a package: `bash connectors/install.sh --server https://board.example.com` (Windows: `powershell -ExecutionPolicy Bypass -File connectors\install.ps1 -Server https://board.example.com`); it asks for the send key.
+From a copy of this repository instead of a package: `bash connectors/install.sh --server https://aiworker.example.com` (Windows: `powershell -ExecutionPolicy Bypass -File connectors\install.ps1 -Server https://aiworker.example.com`); it asks for the send key.
 
 The installer asks about each tool it finds on the computer. It adds its hooks to that tool's own settings (`~/.codex/hooks.json` or `config.toml`, `~/.cursor/hooks.json`, `~/.gemini/settings.json`) and leaves everything else in them alone; a copy of the file as it was is kept next to it, ending in `.ai-worker-backup`. A settings file it cannot read as plain JSON is not changed: the installer prints the hooks to add by hand. It uses the name and email the plugin already has on that computer, so one person stays one row on the board. When asked, it also copies 17 of the plugin's skills to `~/.agents/skills/`, the folder all three tools read; `make-skill` and `improve-codebase-architecture` lean on Claude Code and are not copied. A skill you changed after it was copied is yours: a later run does not replace it and `--uninstall` does not remove it, and the installer says so. To get the package's version again, delete that skill's folder and run the installer.
 
@@ -96,7 +104,7 @@ The server has an MCP endpoint at `/mcp`. MCP (Model Context Protocol) is the co
 
 **Getting a key.**
 
-1. The person opens `https://board.example.com/mcp/connect` in a browser on the company network and clicks **Get a code**. The page shows an 8-digit code. Admins and view-only accounts reach this page from the **Connect an AI tool** button on `/board`, and the Admin page shows the link with a **Copy link** button under **Paired devices and keys**.
+1. The person opens `https://aiworker.example.com/mcp/connect` in a browser on the company network and clicks **Get a code**. The page shows an 8-digit code. Admins and view-only accounts reach this page from the **Connect an AI tool** button on `/board`, and the Admin page shows the link with a **Copy link** button under **Paired devices and keys**.
 2. An admin opens `/admin`, goes to **Paired devices and keys**, types the code and clicks **View request**. The card says it is a key for an AI tool. The admin chooses what the key may read (team and office totals only, or each person too), names the key and clicks **Approve**.
 3. The person's page then shows the key once, with the line to paste into each tool. Approve only a code the person read to you themselves: the code says nothing about who is asking.
 
@@ -136,7 +144,7 @@ The two ranges in the block are Anthropic's outbound IPv4 addresses as published
 Before you open it:
 
 - **`/mcp` then takes connections from outside the office.** Anyone on claude.ai who types your address arrives from those same Anthropic addresses, so the key is the only thing between them and the numbers. Every other path stays closed, `/mcp/connect` included: a key is still asked for from inside your networks.
-- **In claude.ai:** Customize > Connectors > Add custom connector, and the address `https://board.example.com/mcp`. Claude first marks "Sign in now" as detected, because the board answers that it wants a key: choose **No sign-in** instead. Under **Request headers** add the header `authorization` with the value `Bearer`, a space, and the key. Leave the transport on **Streamable HTTP**.
+- **In claude.ai:** Customize > Connectors > Add custom connector, and the address `https://aiworker.example.com/mcp`. Claude first marks "Sign in now" as detected, because the board answers that it wants a key: choose **No sign-in** instead. Under **Request headers** add the header `authorization` with the value `Bearer`, a space, and the key. Leave the transport on **Streamable HTTP**.
 - **Claude may call the tool without asking.** The connector's page lists the board's tool as read-only with "Needs approval", and says that this setting applies in Manual mode. In the test Claude called the tool with no question. What the tool reads is decided by the key alone, so approve a key that reads totals only unless people's names are meant to go out.
 - **The log shows Anthropic's address, not the person's,** and the key's row gets a line saying it was used from a new IP.
 - **Tried once, on 2026-11-17, from the Chat tab of the Claude desktop app,** against a board behind Caddy 2.6.2 with the block above and a key that reads totals only: the connector was added, and Claude answered from the board's numbers. Three things were seen. The first attempt to add the connector said the address could not be reached and the second went through; the reason was not found. Claude also asked three `/.well-known/oauth-...` paths, which this block keeps closed (403), and that did not stop it. Request headers were offered on the account used. claude.ai in a browser and the mobile app use the same connector and were not tried.
@@ -169,7 +177,7 @@ A computer gets its own key at its first send from the office, so each computer 
 3. **Tell the server the office networks.** Add `OFFICE_NETS=` with exactly the ranges of `remote_ip` in the Caddy block, separated by commas, to `/etc/ai-worker.env` (IPv6 ranges too, if the domain has an AAAA record), then `sudo systemctl restart ai-worker-webhook`. Caddy is still closed, so every request still comes from the office. Open the Admin page from the office: under **Computers and their keys** there must be no warning that your address counts as outside. If there is, the two lists differ: fix them before going on.
 4. **Let the computers.** On the Admin page, **Computers and their keys**, press **Any network** on the row of each chosen computer and type the OTP again. Each change goes into the Admin log.
 5. **Open Caddy.** In the Caddy block, replace the two lines `@outside not remote_ip ...` and `respond @outside ...` with the commented block in `server/aiworker.caddy` that starts with `# @outside {` and has `header Authorization "Bearer awd1.*"`, with your own ranges in both `remote_ip` lines. Run `caddy validate --config /etc/caddy/Caddyfile`, then `sudo systemctl reload caddy`.
-6. **Check from outside**, on a phone's 4G for example: `curl -s -o /dev/null -w '%{http_code}\n' https://board.example.com/` answers `403`, and so does `curl -s -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer <send code>' https://board.example.com/releases/latest.json`. On the chosen computer, away from the office, `/update` answers and the board shows it sending.
+6. **Check from outside**, on a phone's 4G for example: `curl -s -o /dev/null -w '%{http_code}\n' https://aiworker.example.com/` answers `403`, and so does `curl -s -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer <send code>' https://aiworker.example.com/releases/latest.json`. On the chosen computer, away from the office, `/update` answers and the board shows it sending.
 
 To close again: put the two old Caddy lines back and `sudo systemctl reload caddy`; empty `OFFICE_NETS` only after that. To take one computer back, press **Office only** on its row.
 
@@ -219,7 +227,7 @@ A Chrome or Edge extension shows, on its icon, how many people are waiting for a
 
 1. **Package** on the computer with the repository: `bash packaging/build-extension.sh` makes `server/menubar/AI-Worker-extension.zip`; copy `server/` to the server and run `install.sh`, and the Admin page shows an **Extension for Chrome, Edge** button under "Menu bar icon". Run it again after changing the extension.
 2. **Install by hand** on the manager's computer: unzip that file (or copy the `extensions/manager/` folder), open `chrome://extensions` (Edge: `edge://extensions`), turn on Developer mode, click "Load unpacked" and choose the folder.
-3. **Pair:** click the icon, type the address you open the board with (for example `https://board.example.com`), allow access to that one site when the browser asks, and read the 8-digit code to an admin.
+3. **Pair:** click the icon, type the address you open the board with (for example `https://aiworker.example.com`), allow access to that one site when the browser asks, and read the 8-digit code to an admin.
 4. **The admin approves** it on the Admin page under Paired devices and keys, like a screen; the row is marked "Browser extension". Revoking it there makes the extension show "not paired" within a minute.
 
 Once paired, the popup is the same small window as the menu bar apps (five tabs, Settings with notifications, language and unpair). It runs copies of `server/static/mini.js`, `mini.css` and the logos kept in `extensions/manager/mini/`: after changing those files, copy them again (`cp server/static/mini.js server/static/mini.css extensions/manager/mini/`, and `server/menubar/icons/generic-black.png` and `generic-white.png` to `extensions/manager/mini/logo-black.png` and `logo-white.png`), then hand out the folder again.
@@ -236,7 +244,7 @@ People who use Telegram every day can log in to the board with Telegram's button
    3. BotFather asks for a username: type one that ends in `bot` and is not taken, for example `yourcompany_aiworker_bot`. If it says the name is taken, try another.
    4. BotFather replies "Done! Congratulations on your new bot" with the line **"Use this token to access the HTTP API:"** followed by the **token**, which looks like `1234567890:AAH...`. Keep this message open for step 3. The token can sign a login for anyone: do not post it in a chat or a screenshot.
    5. Optional: send `/setuserpic`, pick the bot and send your logo, so people recognise it when they confirm.
-2. **Tie the bot to the board's address** (still in @BotFather): send `/setdomain`, pick the bot, and send the board's domain without `https://`, for example `board.company.com`. Correct result: "Success! Domain updated."
+2. **Tie the bot to the board's address** (still in @BotFather): send `/setdomain`, pick the bot, and send the board's domain without `https://`, for example `aiworker.company.com`. Correct result: "Success! Domain updated."
 3. **Give the server the token and the username.** From your computer, run this; it asks for the token without showing it on screen:
    ```bash
    ssh -t <ssh-user>@<server-IP-or-name> 'read -rsp "Bot token: " T; echo; read -rp "Bot username (no @): " N; printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_BOT_NAME=%s\n" "$T" "$N" | sudo tee -a /etc/ai-worker.env >/dev/null && sudo systemctl restart ai-worker-webhook && echo DONE'
@@ -302,10 +310,10 @@ An approved chat can also open the small window of the menu bar icon inside Tele
 
 **What changes by turning it on.** The window is a page of the board, opened by Telegram's built-in browser on the person's phone or computer. The numbers go straight from the board to that browser over HTTPS, not through Telegram's servers; Telegram knows only that the window was opened. So the phone must reach the board: with the template's Caddy block that means a network on its list of allowed IPs (your offices). Outside them the window says it cannot reach the server, and the chat's buttons still work.
 
-1. **Turn it on.** Asking from Telegram must already work (above). Add these two lines to `/etc/ai-worker.env`, with your own board domain in place of `board.example.com`, then run `sudo bash install.sh` in the `server/` folder:
+1. **Turn it on.** Asking from Telegram must already work (above). Add these two lines to `/etc/ai-worker.env`, with your own board domain in place of `aiworker.example.com`, then run `sudo bash install.sh` in the `server/` folder:
    ```
    TELEGRAM_APP=1
-   TELEGRAM_APP_URL=https://board.example.com/tg/app
+   TELEGRAM_APP_URL=https://aiworker.example.com/tg/app
    ```
    The installer writes `TELEGRAM_APP_KEY` next to them: a key it derives from the bot's token by Telegram's rule. The webhook checks with it what Telegram signs for the window, and cannot use it to drive the bot; the token itself stays with the bot process. Correct result: no line about `TELEGRAM_APP_URL`, and on `/admin`, under **Paired devices and keys**, each Telegram chat has an **Allow the window** button.
 2. **Allow a chat.** Click **Allow the window** on the chat's row and confirm. Correct result: the row says *opens the window*, and within a minute the chat's menu button in Telegram turns into **AI Worker**. In Telegram, close the chat and open it again if the old menu still shows.

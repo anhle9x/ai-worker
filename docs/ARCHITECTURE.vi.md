@@ -66,6 +66,9 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | F27 | Bộ nhận tuỳ chọn bằng Go nhận các lần gửi của máy có khoá riêng trên một địa chỉ riêng qua TLS, làm sạch như máy chủ làm, trả lời ngay và trao chúng cho máy chủ theo lô có số thứ tự; mọi lần gửi khác nó chuyển nguyên văn cho máy chủ, kèm địa chỉ thật của máy. Nó giữ trạng thái và tổng hôm nay của từng máy và cộng chúng theo từng dòng của bảng và từng chi nhánh, như bảng làm (số trực tiếp), rồi gửi chúng tới các bảng ở `/live`, mỗi giây dựng một lần cho mỗi phạm vi dùng chung cho mọi bảng, bằng vé máy chủ cấp cho bảng đã đăng nhập; trang bảng khi đó đọc từng phạm vi một và đặt số lên từng dòng theo mã của nó. Máy chủ ghi các lô, cấp cho bộ nhận một tài liệu chính sách có số thứ tự, các sổ giờ và bảng mã dòng cùng chi nhánh của từng máy, và ghi cho nó một file bí mật | `receiver/`; `server/install-receiver.sh` (cài nó); `server/board/receiver.py`; các đường `/internal/` và `/sse/ticket` trong `server/webhook.py`; `server/static/page.js`; [RECEIVER.vi.md](RECEIVER.vi.md) |
 | F28 | Các file của một repo có thể khiến công cụ AI chạy lệnh hay làm khác đi (hook, quyền rộng, chương trình phụ và biến trong `.claude/settings*.json`, server MCP trong `.mcp.json`, chữ nhắm vào AI hay lệnh nguy hiểm trong `CLAUDE.md`/`AGENTS.md`, lệnh tắt, trợ lý con và skill) được nêu cho người dùng và Claude khi một phiên bắt đầu ở đó: chỉ những gì mới hoặc đã đổi kể từ lần xem trước, không bao giờ chặn; repo thấy lần đầu mà mọi file đều cũ hơn 14 ngày được ghi nhớ lặng lẽ, chỉ bằng dấu vân tay | `hooks/repoconfig.ts`; `checkRepoConfig`, `session.start` và `prompt.compose` trong `hooks/register.tsx` |
 | F29 | Một ngày của tổng chi phí bị sửa bằng tay sau khi đã chốt sẽ lộ ra ở trang Quản trị: khi một ngày không còn được đếm lại, nó được niêm phong vào chuỗi nhật ký kèm dấu vân tay các dòng của nó, và mỗi sáng dấu vân tay của chuỗi ở ngày đó được gửi tới chat Telegram của quản trị (ngày, số dòng, mã; không tên, không tiền) | `DailyStore.seal`, `day_facts` trong `server/board/daily.py`, `AuditLog.changed_days` trong `server/board/stores.py`, `seals_due` trong `server/board/chat.py` |
+| F30 | Mỗi máy gửi bằng một khoá riêng, được cấp trong câu trả lời cho lần gửi đầu và được đổi mới khi máy còn gửi; mã chung trong gói cài không gửi thay được cho nó nữa, quản trị thu hồi được từng máy, và `SHARED_KEY_MODE` quy định mã chung còn làm được gì | `DeviceKeys` trong `server/board/devicekeys.py`; `Handler.ingest` trong `server/webhook.py`; khoá do `hooks/team.ts` giữ |
+| F31 | Máy được quản trị đặt **Mọi mạng** thì gửi và nhận `/update` từ ngoài các mạng văn phòng; mọi máy khác, và mã chung, bị từ chối ở đó | `DeviceKeys.roams`, `set_roaming` trong `server/board/devicekeys.py`; `from_away` và `/admin/device-roam` trong `server/webhook.py`; `OFFICE_NETS` trong `server/board/settings.py`; khối trong `server/aiworker.caddy` |
+| F32 | Khi `config.js` của máy có `"commitTrail": true`, sau mỗi commit Claude tạo, Claude được nhắc sửa lời commit còn thiếu loại thay đổi, nguyên nhân đã chứng minh của một lần sửa lỗi hoặc kết quả đã đo; commit không bao giờ bị giữ lại | `hooks/committrail.ts` |
 
 ### Giới hạn máy chủ áp dụng
 
@@ -129,7 +132,10 @@ flowchart TD
     Hook --> Keys["keys/: tài khoản OTP"]
     Hook --> Releases["releases/:<br/>gói có chữ ký"]
     Bot["telegram_bot.py<br/>(tuỳ chọn)"] -- "từng tin nhắn,<br/>khoá riêng" --> Hook
+    Recv["Bộ nhận viết bằng Go<br/>(tuỳ chọn, địa chỉ riêng)"] -- "các lô dòng,<br/>trong máy" --> Hook
   end
+  Plugin -. "số liệu của máy được chọn,<br/>khoá riêng, TLS" .-> Recv
+  Browser -. "số trực tiếp,<br/>vé do webhook cấp" .-> Recv
   Plugin -- "số liệu, hỏi cập nhật,<br/>mã gửi" --> Proxy
   Browser -- "đăng nhập OTP,<br/>phiên đã ghép" --> Proxy
   Mgr -- "phiên đã ghép,<br/>phần treo tường" --> Proxy
@@ -198,6 +204,37 @@ sequenceDiagram
 ```
 
 Gửi lỗi thì plugin thử lại ở nhịp sau, và báo một lần khi lỗi kéo dài.
+
+### Gửi qua bộ nhận Go (tuỳ chọn)
+
+Chỉ tổ chức lớn mới cài phần này ([RECEIVER.vi.md](RECEIVER.vi.md)); không có nó thì mọi lần gửi đi theo luồng ở trên. Bộ nhận nhận lần gửi của những máy quản trị đã chọn, trả lời ngay, rồi trao cho webhook theo lô. Webhook vẫn là bản gốc: chỉ nó ghi `data/`, và chỉ nó biết tên, vai và việc đăng nhập.
+
+```mermaid
+sequenceDiagram
+  participant P as Plugin
+  participant W as webhook.py
+  participant R as Bộ nhận (Go)
+  participant D as data/
+  participant B as Trang bảng
+  P->>W: POST /ingest kèm khoá riêng của máy, như trên
+  W-->>P: 200 kèm ingestUrls, chỉ cho máy được chọn và gửi v 2
+  P->>R: Các lần gửi sau tới bộ nhận, qua TLS ở địa chỉ riêng của nó
+  R->>R: Kiểm khoá bằng file bí mật, sai thì 401
+  R->>R: Làm sạch lần gửi như webhook làm
+  R-->>P: 200 ngay
+  R->>R: Giữ một dòng chờ cho máy này
+  R->>W: POST /internal/rows, một lô có đánh số, trong máy
+  W->>D: Ghi cả lô trong một giao dịch
+  W-->>R: Số của lô, và các máy cần đọc lại
+  Note over P,R: Mã chung, hoặc khoá tới hạn đổi, được chuyển nguyên cho webhook
+  Note over P,W: Bộ nhận không trả lời thì plugin quay về /ingest
+  B->>W: POST /sse/ticket, kèm phiên đã đăng nhập
+  W-->>B: Một vé cho một phạm vi, 5 phút
+  B->>R: GET /live kèm vé
+  R-->>B: Số của phạm vi đó khi chúng đổi, không có tên
+```
+
+Các đường dưới `/internal/` chỉ trả lời lời gọi từ chính máy đó kèm mã nội bộ; từ nơi khác thì chúng như không tồn tại (404). Bộ nhận không giữ tên hay email nào, và không ghi file nào; địa chỉ của máy đi kèm dòng của nó tới webhook. Máy nào sang bộ nhận là do quản trị chọn (`RECEIVER_INGEST_DEVICES`, `RECEIVER_INGEST_PERCENT`), và để trống `RECEIVER_INGEST_URLS`, hoặc dừng bộ nhận, là đưa tất cả về lại webhook.
 
 ### Báo cáo từ Codex, Cursor và Gemini CLI
 
@@ -511,7 +548,7 @@ node tests/extension/check-extension.js
 node tests/check-map-layout.js
 ```
 
-`.github/workflows/test-install.yml` chạy ở mỗi lần đẩy code lên repo công khai, và ở mọi nơi khi được bấm chạy tay; lần đẩy lên repo riêng tư, như bản phát triển, bỏ qua mọi việc, nên ở đó các bước kiểm ở trên được chạy trên máy người phát triển. Việc `code-check` kiểm mã Python, chạy test của hook, chín module test của máy chủ (`test_webhook`, `test_demo`, `test_mcp`, `test_ask`, `test_telegram_bot`, `test_projects`, `test_contract`, `test_receiver`, `test_hour_rows`; các module khác chỉ chạy với lệnh `python3 -m unittest` trơn ở trên), `go vet` và `go test` của bộ nhận, test bộ nối và bộ đo, bước kiểm tiện ích và bước kiểm bố cục bản đồ. Trên Ubuntu thì đóng gói, thử bước kiểm dữ liệu riêng (`tests/test-check-clean.sh`), phần đầu của các skill, quy tắc hai ngôn ngữ (`tests/check-i18n.py`) và các bản đồ, rồi cài thử plugin, máy chủ và bộ nhận Go (`tests/linux/test-receiver.sh`), và thử script thanh menu và gói .deb (`tests/menubar/test-menubar.sh`, `test-deb.sh`). Trên Windows có ba việc: một việc cài thử, thử mở lại app sau `/update`, bộ nối và biểu tượng ở khay (`tests/menubar/test-menubar.ps1`); một việc dựng `AI Worker.exe` và `AI Worker.msi`, cài không cần quyền quản trị, ghép với máy chủ giả, cài bản mới đè lên app đang chạy rồi gỡ (`tests/menubar/test-windows-app.ps1`); một việc dựng gói `.msi` của plugin và thử nó (`tests/windows/test-msi.ps1`). Xem thêm [TEST-PLAN.vi.md](TEST-PLAN.vi.md), mục 1.
+`.github/workflows/test-install.yml` chạy ở mỗi lần đẩy code lên repo công khai, và ở mọi nơi khi được bấm chạy tay; lần đẩy lên repo riêng tư, như bản phát triển, bỏ qua mọi việc, nên ở đó các bước kiểm ở trên được chạy trên máy người phát triển. Việc `code-check` kiểm mã Python, chạy test của hook, mọi module test của máy chủ (`python3 -m unittest`), `go vet` và `go test` của bộ nhận, test bộ nối và bộ đo, bước kiểm tiện ích và bước kiểm bố cục bản đồ. Trên Ubuntu thì đóng gói, thử bước kiểm dữ liệu riêng (`tests/test-check-clean.sh`), phần đầu của các skill, quy tắc hai ngôn ngữ (`tests/check-i18n.py`) và các bản đồ, rồi cài thử plugin, máy chủ và bộ nhận Go (`tests/linux/test-receiver.sh`), và thử script thanh menu và gói .deb (`tests/menubar/test-menubar.sh`, `test-deb.sh`). Trên Windows có ba việc: một việc cài thử, thử mở lại app sau `/update`, bộ nối và biểu tượng ở khay (`tests/menubar/test-menubar.ps1`); một việc dựng `AI Worker.exe` và `AI Worker.msi`, cài không cần quyền quản trị, ghép với máy chủ giả, cài bản mới đè lên app đang chạy rồi gỡ (`tests/menubar/test-windows-app.ps1`); một việc dựng gói `.msi` của plugin và thử nó (`tests/windows/test-msi.ps1`). Xem thêm [TEST-PLAN.vi.md](TEST-PLAN.vi.md), mục 1.
 
 `server/test_webhook.py` đối chiếu tên trường giữa trang và máy chủ, nhưng chỉ đọc mã, nên sửa trang vẫn phải mở trình duyệt xem.
 

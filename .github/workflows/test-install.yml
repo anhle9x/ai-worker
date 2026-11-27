@@ -32,9 +32,16 @@ jobs:
       # nên kiểm kiểu chạy trên máy; CI chạy test của hook bằng Claude Code CLI, không cần đăng nhập
       - name: Test the hooks
         run: npx -y @anthropic-ai/claude-code@2.1.319 plugin test .
+      # every test module in server/, found by name, so a new one runs here without being added to a list; Node 22 is for the one
+      # that sends as the plugin does (test_plugin_v2), which is skipped on an older Node
+      # mọi module test trong server/, tìm theo tên, nên module mới tự chạy ở đây mà không phải thêm vào danh sách; Node 22 là cho
+      # bài gửi như plugin gửi (test_plugin_v2), bài này bị bỏ qua trên Node cũ hơn
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: Test the server
         working-directory: server
-        run: python3 -m unittest test_webhook test_demo test_mcp test_ask test_telegram_bot test_projects test_contract test_receiver test_hour_rows
+        run: python3 -m unittest
       # the optional receiver in Go: the shared sample, the random test with Python as the judge, and the receiver against the real Python server
       # bộ nhận tuỳ chọn bằng Go: bộ mẫu chung, bài thử ngẫu nhiên có Python làm trọng tài, và bộ nhận chạy với máy chủ Python thật
       - uses: actions/setup-go@v5

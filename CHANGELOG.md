@@ -2,6 +2,16 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.32 - 2026-11-28
+
+### Added
+- `sudo sh install-receiver.sh` with nothing after it now sets up the Go receiver by questions: it asks the board's address, where to listen, the receiver's address and the certificate, each with an answer guessed from the machine (the Caddy site of the board, a second address or port 8443, `ingest.<your domain>`, the usual certificate folders), so Enter is enough when the guess is right. It shows the whole once and waits before doing anything; `n` stops with nothing changed. The questions are numbered and say what each address is for, the two addresses may be typed as a bare sub-domain such as `aiworker.example.com` (`https://` is added, on the command line too), and the flags stay for a run with nobody to answer.
+
+### Changed
+- The tests on GitHub now run every test module of the server, found by name, in place of a list of nine: the ten that ran only on a developer's computer (the daily seal, the order of hours, the receiver's batches and choices among them) run on every push to a public repository, and a new module needs no list. Node 22 is set up for the test that sends as the plugin does.
+- The install guide gains step 7 of the first deployment, "Add the Go receiver": what to prepare, the one command, the right result and what comes after. The README points to it from a new row in "Where it runs", and lists the receiver's page among the documents.
+- The documents were checked a second way, feature by feature: the architecture page gains a flow "Sending through the Go receiver" with its diagram, the receiver in the diagram of the parts, and rows for computer keys, sending from any network and the commit-message check (F30 to F32); the security policy gains a section on computer keys and sending from outside the office, and one on the Go receiver.
+
 ## 0.50.31 - 2026-11-27
 
 ### Added

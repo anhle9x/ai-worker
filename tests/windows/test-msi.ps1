@@ -35,7 +35,7 @@ import sys
 sys.path.insert(0, sys.argv[1])
 from board import packages
 packages.MENUBAR_DIR = sys.argv[2]
-package = packages.plugin_msi("https://board.example.com/", "TESTSENDKEY234567", "ai-worker ssh-ed25519 AAAAtestkey\n")
+package = packages.plugin_msi("https://aiworker.example.com/", "TESTSENDKEY234567", "ai-worker ssh-ed25519 AAAAtestkey\n")
 assert package, "the server did not fill the .msi"
 open(sys.argv[3], "wb").write(package)
 '@
@@ -97,7 +97,7 @@ Write-Host '== M2 the setup window: signed in, types a Vietnamese name'
 $r = Setup 'm2' @('Nguyễn Thị Lan') # i18n-allow
 Check 'exit 0' { $r.ExitCode -eq 0 } $r.Out
 Check 'registers the plugin with Claude Code' { (Get-Content -Raw $log) -match 'plugin install ai-worker@ai-worker' } $r.Out
-Check 'company.json holds the server address and the send code' { $c = Company; $c.sharing.enabled -and $c.sharing.webhook -eq 'https://board.example.com' -and $c.sharing.ingestKey -eq 'TESTSENDKEY234567' }
+Check 'company.json holds the server address and the send code' { $c = Company; $c.sharing.enabled -and $c.sharing.webhook -eq 'https://aiworker.example.com' -and $c.sharing.ingestKey -eq 'TESTSENDKEY234567' }
 Check 'the update signing key is in place' { (Get-Content -Raw (Join-Path $pluginDir 'ai-worker\keys\allowed_signers')) -match 'ai-worker ssh-ed25519 AAAAtestkey' }
 Check 'the name with accents is saved' { (UserFile).name -eq 'Nguyễn Thị Lan' } # i18n-allow
 Check 'the registry copy of the send code is deleted' { -not (Get-ItemProperty $regKey -Name Company -ErrorAction SilentlyContinue) }

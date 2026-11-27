@@ -32,7 +32,6 @@ Khi chạm giới hạn, máy mới bị từ chối (`507 device limit reached`
 
 1. **Cài webhook.** Chép `server/` lên máy chủ rồi chạy `sudo bash install.sh`. Lần đầu script in `INGEST_KEY` và tạo tài khoản quản trị đầu tiên. Chi tiết ở [`server/README.md`](../server/README.md).
 2. **Bật HTTPS.** Thêm khối Caddy cho tên miền với danh sách IP được vào (mẫu: `server/aiworker.caddy`, đổi sang tên miền và IP của bạn), rồi thêm `TRUST_PROXY=1` vào `/etc/ai-worker.env` và chạy lại `install.sh`.
-   Với hàng nghìn máy, bộ nhận Go tuỳ chọn được cài cạnh webhook bằng một lệnh, `sudo sh install-receiver.sh`, lệnh này cũng kiểm IP thứ hai, Caddy, DNS, chứng chỉ và tường lửa ([RECEIVER.vi.md](RECEIVER.vi.md#bộ-cài)). Một văn phòng không cần nó.
 3. **Tạo khoá ký**, trên máy giữ khoá ký:
    ```bash
    mkdir -p ~/.ai-worker-keys && chmod 700 ~/.ai-worker-keys
@@ -47,7 +46,16 @@ Khi chạm giới hạn, máy mới bị từ chối (`507 device limit reached`
    Được `dist/AI-Worker-<phiên bản>-company.zip`.
 5. **Nhân viên cài.** Giải nén, bấm đúp `INSTALL-Mac.command` hoặc `INSTALL-Windows.bat` (trên Linux chạy `bash INSTALL-Linux.sh`), nhập họ tên. Gói có mã gửi nên chỉ phát trong công ty.
    Trên Windows còn có một file cài duy nhất, `AI-Worker-Plugin.msi`, do máy chủ điền sẵn địa chỉ và mã gửi của nó: xem [Gói cài plugin cho Windows (.msi)](#gói-cài-plugin-cho-windows-msi).
-6. **Xem bảng.** Mở bảng trên trình duyệt: `https://<domain của bảng>` sau proxy HTTPS (ví dụ `https://board.example.com`). Webhook chỉ nghe trong máy chủ, nên chưa dựng proxy thì chưa có địa chỉ nào để mở. Đăng nhập bằng mã OTP. Trang `/board` có cột Plugin cho biết máy nào chưa lên bản mới nhất.
+6. **Xem bảng.** Mở bảng trên trình duyệt: `https://<domain của bảng>` sau proxy HTTPS (ví dụ `https://aiworker.example.com`). Webhook chỉ nghe trong máy chủ, nên chưa dựng proxy thì chưa có địa chỉ nào để mở. Đăng nhập bằng mã OTP. Trang `/board` có cột Plugin cho biết máy nào chưa lên bản mới nhất.
+7. **Cài thêm bộ nhận Go** (tuỳ chọn; chỉ khi có hàng chục nghìn máy, xem [Chọn cách cài theo quy mô](#chọn-cách-cài-theo-quy-mô)). Một văn phòng bỏ qua bước này.
+   - **Chuẩn bị:** một IP thứ hai cho máy chủ, hoặc một cổng khác trên cùng IP như 8443; một bản ghi DNS cho tên miền con của bộ nhận (ví dụ `ingest.example.com`) khi nó có tên riêng; một chứng chỉ TLS cho tên đó đặt dưới `/etc`, tài khoản `ai-worker` đọc được; cổng đã mở ở tường lửa. Trên máy giữ repo chạy `sh packaging/build-receiver.sh`, rồi chép lại `server/` lên máy chủ (không có Go thì lấy ba file ở trang Releases của dự án trên GitHub, đặt vào `server/receiver-bin/`).
+   - **Ở đâu:** trên máy chủ, trong thư mục `server/`. **Làm gì:**
+     ```bash
+     sudo sh install-receiver.sh
+     ```
+     Nó hỏi năm câu, mỗi câu kèm một đáp án đoán từ máy chủ (Enter là nhận), hiện lại tất cả rồi chờ Enter trước khi đổi bất cứ gì.
+   - **Kết quả đúng:** năm dòng có dấu ✔, rồi `✔ Bộ nhận trả lời ở https://<tên miền con của bộ nhận>/health`. Dòng có dấu ✘ cho biết thiếu gì và lệnh để sửa; chưa có gì bị đổi, nên sửa xong chạy lại đúng lệnh đó.
+   - **Sau đó:** chưa máy nào gửi tới bộ nhận. Việc chọn máy nào gửi, thử với vài máy trước, quay lui và gỡ bỏ nằm ở [RECEIVER.vi.md](RECEIVER.vi.md#bộ-cài). Từ đó mỗi lần `sudo bash install.sh` cũng cập nhật bộ nhận.
 
 ## Lệnh trên máy nhân viên
 
@@ -68,7 +76,7 @@ Người làm việc trong Codex, Cursor hoặc Gemini CLI cũng hiện được
 - Ubuntu: mở Terminal trong thư mục đã giải nén rồi gõ `bash INSTALL-Other-Tools-Linux.sh`.
 - Windows: bấm đúp `INSTALL-Other-Tools-Windows.bat`.
 
-Nếu dùng bản sao của kho mã này thay cho gói: `bash connectors/install.sh --server https://board.example.com` (Windows: `powershell -ExecutionPolicy Bypass -File connectors\install.ps1 -Server https://board.example.com`); bộ cài sẽ hỏi khoá gửi.
+Nếu dùng bản sao của kho mã này thay cho gói: `bash connectors/install.sh --server https://aiworker.example.com` (Windows: `powershell -ExecutionPolicy Bypass -File connectors\install.ps1 -Server https://aiworker.example.com`); bộ cài sẽ hỏi khoá gửi.
 
 Bộ cài hỏi về từng công cụ nó tìm thấy trên máy. Nó thêm hook của mình vào cấu hình của chính công cụ đó (`~/.codex/hooks.json` hoặc `config.toml`, `~/.cursor/hooks.json`, `~/.gemini/settings.json`) và để nguyên mọi thứ khác trong đó; một bản sao của file như lúc trước được giữ ngay bên cạnh, tên kết thúc bằng `.ai-worker-backup`. File cấu hình nào nó không đọc được như JSON thuần thì không bị sửa: bộ cài in ra các hook để bạn tự thêm. Nó dùng đúng tên và email mà plugin đã có trên máy, nên một người vẫn là một dòng trên bảng. Khi được yêu cầu, nó chép thêm 17 skill của plugin vào `~/.agents/skills/`, thư mục mà cả ba công cụ đều đọc; `make-skill` và `improve-codebase-architecture` dựa vào Claude Code nên không được chép. Skill nào bạn đã sửa sau khi được chép thì là của bạn: lần chạy sau không thay nó và `--uninstall` không gỡ nó, và bộ cài có báo. Muốn lấy lại bản của gói thì xoá thư mục của skill đó rồi chạy lại bộ cài.
 
@@ -96,7 +104,7 @@ Máy chủ có một cổng MCP ở `/mcp`. MCP (Model Context Protocol) là cá
 
 **Cách lấy khoá.**
 
-1. Người cần khoá mở `https://board.example.com/mcp/connect` bằng trình duyệt trong mạng công ty rồi bấm **Lấy mã**. Trang hiện một mã 8 số. Quản trị và tài khoản chỉ xem vào trang này bằng nút **Nối một công cụ AI** trên `/board`; trang Quản trị cũng hiện link kèm nút **Chép link** ở mục **Thiết bị và khoá đã ghép**.
+1. Người cần khoá mở `https://aiworker.example.com/mcp/connect` bằng trình duyệt trong mạng công ty rồi bấm **Lấy mã**. Trang hiện một mã 8 số. Quản trị và tài khoản chỉ xem vào trang này bằng nút **Nối một công cụ AI** trên `/board`; trang Quản trị cũng hiện link kèm nút **Chép link** ở mục **Thiết bị và khoá đã ghép**.
 2. Quản trị mở `/admin`, vào mục **Thiết bị và khoá đã ghép**, gõ mã rồi bấm **Xem yêu cầu**. Thẻ hiện ra ghi rõ đây là khoá cho công cụ AI. Quản trị chọn khoá được đọc gì (chỉ số gộp của cả đội và từng văn phòng, hoặc cả từng người), đặt tên cho khoá rồi bấm **Duyệt**.
 3. Trang của người xin sẽ hiện khoá một lần, kèm dòng để dán vào từng công cụ. Chỉ duyệt mã do chính người xin đọc cho bạn: bản thân mã không nói lên ai đang xin.
 
@@ -136,7 +144,7 @@ Hai dải trong khối trên là địa chỉ IPv4 đi ra của Anthropic, công
 Trước khi mở:
 
 - **Khi đó `/mcp` nhận kết nối từ ngoài văn phòng.** Bất kỳ ai trên claude.ai gõ địa chỉ của bạn đều đi tới từ chính các địa chỉ đó của Anthropic, nên khoá là thứ duy nhất đứng giữa họ và số liệu. Mọi đường khác vẫn đóng, kể cả `/mcp/connect`: khoá vẫn phải xin từ bên trong mạng của bạn.
-- **Trong claude.ai:** Customize > Connectors > Add custom connector, và địa chỉ `https://board.example.com/mcp`. Lúc đầu Claude đánh dấu "Sign in now" là đã phát hiện, vì bảng trả lời rằng nó cần một khoá: hãy chọn **No sign-in**. Ở mục **Request headers**, thêm header `authorization` với giá trị là chữ `Bearer`, một dấu cách, rồi tới khoá. Để kiểu truyền là **Streamable HTTP**.
+- **Trong claude.ai:** Customize > Connectors > Add custom connector, và địa chỉ `https://aiworker.example.com/mcp`. Lúc đầu Claude đánh dấu "Sign in now" là đã phát hiện, vì bảng trả lời rằng nó cần một khoá: hãy chọn **No sign-in**. Ở mục **Request headers**, thêm header `authorization` với giá trị là chữ `Bearer`, một dấu cách, rồi tới khoá. Để kiểu truyền là **Streamable HTTP**.
 - **Claude có thể gọi công cụ mà không hỏi.** Trang của kết nối liệt kê công cụ của bảng là loại chỉ đọc ở mức "Needs approval", và ghi rằng mức này áp dụng ở chế độ Manual. Trong lần thử, Claude gọi công cụ mà không hỏi câu nào. Công cụ đọc được gì là do khoá quyết định, nên hãy duyệt khoá chỉ đọc số gộp, trừ khi bạn chủ ý cho tên người đi ra ngoài.
 - **Nhật ký hiện địa chỉ của Anthropic, không phải của người dùng,** và dòng của khoá có thêm một dòng báo khoá được dùng từ IP mới.
 - **Đã thử một lần, ngày 2026-11-17, từ tab Chat của app Claude trên máy tính,** với một bảng nằm sau Caddy 2.6.2 dùng khối ở trên và một khoá chỉ đọc số gộp: thêm được kết nối, và Claude trả lời từ số liệu của bảng. Có ba điều thấy được. Lần thêm kết nối đầu tiên báo không tới được địa chỉ, lần thứ hai thì qua; chưa tìm ra lý do. Claude còn hỏi ba đường `/.well-known/oauth-...`, khối này vẫn đóng các đường đó (403), và việc đó không cản trở gì. Mục Request headers có trên tài khoản dùng để thử. claude.ai trên trình duyệt và app trên điện thoại dùng cùng loại kết nối này và chưa được thử.
@@ -169,7 +177,7 @@ Một máy nhận khoá riêng ở lần gửi đầu từ văn phòng, nên m�
 3. **Báo cho máy chủ các mạng văn phòng.** Thêm `OFFICE_NETS=` với đúng các dải của `remote_ip` trong khối Caddy, cách nhau bằng dấu phẩy, vào `/etc/ai-worker.env` (cả dải IPv6, nếu tên miền có bản ghi AAAA), rồi `sudo systemctl restart ai-worker-webhook`. Caddy vẫn đóng, nên mọi yêu cầu vẫn từ văn phòng. Mở trang Quản trị từ văn phòng: trong mục **Máy nhân viên và khoá riêng** không được có cảnh báo địa chỉ của bạn bị tính là ở ngoài. Nếu có, hai danh sách đang lệch nhau: sửa cho khớp rồi mới làm tiếp.
 4. **Cho các máy.** Trên trang Quản trị, mục **Máy nhân viên và khoá riêng**, bấm **Mọi mạng** ở dòng của từng máy được chọn rồi nhập lại OTP. Mỗi thay đổi được ghi vào nhật ký Quản trị.
 5. **Mở Caddy.** Trong khối Caddy, thay hai dòng `@outside not remote_ip ...` và `respond @outside ...` bằng khối chú thích trong `server/aiworker.caddy` bắt đầu bằng `# @outside {` và có dòng `header Authorization "Bearer awd1.*"`, đặt các dải của bạn vào cả hai dòng `remote_ip`. Chạy `caddy validate --config /etc/caddy/Caddyfile`, rồi `sudo systemctl reload caddy`.
-6. **Thử từ ngoài**, ví dụ bằng 4G của điện thoại: `curl -s -o /dev/null -w '%{http_code}\n' https://board.example.com/` trả `403`, và `curl -s -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer <mã gửi>' https://board.example.com/releases/latest.json` cũng vậy. Trên máy được chọn, ở ngoài văn phòng, `/update` trả lời được và bảng hiện máy đó đang gửi.
+6. **Thử từ ngoài**, ví dụ bằng 4G của điện thoại: `curl -s -o /dev/null -w '%{http_code}\n' https://aiworker.example.com/` trả `403`, và `curl -s -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer <mã gửi>' https://aiworker.example.com/releases/latest.json` cũng vậy. Trên máy được chọn, ở ngoài văn phòng, `/update` trả lời được và bảng hiện máy đó đang gửi.
 
 Muốn đóng lại: đặt lại hai dòng Caddy cũ rồi `sudo systemctl reload caddy`; chỉ xoá `OFFICE_NETS` sau bước đó. Muốn thôi cho một máy, bấm **Chỉ văn phòng** ở dòng của nó.
 
@@ -219,7 +227,7 @@ Tiện ích cho Chrome hoặc Edge hiện trên biểu tượng số người đ
 
 1. **Đóng gói** trên máy giữ repo: `bash packaging/build-extension.sh` tạo `server/menubar/AI-Worker-extension.zip`; chép `server/` lên máy chủ và chạy `install.sh`, trang Quản trị hiện nút **Tiện ích Chrome, Edge** ở mục "Biểu tượng thanh menu". Sửa tiện ích thì chạy lại lệnh này.
 2. **Cài tay** trên máy quản lý: giải nén file đó (hoặc chép thư mục `extensions/manager/`), mở `chrome://extensions` (Edge: `edge://extensions`), bật Developer mode, bấm "Load unpacked" rồi chọn thư mục đó.
-3. **Ghép:** bấm biểu tượng, nhập địa chỉ dùng để mở bảng (ví dụ `https://board.example.com`), cho phép truy cập đúng trang đó khi trình duyệt hỏi, rồi đọc mã 8 số cho quản trị.
+3. **Ghép:** bấm biểu tượng, nhập địa chỉ dùng để mở bảng (ví dụ `https://aiworker.example.com`), cho phép truy cập đúng trang đó khi trình duyệt hỏi, rồi đọc mã 8 số cho quản trị.
 4. **Quản trị duyệt** ở trang Quản trị, mục Thiết bị và khoá đã ghép, như với màn hình; dòng đó được ghi "Tiện ích trình duyệt". Thu hồi ở đó thì trong vòng một phút tiện ích báo "chưa ghép".
 
 Đã ghép thì cửa sổ nhỏ chính là khung nhỏ của các app thanh menu (năm thẻ, Cài đặt có thông báo, ngôn ngữ và bỏ ghép). Cửa sổ chạy bản chép của `server/static/mini.js`, `mini.css` và logo, để trong `extensions/manager/mini/`: sửa các file đó thì chép lại (`cp server/static/mini.js server/static/mini.css extensions/manager/mini/`, và chép `server/menubar/icons/generic-black.png`, `generic-white.png` thành `extensions/manager/mini/logo-black.png`, `logo-white.png`), rồi phát lại thư mục.
@@ -236,7 +244,7 @@ Ai dùng Telegram hằng ngày có thể đăng nhập bảng tổng bằng nút
    3. BotFather hỏi username: gõ một tên kết thúc bằng `bot` và chưa ai dùng, ví dụ `congtyban_aiworker_bot`. Nếu báo đã có người dùng thì thử tên khác.
    4. BotFather trả lời "Done! Congratulations on your new bot", trong đó có dòng **"Use this token to access the HTTP API:"** và ngay sau là **token** (khoá của bot), dạng `1234567890:AAH...`. Giữ tin nhắn này để dùng ở bước 3. Token ký được lần đăng nhập của bất kỳ ai: không dán vào chat, không chụp màn hình.
    5. Tuỳ chọn: gửi `/setuserpic`, chọn bot rồi gửi logo công ty, để người dùng nhận ra bot khi xác nhận.
-2. **Gắn bot với địa chỉ bảng tổng** (vẫn trong @BotFather): gửi `/setdomain`, chọn bot, rồi gửi tên miền bảng tổng, không có `https://`, ví dụ `board.company.com`. Đúng là: "Success! Domain updated."
+2. **Gắn bot với địa chỉ bảng tổng** (vẫn trong @BotFather): gửi `/setdomain`, chọn bot, rồi gửi tên miền bảng tổng, không có `https://`, ví dụ `aiworker.company.com`. Đúng là: "Success! Domain updated."
 3. **Khai token và username cho máy chủ.** Trên máy tính của bạn, chạy lệnh sau; lệnh hỏi token mà không hiện token lên màn hình:
    ```bash
    ssh -t <tài-khoản-ssh>@<IP-hoặc-tên-máy-chủ> 'read -rsp "Bot token: " T; echo; read -rp "Bot username (no @): " N; printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_BOT_NAME=%s\n" "$T" "$N" | sudo tee -a /etc/ai-worker.env >/dev/null && sudo systemctl restart ai-worker-webhook && echo DONE'
@@ -302,10 +310,10 @@ Chat đã được duyệt còn có thể mở khung nhỏ của biểu tượng
 
 **Bật lên thì có gì thay đổi.** Khung là một trang của bảng, mở bằng trình duyệt có sẵn trong Telegram trên điện thoại hay máy tính của người đó. Số liệu đi thẳng từ bảng tới trình duyệt đó qua HTTPS, không qua máy chủ của Telegram; Telegram chỉ biết là khung đã được mở. Vì vậy điện thoại phải tới được bảng: với khối Caddy mẫu, nghĩa là đang ở một mạng có trong danh sách IP được vào (các văn phòng của bạn). Ở ngoài các mạng đó, khung báo không tới được máy chủ, còn các nút của chat vẫn dùng bình thường.
 
-1. **Bật lên.** Việc hỏi bảng qua Telegram phải đang chạy (mục trên). Thêm hai dòng này vào `/etc/ai-worker.env`, thay `board.example.com` bằng domain bảng của bạn, rồi chạy `sudo bash install.sh` trong thư mục `server/`:
+1. **Bật lên.** Việc hỏi bảng qua Telegram phải đang chạy (mục trên). Thêm hai dòng này vào `/etc/ai-worker.env`, thay `aiworker.example.com` bằng domain bảng của bạn, rồi chạy `sudo bash install.sh` trong thư mục `server/`:
    ```
    TELEGRAM_APP=1
-   TELEGRAM_APP_URL=https://board.example.com/tg/app
+   TELEGRAM_APP_URL=https://aiworker.example.com/tg/app
    ```
    Bộ cài ghi thêm `TELEGRAM_APP_KEY` bên cạnh: một khoá nó suy ra từ khoá bot theo quy tắc của Telegram. Webhook dùng khoá này để kiểm phần Telegram ký cho khung, và không dùng được nó để điều khiển bot; bản thân khoá bot vẫn chỉ ở tiến trình bot. Kết quả đúng: không có dòng nào nói về `TELEGRAM_APP_URL`, và ở `/admin`, mục **Thiết bị và khoá đã ghép**, mỗi chat Telegram có nút **Cho mở khung**.
 2. **Cho phép một chat.** Bấm **Cho mở khung** ở dòng của chat đó rồi xác nhận. Kết quả đúng: dòng ghi *mở được khung*, và trong vòng một phút nút menu của chat trong Telegram đổi thành **AI Worker**. Nếu Telegram vẫn hiện menu cũ, đóng chat rồi mở lại.

@@ -20,7 +20,7 @@ Cảm ơn bạn đã giúp. Báo lỗi, sửa lỗi, dịch và viết tài li�
 
 ## Các bước kiểm
 
-Chạy đủ mười hai bước từ thư mục gốc repo trước khi gửi thay đổi. GitHub Actions chạy cùng các bước này, trừ việc với test của máy chủ nó chỉ chạy các module nêu tên trong `.github/workflows/test-install.yml`: cả bộ `python3 -m unittest` chỉ chạy trên máy của bạn, nên hãy chạy nó ở đó.
+Chạy đủ mười hai bước từ thư mục gốc repo trước khi gửi thay đổi. GitHub Actions chạy đúng các bước này.
 
 ```bash
 claude plugin test .

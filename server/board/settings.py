@@ -314,10 +314,10 @@ RECEIVER_PEOPLE_SECONDS = max(0.0, float(os.environ.get("RECEIVER_PEOPLE_SECONDS
 # (muộn tới 30 giây). 0 là quay về cách cũ; server/test_apply_paths.py chạy cả hai.
 RECEIVER_FAST_APPLY = os.environ.get("RECEIVER_FAST_APPLY", "1").strip() != "0"
 # The live feed of the board from the receiver (docs/RECEIVER.md, section 3): RECEIVER_LIVE_URL is the receiver's address as the boards
-# reach it (https://ingest.example.com), RECEIVER_BOARD_ORIGIN the board's own (https://board.example.com), the only page the receiver lets
+# reach it (https://ingest.example.com), RECEIVER_BOARD_ORIGIN the board's own (https://aiworker.example.com), the only page the receiver lets
 # open the feed. Both, with RECEIVER=1, open POST /sse/ticket and add the receiver to the pages' connect-src; either missing, neither happens.
 # Luồng số trực tiếp của bảng từ bộ nhận (docs/RECEIVER.vi.md, mục 3): RECEIVER_LIVE_URL là địa chỉ của bộ nhận như các bảng tới được
-# (https://ingest.example.com), RECEIVER_BOARD_ORIGIN là địa chỉ của chính bảng (https://board.example.com), trang duy nhất bộ nhận cho mở
+# (https://ingest.example.com), RECEIVER_BOARD_ORIGIN là địa chỉ của chính bảng (https://aiworker.example.com), trang duy nhất bộ nhận cho mở
 # luồng. Có cả hai, cùng RECEIVER=1, thì mở POST /sse/ticket và thêm bộ nhận vào connect-src của các trang; thiếu một thì không có gì.
 def retry_after(span) -> str:
     """A Retry-After within span = (lo, hi) seconds, spread at random.

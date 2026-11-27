@@ -331,7 +331,7 @@ class Projects(unittest.TestCase):
             self.assertEqual(len(f.readlines()), 3)
         # a key is never sent over plain HTTP to another machine
         # khoá không bao giờ được gửi qua HTTP thường tới máy khác
-        self.assertIsNone(ai_meter.Meter(os.path.join(folder, "n.jsonl"), send_url="http://board.example.com/projects/ingest", send_key="k").sender)
+        self.assertIsNone(ai_meter.Meter(os.path.join(folder, "n.jsonl"), send_url="http://aiworker.example.com/projects/ingest", send_key="k").sender)
         # a board that does not answer costs the project nothing
         # bảng không trả lời thì dự án không mất gì
         dead = ai_meter.Meter(os.path.join(folder, "d.jsonl"), send_url="http://127.0.0.1:9/projects/ingest", send_key="k")

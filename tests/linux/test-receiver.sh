@@ -37,7 +37,8 @@ cleanup() {
   sh server/install-receiver.sh --remove >/dev/null 2>&1
   ip addr del "$IP/32" dev lo 2>/dev/null
   sed -i "/ $NAME\$/d" /etc/hosts
-  rm -rf "$TLS" "$OUT" /tmp/receiver-server
+  rm -rf "$TLS" "$OUT" /tmp/receiver-server /tmp/receiver-caddy /etc/ai-worker-receiver
+  sed -i "/ aiworker.corp.test\$/d; / ingest.corp.test\$/d" /etc/hosts
   systemctl daemon-reload
 }
 trap cleanup EXIT
@@ -53,10 +54,10 @@ AI_WORKER_LANG=en bash server/install.sh > /dev/null 2>&1 < /dev/null
 # a certificate of our own for the name, readable by the receiver's account
 # một chứng chỉ tự ký cho tên đó, tài khoản của bộ nhận đọc được
 mkdir -p "$TLS"
-openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 30 -subj "/CN=$NAME" -addext "subjectAltName=DNS:$NAME" \
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 30 -subj "/CN=$NAME" -addext "subjectAltName=DNS:$NAME,DNS:ingest.corp.test" \
   -keyout "$TLS/privkey.pem" -out "$TLS/fullchain.pem" > /dev/null 2>&1
 chgrp -R ai-worker "$TLS"; chmod 750 "$TLS"; chmod 640 "$TLS"/*.pem
-FLAGS="--listen $IP:443 --cert $TLS/fullchain.pem --key $TLS/privkey.pem --live-url https://$NAME --board https://board.example.com"
+FLAGS="--listen $IP:443 --cert $TLS/fullchain.pem --key $TLS/privkey.pem --live-url https://$NAME --board https://aiworker.example.com"
 
 echo '== R1 nothing set up yet'
 run --update
@@ -99,7 +100,7 @@ check 'MemoryMax a little above RECEIVER_MEMORY_MB' '[ "$(systemctl show $SERVIC
 check 'the kernel kills it before Python' '[ "$(systemctl show $SERVICE -p OOMScoreAdjust --value)" = 500 ]'
 check 'its settings are private' '[ "$(stat -c %a:%U $RENV)" = 600:root ]'
 check 'its program cannot be changed by the service' '[ "$(stat -c %U $BIN)" = root ]'
-check 'RECEIVER=1 and the two addresses in the webhook settings' 'grep -qx "RECEIVER=1" "$ENV_FILE" && grep -qx "RECEIVER_LIVE_URL=https://$NAME" "$ENV_FILE" && grep -qx "RECEIVER_BOARD_ORIGIN=https://board.example.com" "$ENV_FILE"'
+check 'RECEIVER=1 and the two addresses in the webhook settings' 'grep -qx "RECEIVER=1" "$ENV_FILE" && grep -qx "RECEIVER_LIVE_URL=https://$NAME" "$ENV_FILE" && grep -qx "RECEIVER_BOARD_ORIGIN=https://aiworker.example.com" "$ENV_FILE"'
 check 'no computer is moved to it' '! grep -q "^RECEIVER_INGEST_URLS=." "$ENV_FILE"'
 check 'the webhook wrote the file of secrets' '[ -f /opt/ai-worker/keys/receiver-secrets.json ]'
 check 'the webhook got the larger memory ceiling' '[ "$(systemctl show ai-worker-webhook -p MemoryMax --value)" != "$WEBHOOK_MEM_BEFORE" ] || [ "$(awk "/^MemTotal:/ {print int(\$2 / 1024 * 45 / 100)}" /proc/meminfo)" -le 1024 ]'
@@ -170,9 +171,9 @@ WantedBy=multi-user.target
 EOF
 systemctl daemon-reload; systemctl start receiver-by-hand; sleep 2
 check 'the service by hand runs' '[ "$(systemctl is-active receiver-by-hand)" = active ]'
-run --live-url "https://$NAME" --board https://board.example.com
+run --live-url "https://$NAME" --board https://aiworker.example.com
 check 'it is left alone without --take-over' '[ "$RESULT" = 1 ] && grep -q "written by hand is here: $HAND" "$OUT" && [ "$(systemctl is-active receiver-by-hand)" = active ] && [ ! -f "$UNIT" ]'
-run --take-over --live-url "https://$NAME" --board https://board.example.com
+run --take-over --live-url "https://$NAME" --board https://aiworker.example.com
 check '--take-over: exit 0' '[ "$RESULT" = 0 ]'
 check 'its settings are taken' 'grep -qx "RECEIVER_LISTEN=$IP:443" "$RENV" && grep -qx "RECEIVER_TLS_KEY=$TLS/privkey.pem" "$RENV" && grep -qx "RECEIVER_BATCH_MS=2000" "$RENV"'
 check 'the service by hand is stopped, its file kept beside' '[ ! -f "$HAND" ] && [ -f "$HAND.before-install-receiver" ] && [ "$(systemctl is-active receiver-by-hand)" != active ]'
@@ -195,10 +196,42 @@ EOF
 systemctl daemon-reload; systemctl start receiver-by-hand; sleep 2
 run --take-over
 check 'without the addresses it stops and says which flags to add' '[ "$RESULT" = 1 ] && grep -q "add --live-url https://ingest" "$OUT" && grep -q "not known yet: add --board" "$OUT" && [ "$(systemctl is-active receiver-by-hand)" = active ]'
-run --take-over --live-url "https://$NAME" --board https://board.example.com
+run --take-over --live-url "https://$NAME" --board https://aiworker.example.com
 check '--take-over with them: exit 0' '[ "$RESULT" = 0 ]'
 check 'the file by hand is kept and filled in' 'grep -qx "RECEIVER_BATCH_MS=3000" "$RENV" && grep -qx "RECEIVER_NAME=$NAME" "$RENV" && grep -q "^RECEIVER_MEMORY_MB=[0-9]" "$RENV" && grep -q "^RECEIVER_WEBHOOK=http://127.0.0.1:" "$RENV"'
 check 'the installer'"'"'s service runs instead' '[ ! -f "$HAND" ] && [ "$(systemctl is-active $SERVICE)" = active ] && curl -kfsS --resolve $NAME:443:$IP https://$NAME/health > /dev/null'
+
+echo '== R10 the first run with questions: the answers are guessed from this machine, Enter takes each'
+run --remove
+rm -f "$RENV" "$BIN.prev" "$HAND.before-install-receiver"
+# the address of the window inside Telegram, which test-server.sh leaves behind, would be taken for the board's before Caddy is read
+# địa chỉ của khung trong Telegram, do test-server.sh để lại, sẽ được lấy làm địa chỉ của bảng trước khi đọc tới Caddy
+sed -i '/^RECEIVER_LIVE_URL=/d; /^RECEIVER_BOARD_ORIGIN=/d; /^TELEGRAM_APP_URL=/d' "$ENV_FILE"
+# the board's own address is this machine's first address; its Caddy site passes to the webhook's port; the certificate is in a usual folder
+# địa chỉ của bảng là địa chỉ đầu của máy này; trang Caddy của nó chuyển tới cổng của webhook; chứng chỉ nằm ở một thư mục quen thuộc
+OWN_IP=$(ip -o -4 addr show scope global | awk '$2 !~ /^(lo|docker|br-|veth)/ {print $4}' | head -n 1 | cut -d/ -f1)
+echo "$OWN_IP aiworker.corp.test" >> /etc/hosts
+echo "$IP ingest.corp.test" >> /etc/hosts
+mkdir -p /tmp/receiver-caddy /etc/ai-worker-receiver
+PORT_NOW=$(sed -n 's/^PORT=//p' "$ENV_FILE"); PORT_NOW=${PORT_NOW:-8788}
+printf 'other.example.com {\n\treverse_proxy 127.0.0.1:1\n}\naiworker.corp.test {\n\t# reverse_proxy 127.0.0.1:1\n\treverse_proxy 127.0.0.1:%s\n}\n' "$PORT_NOW" > /tmp/receiver-caddy/aiworker.caddy
+cp "$TLS"/fullchain.pem "$TLS"/privkey.pem /etc/ai-worker-receiver/
+chgrp -R ai-worker /etc/ai-worker-receiver; chmod 750 /etc/ai-worker-receiver; chmod 640 /etc/ai-worker-receiver/*.pem
+printf '\n\n\n\n\nn\n' | AI_WORKER_LANG=en AI_WORKER_ASK=1 AI_WORKER_CADDY_DIR=/tmp/receiver-caddy sh server/install-receiver.sh > "$OUT" 2>&1
+RESULT=$?
+check 'the guesses are shown: the board from Caddy, the other address on 443, ingest.<domain>, the certificate found' 'grep -q "dashboard people open: *https://aiworker.corp.test" "$OUT" && grep -q "receiver listens on: *$IP:443" "$OUT" && grep -q "will send to: *https://ingest.corp.test" "$OUT" && grep -q "Certificate and key: */etc/ai-worker-receiver/fullchain.pem, /etc/ai-worker-receiver/privkey.pem" "$OUT"'
+check 'n at the end stops with nothing changed' '[ "$RESULT" = 0 ] && grep -q "nothing was changed" "$OUT" && [ ! -f "$RENV" ] && [ ! -f "$UNIT" ]'
+printf '\n\n\n\n\n\n' | AI_WORKER_LANG=en AI_WORKER_ASK=1 AI_WORKER_CADDY_DIR=/tmp/receiver-caddy sh server/install-receiver.sh > "$OUT" 2>&1
+RESULT=$?
+check 'Enter six times sets it up' '[ "$RESULT" = 0 ] && [ "$(systemctl is-active $SERVICE)" = active ]'
+check 'with the guessed settings' 'grep -qx "RECEIVER_LISTEN=$IP:443" "$RENV" && grep -qx "RECEIVER_NAME=ingest.corp.test" "$RENV" && grep -qx "RECEIVER_BOARD_ORIGIN=https://aiworker.corp.test" "$ENV_FILE" && grep -qx "RECEIVER_LIVE_URL=https://ingest.corp.test" "$ENV_FILE"'
+check 'the receiver answers under the guessed name' 'curl -kfsS --resolve ingest.corp.test:443:$IP https://ingest.corp.test/health > /dev/null'
+run --remove
+rm -f "$RENV"
+sed -i '/^RECEIVER_LIVE_URL=/d; /^RECEIVER_BOARD_ORIGIN=/d' "$ENV_FILE"
+printf '\n\ningest.test\n\n\n\n' | AI_WORKER_LANG=en AI_WORKER_ASK=1 AI_WORKER_CADDY_DIR=/tmp/receiver-caddy sh server/install-receiver.sh > "$OUT" 2>&1
+RESULT=$?
+check 'a typed sub-domain wins over the guess, and gets https:// in front' '[ "$RESULT" = 0 ] && grep -qx "RECEIVER_NAME=ingest.test" "$RENV" && grep -qx "RECEIVER_LIVE_URL=https://ingest.test" "$ENV_FILE"'
 
 if [ "$errors" != 0 ]; then
   echo "$errors checks FAILED"

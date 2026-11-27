@@ -48,6 +48,29 @@ AI Worker is designed to defend against these eight common web risks, from the O
 
 On the server, the Admin page shows how many of these happened across the team in the last 7 days (counts only), points out keys for AI tools unused for 30 days, and checks that no line of the audit log was changed or taken out by hand. Each line carries the fingerprint of the one before; someone who can rewrite the whole database and its last fingerprint is not caught, so a copy has to live outside the server: each day of cost totals is sealed into the chain once it is no longer counted again (a week), the Admin page lists the fingerprints of the sealed days and says if a sealed day was edited, and each morning a Telegram chat linked to an admin account gets the newest fingerprint (day, number of rows, fingerprint; no name, no money). A day can still be changed during the week it is counted again.
 
+### Computer keys and sending from outside the office
+
+Each computer sends with a key of its own, and chosen computers may send from any network. What to know:
+
+- **A computer's key is its own.** The server gives it in the answer to the computer's first send (`awd1.…`, signed by a secret kept in `keys/`). From then on the shared send key in the install package cannot send for that computer.
+- **What the shared key may still do is a setting.** `SHARED_KEY_MODE` is `allow` (a new computer enrols with it, the default), `known-only` (only computers already on the board) or `off`. If a package leaks, set `known-only`: no new package is needed.
+- **One computer is cut off on the Admin page** with **Revoke** and the OTP code entered again: its key stops at once and the shared key cannot bring it back. `webhook.py --rotate-device-secret` gives every computer a new key if the signing secret may have leaked.
+- **Sending from outside the office is off until you set it up,** and then only for computers an admin set to **Any network**, one by one, with the OTP code entered again. From outside, the proxy lets through only a request to `/ingest` or `/releases/` that carries a computer's own key; the shared key sends nothing from outside. The board's pages, login and `/mcp` stay inside your networks.
+- **What remains:** while `SHARED_KEY_MODE` is `allow`, someone who holds the package can enrol a new computer under a false name. A computer let send from any network shows the board the addresses it sent from, a home address included: tell the person first. A stolen computer keeps sending until an admin presses **Revoke**. A CDN or another proxy in front of Caddy makes every computer look outside, so this setup is not for that case.
+
+### The Go receiver (optional)
+
+Only for a large organisation, and off until `server/install-receiver.sh` sets it up ([docs/RECEIVER.md](docs/RECEIVER.md)). It is a second program that listens on an address of its own. What to know before turning it on:
+
+- **It is a second door to the server,** over TLS that it speaks itself, not behind Caddy. It checks a computer's own key itself, passes a send with the shared key to the webhook, which checks it as always, and gives a board its live numbers only with a ticket; everything else is refused.
+- **It decides nothing about people.** Logins, roles, names and the data stay with the webhook. The receiver holds no name and no email and writes no file; the live numbers it gives a board carry a code for each row, never a name.
+- **It runs as the webhook's account, never root,** with the one right to listen on a low port, a memory ceiling, and a setting that makes the kernel stop it before the webhook when memory runs out.
+- **The file of secrets** (`keys/receiver-secrets.json`, readable by that account only) lets the receiver check computer keys and tickets. Whoever holds it can make a key for any computer and send numbers as it, but cannot read any data. It stays on the server; `--rotate-device-secret` replaces what is in it.
+- **The paths the receiver uses on the webhook** (`/internal/…`) answer only a call from the machine itself with an internal code. From anywhere else they are not there.
+- **A ticket for the live numbers** is given only to a logged-in session on the board's own page, lasts 5 minutes, and is for one scope. The receiver cuts a feed within about 20 seconds of the session ending.
+- **It bounds what one flood can take:** connections, the memory of bodies being read and of rows waiting, and the pace it asks of the computers. Past a bound a computer is told to come back, and nothing it sent before is lost.
+- **What remains:** it does not check the list of office networks itself. Where that list is set, a computer kept **Office only** is never told the receiver's address; only a computer set to **Any network** goes there, and then from anywhere. Its certificate is yours to renew. It has been measured with fake computers up to about 40,000 to 50,000, and used for real by one organisation with a few computers; no outside firm has reviewed it.
+
 ### The connector for Codex, Cursor and Gemini CLI
 
 The connector (`connectors/`) is optional and separate from the plugin. What to know before allowing it:

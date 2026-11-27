@@ -9,7 +9,7 @@
     "message": "Địa chỉ bảng"
   },
   "boardAddressHint": {
-    "message": "Địa chỉ người quản trị đưa, ví dụ https://board.company.com. Trình duyệt sẽ xin phép cho đúng một trang này."
+    "message": "Địa chỉ người quản trị đưa, ví dụ https://aiworker.company.com. Trình duyệt sẽ xin phép cho đúng một trang này."
   },
   "pairButton": {
     "message": "Lấy mã ghép"
@@ -89,10 +89,10 @@
     "message": "Không tới được bảng. Có thể bạn đang ở ngoài mạng công ty, hoặc máy chủ đang tắt. Không hiện số nào cho tới khi bảng trả lời lại."
   },
   "invalidAddress": {
-    "message": "Đây không phải địa chỉ web. Ví dụ: https://board.company.com"
+    "message": "Đây không phải địa chỉ web. Ví dụ: https://aiworker.company.com"
   },
   "httpNotAllowed": {
-    "message": "http thường chỉ dùng được cho chính máy này (localhost hoặc 127.0.0.1). Hãy dùng địa chỉ https của bảng, ví dụ https://board.company.com"
+    "message": "http thường chỉ dùng được cho chính máy này (localhost hoặc 127.0.0.1). Hãy dùng địa chỉ https của bảng, ví dụ https://aiworker.company.com"
   },
   "permissionDenied": {
     "message": "Trình duyệt không cho truy cập địa chỉ này, nên tiện ích không ghép được."

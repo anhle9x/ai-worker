@@ -1,16 +1,18 @@
 #!/bin/sh
 # Sets up the optional Go receiver (docs/RECEIVER.md) on the Linux server where install.sh already runs the webhook. Run: sudo sh install-receiver.sh
-# The first time it needs where to listen and the certificate:
+# The first time it asks where to listen, the addresses and the certificate, each with an answer guessed from this machine (Enter
+# takes it), and shows the whole before doing anything. Or give them on the command line, for a run with nobody to answer:
 #   sudo sh install-receiver.sh --listen 203.0.113.2:443 --cert /etc/ai-worker-receiver/fullchain.pem --key /etc/ai-worker-receiver/privkey.pem \
-#     --live-url https://ingest.example.com --board https://board.example.com
+#     --live-url https://ingest.example.com --board https://aiworker.example.com
 # Run it again at any time: the settings in /etc/ai-worker-receiver.env are kept, the program and its service are written again.
 # Other runs: --check (only checks, changes nothing), --update (the new program only, install.sh calls it), --rollback (the program
 # before), --remove (stops the receiver and takes its service away), --take-over (replaces a receiver service written by hand).
 # It never moves a computer to the receiver: that stays RECEIVER_INGEST_URLS and RECEIVER_INGEST_DEVICES in /etc/ai-worker.env.
 # Cài bộ nhận Go tuỳ chọn (docs/RECEIVER.vi.md) lên máy chủ Linux nơi install.sh đã chạy webhook. Chạy: sudo sh install-receiver.sh
-# Lần đầu cần nơi nghe và chứng chỉ:
+# Lần đầu nó hỏi nơi nghe, các địa chỉ và chứng chỉ, mỗi câu kèm một đáp án đoán từ chính máy này (Enter là nhận), rồi hiện tất cả
+# trước khi làm gì. Hoặc đưa chúng trên dòng lệnh, cho lần chạy không có ai trả lời:
 #   sudo sh install-receiver.sh --listen 203.0.113.2:443 --cert /etc/ai-worker-receiver/fullchain.pem --key /etc/ai-worker-receiver/privkey.pem \
-#     --live-url https://ingest.example.com --board https://board.example.com
+#     --live-url https://ingest.example.com --board https://aiworker.example.com
 # Chạy lại lúc nào cũng được: cấu hình trong /etc/ai-worker-receiver.env được giữ, file chạy và dịch vụ của nó được viết lại.
 # Cách chạy khác: --check (chỉ kiểm, không đổi gì), --update (chỉ file chạy mới, install.sh gọi), --rollback (file chạy trước đó),
 # --remove (dừng bộ nhận và gỡ dịch vụ của nó), --take-over (thay dịch vụ bộ nhận viết tay).
@@ -58,12 +60,17 @@ while [ "$#" -gt 0 ]; do
     --update) MODE=update; shift ;;
     --rollback) MODE=rollback; shift ;;
     --remove) MODE=remove; shift ;;
-    -h|--help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,10p' "$HERE/$(basename "$0")" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)
       say "Unknown option: $1 (see --help)" "Không hiểu tuỳ chọn: $1 (xem --help)"
       exit 1 ;;
   esac
 done
+
+# --live-url and --board may be given as a bare sub-domain
+# --live-url và --board có thể đưa dưới dạng tên miền con trơn
+case "$A_LIVE" in ''|http://*|https://*) ;; *) A_LIVE=https://$A_LIVE ;; esac
+case "$A_BOARD" in ''|http://*|https://*) ;; *) A_BOARD=https://$A_BOARD ;; esac
 
 if [ "$(id -u)" != 0 ]; then
   say "Run with sudo: sudo sh install-receiver.sh" "Cần chạy bằng sudo: sudo sh install-receiver.sh"
@@ -327,6 +334,76 @@ fi
 seeded() { envget "$SEED" "$1"; }
 
 PORT_WEBHOOK=$(envget "$ENV" PORT); PORT_WEBHOOK=${PORT_WEBHOOK:-8788}
+
+# Guesses for the first run's questions, read from this machine. They are only offered: the person confirms each, and the checks
+# further down still hold them to the truth.
+# Các đáp án đoán cho câu hỏi của lần chạy đầu, đọc từ chính máy này. Chúng chỉ được đề xuất: người cài xác nhận từng cái, và các
+# bước kiểm phía dưới vẫn đối chiếu chúng với thực tế.
+CADDY_DIR=${AI_WORKER_CADDY_DIR:-/etc/caddy}
+with_https() {
+  # a sub-domain typed without https:// in front gets it
+  # tên miền con gõ thiếu https:// ở đầu thì được thêm vào
+  case "$1" in
+    ''|http://*|https://*) printf '%s' "$1" ;;
+    *) printf 'https://%s' "$1" ;;
+  esac
+}
+take() {
+  # take VAR GUESS: reads one line; an empty line takes the guess
+  # take VAR GUESS: đọc một dòng; dòng trống thì lấy đáp án đoán
+  answer=""
+  read -r answer || true
+  [ -n "$answer" ] || answer=$2
+  eval "$1=\$answer"
+  ASKED=1
+}
+guess_board() {
+  # the address of the window inside Telegram, else the Caddy site that passes requests to the webhook's port
+  # địa chỉ của khung trong Telegram, không thì trang Caddy chuyển yêu cầu tới cổng của webhook
+  g=$(envget "$ENV" TELEGRAM_APP_URL | sed -n 's#^\(https://[A-Za-z0-9.-]*\(:[0-9]\{1,5\}\)\{0,1\}\)/tg/app$#\1#p')
+  if [ -z "$g" ] && [ -d "$CADDY_DIR" ]; then
+    g=$(cat "$CADDY_DIR"/Caddyfile "$CADDY_DIR"/*.caddy 2>/dev/null | awk -v p=":$PORT_WEBHOOK" '
+      /^[A-Za-z0-9.-]+\.[A-Za-z]+[ \t]*\{/ { site = $1; sub(/\{$/, "", site) }
+      /^[ \t]*#/ { next }
+      index($0, "127.0.0.1" p) || index($0, "localhost" p) { if (site != "") { print "https://" site; exit } }')
+  fi
+  printf '%s' "$g"
+}
+global_ips() { ip -o -4 addr show scope global 2>/dev/null | awk '$2 !~ /^(docker|br-|veth|virbr|cni|flannel|tailscale|wg)/ {print $4}' | cut -d/ -f1; }
+ip_of() { getent ahostsv4 "$1" 2>/dev/null | awk '{print $1; exit}'; }
+guess_listen() {
+  # guess_listen BOARD: port 443 of an address the board's name does not use, else port 8443 of the board's own address
+  # guess_listen BOARD: cổng 443 của một địa chỉ mà tên của bảng không dùng, không thì cổng 8443 của chính địa chỉ của bảng
+  ips=$(global_ips)
+  bip=$(ip_of "$(host_of "$1")")
+  printf '%s\n' "$ips" | grep -qxF "${bip:-none}" || bip=$(printf '%s\n' "$ips" | head -n 1)
+  [ -n "$bip" ] || return 0
+  other=$(printf '%s\n' "$ips" | grep -vxF "$bip" | head -n 1)
+  if [ -n "$other" ]; then printf '%s:443' "$other"; else printf '%s:8443' "$bip"; fi
+}
+guess_live() {
+  # guess_live BOARD LISTEN: on the board's own address, the board's name with the port; on another address, ingest.<the domain>
+  # guess_live BOARD LISTEN: trên chính địa chỉ của bảng thì là tên của bảng kèm cổng; trên địa chỉ khác thì ingest.<tên miền>
+  bh=$(host_of "$1")
+  [ -n "$bh" ] || return 0
+  split_listen "$2" || return 0
+  name=$bh
+  if [ "$IP" != "$(ip_of "$bh")" ] && [ "$PORT" = 443 ]; then
+    case "$bh" in
+      *.*.*) name=ingest.${bh#*.} ;;
+      *) name=ingest.$bh ;;
+    esac
+  fi
+  if [ "$PORT" = 443 ]; then printf 'https://%s' "$name"; else printf 'https://%s:%s' "$name" "$PORT"; fi
+}
+guess_file() {
+  # guess_file NAME HOST: the first of the usual folders that holds the file
+  # guess_file NAME HOST: thư mục đầu tiên trong các chỗ quen thuộc có file đó
+  for d in /etc/ai-worker-receiver /etc/ai-worker/ingest "/etc/letsencrypt/live/$2"; do
+    if [ -f "$d/$1" ]; then printf '%s' "$d/$1"; return 0; fi
+  done
+  return 0
+}
 SECRETS=$(envget "$ENV" RECEIVER_SECRETS_FILE)
 if [ -z "$SECRETS" ]; then KEYS=$(envget "$ENV" KEYS_DIR); SECRETS=${KEYS:-$APP_DIR/keys}/receiver-secrets.json; fi
 LIVE_NOW=$(envget "$ENV" RECEIVER_LIVE_URL)
@@ -337,32 +414,65 @@ if [ ! -f "$RENV" ]; then
     say "✘ The receiver is not set up yet ($RENV is missing)." "✘ Bộ nhận chưa được cài ($RENV chưa có)."
     exit 1
   fi
-  # what is not given is asked when there is a terminal; otherwise the run stops and says what is missing
-  # cái chưa được đưa thì hỏi khi có màn hình; không thì dừng và nói thiếu gì
+  # What is not given is asked when there is a terminal, each question with an answer guessed from this machine, so Enter is enough
+  # when the guess is right; then the whole is shown once before anything is done. Without a terminal the run stops and says what
+  # is missing.
+  # Cái chưa được đưa thì hỏi khi có màn hình, mỗi câu kèm một đáp án đoán từ chính máy này, nên đoán đúng thì chỉ cần Enter; rồi
+  # tất cả được hiện một lượt trước khi làm gì. Không có màn hình thì dừng và nói thiếu gì.
   LISTEN=${A_LISTEN:-$(seeded RECEIVER_LISTEN)}
   CERT=${A_CERT:-$(seeded RECEIVER_TLS_CERT)}
   KEY=${A_KEY:-$(seeded RECEIVER_TLS_KEY)}
   LIVE=${A_LIVE:-$LIVE_NOW}
   BOARD=${A_BOARD:-$BOARD_NOW}
-  if [ -z "$LISTEN" ] && [ -t 0 ]; then
-    say "The second IP and port to listen on [for example 203.0.113.2:443]: " "IP thứ hai và cổng để nghe [ví dụ 203.0.113.2:443]: "
-    read -r LISTEN
+  ASK=0
+  if [ -t 0 ] || [ -n "${AI_WORKER_ASK:-}" ]; then ASK=1; fi
+  ASKED=0
+  if [ "$ASK" = 1 ] && [ -z "$BOARD" ]; then
+    GUESS=$(guess_board)
+    SHOWN=${GUESS#https://}
+    say "1/5 The dashboard's sub-domain, the one people open to see it, for example aiworker.example.com [${SHOWN:-no guess, type it}]: " "1/5 Tên miền con của bảng tổng, nơi mọi người mở để xem, ví dụ aiworker.example.com [${SHOWN:-chưa đoán được, hãy gõ}]: "
+    take BOARD "$GUESS"
+    BOARD=$(with_https "$BOARD")
   fi
-  if [ -z "$LIVE" ] && [ -t 0 ]; then
-    say "The receiver's address [for example https://ingest.example.com]: " "Địa chỉ của bộ nhận [ví dụ https://ingest.example.com]: "
-    read -r LIVE
+  if [ "$ASK" = 1 ] && [ -z "$LISTEN" ]; then
+    GUESS=$(guess_listen "$BOARD")
+    say "2/5 The IP and port of this server where the receiver will listen, for example 203.0.113.2:443 [${GUESS:-no guess, type it}]: " "2/5 IP và cổng trên máy chủ này để bộ nhận nghe, ví dụ 203.0.113.2:443 [${GUESS:-chưa đoán được, hãy gõ}]: "
+    take LISTEN "$GUESS"
   fi
-  if [ -z "$CERT" ] && [ -t 0 ]; then
-    say "The certificate file (full chain): " "File chứng chỉ (đủ chuỗi): "
-    read -r CERT
+  if [ "$ASK" = 1 ] && [ -z "$LIVE" ]; then
+    GUESS=$(guess_live "$BOARD" "$LISTEN")
+    SHOWN=${GUESS#https://}
+    say "3/5 The receiver's sub-domain, the one staff computers will send to, for example ingest.example.com (with :8443 after it when the port is not 443) [${SHOWN:-no guess, type it}]: " "3/5 Tên miền con của bộ nhận, nơi các máy nhân viên sẽ gửi tới, ví dụ ingest.example.com (thêm :8443 phía sau khi cổng không phải 443) [${SHOWN:-chưa đoán được, hãy gõ}]: "
+    take LIVE "$GUESS"
+    LIVE=$(with_https "$LIVE")
   fi
-  if [ -z "$KEY" ] && [ -t 0 ]; then
-    say "The certificate's private key file: " "File khoá bí mật của chứng chỉ: "
-    read -r KEY
+  if [ "$ASK" = 1 ] && [ -z "$CERT" ]; then
+    GUESS=$(guess_file fullchain.pem "$(host_of "$LIVE")")
+    say "4/5 The TLS certificate file for that name, full chain [${GUESS:-no guess, type it}]: " "4/5 File chứng chỉ TLS của tên đó, đủ chuỗi [${GUESS:-chưa đoán được, hãy gõ}]: "
+    take CERT "$GUESS"
   fi
-  if [ -z "$BOARD" ] && [ -t 0 ]; then
-    say "The board's address [for example https://board.example.com]: " "Địa chỉ của bảng [ví dụ https://board.example.com]: "
-    read -r BOARD
+  if [ "$ASK" = 1 ] && [ -z "$KEY" ]; then
+    GUESS=""
+    [ -n "$CERT" ] && [ -f "$(dirname "$CERT")/privkey.pem" ] && GUESS=$(dirname "$CERT")/privkey.pem
+    [ -n "$GUESS" ] || GUESS=$(guess_file privkey.pem "$(host_of "$LIVE")")
+    say "5/5 The private key file that goes with that certificate [${GUESS:-no guess, type it}]: " "5/5 File khoá bí mật đi cùng chứng chỉ đó [${GUESS:-chưa đoán được, hãy gõ}]: "
+    take KEY "$GUESS"
+  fi
+  if [ "$ASKED" = 1 ] && [ -n "$LISTEN" ] && [ -n "$CERT" ] && [ -n "$KEY" ] && [ -n "$LIVE" ] && [ -n "$BOARD" ]; then
+    echo
+    say "The Go receiver will be set up like this:" "Bộ nhận Go sẽ được cài như sau:"
+    say "  The dashboard people open:      $BOARD" "  Bảng tổng mọi người mở:         $BOARD"
+    say "  The receiver listens on:        $LISTEN" "  Bộ nhận nghe ở:                 $LISTEN"
+    say "  Staff computers will send to:   $LIVE" "  Máy nhân viên sẽ gửi tới:       $LIVE"
+    say "  Certificate and key:            $CERT, $KEY" "  Chứng chỉ và khoá:              $CERT, $KEY"
+    say "Nothing is changed yet. Go on? Enter for yes, n to stop: " "Chưa có gì bị đổi. Làm tiếp? Enter là đồng ý, n để dừng: "
+    answer=""
+    read -r answer || true
+    case "$answer" in
+      n|N|no|No|NO)
+        say "Stopped: nothing was changed." "Đã dừng: chưa có gì bị đổi."
+        exit 0 ;;
+    esac
   fi
   if [ -z "$LISTEN" ] || [ -z "$CERT" ] || [ -z "$KEY" ] || [ -z "$LIVE" ] || [ -z "$BOARD" ]; then
     say "The first run needs --listen IP:443 --cert FILE --key FILE --live-url https://ingest.<domain> --board https://<board's domain>" "Lần chạy đầu cần --listen IP:443 --cert FILE --key FILE --live-url https://ingest.<tên miền> --board https://<tên miền của bảng>"
@@ -415,7 +525,7 @@ else
     read -r LIVE
   fi
   if [ -z "$BOARD" ] && [ -t 0 ]; then
-    say "The board's address [for example https://board.example.com]: " "Địa chỉ của bảng [ví dụ https://board.example.com]: "
+    say "The board's address [for example https://aiworker.example.com]: " "Địa chỉ của bảng [ví dụ https://aiworker.example.com]: "
     read -r BOARD
   fi
   if [ "$MODE" = install ]; then

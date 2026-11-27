@@ -824,7 +824,7 @@ class LiveTickets(unittest.TestCase):
 
     def setUp(self):
         self.saved = (settings.RECEIVER_ENABLED, settings.RECEIVER_LIVE_URL, settings.RECEIVER_BOARD_ORIGIN, dict(stores.ACCOUNTS.d))
-        settings.RECEIVER_ENABLED, settings.RECEIVER_LIVE_URL, settings.RECEIVER_BOARD_ORIGIN = True, "https://ingest.example.com", "https://board.example.com"
+        settings.RECEIVER_ENABLED, settings.RECEIVER_LIVE_URL, settings.RECEIVER_BOARD_ORIGIN = True, "https://ingest.example.com", "https://aiworker.example.com"
         stores.ACCOUNTS.d = {"accounts": {"t-adm": {"role": security.ADMIN, "secret": ""}, "t-wall": {"role": security.WALL, "secret": ""}}}
         for name in ("t-adm", "t-wall"):
             login.SESSIONS.sessions["tick-" + name] = (name, time.time() + 3600)
@@ -891,7 +891,7 @@ class LiveTickets(unittest.TestCase):
         wall = self.parts(self.ask("tick-t-wall", {"scope": "org"})[1]["ticket"])["sid"]
         adm = self.parts(self.ask("tick-t-adm", {"scope": "org"})[1]["ticket"])["sid"]
         doc = receiver.POLICY.document(0, "")
-        self.assertEqual((doc["endedSessions"], doc["boardOrigins"]), ([], ["https://board.example.com"]))
+        self.assertEqual((doc["endedSessions"], doc["boardOrigins"]), ([], ["https://aiworker.example.com"]))
         login.SESSIONS.logout("session=tick-t-wall")
         self.assertEqual(receiver.POLICY.document(0, "")["endedSessions"], [wall])
         # a role changed is a ticket that no longer says the truth

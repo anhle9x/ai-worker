@@ -53,14 +53,14 @@ check('toolbar icon: a dark and a light G, both sizes, and the hidden page that 
   assert.match(readFileSync(join(extDir, 'offscreen.js'), 'utf8'), /prefers-color-scheme: dark/)
 })
 check('board address keeps only the origin', () => {
-  assert.equal(core.normalizeBoardUrl('board.company.com/board?x=1'), 'https://board.company.com')
+  assert.equal(core.normalizeBoardUrl('aiworker.company.com/board?x=1'), 'https://aiworker.company.com')
   assert.equal(core.normalizeBoardUrl('http://127.0.0.1:8080/admin'), 'http://127.0.0.1:8080')
   for (const bad of ['', 'javascript:alert(1)', 'file:///etc/passwd', 'ftp://x', 'https://user:pw@host']) assert.equal(core.normalizeBoardUrl(bad), '', bad)
   assert.equal(core.originPattern('http://127.0.0.1:8080'), 'http://127.0.0.1/*')
   // plain http only to this very computer: elsewhere the key would travel readable on the network
   // http thường chỉ tới chính máy này: nơi khác thì khoá đi trên mạng ai cũng đọc được
   assert.equal(core.normalizeBoardUrl('http://localhost:3000/x'), 'http://localhost:3000')
-  for (const bad of ['http://10.0.0.5:8080', 'http://board.company.com', 'http://localhost.evil.example.com', 'http://127.0.0.1.evil.example.com']) {
+  for (const bad of ['http://10.0.0.5:8080', 'http://aiworker.company.com', 'http://localhost.evil.example.com', 'http://127.0.0.1.evil.example.com']) {
     assert.equal(core.normalizeBoardUrl(bad), '', bad)
     assert.equal(core.addressProblem(bad), 'httpNotAllowed', bad)
   }

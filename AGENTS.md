@@ -18,13 +18,13 @@ A Claude Code plugin (`.claude-plugin/`, `hooks/`, `skills/`, `web/`) on each em
 - A new server path goes into the route table in `server/webhook.py` and the permission table in `server/test_webhook.py`.
 - `web/ops.js`, `ops.css`, `ops3d.js`, `i18n.js`, `ops.vi.js` must equal their copies in `server/static/`.
 - `server/board/costreport.py`, `labels.json`, `prices.json` must equal `skills/ai-cost-report/report.py`, `labels.json`, `prices.json` (`server/test_projects.py` checks).
-- Never commit real names, emails, IPs, domains, keys or company numbers. Use `board.example.com` and `example.com`.
+- Never commit real names, emails, IPs, domains, keys or company numbers. Use `aiworker.example.com` and `example.com`.
 - The employee's computer never sends chat content, prompts, file names or project names. Keep it that way.
 - `connectors/ai-worker-hook.sh` and `connectors/ai-worker-hook.ps1` do the same thing, as do `install.sh` and `install.ps1`: change both. The hook runs with sh, awk, sed, grep and curl or wget only: no Python, no Node.
 
 ## Checks
 
-Run all twelve before calling a change done. CI runs the same checks, except that of the server's tests it runs only the modules named in `.github/workflows/test-install.yml`: the whole `cd server && python3 -m unittest` runs only on your computer, so run it there.
+Run all twelve before calling a change done. CI runs the same ones.
 
 ```bash
 claude plugin test .

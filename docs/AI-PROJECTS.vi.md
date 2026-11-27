@@ -24,7 +24,7 @@ Cách nhanh nhất: mở Claude Code trong thư mục code của dự án, gõ `
   AI_METER_URL=https://<domain của bảng>/projects/ingest
   AI_METER_KEY=prj_…
   ```
-  `<domain của bảng>` là domain của máy chủ chạy bảng AI Worker, tức phần trên thanh địa chỉ trình duyệt khi bạn mở bảng, ví dụ `https://board.example.com/projects/ingest`. Trang Quản trị tự điền sẵn domain này. Chép cả hai ngay. Không gửi khoá qua chat, email hay ảnh chụp.
+  `<domain của bảng>` là domain của máy chủ chạy bảng AI Worker, tức phần trên thanh địa chỉ trình duyệt khi bạn mở bảng, ví dụ `https://aiworker.example.com/projects/ingest`. Trang Quản trị tự điền sẵn domain này. Chép cả hai ngay. Không gửi khoá qua chat, email hay ảnh chụp.
 
 ## Bước 2. Chép bộ đo vào dự án
 

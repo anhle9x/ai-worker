@@ -1,8 +1,8 @@
 # AI Worker Office dashboard over HTTPS. A separate file, loaded with one line `import aiworker.caddy` at the end of the Caddyfile.
-# Template: change board.example.com and the list of IPs before use. To remove: delete that import line, then `sudo systemctl reload caddy`. It touches no other blocks / files.
+# Template: change aiworker.example.com and the list of IPs before use. To remove: delete that import line, then `sudo systemctl reload caddy`. It touches no other blocks / files.
 # Bảng điều khiển Văn phòng AI Worker qua HTTPS. File riêng, nạp bằng một dòng `import aiworker.caddy` ở cuối Caddyfile.
-# Mẫu: đổi board.example.com và danh sách IP trước khi dùng. Gỡ: xoá dòng import đó rồi `sudo systemctl reload caddy`. Không đụng các khối khác / files.
-board.example.com {
+# Mẫu: đổi aiworker.example.com và danh sách IP trước khi dùng. Gỡ: xoá dòng import đó rồi `sudo systemctl reload caddy`. Không đụng các khối khác / files.
+aiworker.example.com {
 	encode zstd gzip
 	# separate access log for this site (rotated, keeps 10 files x 20 MB)
 	# nhật ký truy cập riêng của trang này (xoay vòng, giữ 10 file x 20 MB)

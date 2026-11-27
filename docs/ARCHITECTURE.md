@@ -66,6 +66,9 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | F27 | The optional receiver in Go takes the sends of computers that have a key of their own on an address of its own over TLS, cleans them as the server does, answers at once and hands them to the server in numbered batches; any other send it passes to the server as it came, with the computer's real address. It keeps each computer's state and today's totals and adds them up per row of the board and per branch, as the board does (the live numbers), and sends them to the boards on `/live`, built once a second per scope for every board, with a ticket the server gives a logged-in board; the board's page then reads one scope at a time and puts the numbers on each row by its code. The server writes the batches, gives the receiver a numbered policy, the hour books and the table of each computer's row code and branch, and writes it a file of secrets | `receiver/`; `server/install-receiver.sh` (sets it up); `server/board/receiver.py`; the `/internal/` paths and `/sse/ticket` in `server/webhook.py`; `server/static/page.js`; [RECEIVER.md](RECEIVER.md) |
 | F28 | A repository's files that can make an AI tool run commands or act differently (hooks, broad permissions, helper programs and variables in `.claude/settings*.json`, MCP servers in `.mcp.json`, text aimed at an AI or dangerous commands in `CLAUDE.md`/`AGENTS.md`, slash commands, agents and skills) are named to the person and to Claude when a session starts there: only what is new or changed since the last look, never blocked; a repository first seen whose files are all older than 14 days is remembered quietly, by fingerprints only | `hooks/repoconfig.ts`; `checkRepoConfig`, `session.start` and `prompt.compose` in `hooks/register.tsx` |
 | F29 | A day of cost totals edited by hand after it is closed shows on the Admin page: once a day is no longer counted again it is sealed into the audit chain with a fingerprint of its rows, and each morning the chain's fingerprint at that day goes to an admin's Telegram chat (day, number of rows, fingerprint; no name, no money) | `DailyStore.seal`, `day_facts` in `server/board/daily.py`, `AuditLog.changed_days` in `server/board/stores.py`, `seals_due` in `server/board/chat.py` |
+| F30 | Each computer sends with a key of its own, given in the answer to its first send and renewed while it sends; the shared key of the install package can no longer send for it, an admin can revoke one computer, and `SHARED_KEY_MODE` says what the shared key may still do | `DeviceKeys` in `server/board/devicekeys.py`; `Handler.ingest` in `server/webhook.py`; the key kept by `hooks/team.ts` |
+| F31 | A computer an admin set to **Any network** sends and gets `/update` from outside the office networks; every other computer, and the shared key, are refused there | `DeviceKeys.roams`, `set_roaming` in `server/board/devicekeys.py`; `from_away` and `/admin/device-roam` in `server/webhook.py`; `OFFICE_NETS` in `server/board/settings.py`; the block in `server/aiworker.caddy` |
+| F32 | With `"commitTrail": true` in a computer's `config.js`, Claude is reminded after each commit it makes to amend a message that lacks its kind, a fix's proven cause or what was measured; a commit is never held back | `hooks/committrail.ts` |
 
 ### Limits the server enforces
 
@@ -129,7 +132,10 @@ flowchart TD
     Hook --> Keys["keys/: OTP accounts"]
     Hook --> Releases["releases/:<br/>signed packages"]
     Bot["telegram_bot.py<br/>(optional)"] -- "each message,<br/>its own key" --> Hook
+    Recv["Receiver in Go<br/>(optional, own address)"] -- "batches of rows,<br/>inside the machine" --> Hook
   end
+  Plugin -. "numbers of chosen computers,<br/>own key, TLS" .-> Recv
+  Browser -. "live numbers,<br/>ticket from the webhook" .-> Recv
   Plugin -- "numbers, update checks,<br/>send key" --> Proxy
   Browser -- "OTP login,<br/>paired session" --> Proxy
   Mgr -- "paired session,<br/>wall view" --> Proxy
@@ -198,6 +204,37 @@ sequenceDiagram
 ```
 
 If sending fails, the plugin tries again on the next beat and warns once the problem lasts.
+
+### Sending through the Go receiver (optional)
+
+Only a large organisation sets this up ([RECEIVER.md](RECEIVER.md)); without it every send takes the flow above. The receiver takes the sends of the computers the admin chose, answers at once, and hands them to the webhook in batches. The webhook stays the record: it alone writes `data/`, and it alone knows names, roles and logins.
+
+```mermaid
+sequenceDiagram
+  participant P as Plugin
+  participant W as webhook.py
+  participant R as Receiver (Go)
+  participant D as data/
+  participant B as Board page
+  P->>W: POST /ingest with the computer's own key, as above
+  W-->>P: 200 with ingestUrls, only for a chosen computer that sends v 2
+  P->>R: Next sends go to the receiver, over TLS on its own address
+  R->>R: Check the key with the file of secrets, else 401
+  R->>R: Clean the send as the webhook does
+  R-->>P: 200 at once
+  R->>R: Keep one waiting row for this computer
+  R->>W: POST /internal/rows, a numbered batch, inside the machine
+  W->>D: Write the batch in one transaction
+  W-->>R: The batch number, and the computers to read again
+  Note over P,R: The shared key, or a key due for renewal, is passed to the webhook as it came
+  Note over P,W: The receiver not answering sends the plugin back to /ingest
+  B->>W: POST /sse/ticket, with a logged-in session
+  W-->>B: A ticket for one scope, 5 minutes
+  B->>R: GET /live with the ticket
+  R-->>B: The numbers of that scope as they change, no name
+```
+
+The paths under `/internal/` answer only a call from the machine itself with the internal code; from anywhere else they are not there (404). The receiver holds no name and no email, and writes no file; the computer's address goes to the webhook with its row. Which computers go to it is the admin's choice (`RECEIVER_INGEST_DEVICES`, `RECEIVER_INGEST_PERCENT`), and emptying `RECEIVER_INGEST_URLS`, or stopping the receiver, sends them all back to the webhook.
 
 ### Reporting from Codex, Cursor and Gemini CLI
 
@@ -511,7 +548,7 @@ node tests/extension/check-extension.js
 node tests/check-map-layout.js
 ```
 
-`.github/workflows/test-install.yml` runs on each push to a public repository, and anywhere when it is started by hand; a push to a private repository, such as a development copy, skips every job, so there the checks above are run on the developer's computer. The `code-check` job lints the Python code, runs the hooks' tests, nine of the server's test modules (`test_webhook`, `test_demo`, `test_mcp`, `test_ask`, `test_telegram_bot`, `test_projects`, `test_contract`, `test_receiver`, `test_hour_rows`; the others run only with the plain `python3 -m unittest` above), `go vet` and `go test` of the receiver, the connector and meter tests, the extension check and the map layout check. On Ubuntu it builds the package, tests the private-data check (`tests/test-check-clean.sh`), the skills' front matter, the two-language rules (`tests/check-i18n.py`) and the maps, then tries installing the plugin, the server and the Go receiver (`tests/linux/test-receiver.sh`), and tests the menu bar script and the .deb (`tests/menubar/test-menubar.sh`, `test-deb.sh`). Three jobs run on Windows: one tries installing, reopening the app after `/update`, the connector and the tray icon (`tests/menubar/test-menubar.ps1`); one builds `AI Worker.exe` and `AI Worker.msi`, installs it without admin rights, pairs with a fake server, installs a newer build over the running app, and removes it (`tests/menubar/test-windows-app.ps1`); one builds the plugin's `.msi` and tests it (`tests/windows/test-msi.ps1`). More in [TEST-PLAN.md](TEST-PLAN.md), section 1.
+`.github/workflows/test-install.yml` runs on each push to a public repository, and anywhere when it is started by hand; a push to a private repository, such as a development copy, skips every job, so there the checks above are run on the developer's computer. The `code-check` job lints the Python code, runs the hooks' tests, every test module of the server (`python3 -m unittest`), `go vet` and `go test` of the receiver, the connector and meter tests, the extension check and the map layout check. On Ubuntu it builds the package, tests the private-data check (`tests/test-check-clean.sh`), the skills' front matter, the two-language rules (`tests/check-i18n.py`) and the maps, then tries installing the plugin, the server and the Go receiver (`tests/linux/test-receiver.sh`), and tests the menu bar script and the .deb (`tests/menubar/test-menubar.sh`, `test-deb.sh`). Three jobs run on Windows: one tries installing, reopening the app after `/update`, the connector and the tray icon (`tests/menubar/test-menubar.ps1`); one builds `AI Worker.exe` and `AI Worker.msi`, installs it without admin rights, pairs with a fake server, installs a newer build over the running app, and removes it (`tests/menubar/test-windows-app.ps1`); one builds the plugin's `.msi` and tests it (`tests/windows/test-msi.ps1`). More in [TEST-PLAN.md](TEST-PLAN.md), section 1.
 
 `server/test_webhook.py` compares the field names of the pages with what the server sends, but it only reads the code, so a page change still needs looking at in a browser.
 

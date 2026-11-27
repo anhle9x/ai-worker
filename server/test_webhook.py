@@ -579,16 +579,16 @@ class MsiPackage(unittest.TestCase):
 
     def test_fills_the_address(self):
         self.write(b"head" + packages.MSI_PLACEHOLDER + b"tail")
-        package = packages.menubar_msi("https://board.example.com/")  # the board address as the server builds it, with a trailing slash
+        package = packages.menubar_msi("https://aiworker.example.com/")  # the board address as the server builds it, with a trailing slash
         self.assertEqual(len(package), len(packages.MSI_PLACEHOLDER) + 8)
-        self.assertTrue(package.startswith(b"headhttps://board.example.com "))
+        self.assertTrue(package.startswith(b"headhttps://aiworker.example.com "))
         self.assertTrue(package.endswith(b" tail"))
         self.assertNotIn(packages.MSI_PLACEHOLDER, package)
 
     def test_refuses(self):
-        self.assertIsNone(packages.menubar_msi("https://board.example.com"))  # no package yet
+        self.assertIsNone(packages.menubar_msi("https://aiworker.example.com"))  # no package yet
         self.write(b"x" + packages.MSI_PLACEHOLDER + packages.MSI_PLACEHOLDER)
-        self.assertIsNone(packages.menubar_msi("https://board.example.com"))  # placeholder twice
+        self.assertIsNone(packages.menubar_msi("https://aiworker.example.com"))  # placeholder twice
         self.write(packages.MSI_PLACEHOLDER)
         for bad in ("https://a.com/\"x", "https://" + "a" * 200 + ".com", "ftp://a.com", "https://a.com/path"):
             self.assertIsNone(packages.menubar_msi(bad), bad)
@@ -623,23 +623,23 @@ class PluginMsiPackage(unittest.TestCase):
         self.write(b"head" + packages.PLUGIN_MSI_PLACEHOLDER + b"tail")
         self.assertTrue(packages.plugin_msi_available())
         signers = "ai-worker ssh-ed25519 AAAAexample\n"
-        package = packages.plugin_msi("https://board.example.com/", "k" * 32, signers)
+        package = packages.plugin_msi("https://aiworker.example.com/", "k" * 32, signers)
         self.assertEqual(len(package), len(packages.PLUGIN_MSI_PLACEHOLDER) + 8)
         self.assertNotIn(packages.PLUGIN_MSI_PLACEHOLDER, package)
         filled = package[4:-4].rstrip(b" ")
         settings_ = json.loads(base64.b64decode(filled))
-        self.assertEqual(settings_["company"], {"sharing": {"enabled": True, "webhook": "https://board.example.com", "ingestKey": "k" * 32}})
+        self.assertEqual(settings_["company"], {"sharing": {"enabled": True, "webhook": "https://aiworker.example.com", "ingestKey": "k" * 32}})
         self.assertEqual(settings_["signers"], signers)
 
     def test_refuses(self):
-        self.assertIsNone(packages.plugin_msi("https://board.example.com", "k", ""))  # no package yet
+        self.assertIsNone(packages.plugin_msi("https://aiworker.example.com", "k", ""))  # no package yet
         self.write(packages.PLUGIN_MSI_PLACEHOLDER)
-        self.assertIsNone(packages.plugin_msi("https://board.example.com", "", ""))  # no send code on this server
+        self.assertIsNone(packages.plugin_msi("https://aiworker.example.com", "", ""))  # no send code on this server
         for bad in ("https://a.com/\"x", "ftp://a.com", "https://a.com/path"):
             self.assertIsNone(packages.plugin_msi(bad, "k", ""), bad)
-        self.assertIsNone(packages.plugin_msi("https://board.example.com", "k" * 2000, ""))  # too long for the placeholder
+        self.assertIsNone(packages.plugin_msi("https://aiworker.example.com", "k" * 2000, ""))  # too long for the placeholder
         self.write(packages.PLUGIN_MSI_PLACEHOLDER * 2)
-        self.assertIsNone(packages.plugin_msi("https://board.example.com", "k", ""))  # placeholder twice
+        self.assertIsNone(packages.plugin_msi("https://aiworker.example.com", "k", ""))  # placeholder twice
 
     def test_signers_come_from_the_newest_release(self):
         releases = os.path.join(self.tmp, "releases")
@@ -705,10 +705,10 @@ class RoutePermissions(unittest.TestCase):
         "/mini-pair.js": (200, 200, 200, 200, 200),
         "/menubar/install-mac.zip": (401, 403, 403, 200, 403),
         "/menubar/install-windows.zip": (401, 403, 403, 200, 403),
-        "/menubar/install-windows.msi": (401, 403, 403, 200 if packages.menubar_msi("https://board.example.com") else 404, 403),
+        "/menubar/install-windows.msi": (401, 403, 403, 200 if packages.menubar_msi("https://aiworker.example.com") else 404, 403),
         # the plugin .msi carries the send code: admins only, like the menu bar installers
         # gói .msi plugin mang mã gửi: chỉ quản trị, như các gói cài thanh menu
-        "/plugin/install-windows.msi": (401, 403, 403, 200 if packages.plugin_msi("https://board.example.com", settings.INGEST_KEY, "") else 404, 403),
+        "/plugin/install-windows.msi": (401, 403, 403, 200 if packages.plugin_msi("https://aiworker.example.com", settings.INGEST_KEY, "") else 404, 403),
         "/menubar/install-mac.dmg": (401, 403, 403, 404, 403),
         "/menubar/extension.zip": (401, 403, 403, 200 if packages.menubar_extension() else 404, 403),
         "/menubar/install-ubuntu.deb": (401, 403, 403, 200, 403),
@@ -1044,24 +1044,24 @@ class RoutePermissions(unittest.TestCase):
 
     def test_menubar_installer_has_address_and_no_secret(self):
         import io, zipfile
-        status, b = self.call("GET", "/menubar/install-mac.zip", "tok-adm", Host="board.example.com")
+        status, b = self.call("GET", "/menubar/install-mac.zip", "tok-adm", Host="aiworker.example.com")
         self.assertEqual(status, 200)
         z = zipfile.ZipFile(io.BytesIO(b))
         names = z.namelist()
         self.assertIn("AI-Worker-menu-bar/Install AI Worker menu bar.command", names)
         self.assertIn("AI-Worker-menu-bar/icon-black.png", names)
         script = z.read("AI-Worker-menu-bar/Install AI Worker menu bar.command").decode()
-        self.assertIn('BOARD_URL="http://board.example.com/"', script)
+        self.assertIn('BOARD_URL="http://aiworker.example.com/"', script)
         self.assertEqual(z.getinfo("AI-Worker-menu-bar/Install AI Worker menu bar.command").external_attr >> 16 & 0o777, 0o755)
         everything = b"".join(z.read(n) for n in names)
         self.assertNotIn(self.tv_token.encode(), everything)
-        status, b = self.call("GET", "/menubar/install-windows.zip", "tok-adm", Host="board.example.com")
+        status, b = self.call("GET", "/menubar/install-windows.zip", "tok-adm", Host="aiworker.example.com")
         self.assertIn("AI-Worker-menu-bar/install-menubar.ps1", zipfile.ZipFile(io.BytesIO(b)).namelist())
         self.assertEqual(self.call("GET", "/menubar/install-mac.zip", "tok-adm", Host="bad host\"x")[0], 400)
 
     def test_menubar_deb_is_a_debian_package_with_the_address(self):
         import io, tarfile
-        status, b = self.call("GET", "/menubar/install-ubuntu.deb", "tok-adm", Host="board.example.com")
+        status, b = self.call("GET", "/menubar/install-ubuntu.deb", "tok-adm", Host="aiworker.example.com")
         self.assertEqual(status, 200)
         self.assertTrue(b.startswith(b"!<arch>\ndebian-binary   "))
         members, pos = {}, 8
@@ -1080,7 +1080,7 @@ class RoutePermissions(unittest.TestCase):
                   "./usr/lib/ai-worker-menubar/ai-worker.1m.py", "./usr/lib/ai-worker-menubar/icons/icon-white.png"):
             self.assertIn(n, names)
         self.assertEqual(data.getmember("./usr/bin/ai-worker-menubar").mode, 0o755)
-        self.assertEqual(json.loads(data.extractfile("./usr/lib/ai-worker-menubar/config.json").read())["server"], "http://board.example.com")
+        self.assertEqual(json.loads(data.extractfile("./usr/lib/ai-worker-menubar/config.json").read())["server"], "http://aiworker.example.com")
         everything = b"".join(data.extractfile(m).read() for m in data.getmembers() if m.isfile())
         self.assertNotIn(self.tv_token.encode(), everything)
 
@@ -1090,14 +1090,14 @@ class RoutePermissions(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             try:
                 packages.MENUBAR_DIR = d
-                self.assertEqual(self.call("GET", "/menubar/extension.zip", "tok-adm", Host="board.example.com")[0], 404)
+                self.assertEqual(self.call("GET", "/menubar/extension.zip", "tok-adm", Host="aiworker.example.com")[0], 404)
                 self.assertFalse(views.admin_data(time.time(), "", "")["menubarExtension"])
                 with open(os.path.join(d, "AI-Worker-extension.zip"), "wb") as f:
                     f.write(b"PK extension")
-                status, b = self.call("GET", "/menubar/extension.zip", "tok-adm", Host="board.example.com")
+                status, b = self.call("GET", "/menubar/extension.zip", "tok-adm", Host="aiworker.example.com")
                 self.assertEqual((status, b), (200, b"PK extension"))
                 self.assertTrue(views.admin_data(time.time(), "", "")["menubarExtension"])
-                self.assertEqual(self.call("GET", "/menubar/extension.zip", "tok-viewer", Host="board.example.com")[0], 403)
+                self.assertEqual(self.call("GET", "/menubar/extension.zip", "tok-viewer", Host="aiworker.example.com")[0], 403)
             finally:
                 packages.MENUBAR_DIR = old
 
@@ -1109,14 +1109,14 @@ class RoutePermissions(unittest.TestCase):
                 packages.MENUBAR_MAC_APP = os.path.join(d, "AI-Worker-menu-bar-mac-app.zip")
                 with open(packages.MENUBAR_MAC_APP, "wb") as f:
                     f.write(b"PK zip")
-                self.assertEqual(self.call("GET", "/menubar/install-mac.dmg", "tok-adm", Host="board.example.com")[0], 404)
+                self.assertEqual(self.call("GET", "/menubar/install-mac.dmg", "tok-adm", Host="aiworker.example.com")[0], 404)
                 self.assertFalse(views.admin_data(time.time(), "", "")["menubarDmg"])
                 with open(os.path.join(d, "AI-Worker-menu-bar-mac-app.dmg"), "wb") as f:
                     f.write(b"dmg bytes")
-                status, b = self.call("GET", "/menubar/install-mac.dmg", "tok-adm", Host="board.example.com")
+                status, b = self.call("GET", "/menubar/install-mac.dmg", "tok-adm", Host="aiworker.example.com")
                 self.assertEqual((status, b), (200, b"dmg bytes"))
                 self.assertTrue(views.admin_data(time.time(), "", "")["menubarDmg"])
-                self.assertEqual(self.call("GET", "/menubar/install-mac.zip", "tok-adm", Host="board.example.com")[1], b"PK zip")
+                self.assertEqual(self.call("GET", "/menubar/install-mac.zip", "tok-adm", Host="aiworker.example.com")[1], b"PK zip")
             finally:
                 packages.MENUBAR_MAC_APP = old
 
@@ -3409,7 +3409,7 @@ class TelegramLogin(unittest.TestCase):
     def go(self, path):
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
         try:
-            conn.request("GET", path, headers={"Host": "board.example.com"})
+            conn.request("GET", path, headers={"Host": "aiworker.example.com"})
             r = conn.getresponse()
             return r.status, r.getheader("Location") or ""
         finally:
@@ -3418,12 +3418,12 @@ class TelegramLogin(unittest.TestCase):
     def test_the_button_goes_to_telegram_and_comes_back(self):
         status, where = self.go("/telegram/go?n=abcdefghijklmnop")
         self.assertEqual(status, 303)
-        self.assertTrue(where.startswith("https://oauth.telegram.org/auth?bot_id=123456&origin=http%3A%2F%2Fboard.example.com&return_to="), where)
-        self.assertTrue(where.endswith(urllib.parse.quote("http://board.example.com/telegram/back?n=abcdefghijklmnop", safe="")), where)
+        self.assertTrue(where.startswith("https://oauth.telegram.org/auth?bot_id=123456&origin=http%3A%2F%2Faiworker.example.com&return_to="), where)
+        self.assertTrue(where.endswith(urllib.parse.quote("http://aiworker.example.com/telegram/back?n=abcdefghijklmnop", safe="")), where)
         # a strange step code is dropped instead of being passed on
         # mã bước lạ bị bỏ thay vì chuyển tiếp
         status, where = self.go("/telegram/go?n=%3Cx%3E")
-        self.assertTrue(where.endswith(urllib.parse.quote("http://board.example.com/telegram/back", safe="")), where)
+        self.assertTrue(where.endswith(urllib.parse.quote("http://aiworker.example.com/telegram/back", safe="")), where)
         status, page, _, _ = self.call("GET", "/telegram/back")
         self.assertEqual(status, 200)
         self.assertIn("/login.js", page)
@@ -4313,7 +4313,7 @@ class TelegramApp(unittest.TestCase):
 
     KEY = TelegramAsk.KEY
     TOKEN = "123456789:" + "A" * 35
-    URL = "https://board.example.com/tg/app"
+    URL = "https://aiworker.example.com/tg/app"
     HOA, LAN = TelegramAsk.HOA, "700100299"
     setUpClass = classmethod(TelegramAsk.setUpClass.__func__)
     tearDownClass = classmethod(TelegramAsk.tearDownClass.__func__)

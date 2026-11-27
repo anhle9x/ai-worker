@@ -185,7 +185,7 @@ If your team built an AI project or application that calls an LLM and needs a co
 
 1. Ask an admin for an account. They send you a QR code.
 2. On your phone, open **Google Authenticator** (or Microsoft Authenticator), tap **+**, choose **Scan a QR code**, and scan it.
-3. On your computer, open the board address your admin gives you (for example `https://board.company.com`).
+3. On your computer, open the board address your admin gives you (for example `https://aiworker.company.com`).
 4. Type your account name and the 6-digit code shown in the app, then click **Log in**.
 
 **Correct result:** the dashboard opens. A login lasts 8 hours. Each code works only once; if it is refused, wait for the next one.
@@ -244,7 +244,7 @@ For a manager who prefers the browser: a Chrome or Edge extension shows the numb
 
 1. Get the `AI-Worker-extension.zip` file from an admin (the **Extension for Chrome, Edge** button on the Admin page). Unzip it somewhere it will stay, for example Documents: deleting the folder breaks the extension.
 2. Open `chrome://extensions` (Edge: `edge://extensions`), turn on **Developer mode**, click **Load unpacked**, choose the `AI-Worker-extension` folder.
-3. Click the extension icon, type the address you open the board with (for example `https://board.company.com`), allow access to that one site, and read the 8-digit code to an admin.
+3. Click the extension icon, type the address you open the board with (for example `https://aiworker.company.com`), allow access to that one site, and read the 8-digit code to an admin.
 
 **Correct result:** within a minute of the admin approving it, the icon shows the number waiting.
 
@@ -308,7 +308,7 @@ Creating, reissuing, changing a role and deleting all ask for your OTP code agai
 
 ### 3.3 TV screens
 
-1. On the TV, open the board's address (the one your admin gives you, for example `https://board.company.com`). A smart TV shows an 8-digit code by itself; on a computer plugged into a TV, click **Wall screen: pair with a code** on the login page.
+1. On the TV, open the board's address (the one your admin gives you, for example `https://aiworker.company.com`). A smart TV shows an 8-digit code by itself; on a computer plugged into a TV, click **Wall screen: pair with a code** on the login page.
 2. Scan the QR code on the TV with a phone on the company network, or type the code under **Paired devices and keys** on the Admin page.
 3. Check the device and IP, choose **Add a new screen** (or replace an old one so no extra row is made), give it a name such as "Meeting room TV", and click **Approve**.
 

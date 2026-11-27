@@ -26,7 +26,7 @@ import (
 	"aiworker/receiver/internal/live"
 )
 
-const board = "https://board.example.com"
+const board = "https://aiworker.example.com"
 
 var secret = []byte("a secret of the tests, 32 bytes!")
 

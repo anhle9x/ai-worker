@@ -102,7 +102,7 @@ On the Python server (`/etc/ai-worker.env`):
 | `RECEIVER_CHECK_PERCENT` | Percent of sends the receiver also hands over as they came, for the third check (default 1) |
 | `RECEIVER_PEOPLE_SECONDS` | How often at most the table of people is built again, in seconds (default 5; the receiver asks every 15) |
 | `RECEIVER_LIVE_URL` | The receiver's address as the boards reach it, for example `https://ingest.example.com`: it goes into the tickets' answer and the pages' `connect-src`. Empty: no live feed |
-| `RECEIVER_BOARD_ORIGIN` | The board's own address, for example `https://board.example.com`: the only page the receiver lets open the feed. Empty: no live feed |
+| `RECEIVER_BOARD_ORIGIN` | The board's own address, for example `https://aiworker.example.com`: the only page the receiver lets open the feed. Empty: no live feed |
 
 On the receiver (its environment):
 
@@ -127,7 +127,7 @@ The receiver speaks HTTP/1.1 only (HTTP/2 costs more here), waits at most 10 sec
 - `RECEIVER_INGEST_URLS` lists up to 4 `https` addresses of the receiver. Empty (the default): every computer sends to the webhook, as before.
 - Which computers are told: `RECEIVER_INGEST_DEVICES` (their ids, comma separated) and `RECEIVER_INGEST_PERCENT` (0 to 100, by a stable hash of the id, so raising it only adds computers). Start with a few computers of the IT team, then 5, 25, 100, with `RECEIVER_CHECK_PERCENT=100` while trying.
 - The server tells a chosen computer only when it sends `v: 2` (a send of `v: 1` carries the whole book of 8 days, and ran the receiver out of memory at 40,000 computers, section 7), in its answer to a send made with the computer's own key (`ingestUrls`, `ingestTtlMs`, [DATA-MODEL.md](DATA-MODEL.md)); the shared key never goes to the receiver. The plugin keeps the address `RECEIVER_INGEST_TTL_SECONDS` (default an hour, moved by up to a fifth), then asks `GET /ingest/route?v=2` on the webhook, which writes nothing (without `?v=2` the answer is always an empty list); an empty list sends it back to the webhook.
-- The plugin trusts an address only over `https`, without a path, and on the webhook's own host, under the webhook's parent domain (`ingest.example.com` beside `board.example.com`, never a public suffix such as `com.vn`), or listed in the package's `sharing.ingestHosts`. The certificate is a public one for that name (section 5).
+- The plugin trusts an address only over `https`, without a path, and on the webhook's own host, under the webhook's parent domain (`ingest.example.com` beside `aiworker.example.com`, never a public suffix such as `com.vn`), or listed in the package's `sharing.ingestHosts`. The certificate is a public one for that name (section 5).
 - When the receiver cannot be reached, answers without `Retry-After`, or refuses the key, the plugin sends to the webhook instead: that send after a wait under 30 seconds at random, so a whole office that lost the receiver together reaches the webhook spread out, and the next ones there for about a minute, doubling up to ten, each spread by up to half. When the webhook itself does not answer, or answers 5xx without `Retry-After`, the sends wait 5 seconds, doubling up to 5 minutes, spread the same way. A busy receiver (429 or 503 with `Retry-After`) is waited for, never poured onto the webhook it shields.
 - To turn it off slowly, empty the settings: the computers come back within one time of keeping the address. At once: stop the receiver, and they come back on their next send.
 - A computer that sent straight to the webhook while an older row of it waited in a batch keeps the newer hours: each hour of the row keeps the time of its send, and Python writes none over a newer one, even after it started again (its records of work handed to helpers are still logged).
@@ -164,7 +164,15 @@ Without a second IP, the receiver can listen on another port of the server's own
 `server/install-receiver.sh` does step 6 in one command and checks steps 1 to 5. The server needs no Go: on the computer that copies `server/` to the server, `sh packaging/build-receiver.sh` builds the receiver for Linux on Intel or AMD (`amd64`) and on ARM (`arm64`) into `server/receiver-bin/`, with their `SHA256SUMS` (not kept in git; build it again for every version). Without Go on that computer, take the same three files (`ai-worker-receiver-linux-amd64`, `ai-worker-receiver-linux-arm64`, `SHA256SUMS`) from the page of your version under Releases of the project on GitHub, from 0.50.31 on, and put them in `server/receiver-bin/`; the installer checks the program against `SHA256SUMS` either way. Then copy `server/` to the server as for `install.sh`, and run there, in the `server/` folder:
 
 ```bash
-sudo sh install-receiver.sh --listen 203.0.113.2:443 --cert /etc/ai-worker-receiver/fullchain.pem --key /etc/ai-worker-receiver/privkey.pem --live-url https://ingest.example.com --board https://board.example.com
+sudo sh install-receiver.sh
+```
+
+It asks five things (the two addresses may be typed as a bare sub-domain such as `aiworker.example.com`; `https://` is added), each with an answer guessed from the machine itself, so Enter is enough when the guess is right and a typed answer replaces it: the board's address (read from the Caddy site that passes to the webhook's port), the IP and port to listen on (port 443 of an address the board's name does not use, else port 8443 of the board's own address), the receiver's address (`ingest.<your domain>`, or the board's name with the port), and the certificate and its key (looked for in `/etc/ai-worker-receiver/`, `/etc/ai-worker/ingest/` and `/etc/letsencrypt/live/<name>/`). It shows the whole once and waits for Enter, or `n` to stop with nothing changed. A guess is only offered: the checks below still hold every answer to the machine.
+
+For a run with nobody to answer, a script for example, give the five on the command line instead (`--live-url` and `--board` take a bare sub-domain too):
+
+```bash
+sudo sh install-receiver.sh --listen 203.0.113.2:443 --cert /etc/ai-worker-receiver/fullchain.pem --key /etc/ai-worker-receiver/privkey.pem --live-url https://ingest.example.com --board https://aiworker.example.com
 ```
 
 The right result ends with `✔ The receiver answers on https://ingest.example.com:443/health` and the lines to add for trying it with a few computers (below). What it does:

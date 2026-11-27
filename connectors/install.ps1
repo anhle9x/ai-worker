@@ -423,7 +423,7 @@ foreach ($f in @((Join-Path $Here '..\web\company.json'), (Join-Path $UserHome '
 }
 if (-not $Server) {
   $Server = Ask (
-    Say-Text -AsString 'Address of the board (for example https://board.example.com)' 'Địa chỉ của bảng (ví dụ https://board.example.com)')
+    Say-Text -AsString 'Address of the board (for example https://aiworker.example.com)' 'Địa chỉ của bảng (ví dụ https://aiworker.example.com)')
 }
 $Server = (($Server -replace '\s', '') -replace '/+$', '')
 if ($Server -notmatch '^https?://') {

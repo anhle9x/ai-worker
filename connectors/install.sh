@@ -361,7 +361,7 @@ for f in "$HERE/../web/company.json" "$HOME/claude-plugins-ai-worker/ai-worker/w
 done
 if [ -z "$SERVER" ]; then
   Q=$(
-  say "Address of the board (for example https://board.example.com): " "Địa chỉ của bảng (ví dụ https://board.example.com): "
+  say "Address of the board (for example https://aiworker.example.com): " "Địa chỉ của bảng (ví dụ https://aiworker.example.com): "
   )
   read -r -p "$Q" SERVER || exit 1
 fi

@@ -48,6 +48,29 @@ AI Worker được thiết kế để chống tám rủi ro web thường gặp 
 
 Trên máy chủ, trang Quản trị hiện số lần những việc này xảy ra trên cả team trong 7 ngày qua (chỉ số đếm), chỉ ra các khoá cho công cụ AI không dùng 30 ngày, và kiểm không dòng nào của nhật ký bị sửa hay bị xoá bằng tay. Mỗi dòng mang dấu vân tay của dòng trước; người viết lại được cả cơ sở dữ liệu lẫn dấu vân tay cuối thì không bị phát hiện, nên cần một bản nằm ngoài máy chủ: mỗi ngày tổng chi phí được niêm phong vào chuỗi khi không còn được đếm lại (sau một tuần), trang Quản trị liệt kê mã của các ngày đã niêm phong và báo nếu ngày đã niêm phong bị sửa, và mỗi sáng chat Telegram đã liên kết với tài khoản quản trị nhận mã mới nhất (ngày, số dòng, mã; không tên, không tiền). Một ngày vẫn sửa được trong tuần nó còn được đếm lại.
 
+### Khoá của từng máy và việc gửi từ ngoài văn phòng
+
+Mỗi máy gửi bằng một khoá riêng, và những máy được chọn có thể gửi từ mọi mạng. Cần biết:
+
+- **Khoá của máy là của riêng máy đó.** Máy chủ cấp nó trong câu trả lời cho lần gửi đầu của máy (`awd1.…`, ký bằng một bí mật giữ trong `keys/`). Từ đó mã gửi chung trong gói cài không gửi thay được cho máy ấy.
+- **Mã chung còn làm được gì là một tuỳ chỉnh.** `SHARED_KEY_MODE` là `allow` (máy mới ghi danh bằng nó, mặc định), `known-only` (chỉ các máy đã có trên bảng) hoặc `off`. Nếu gói cài bị lộ, đặt `known-only`: không cần gói mới.
+- **Cắt một máy ở trang Quản trị** bằng nút **Thu hồi** và nhập lại mã OTP: khoá của nó dừng ngay và mã chung không đưa nó quay lại được. `webhook.py --rotate-device-secret` cấp khoá mới cho mọi máy khi bí mật ký có thể đã lộ.
+- **Gửi từ ngoài văn phòng vẫn tắt cho tới khi bạn cài,** và khi đó chỉ cho những máy quản trị đặt **Mọi mạng**, từng máy một, có nhập lại mã OTP. Từ ngoài, proxy chỉ cho qua yêu cầu tới `/ingest` hay `/releases/` có mang khoá riêng của một máy; mã chung không gửi được gì từ ngoài. Trang bảng, đăng nhập và `/mcp` vẫn chỉ ở trong mạng của bạn.
+- **Điều còn lại:** khi `SHARED_KEY_MODE` còn là `allow`, người cầm gói cài vẫn ghi danh được một máy mới dưới tên giả. Máy được gửi từ mọi mạng để lại trên bảng các địa chỉ nó đã gửi từ đó, kể cả địa chỉ nhà: báo cho người đó trước. Máy bị lấy cắp vẫn gửi cho tới khi quản trị bấm **Thu hồi**. Một CDN hay proxy khác đứng trước Caddy làm mọi máy trông như ở ngoài, nên cách cài này không dành cho trường hợp đó.
+
+### Bộ nhận Go (tuỳ chọn)
+
+Chỉ dành cho tổ chức lớn, và tắt cho tới khi `server/install-receiver.sh` cài nó ([docs/RECEIVER.vi.md](docs/RECEIVER.vi.md)). Nó là một chương trình thứ hai nghe ở một địa chỉ riêng. Cần biết trước khi bật:
+
+- **Nó là cánh cửa thứ hai vào máy chủ,** qua TLS do chính nó xử lý, không đứng sau Caddy. Nó tự kiểm khoá riêng của máy, chuyển lần gửi bằng mã chung cho webhook kiểm như mọi khi, và chỉ trả số trực tiếp cho bảng có vé; mọi thứ khác bị từ chối.
+- **Nó không quyết định gì về con người.** Đăng nhập, vai, tên và dữ liệu vẫn ở webhook. Bộ nhận không giữ tên hay email nào và không ghi file nào; số trực tiếp nó đưa cho bảng mang một mã cho mỗi dòng, không bao giờ mang tên.
+- **Nó chạy bằng tài khoản của webhook, không bao giờ bằng root,** chỉ có một quyền là nghe ở cổng thấp, có trần bộ nhớ, và một tuỳ chỉnh khiến hệ điều hành dừng nó trước webhook khi hết bộ nhớ.
+- **File bí mật** (`keys/receiver-secrets.json`, chỉ tài khoản đó đọc được) cho bộ nhận kiểm khoá của máy và vé. Ai cầm file này tạo được khoá cho bất kỳ máy nào và gửi số dưới danh máy đó, nhưng không đọc được dữ liệu nào. Nó ở lại trên máy chủ; `--rotate-device-secret` thay nội dung của nó.
+- **Các đường bộ nhận dùng trên webhook** (`/internal/…`) chỉ trả lời lời gọi từ chính máy đó kèm một mã nội bộ. Từ nơi khác thì chúng như không tồn tại.
+- **Vé đọc số trực tiếp** chỉ cấp cho phiên đã đăng nhập ở chính trang của bảng, sống 5 phút, cho một phạm vi. Bộ nhận cắt luồng trong khoảng 20 giây sau khi phiên kết thúc.
+- **Nó giới hạn những gì một đợt dồn dập lấy được:** số kết nối, bộ nhớ cho các thân đang đọc và các dòng đang chờ, và nhịp gửi nó yêu cầu các máy. Quá giới hạn thì máy được bảo quay lại sau, và không mất gì đã gửi trước đó.
+- **Điều còn lại:** nó không tự kiểm danh sách mạng văn phòng. Ở nơi đã đặt danh sách đó, máy để **Chỉ văn phòng** không bao giờ được báo địa chỉ của bộ nhận; chỉ máy đặt **Mọi mạng** mới tới đó, và khi ấy là từ mọi nơi. Chứng chỉ của nó do bạn gia hạn. Nó đã được đo với máy giả tới khoảng 40.000 tới 50.000 máy, và mới chạy thật ở một tổ chức với vài máy; chưa có hãng bảo mật bên ngoài nào xem xét.
+
 ### Bộ nối cho Codex, Cursor và Gemini CLI
 
 Bộ nối (`connectors/`) là phần tuỳ chọn, tách riêng khỏi plugin. Những điều cần biết trước khi cho phép dùng:

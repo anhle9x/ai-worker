@@ -628,7 +628,7 @@ class Settings(unittest.TestCase):
             self.assertIn("TELEGRAM_ASK_KEY", str(caught.exception))
 
     def test_the_board_must_be_on_this_machine(self):
-        for board in ("http://board.example.com", "https://127.0.0.1:8788", "http://192.168.1.5:8788", "http://127.0.0.1.example.com:8788", "ftp://127.0.0.1", "127.0.0.1:8788", "http://[::1"):
+        for board in ("http://aiworker.example.com", "https://127.0.0.1:8788", "http://192.168.1.5:8788", "http://127.0.0.1.example.com:8788", "ftp://127.0.0.1", "127.0.0.1:8788", "http://[::1"):
             with self.assertRaises(ValueError) as caught:
                 telegram_bot.settings_from(dict(self.GOOD, BOARD_URL=board))
             self.assertIn("BOARD_URL", str(caught.exception), board)
@@ -655,15 +655,15 @@ class MenuButtons(BotCase):
         return [body for method, body in self.telegram.calls if method == "setChatMenuButton"]
 
     def test_a_chat_gets_the_window_or_the_plain_menu(self):
-        self.board.menus = [{"to": 700100200, "url": "https://board.example.com/tg/app"}, {"to": 700100201, "url": None}]
+        self.board.menus = [{"to": 700100200, "url": "https://aiworker.example.com/tg/app"}, {"to": 700100201, "url": None}]
         self.bot.step()
         self.assertEqual(self.buttons(), [
-            {"chat_id": 700100200, "menu_button": {"type": "web_app", "text": "AI Worker", "web_app": {"url": "https://board.example.com/tg/app"}}},
+            {"chat_id": 700100200, "menu_button": {"type": "web_app", "text": "AI Worker", "web_app": {"url": "https://aiworker.example.com/tg/app"}}},
             {"chat_id": 700100201, "menu_button": {"type": "default"}},
         ])
 
     def test_only_an_https_address_opens_a_window(self):
-        self.board.menus = [{"to": 1, "url": "http://board.example.com/tg/app"}, {"to": 2, "url": "javascript:alert(1)"}, {"to": True, "url": None}, {"to": -5, "url": None}, "x"]
+        self.board.menus = [{"to": 1, "url": "http://aiworker.example.com/tg/app"}, {"to": 2, "url": "javascript:alert(1)"}, {"to": True, "url": None}, {"to": -5, "url": None}, "x"]
         self.bot.step()
         self.assertEqual(self.buttons(), [{"chat_id": 1, "menu_button": {"type": "default"}}, {"chat_id": 2, "menu_button": {"type": "default"}}])
 
@@ -677,14 +677,14 @@ class MenuButtons(BotCase):
         self.assertEqual(len(ticks()), 2)
 
     def test_alerts_go_out_protected_with_the_windows_button(self):
-        self.board.sends = [{"to": 700100200, "text": "⏳ AI Worker · 1 waiting longer than 10 min", "app": "https://board.example.com/tg/app"},
+        self.board.sends = [{"to": 700100200, "text": "⏳ AI Worker · 1 waiting longer than 10 min", "app": "https://aiworker.example.com/tg/app"},
                             {"to": 700100201, "text": "⏳ AI Worker · 2 waiting longer than 10 min", "app": None},
-                            {"to": 7, "text": "x", "app": "http://board.example.com/tg/app"}, {"to": True, "text": "x"}, {"to": 8, "text": ""}, "x"]
+                            {"to": 7, "text": "x", "app": "http://aiworker.example.com/tg/app"}, {"to": True, "text": "x"}, {"to": 8, "text": ""}, "x"]
         self.bot.step()
         sent = self.telegram.sent()
         self.assertEqual([s["chat_id"] for s in sent], [700100200, 700100201, 7])
         self.assertTrue(all(s["protect_content"] is True for s in sent))
-        self.assertEqual(sent[0]["reply_markup"], {"inline_keyboard": [[{"text": "AI Worker", "web_app": {"url": "https://board.example.com/tg/app"}}]]})
+        self.assertEqual(sent[0]["reply_markup"], {"inline_keyboard": [[{"text": "AI Worker", "web_app": {"url": "https://aiworker.example.com/tg/app"}}]]})
         self.assertNotIn("reply_markup", sent[1])
         self.assertNotIn("reply_markup", sent[2])
 

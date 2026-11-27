@@ -7,7 +7,7 @@ import { buildMachineSummary, PACE_MIN_MS } from '../hooks/team'
 // hooks/send.ts không cần engine: kho trong bộ nhớ ghi lại từng bước, máy chủ trả lời theo kịch bản, số ngẫu nhiên cố định.
 
 const NOW = 1_800_000_000_000
-const WEBHOOK = 'https://board.example.com'
+const WEBHOOK = 'https://aiworker.example.com'
 const RECEIVER = 'https://ingest.example.com'
 const RECEIVER2 = 'https://ingest2.example.com'
 const OWN = 'awd1.a.b.c.d.e.f.g'

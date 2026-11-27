@@ -122,7 +122,7 @@ func (liveSource) Rows(float64) []live.Row {
 	return []live.Row{{Row: "r1", Branch: "a", Status: live.Open}}
 }
 func (liveSource) LivePolicy() ([]string, map[string]bool, bool) {
-	return []string{"https://board.example.com"}, map[string]bool{}, true
+	return []string{"https://aiworker.example.com"}, map[string]bool{}, true
 }
 
 type liveKeys []byte
@@ -166,7 +166,7 @@ func TestTheFeedOutlivesTheServersTimeouts(t *testing.T) {
 	mac := hmac.New(sha256.New, secret)
 	mac.Write([]byte(body))
 	req, _ := http.NewRequest(http.MethodGet, "https://"+l.Addr().String()+"/live?scope=branch:a&t="+body+"."+base64.RawURLEncoding.EncodeToString(mac.Sum(nil)), nil)
-	req.Header.Set("Origin", "https://board.example.com")
+	req.Header.Set("Origin", "https://aiworker.example.com")
 	resp, err := client.Do(req)
 	if err != nil || resp.StatusCode != 200 {
 		t.Fatalf("%v %v", resp, err)

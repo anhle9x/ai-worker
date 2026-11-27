@@ -1,6 +1,6 @@
 #!/bin/bash
-# Builds the macOS menu bar app for one company: bash build.sh https://board.example.com [auto|vi|en] [name] [logo-folder] [en|vi route names]
-# Đóng gói app thanh menu macOS cho một công ty: bash build.sh https://board.example.com [auto|vi|en] [tên] [thư-mục-logo] [en|vi tên đường dẫn]
+# Builds the macOS menu bar app for one company: bash build.sh https://aiworker.example.com [auto|vi|en] [name] [logo-folder] [en|vi route names]
+# Đóng gói app thanh menu macOS cho một công ty: bash build.sh https://aiworker.example.com [auto|vi|en] [tên] [thư-mục-logo] [en|vi tên đường dẫn]
 # Runs on a Mac with Apple's Command Line Tools (xcode-select --install); people who only use the app need nothing.
 # Chạy trên máy Mac có Command Line Tools của Apple (xcode-select --install); người chỉ dùng app không cần gì cả.
 # The board's address is written inside the app before it is signed, so the app is never changed after signing.

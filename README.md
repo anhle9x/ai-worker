@@ -123,6 +123,7 @@ How to use each screen: [docs/USER-GUIDE.md](docs/USER-GUIDE.md).
 | Plugin | macOS, Windows, Linux | Claude Code: the desktop app's Code tab, the CLI, or the VS Code extension |
 | Connector for Codex, Cursor, Gemini CLI | macOS, Linux, Windows | The tool itself, and curl or wget; no Claude Code |
 | Dashboard server | Linux with systemd | Python 3.8 or newer, Caddy or nginx; no other library |
+| Go receiver (optional, for tens of thousands of computers) | The same Linux server, as a service of its own | A second IP or port and a certificate for it; the server needs no Go. Steps in the [install guide](docs/INSTALL.md#first-deployment), step 7 |
 | Menu bar icon | macOS, Windows 10/11, Ubuntu (X11 and Wayland) | Downloaded from the server's Admin page |
 | Telegram bot, its alerts and its window (optional) | Telegram on a phone or a computer | A bot made with @BotFather; `TELEGRAM_ASK=1` on the server, and `TELEGRAM_APP=1` for the window, which opens on the networks the server lets in. The window was tried on Android and Telegram Desktop, not yet on an iPhone |
 | Browser extension | Chrome, Edge | Download from the server's Admin page, pair with a code |
@@ -168,6 +169,7 @@ Where the project is going. There are no dates: an item ships when it has been c
 | [User guide](docs/USER-GUIDE.md) | Staff, managers, admins |
 | [Install and configure](docs/INSTALL.md) | First deployment, updates, settings, data sent |
 | [Operations](docs/OPERATIONS.md) | Daily checks, problems, backup, rollback, logs |
+| [The Go receiver](docs/RECEIVER.md) | Optional, for organisations of tens of thousands of computers: how it works, its installer, trying it with a few computers |
 | [Architecture](docs/ARCHITECTURE.md), [data](docs/DATA-MODEL.md), [permissions](docs/PERMISSIONS.md) | How it is built |
 | [Skills and rules](docs/SKILLS.md) | What every computer gets |
 | [Measure an AI project or application](docs/AI-PROJECTS.md) | Teams that built a project calling an LLM |

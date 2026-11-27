@@ -24,7 +24,7 @@ The quickest way: open Claude Code in the project's code folder and type `/ai-wo
   AI_METER_URL=https://<board domain>/projects/ingest
   AI_METER_KEY=prj_…
   ```
-  `<board domain>` is the domain of the server that runs your AI Worker board, the one in the browser's address bar when you open it, for example `https://board.example.com/projects/ingest`. The Admin page writes it in for you. Copy both now. Do not send the key by chat, email or screenshot.
+  `<board domain>` is the domain of the server that runs your AI Worker board, the one in the browser's address bar when you open it, for example `https://aiworker.example.com/projects/ingest`. The Admin page writes it in for you. Copy both now. Do not send the key by chat, email or screenshot.
 
 ## Step 2. Copy the meter into the project
 

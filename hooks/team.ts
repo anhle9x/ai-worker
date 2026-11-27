@@ -494,10 +494,10 @@ function hostOf(url: string): string | undefined {
 
 /**
  * Whether the receiver at `url` may be trusted with this machine's sends: https, no path and no account in it, and its host either the
- * webhook's own, one under the webhook's parent domain (`ingest.example.com` beside `board.example.com`; the webhook's host needs three
+ * webhook's own, one under the webhook's parent domain (`ingest.example.com` beside `aiworker.example.com`; the webhook's host needs three
  * labels or more, so `example.com` never opens all of `.com`), or listed in the package's `ingestHosts`. The webhook must be https too.
  */
-/** Có được giao các lần gửi của máy này cho bộ nhận ở `url` không: https, không có đường dẫn hay tài khoản, và máy chủ của nó là chính máy chủ của webhook, một máy chủ dưới tên miền cha của webhook (`ingest.example.com` cạnh `board.example.com`; máy chủ của webhook cần từ ba nhãn trở lên, để `example.com` không bao giờ mở cả `.com`), hoặc có trong `ingestHosts` của gói. Webhook cũng phải là https. */
+/** Có được giao các lần gửi của máy này cho bộ nhận ở `url` không: https, không có đường dẫn hay tài khoản, và máy chủ của nó là chính máy chủ của webhook, một máy chủ dưới tên miền cha của webhook (`ingest.example.com` cạnh `aiworker.example.com`; máy chủ của webhook cần từ ba nhãn trở lên, để `example.com` không bao giờ mở cả `.com`), hoặc có trong `ingestHosts` của gói. Webhook cũng phải là https. */
 export function receiverAllowed(url: string, webhook: string, ingestHosts: string[]): boolean {
   const host = hostOf(url)
   const hookHost = /^https:\/\/([a-z0-9.-]+)(:\d{1,5})?(\/|$)/i.exec(webhook)?.[1]?.toLowerCase()

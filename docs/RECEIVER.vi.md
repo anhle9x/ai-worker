@@ -102,7 +102,7 @@ Khi có `RECEIVER_LIVE_URL`, các trang của bảng cho phép địa chỉ đó
 | `RECEIVER_CHECK_PERCENT` | Phần trăm số lần gửi bộ nhận cũng chuyển nguyên văn, cho lớp đối chiếu thứ ba (mặc định 1) |
 | `RECEIVER_PEOPLE_SECONDS` | Bảng người được dựng lại nhiều nhất bao lâu một lần, tính bằng giây (mặc định 5; bộ nhận hỏi mỗi 15 giây) |
 | `RECEIVER_LIVE_URL` | Địa chỉ của bộ nhận như các bảng tới được, ví dụ `https://ingest.example.com`: nó nằm trong câu trả lời cấp vé và trong `connect-src` của các trang. Để trống: không có luồng trực tiếp |
-| `RECEIVER_BOARD_ORIGIN` | Địa chỉ của chính bảng, ví dụ `https://board.example.com`: trang duy nhất bộ nhận cho mở luồng. Để trống: không có luồng trực tiếp |
+| `RECEIVER_BOARD_ORIGIN` | Địa chỉ của chính bảng, ví dụ `https://aiworker.example.com`: trang duy nhất bộ nhận cho mở luồng. Để trống: không có luồng trực tiếp |
 
 Ở bộ nhận (biến môi trường của nó):
 
@@ -127,7 +127,7 @@ Bộ nhận chỉ nói HTTP/1.1 (HTTP/2 tốn hơn ở đây), chờ phần head
 - `RECEIVER_INGEST_URLS` liệt kê tới 4 địa chỉ `https` của bộ nhận. Để trống (mặc định): mọi máy gửi tới webhook như trước.
 - Máy nào được báo: `RECEIVER_INGEST_DEVICES` (mã máy, cách nhau dấu phẩy) và `RECEIVER_INGEST_PERCENT` (0 tới 100, theo băm ổn định của mã máy, nên tăng lên chỉ thêm máy). Bắt đầu với vài máy phòng IT, rồi 5, 25, 100, kèm `RECEIVER_CHECK_PERCENT=100` trong lúc thử.
 - Máy chủ chỉ báo cho máy được chọn khi máy gửi `v: 2` (lần gửi `v: 1` mang cả sổ 8 ngày, và đã làm bộ nhận hết bộ nhớ ở 40.000 máy, mục 7), trong câu trả lời cho lần gửi bằng khoá riêng của máy (`ingestUrls`, `ingestTtlMs`, [DATA-MODEL.vi.md](DATA-MODEL.vi.md)); khoá chung không bao giờ đi tới bộ nhận. Plugin giữ địa chỉ `RECEIVER_INGEST_TTL_SECONDS` (mặc định một giờ, lệch tới một phần năm), rồi hỏi `GET /ingest/route?v=2` trên webhook, việc này không ghi gì (không có `?v=2` thì câu trả lời luôn là danh sách rỗng); danh sách rỗng đưa máy về lại webhook.
-- Plugin chỉ tin một địa chỉ qua `https`, không có đường dẫn, và nằm trên chính máy chủ của webhook, dưới tên miền cha của webhook (`ingest.example.com` cạnh `board.example.com`, không bao giờ là hậu tố công cộng như `com.vn`), hoặc có trong `sharing.ingestHosts` của gói. Chứng chỉ là chứng chỉ công khai cho tên đó (mục 5).
+- Plugin chỉ tin một địa chỉ qua `https`, không có đường dẫn, và nằm trên chính máy chủ của webhook, dưới tên miền cha của webhook (`ingest.example.com` cạnh `aiworker.example.com`, không bao giờ là hậu tố công cộng như `com.vn`), hoặc có trong `sharing.ingestHosts` của gói. Chứng chỉ là chứng chỉ công khai cho tên đó (mục 5).
 - Khi không tới được bộ nhận, bộ nhận trả lời mà không có `Retry-After`, hoặc từ chối khoá, plugin gửi tới webhook thay vào đó: lần này sau một khoảng chờ ngẫu nhiên dưới 30 giây, để cả văn phòng cùng mất bộ nhận tới webhook rải ra, và các lần sau ở đó khoảng một phút, gấp đôi dần tới mười phút, mỗi lần lệch tới một nửa. Khi chính webhook không trả lời, hoặc trả 5xx không có `Retry-After`, các lần gửi chờ 5 giây, gấp đôi dần tới 5 phút, lệch cùng cách đó. Bộ nhận đang bận (429 hay 503 kèm `Retry-After`) thì chờ, không bao giờ đổ sang webhook mà nó đang che chắn.
 - Tắt chậm: để trống các thiết lập, các máy quay về trong một lần hết hạn địa chỉ. Tắt ngay: dừng bộ nhận, các máy quay về ở lần gửi kế.
 - Máy đã gửi thẳng tới webhook trong lúc một dòng cũ hơn của nó còn chờ trong một lô vẫn giữ các giờ mới hơn: mỗi giờ của dòng giữ thời điểm của lần gửi của nó, và Python không ghi giờ nào đè lên giờ mới hơn, kể cả sau khi khởi động lại (biên bản giao việc của nó vẫn được ghi nhật ký).
@@ -164,7 +164,15 @@ Không có IP thứ hai thì bộ nhận nghe được ở một cổng khác tr
 `server/install-receiver.sh` làm bước 6 bằng một lệnh và kiểm các bước 1 tới 5. Máy chủ không cần Go: ở máy chép `server/` lên máy chủ, `sh packaging/build-receiver.sh` dựng bộ nhận cho Linux trên Intel hay AMD (`amd64`) và trên ARM (`arm64`) vào `server/receiver-bin/`, kèm `SHA256SUMS` (không đưa vào git; dựng lại cho mỗi phiên bản). Máy đó không có Go thì lấy đúng ba file ấy (`ai-worker-receiver-linux-amd64`, `ai-worker-receiver-linux-arm64`, `SHA256SUMS`) ở trang của phiên bản bạn dùng trong mục Releases của dự án trên GitHub, từ bản 0.50.31, rồi đặt vào `server/receiver-bin/`; cách nào thì bộ cài cũng đối chiếu file chạy với `SHA256SUMS`. Rồi chép `server/` lên máy chủ như với `install.sh`, và chạy ở đó, trong thư mục `server/`:
 
 ```bash
-sudo sh install-receiver.sh --listen 203.0.113.2:443 --cert /etc/ai-worker-receiver/fullchain.pem --key /etc/ai-worker-receiver/privkey.pem --live-url https://ingest.example.com --board https://board.example.com
+sudo sh install-receiver.sh
+```
+
+Nó hỏi năm điều (hai địa chỉ gõ được dưới dạng tên miền con trơn như `aiworker.example.com`; `https://` được thêm vào), mỗi câu kèm một đáp án đoán từ chính máy chủ, nên đoán đúng thì chỉ cần Enter, còn gõ vào thì thay cho đáp án đoán: địa chỉ của bảng (đọc từ trang Caddy chuyển tới cổng của webhook), IP và cổng để nghe (cổng 443 của một địa chỉ mà tên của bảng không dùng, không thì cổng 8443 của chính địa chỉ của bảng), địa chỉ của bộ nhận (`ingest.<tên miền của bạn>`, hoặc tên của bảng kèm cổng), và chứng chỉ cùng khoá của nó (tìm trong `/etc/ai-worker-receiver/`, `/etc/ai-worker/ingest/` và `/etc/letsencrypt/live/<tên>/`). Nó hiện tất cả một lượt rồi chờ Enter, hoặc `n` để dừng mà chưa đổi gì. Đáp án đoán chỉ là đề xuất: các bước kiểm bên dưới vẫn đối chiếu mọi câu trả lời với máy chủ.
+
+Khi chạy mà không có ai trả lời, ví dụ trong một script, thì đưa năm thứ đó trên dòng lệnh (`--live-url` và `--board` cũng nhận tên miền con trơn):
+
+```bash
+sudo sh install-receiver.sh --listen 203.0.113.2:443 --cert /etc/ai-worker-receiver/fullchain.pem --key /etc/ai-worker-receiver/privkey.pem --live-url https://ingest.example.com --board https://aiworker.example.com
 ```
 
 Kết quả đúng kết thúc bằng `✔ Bộ nhận trả lời ở https://ingest.example.com:443/health` và các dòng cần thêm để thử với vài máy (bên dưới). Nó làm gì:

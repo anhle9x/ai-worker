@@ -122,6 +122,7 @@ Cách dùng từng màn hình: [docs/USER-GUIDE.vi.md](docs/USER-GUIDE.vi.md).
 |---|---|---|
 | Plugin | macOS, Windows, Linux | Claude Code: thẻ Code của app máy tính, CLI, hoặc phần mở rộng VS Code |
 | Máy chủ bảng tổng | Linux có systemd | Python 3.8 trở lên, Caddy hoặc nginx; không thư viện nào khác |
+| Bộ nhận Go (tuỳ chọn, cho hàng chục nghìn máy) | Cùng máy chủ Linux đó, là một dịch vụ riêng | Một IP hoặc cổng thứ hai và chứng chỉ cho nó; máy chủ không cần Go. Các bước ở [hướng dẫn cài đặt](docs/INSTALL.vi.md#triển-khai-lần-đầu), bước 7 |
 | Bộ nối cho Codex, Cursor, Gemini CLI | macOS, Linux, Windows | Chính công cụ đó, và curl hoặc wget; không cần Claude Code |
 | Biểu tượng thanh menu | macOS, Windows 10/11, Ubuntu (X11 và Wayland) | Tải ở trang Quản trị của máy chủ |
 | Bot Telegram, tin báo và khung của nó (tuỳ chọn) | Telegram trên điện thoại hoặc máy tính | Một bot tạo bằng @BotFather; `TELEGRAM_ASK=1` trên máy chủ, thêm `TELEGRAM_APP=1` cho khung, khung mở được ở các mạng mà máy chủ cho vào. Khung đã thử trên Android và Telegram Desktop, chưa thử trên iPhone |
@@ -168,6 +169,7 @@ Hướng đi của dự án. Không ghi ngày: mục nào kiểm xong thì phát
 | [Hướng dẫn sử dụng](docs/USER-GUIDE.vi.md) | Nhân viên, quản lý, quản trị |
 | [Cài đặt và cấu hình](docs/INSTALL.vi.md) | Triển khai lần đầu, cập nhật, tuỳ chỉnh, dữ liệu gửi đi |
 | [Vận hành](docs/OPERATIONS.vi.md) | Kiểm tra hằng ngày, sự cố, sao lưu, quay về bản cũ, nhật ký |
+| [Bộ nhận Go](docs/RECEIVER.vi.md) | Tuỳ chọn, cho tổ chức hàng chục nghìn máy: cách nó chạy, bộ cài của nó, thử với vài máy |
 | [Kiến trúc](docs/ARCHITECTURE.vi.md), [dữ liệu](docs/DATA-MODEL.vi.md), [phân quyền](docs/PERMISSIONS.vi.md) | Cách hệ thống được làm |
 | [Skill và quy tắc](docs/SKILLS.vi.md) | Mỗi máy nhận được gì |
 | [Đo một dự án hay ứng dụng AI](docs/AI-PROJECTS.vi.md) | Nhóm làm dự án có gọi LLM |

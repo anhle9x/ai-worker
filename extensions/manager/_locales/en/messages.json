@@ -9,7 +9,7 @@
     "message": "Board address"
   },
   "boardAddressHint": {
-    "message": "The address your admin gave you, for example https://board.company.com. The browser will ask to allow this one site only."
+    "message": "The address your admin gave you, for example https://aiworker.company.com. The browser will ask to allow this one site only."
   },
   "pairButton": {
     "message": "Get a pairing code"
@@ -89,10 +89,10 @@
     "message": "Cannot reach the board. You may be outside the company network, or the server is down. No numbers are shown until it answers again."
   },
   "invalidAddress": {
-    "message": "This is not a web address. Example: https://board.company.com"
+    "message": "This is not a web address. Example: https://aiworker.company.com"
   },
   "httpNotAllowed": {
-    "message": "Plain http works only for this computer (localhost or 127.0.0.1). Use the board's https address, for example https://board.company.com"
+    "message": "Plain http works only for this computer (localhost or 127.0.0.1). Use the board's https address, for example https://aiworker.company.com"
   },
   "permissionDenied": {
     "message": "The browser did not allow access to this address, so the extension cannot pair."
