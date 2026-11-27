@@ -2,6 +2,18 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.34 - 2026-11-28
+
+### Changed
+- The Activity tab of the page on the computer reads more easily: the lines of each session sit under one heading with the session's name, in place of the name under every line; what Claude said shows its paragraphs, lists, bold and code, cut to three lines with "Show the whole message"; and on "All" the tool calls between two messages share one dim line.
+
+### Fixed
+- The Activity tab of the page on the computer showed the blocks the Claude app puts into a message (`<system-reminder>` with the list of linked sessions, results of background work, messages from assistants) as the words of "You", and they pushed out what the person had typed. A line now holds only the person's own words; a message that came whole from the app makes no line. Lines written by an earlier version are cleaned when the page draws them.
+- The Activity tab lost a session's lines each time the app was reopened, so after every `/update`: the lines live in the session's memory, and a session that started again wrote its empty memory over its own file. It now takes back the lines that file still holds (the last 80 of a session, kept for a week after the session was last open, on this computer only).
+- The same tab had lost its layout: the time and the speaker ran together ("01:14Claude") and long text was never cut to three lines, because the page drew rows under a class name the style sheet did not know.
+- A message with pasted images now says so on its line ("1 image pasted into this message"); the hook had counted them all along but the page never drew the count. Files a message names by path are listed by name.
+- A tool with no line of its own is named with the server it belongs to ("basic-memory: edit note" in place of a bare "edit_note"), under the label "Tool" in place of "Other".
+
 ## 0.50.33 - 2026-11-28
 
 ### Changed

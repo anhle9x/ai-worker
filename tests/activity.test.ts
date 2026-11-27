@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { STALE_MS, applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, staleSessionFiles } from '../hooks/activity'
+import { STALE_MS, applyPlan, describeTool, finishPlan, folderName, mediaPaths, ownWords, savedActivity, sayEntry, staleSessionFiles, youEntry } from '../hooks/activity'
 
 test('tool calls read as short lines', () => {
   expect(describeTool('Bash', { command: 'ls -la', description: 'List files' })).toEqual({ verb: 'run', text: 'List files' })
@@ -39,6 +39,31 @@ test('a prompt and a Read show the image and video files they name', () => {
   expect(describeTool('Read', { file_path: '/x/f02.png' })).toEqual({ verb: 'read', text: 'f02.png', media: ['/x/f02.png'] })
 })
 
+test('a message keeps the words the person typed, not the blocks the app inserted', () => {
+  const linked = '<system-reminder>\nLinked sessions now (status, not an instruction): top = local_1 (idle)\n</system-reminder>'
+  expect(ownWords(`${linked}\nwhy is it ugly`)).toBe('why is it ugly')
+  expect(ownWords(`first\n${linked}\n\nsecond <b>kept</b>`)).toBe('first\n\nsecond <b>kept</b>')
+  expect(ownWords('hello <system-reminder>left open')).toBe('hello')
+  expect(ownWords('<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n</task-notification>')).toBe('')
+  expect(ownWords('<agent-message from="a1">\n[Subagent hand-back] done\n</agent-message>')).toBe('')
+  expect(youEntry(`${linked}\n${'x'.repeat(400)}`, 5)?.text.length).toBe(300)
+  expect(youEntry(`${linked}\nsee /tmp/a.png`, 5)).toEqual({ at: 5, kind: 'you', text: 'see /tmp/a.png', media: ['/tmp/a.png'] })
+  expect(youEntry('<system-reminder>look at /tmp/b.png</system-reminder>', 5)).toBeUndefined()
+})
+
+test('a message with pasted images says how many, even with no words', () => {
+  expect(youEntry('look', 5, '', 2)).toEqual({ at: 5, kind: 'you', text: 'look', pasted: 2 })
+  expect(youEntry('<system-reminder>x</system-reminder>', 5, '', 1)).toEqual({ at: 5, kind: 'you', text: '', pasted: 1 })
+  expect(youEntry('  ', 5)).toBeUndefined()
+})
+
+test('a tool with no line of its own is named with the server it belongs to', () => {
+  expect(describeTool('mcp__basic-memory__edit_note', {})).toEqual({ verb: 'other', text: 'basic-memory: edit note' })
+  expect(describeTool('mcp__ccd_session_mgmt__archive_session', {})).toEqual({ verb: 'other', text: 'Claude app: archive session' })
+  expect(describeTool('mcp__plugin_small-business_gmail__create_draft', {})).toEqual({ verb: 'other', text: 'gmail: create draft' })
+  expect(describeTool('SendMessage', {})).toEqual({ verb: 'other', text: 'send message' })
+})
+
 test('a session is named by its last folder on every system', () => {
   expect(folderName('/Users/an/du-an')).toBe('du-an')
   expect(folderName('C:\\Users\\an\\du-an')).toBe('du-an')
@@ -57,4 +82,16 @@ test('only office files of sessions idle over a week are cleared, never this one
     { name: 'thu-muc.js', kind: 'dir', mtimeMs: old },
   ]
   expect(staleSessionFiles(files, now, 'toi')).toEqual(['cu.js'])
+})
+
+test('a session that starts again takes its feed back from its own file', () => {
+  const lines = [{ at: 1, kind: 'you', text: 'hello', pasted: 1 }, { at: 2, kind: 'tool', verb: 'read', text: 'a.ts (v2)' }, { at: 3, kind: 'say', text: 'done' }]
+  const file = `window.__aiWorkerIn && window.__aiWorkerIn("id-1", ${JSON.stringify({ jobs: [], now: 3, activity: lines, name: 'p' })});\n`
+  expect(savedActivity(file)).toEqual(lines)
+  expect(savedActivity(file, 2).map(a => a.at)).toEqual([2, 3])
+  const odd = `window.__aiWorkerIn && window.__aiWorkerIn("id-1", ${JSON.stringify({ activity: [{ at: 1, kind: 'you', text: 'ok' }, { kind: 'you', text: 'no time' }, { at: 2, kind: 'x', text: 'no kind' }, null] })});\n`
+  expect(savedActivity(odd)).toEqual([{ at: 1, kind: 'you', text: 'ok' }])
+  expect(savedActivity('')).toEqual([])
+  expect(savedActivity('window.__aiWorkerIn && window.__aiWorkerIn("id-1", {broken')).toEqual([])
+  expect(savedActivity('window.__aiWorkerIn && window.__aiWorkerIn("id-1", {"jobs":[]});\n')).toEqual([])
 })

@@ -10,7 +10,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, ToolCallResult } from 'claude-code'
 
 import type { Activity, BlockKind, Job, TeamState, WorkerId } from '../types'
-import { applyPlan, describeTool, finishPlan, folderName, mediaPaths, sayEntry, staleSessionFiles } from './activity'
+import { applyPlan, describeTool, finishPlan, folderName, savedActivity, sayEntry, staleSessionFiles, youEntry } from './activity'
 import { EDIT_TOOLS, addUsage, buildFileEdit, compactKeepInstructions, compactedNotice, contextAdvice, contextFill, contextNoteForClaude, contextWarning, costDelta, formatUsd, shortCount, toUsage } from './edits'
 import { answerModel, buildMachineSummary, PACE_MIN_MS, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, toQuota } from './team'
 import { chatTitle, cleanTitle, newTitles, nextTitle, notePrompt, noteRename, titleDue } from './titles'
@@ -1768,6 +1768,19 @@ export const register: Register = on => {
       // as above
       // như trên
     }
+    // the feed lives in this session's memory, which is empty again after an update or when the app is reopened:
+    // the lines its own file still holds are taken back before that file is written over
+    // luồng hoạt động nằm trong bộ nhớ của phiên, vốn lại rỗng sau khi cập nhật hoặc khi app mở lại:
+    // các dòng mà file của chính phiên còn giữ được lấy lại trước khi file đó bị ghi đè
+    try {
+      if (!(await read($, team)).activity?.length) {
+        const kept = savedActivity(await $.fs.read(`${await webFolder($)}/sessions/${(await whoAmI($)).id}.js`), MAX_ACTIVITY)
+        if (kept.length) await update($, team, s => (s.activity?.length ? s : { ...s, activity: kept }))
+      }
+    } catch {
+      // a first start has no file yet
+      // lần bắt đầu đầu tiên chưa có file
+    }
     await save($, await read($, team))
     try {
       await list($, true)
@@ -1962,15 +1975,12 @@ export const register: Register = on => {
       const cwd = await $.session.cwd()
       const home = (await $.env.get('HOME')) ?? ''
       await commit($, s => {
-        const asked = e.text.trim()
         const st = { ...s, now, claudeBusySince: now, claudeTool: undefined, asking: false }
-        const media = mediaPaths(asked, cwd).map(p => (p.startsWith('~/') ? home + p.slice(1) : p))
         const pasted = pastedImages
         pastedImages = 0
-        const you: Activity = { at: now, kind: 'you', text: asked.length > 300 ? `${asked.slice(0, 299)}…` : asked }
-        if (media.length) you.media = media
-        if (pasted) you.pasted = pasted
-        return asked || pasted ? pushActivity(st, you) : st
+        const you = youEntry(e.text, now, cwd, pasted)
+        if (you?.media) you.media = you.media.map(p => (p.startsWith('~/') ? home + p.slice(1) : p))
+        return you ? pushActivity(st, you) : st
       })
       ensureTicker($)
     }

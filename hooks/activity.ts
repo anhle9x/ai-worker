@@ -47,6 +47,44 @@ export function mediaPaths(text: string, cwd = ''): string[] {
   return out.slice(0, 8)
 }
 
+/** Blocks the app or the engine puts into a message: reminders, results of background work, events. Not the person's words. */
+/** Các khối mà app hoặc engine chèn vào tin nhắn: lời nhắc, kết quả việc chạy nền, sự kiện. Không phải lời của người dùng. */
+const INSERTED = 'system-reminder|task-notification|agent-message|scheduled-task|side-sessions-event|ci-monitor-event|local-command-stdout|local-command-stderr|local-command-caveat'
+const INSERTED_BLOCK = new RegExp(`<(${INSERTED})\\b[^>]*>[\\s\\S]*?(?:</\\1>|$)`, 'g')
+
+/**
+ * What the person typed, without the blocks the app inserted around it. A
+ * block left open runs to the end of the message. Empty when the whole
+ * message came from the app.
+ */
+/** Điều người dùng đã gõ, bỏ các khối app chèn quanh nó. Khối không đóng thì kéo tới hết tin nhắn. Rỗng khi cả tin nhắn là của app. */
+export function ownWords(text: string): string {
+  return text.replace(INSERTED_BLOCK, '\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+const MAX_ASKED = 300
+
+/** The feed line for a message the person sent, or undefined when nothing in it is theirs. */
+/** Dòng hoạt động cho một tin nhắn người dùng gửi, hoặc undefined khi không có gì trong đó là của họ. */
+export function youEntry(text: string, at: number, cwd = '', pasted = 0): Activity | undefined {
+  const asked = ownWords(text)
+  if (!asked && !pasted) return undefined
+  const you: Activity = { at, kind: 'you', text: asked.length > MAX_ASKED ? `${asked.slice(0, MAX_ASKED - 1)}…` : asked }
+  const media = mediaPaths(asked, cwd)
+  if (media.length) you.media = media
+  if (pasted) you.pasted = pasted
+  return you
+}
+
+/** `mcp__basic-memory__edit_note` reads as `basic-memory: edit note`, so the line says whose tool it is. */
+/** `mcp__basic-memory__edit_note` đọc thành `basic-memory: edit note`, để dòng nói rõ công cụ của ai. */
+function toolName(tool: string): string {
+  const m = /^mcp__(.+?)__(.+)$/.exec(tool)
+  if (!m) return tool.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
+  const server = m[1]!.replace(/^plugin_[^_]+_/, '').replace(/^ccd_.*/, 'Claude app').replace(/^Claude_/, '').replace(/_/g, ' ')
+  return `${server}: ${m[2]!.replace(/_/g, ' ')}`
+}
+
 const base = (p: unknown) => (typeof p === 'string' ? p.split('/').filter(Boolean).pop() ?? p : '')
 const clip = (t: unknown, n = 90) => {
   const s = typeof t === 'string' ? t.replace(/\s+/g, ' ').trim() : ''
@@ -101,8 +139,7 @@ export function describeTool(tool: string, args: Record<string, unknown>): { ver
   }
   if (/firecrawl|search/i.test(tool)) return { verb: 'web', text: clip(args.query ?? args.url, 70) || tx('web lookup') }
   if (/Browser|browser|playwright|chrome/.test(tool)) return { verb: 'browser', text: clip(args.url, 60) || tx('browser action') }
-  const short = tool.startsWith('mcp__') ? tool.split('__').slice(-1)[0] ?? tool : tool
-  return { verb: 'other', text: short }
+  return { verb: 'other', text: toolName(tool) }
 }
 
 export function sayEntry(text: string, at: number): Activity | undefined {
@@ -151,6 +188,29 @@ export function applyPlan(plan: PlanItem[] | undefined, raw: Record<string, unkn
 /** Khi kết thúc công việc (wrap-up), mọi bước đều tính là xong. */
 export function finishPlan(plan: PlanItem[] | undefined): PlanItem[] | undefined {
   return plan?.map(i => ({ ...i, status: 'completed' }))
+}
+
+const KINDS = new Set(['you', 'say', 'tool'])
+
+/**
+ * The feed lines kept in a session's own file (`sessions/<id>.js`), for a
+ * session that starts again with an empty memory: after an update or when the
+ * app is reopened. Anything that is not a well-formed line is left out.
+ */
+/** Các dòng hoạt động còn trong file của chính phiên (`sessions/<id>.js`), cho phiên bắt đầu lại với bộ nhớ rỗng: sau khi cập nhật hoặc khi app mở lại. Thứ gì không phải một dòng đúng dạng thì bỏ ra. */
+export function savedActivity(file: string, max = 80): Activity[] {
+  try {
+    const from = file.indexOf(', {')
+    const to = file.lastIndexOf(')')
+    if (from < 0 || to < from) return []
+    const data = JSON.parse(file.slice(from + 2, to)) as { activity?: unknown }
+    if (!Array.isArray(data.activity)) return []
+    return (data.activity as Activity[])
+      .filter(a => a && typeof a.at === 'number' && KINDS.has(a.kind) && typeof a.text === 'string')
+      .slice(-max)
+  } catch {
+    return []
+  }
 }
 
 /** The last folder of a working directory, on macOS, Linux (`/`) or Windows (`\`). */

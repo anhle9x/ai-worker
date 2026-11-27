@@ -2,6 +2,12 @@
 // Bản tiếng Việt của trang plugin (index.html). Mỗi khoá đúng nguyên văn chữ tiếng Anh trong mã.
 window.I18n.add({
   ' ({n} times)': ' ({n} lần)',
+  '1 image pasted into this message': 'Tin này kèm 1 ảnh dán',
+  '{n} images pasted into this message': 'Tin này kèm {n} ảnh dán',
+  'File: {name}': 'File: {name}',
+  'Show less': 'Thu gọn',
+  'Show the whole message': 'Xem hết lời này',
+  '{n} lines, newest {time}': '{n} dòng, mới nhất {time}',
   ' compared with the average of the days before (up to this hour).': ' so với trung bình các ngày trước (tính tới giờ).',
   ', getting full': ', sắp đầy',
   ', start a new session': ', nên mở phiên mới',
@@ -99,7 +105,6 @@ window.I18n.add({
   'Only recorded since you opened this page.': 'Chỉ ghi từ lúc bạn mở trang này.',
   'Only today has data so far: ': 'Mới có số liệu của hôm nay: ',
   'Open': 'Mở',
-  'Other': 'Khác',
   'Overview': 'Tổng quan',
   'Purple line: number of open sessions with activity in that hour.': 'Đường tím: số phiên đang mở có hoạt động trong giờ đó.',
   'Quarter': 'Quý',
