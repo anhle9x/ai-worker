@@ -50,6 +50,7 @@ The fields each role receives are fixed in `server/board/views.py` (`COMMON_FIEL
 | Send numbers | `POST /ingest` | Computer with its own key, or `INGEST_KEY` while it has none and `SHARED_KEY_MODE` allows it | A key sends only for its own computer; the computer stays tied to the person of its first send; a revoked computer is refused. From outside `OFFICE_NETS` (or marked so by Caddy): only the own key of a computer an admin let send from any network, else 403 |
 | Ask where to send now | `GET /ingest/route` | Computer with its own key (the shared key: 403) | Writes nothing; an empty list unless the Go receiver takes this computer's sends. From outside the office: as for `/ingest` |
 | Download an update | `GET /releases/...` | Computer with its own key or `INGEST_KEY` | The computer checks the signature before installing. From outside the office: as for `/ingest` |
+| Cut a computer off (Revoke), or let it enrol again (Let back) | `POST /admin/device-revoke`, `POST /admin/device-forget` | `admin` | Re-enter OTP, valid 5 minutes; written in the Admin log |
 | Let a computer send from any network, or take it back | `POST /admin/device-roam` | `admin` | Re-enter OTP, valid 5 minutes; only a computer sending with its own key; written in the Admin log |
 | Name locations, mark the sales team, load the Team CSV | `POST /locations`, `/team-sale`, `/team-csv` | `admin` | Same-origin request |
 | Create, delete, change role of accounts; end sessions | `POST /admin/accounts`, `/admin/sessions` | `admin` | Re-enter OTP, valid 5 minutes |
@@ -72,6 +73,6 @@ The fields each role receives are fixed in `server/board/views.py` (`COMMON_FIEL
 - **At least one admin:** the server refuses to delete or demote the last admin.
 - **Wrong OTP:** 5 wrong codes from one address in 15 minutes lock that address. 20 wrong codes on one account in 15 minutes lock that account, so a stranger cannot lock the whole site.
 - **Telegram:** linking needs the 6-digit code and a one-time step tied to that session, so a stolen session or a link sent by someone else cannot add a Telegram. One Telegram per account; wall accounts cannot use it. Reissuing a key or making an account a wall account unlinks it.
-- **Account limit:** 200 accounts, 20 TV screens, 50 keys for AI tools, 20 keys for AI projects and applications, 300 computers.
-- **Every refusal and every change is written to the audit log** (table `audit` in `board.db`), with who, role, IP and path. CSV content is not copied into it.
+- **Account limit:** 200 accounts, 20 TV screens, 50 keys for AI tools, 20 keys for AI projects and applications, 300 computers by default (`MAX_DEVICES` raises it).
+- **Every refusal and every change is written to the audit log** (table `audit` in `board.db`), with who, role, IP and path. CSV content is not copied into it. Each day of cost totals is sealed into the same log once it is no longer counted again; only admins see the seals, on `/admin`, and only a Telegram chat linked to an admin account gets the morning message with the day's fingerprint (day, number of rows, fingerprint: no name, no money).
 - **If every admin is lost:** someone with sudo on the server runs `sudo bash manage-otp.sh --rescue <name>` in the `server/` folder. See [USER-GUIDE.md](USER-GUIDE.md).

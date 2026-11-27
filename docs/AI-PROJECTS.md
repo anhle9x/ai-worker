@@ -71,9 +71,9 @@ The quickest way: open Claude Code in the project's code folder and type `/ai-wo
     ```bash
     cp "$M/ai_meter.h" <project folder>/
     ```
-  - Or download it from this repository, at the version you run (here `v0.47.0`), in the folder where the file goes:
+  - Or download it from this repository, at the version you run (here `v0.50.30`), in the folder where the file goes:
     ```bash
-    curl -fLO https://raw.githubusercontent.com/anhle9x/ai-worker/v0.47.0/skills/ai-cost-report/meter/ai_meter.py
+    curl -fLO https://raw.githubusercontent.com/anhle9x/ai-worker/v0.50.30/skills/ai-cost-report/meter/ai_meter.py
     ```
     Change the file name at the end for the other languages: `ai-meter.cjs`, `ai-meter.d.cts`, `AiMeter.cs`, `aimeter.go`, `AiMeter.java`, `ai_meter.rs` or `ai_meter.h`.
   - Another language (PHP, Ruby, Swift...): there is no file to copy yet, so the project's own code does what the meter does. After each request of a user, append one line of JSON to the file `ai-meter.jsonl`: how long the request took, how it ended, and for each model called, the provider, the model's name, how many calls and the token counts the provider returned. One line looks like this:

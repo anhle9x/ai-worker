@@ -23,11 +23,12 @@ Script sẽ:
 - tạo dịch vụ `ai-worker-webhook` (tự chạy lại khi máy chủ khởi động hoặc chương trình lỗi), cổng mặc định **8788**;
 - lần cài đầu in ra **địa chỉ webhook** và **INGEST_KEY**: gửi hai dòng này cho người đóng gói. Chạy lại để cập nhật thì
   không in mã nữa (mã nằm trong file env);
-- nếu file env có `TRUST_PROXY=1` (đứng sau Caddy): đặt `BIND_ADDR=127.0.0.1` và chỉ cho localhost gọi tới
+- nếu file env có `TRUST_PROXY=1` (đứng sau Caddy): giữ `BIND_ADDR=127.0.0.1` (vốn là mặc định) và chỉ cho chính máy này gọi tới dịch vụ (`IPAddressAllow=localhost`)
   (systemd `IPAddressAllow=localhost`), mọi truy cập đi qua HTTPS; danh sách IP được vào nằm trong `aiworker.caddy`.
 
-Đổi cổng: `sudo PORT=9000 bash install.sh` (lần cài đầu). Tường lửa: mở cổng cho mạng nội bộ,
-ví dụ `ufw allow from 192.168.0.0/16 to any port 8788`. Không cần mở ra Internet.
+Đổi cổng: `sudo PORT=9000 bash install.sh` (lần cài đầu). Webhook chỉ nghe trong máy (`BIND_ADDR=127.0.0.1`):
+người xem và các máy tới nó qua Caddy hoặc nginx bằng HTTPS, nên không cần mở cổng của nó ở tường lửa. Chỉ khi không dùng proxy, trong mạng
+kín, mới đặt `BIND_ADDR` thành địa chỉ nội bộ của máy chủ và mở cổng cho mạng đó, ví dụ `ufw allow from 192.168.0.0/16 to any port 8788`.
 
 Tất cả cài đặt kèm giải thích: [`ai-worker.env.example`](ai-worker.env.example).
 
@@ -39,13 +40,14 @@ Vì ai có gói cài cũng có mã, webhook còn tự chặn:
   dưới tên người khác thì bị từ chối (409, ghi vào nhật ký). Chuyển máy cho người khác: dừng dịch vụ, chạy
   `sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --forget-device <mã-máy>`, rồi bật lại dịch vụ;
 - mỗi máy được gửi dồn 20 lần, sau đó mỗi giây một lần; 10 máy mới / ngày cho mỗi IP; tổng tối đa 300 máy (`MAX_DEVICES`);
+- **mỗi máy nhận một khoá riêng** (`awd1.…`) ở lần gửi đầu và gửi bằng khoá đó từ đấy: mã chung không còn gửi thay được cho máy đã có khoá riêng. `SHARED_KEY_MODE` trong file env quy định mã chung còn làm được gì: `allow` (ghi nhận máy mới, mặc định), `known-only` (chỉ các máy đã có trên bảng) hoặc `off`. Cắt một máy bằng nút **Thu hồi** ở trang Quản trị hoặc `webhook.py --revoke-device <mã-máy>`; `webhook.py --rotate-device-secret` cấp khoá mới cho mọi máy (các bước ở [docs/RECEIVER.vi.md](../docs/RECEIVER.vi.md), mục 6);
 - đăng nhập OTP: sai 5 lần từ một IP khoá IP đó 15 phút; sai 20 lần trên một tài khoản khoá tài khoản đó 15 phút.
 
-Đổi mã: sửa `/etc/ai-worker.env`, `sudo systemctl restart ai-worker-webhook`, rồi đóng gói lại.
+Đổi mã chung: sửa `/etc/ai-worker.env`, `sudo systemctl restart ai-worker-webhook`, rồi đóng gói lại. Nếu gói cài bị lộ, `SHARED_KEY_MODE=known-only` chặn máy mới ngay, không cần gói mới.
 
 ## Bảng điều khiển cả team trên trình duyệt (đăng nhập bằng OTP)
 
-Mở `http://<IP-máy-chủ>:8788/` trên máy tính hoặc điện thoại (trong mạng được phép vào webhook), nhập mã 6 số
+Mở địa chỉ của bảng (`https://<tên miền của bạn>/` qua Caddy hoặc nginx) trên máy tính hoặc điện thoại trong mạng được phép vào, nhập mã 6 số
 trong **Google Authenticator** (hoặc Microsoft Authenticator): bảng điều khiển vận hành kiểu trung tâm giám sát —
 danh sách người đang hoạt động, sơ đồ người -> Claude -> Gemini/ChatGPT/Gemma (hạt sáng chạy khi đang làm/giao việc;
 bấm vào thẻ để xem số liệu một người), bản đồ nhiệt chi phí 24 giờ, chỉ số, việc giao theo giờ cho từng AI,
@@ -62,7 +64,7 @@ Ba vai, máy chủ tự kiểm chứ không chỉ ẩn nút:
 | Email, IP nội bộ, `/board` | Có | Có | Không |
 | Giữ đăng nhập | 8 giờ | 8 giờ | 7 ngày |
 
-Màn hình TV: mở trang bảng trên TV (TV thông minh tự hiện mã, máy tính cắm TV thì bấm "Màn hình treo tường" ở trang đăng nhập), rồi quét mã QR trên TV bằng camera điện thoại đang dùng mạng công ty, hoặc nhập mã trong mục Thiết bị và khoá đã ghép ở `/admin`; kiểm tra thiết bị và IP, đặt tên, duyệt. TV có vai treo tường, không bị văng khi webhook khởi động lại, còn dùng thì tự gia hạn 30 ngày, tối đa một năm rồi ghép lại. Thu hồi ngay trên trang. Sau khi cài bản mới, màn hình đang mở tự tải lại trong khoảng 10 giây; trang Quản trị cho biết màn hình nào đang chạy, bản nào, và có nút tải lại từ xa. Tối đa 20 màn hình. Ghép lại một màn hình cũ thì chọn "Thay cho" để không tạo thêm dòng; màn hình không dùng quá 30 ngày tự mất khỏi danh sách. Phiên chỉ lưu dạng băm ở `data/tv.json`; xoá file này rồi khởi động lại là thu hồi tất cả.
+Màn hình TV: mở trang bảng trên TV (TV thông minh tự hiện mã, máy tính cắm TV thì bấm "Màn hình treo tường" ở trang đăng nhập), rồi quét mã QR trên TV bằng camera điện thoại đang dùng mạng công ty, hoặc nhập mã trong mục Thiết bị và khoá đã ghép ở `/admin`; kiểm tra thiết bị và IP, đặt tên, duyệt. TV có vai treo tường, không bị văng khi webhook khởi động lại, còn dùng thì tự gia hạn 30 ngày, tối đa một năm rồi ghép lại. Thu hồi ngay trên trang. Sau khi cài bản mới, màn hình đang mở tự tải lại trong khoảng 10 giây; trang Quản trị cho biết màn hình nào đang chạy, bản nào, và có nút tải lại từ xa. Tối đa 20 màn hình. Ghép lại một màn hình cũ thì chọn "Thay cho" để không tạo thêm dòng; màn hình không dùng quá 30 ngày tự mất khỏi danh sách. Phiên chỉ lưu dạng băm trong bảng `screens` của `data/board.db`; thu hồi màn hình ở trang Quản trị.
 
 Toàn màn hình: trình duyệt chỉ cho vào khi có người thao tác trên chính máy đó, nên màn treo tường dùng lần chạm hoặc bấm phím đầu tiên cho việc này. Máy tính cắm TV thì mở Chrome ở chế độ kiosk để khỏi phải chạm; dùng thư mục hồ sơ riêng, nếu không lệnh sẽ bị bỏ qua khi Chrome đang mở. Thay `<domain của bảng>` bằng domain bảng của bạn, ví dụ `https://board.example.com/`:
 
@@ -89,7 +91,7 @@ sudo bash manage-otp.sh --list            # ai có tài khoản, vai gì
 
 Tài khoản và khoá nằm ở `keys/accounts.db`, thư mục chỉ webhook đọc được, tách khỏi `data/board.db`. Bản sao lưu `board.db` không có khoá; muốn khôi phục không phải quét lại thì sao lưu riêng `keys/`, chỉ root đọc được. Lần đầu chạy, webhook tự nhập tài khoản từ `OTP=` trong file env, không phải quét lại; sau đó `install.sh` bỏ các tên đã nhập khỏi dòng đó, vì khoá của chúng đã nằm trong cơ sở dữ liệu, niêm phong bằng `/etc/ai-worker-otp.key`. Muốn lùi về bản cũ, xem docs/OPERATIONS.vi.md mục 5.
 
-Nhật ký thao tác: bảng `audit` trong `data/board.db`, ghi đăng nhập, thay đổi, lần bị từ chối; giữ 12 tháng, không chép khoá hay nội dung CSV.
+Nhật ký thao tác: bảng `audit` trong `data/board.db`, ghi đăng nhập, thay đổi, lần bị từ chối; giữ 12 tháng, không chép khoá hay nội dung CSV. Mỗi ngày tổng chi phí cũ hơn một tuần được niêm phong vào đó (`daily-seal`), và trang Quản trị báo nếu ngày đã niêm phong bị sửa.
 
 - Ai có quyền sudo trên máy chủ cũng tự cấp được khoá (và đọc được mọi số liệu): giữ ít người có sudo. Mỗi lần cấp/thu hồi được ghi lại, xem: `journalctl -t ai-worker-otp`.
 - Mỗi người một khoá riêng, thu hồi riêng.
@@ -99,6 +101,7 @@ Nhật ký thao tác: bảng `audit` trong `data/board.db`, ghi đăng nhập, t
 - Ngôn ngữ của trang: ưu tiên lựa chọn của người xem (nút EN / VI, ghi trong cookie `lang`), rồi `DEFAULT_LANG` trong `/etc/ai-worker.env` (`en` hoặc `vi`; để trống thì theo trình duyệt), rồi tiếng Anh. Đổi `DEFAULT_LANG` xong chạy `sudo systemctl restart ai-worker-webhook`.
 - Đăng nhập bằng Telegram (tuỳ chọn): ghi `TELEGRAM_BOT_TOKEN` và `TELEGRAM_BOT_NAME` vào `/etc/ai-worker.env`, rồi khởi động lại dịch vụ. Các bước ở [docs/INSTALL.vi.md](../docs/INSTALL.vi.md), mục "Đăng nhập bằng Telegram".
 - Hỏi bảng từ một công cụ AI (MCP): đường `/mcp` bật sẵn, và không đưa gì ra cho tới khi quản trị duyệt một khoá xin ở trang `/mcp/connect`. Ghi `MCP=0` vào `/etc/ai-worker.env` rồi khởi động lại dịch vụ là gỡ. Các bước ở [docs/INSTALL.vi.md](../docs/INSTALL.vi.md), mục "Hỏi bảng từ một công cụ AI (MCP)".
+- Bộ nhận Go (tuỳ chọn, cho tổ chức hàng chục nghìn máy): `sudo sh install-receiver.sh` cài nó cạnh webhook bằng một lệnh và kiểm IP, cổng, DNS, chứng chỉ, tường lửa; sau đó mỗi lần `install.sh` cũng cập nhật nó. Xem [docs/RECEIVER.vi.md](../docs/RECEIVER.vi.md#bộ-cài). Một văn phòng không cần.
 - Hỏi bảng qua Telegram (tuỳ chọn): thêm `TELEGRAM_ASK=1` vào `/etc/ai-worker.env` rồi chạy `install.sh`, ghi token của một bot tạo riêng cho việc này vào `/etc/ai-worker-telegram.env`, chạy `install.sh` lần nữa. Khi đó một dịch vụ thứ hai, `ai-worker-telegram`, nói chuyện với Telegram; chính webhook không bao giờ kết nối ra ngoài. Các bước và ý nghĩa với dữ liệu của mọi người có trong [docs/INSTALL.vi.md](../docs/INSTALL.vi.md), mục "Hỏi bảng qua Telegram".
 - Khung bảng bên trong Telegram (tuỳ chọn, cần việc hỏi qua Telegram): thêm `TELEGRAM_APP=1` và `TELEGRAM_APP_URL=https://<domain của bảng>/tg/app` (domain bạn dùng để mở bảng, ví dụ `https://board.example.com/tg/app`) vào `/etc/ai-worker.env` rồi chạy `install.sh`; nó ghi `TELEGRAM_APP_KEY` từ khoá của bot. Sau đó cho phép từng chat ở `/admin`. Mỗi chat còn tự bật được tin báo khi có người chờ quá lâu (`/baocho`), không cần đặt gì trên máy chủ. Các bước trong [docs/INSTALL.vi.md](../docs/INSTALL.vi.md).
 - Kết nối HTTP không mã hoá: chỉ nên mở trang này trong mạng công ty. Muốn xem từ ngoài thì cần HTTPS trước.
@@ -111,13 +114,13 @@ journalctl -u ai-worker-webhook -n 50       # nhật ký (chỉ ghi lỗi, khôn
 curl http://127.0.0.1:8788/health       # {"ok": true}
 ```
 
-Dữ liệu: `/opt/ai-worker/data/board.db` (SQLite), mỗi máy một dòng vài KB, ghi đè khi máy gửi lại. Các bảng và cách sao lưu: [docs/DATA-MODEL.vi.md](../docs/DATA-MODEL.vi.md).
+Dữ liệu: `/opt/ai-worker/data/board.db` (SQLite): mỗi máy có một dòng trạng thái và mỗi giờ chi phí một dòng, một lần gửi chỉ ghi các giờ đã đổi. Các bảng và cách sao lưu: [docs/DATA-MODEL.vi.md](../docs/DATA-MODEL.vi.md).
 Máy im lặng quá 30 ngày thì dòng tự bị xoá. Mỗi người mỗi ngày một con số tổng (chi phí, token, số việc giao, văn phòng) được giữ tối đa 13 tháng, để `/board` so được các tuần và các tháng. Tải rất nhẹ: mỗi máy gửi một hai giây sau khi số liệu đổi, nhiều nhất 2 giây một lần,
 ít nhất một lần mỗi 5 phút khi đang mở Claude.
 
 Cập nhật chương trình: chép bản mới đè lên rồi chạy lại `sudo bash install.sh` (giữ nguyên mã và dữ liệu).
-Gỡ: `sudo systemctl disable --now ai-worker-webhook`, xoá `/opt/ai-worker`, `/etc/ai-worker.env`,
-`/etc/systemd/system/ai-worker-webhook.service`.
+Gỡ: `sudo systemctl disable --now ai-worker-webhook`, xoá `/opt/ai-worker`, `/etc/ai-worker.env`, `/etc/ai-worker-otp.key`,
+`/etc/systemd/system/ai-worker-webhook.service` và thư mục `/etc/systemd/system/ai-worker-webhook.service.d`. Có hỏi bảng qua Telegram: trước hết đặt `TELEGRAM_ASK=0` rồi chạy `install.sh` (nó gỡ dịch vụ của bot), rồi xoá `/etc/ai-worker-telegram.env`. Có bộ nhận Go: trước hết `sudo sh install-receiver.sh --remove`, rồi xoá `/etc/ai-worker-receiver.env`.
 
 ## Lưu những gì
 

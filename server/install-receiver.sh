@@ -126,7 +126,7 @@ pick_binary() {
   esac
   SRC_BIN=$HERE/receiver-bin/ai-worker-receiver-linux-$ARCH
   if [ ! -f "$SRC_BIN" ]; then
-    say "The receiver program is not here ($SRC_BIN). On the computer that copies server/ to this machine run: sh packaging/build-receiver.sh, then copy server/ again. Or build it with Go and pass --binary." "Chưa có file chạy của bộ nhận ($SRC_BIN). Ở máy chép server/ lên máy này chạy: sh packaging/build-receiver.sh, rồi chép lại server/. Hoặc tự dựng bằng Go rồi đưa vào bằng --binary."
+    say "The receiver program is not here ($SRC_BIN). On the computer that copies server/ to this machine run: sh packaging/build-receiver.sh, then copy server/ again. Without Go there, take the files of your version from the project's Releases page on GitHub and put them in server/receiver-bin/ (docs/RECEIVER.md, section 5)." "Chưa có file chạy của bộ nhận ($SRC_BIN). Ở máy chép server/ lên máy này chạy: sh packaging/build-receiver.sh, rồi chép lại server/. Máy đó không có Go thì lấy các file của phiên bản bạn dùng ở trang Releases của dự án trên GitHub rồi đặt vào server/receiver-bin/ (docs/RECEIVER.vi.md, mục 5)."
     exit 1
   fi
   if [ -f "$HERE/receiver-bin/SHA256SUMS" ]; then
@@ -403,8 +403,31 @@ else
     [ -n "$A_LIVE" ] && envset "$RENV" RECEIVER_NAME "$(host_of "$A_LIVE")"
     [ -n "$A_BOARD" ] && envset "$RENV" RECEIVER_BOARD "$A_BOARD"
   fi
-  LIVE=${A_LIVE:-${LIVE_NOW:-https://$(envget "$RENV" RECEIVER_NAME)}}
+  LIVE=$A_LIVE
+  [ -n "$LIVE" ] || LIVE=$LIVE_NOW
+  [ -n "$LIVE" ] || [ -z "$(envget "$RENV" RECEIVER_NAME)" ] || LIVE=https://$(envget "$RENV" RECEIVER_NAME)
   BOARD=${A_BOARD:-${BOARD_NOW:-$(envget "$RENV" RECEIVER_BOARD)}}
+  # A file of settings made by hand (a trial set up before this installer used the same name): what this installer adds is asked
+  # for when there is a terminal, and filled in.
+  # File cấu hình viết tay (bản thử cài trước bộ cài này dùng cùng tên): phần bộ cài này thêm được hỏi khi có màn hình, rồi điền vào.
+  if [ -z "$LIVE" ] && [ -t 0 ]; then
+    say "The receiver's address [for example https://ingest.example.com]: " "Địa chỉ của bộ nhận [ví dụ https://ingest.example.com]: "
+    read -r LIVE
+  fi
+  if [ -z "$BOARD" ] && [ -t 0 ]; then
+    say "The board's address [for example https://board.example.com]: " "Địa chỉ của bảng [ví dụ https://board.example.com]: "
+    read -r BOARD
+  fi
+  if [ "$MODE" = install ]; then
+    [ -z "$(envget "$RENV" RECEIVER_NAME)" ] && [ -n "$(host_of "$LIVE")" ] && envset "$RENV" RECEIVER_NAME "$(host_of "$LIVE")"
+    [ -z "$(envget "$RENV" RECEIVER_BOARD)" ] && [ -n "$BOARD" ] && envset "$RENV" RECEIVER_BOARD "$BOARD"
+    [ -z "$(envget "$RENV" RECEIVER_SECRETS_FILE)" ] && envset "$RENV" RECEIVER_SECRETS_FILE "$SECRETS"
+    [ -z "$(envget "$RENV" RECEIVER_WEBHOOK)" ] && envset "$RENV" RECEIVER_WEBHOOK "http://127.0.0.1:$PORT_WEBHOOK"
+    if ! grep -q '^RECEIVER_MEMORY_MB=' "$RENV"; then
+      MEM=$(( $(total_mb) * 40 / 100 )); [ "$MEM" -lt 256 ] && MEM=256
+      envset "$RENV" RECEIVER_MEMORY_MB "$MEM"
+    fi
+  fi
 fi
 chown root:root "$RENV"; chmod 600 "$RENV"
 
@@ -415,11 +438,17 @@ if ! split_listen "$LISTEN"; then
   BAD=1
   say "✘ RECEIVER_LISTEN=$LISTEN in $RENV is not IP:port with the IP said (for example 203.0.113.2:443)." "✘ RECEIVER_LISTEN=$LISTEN trong $RENV không phải IP:cổng có nói rõ IP (ví dụ 203.0.113.2:443)."
 fi
-if [ -z "$NAME" ] || [ -z "$(host_of "${LIVE:-}")" ]; then
+if [ -z "${LIVE:-}" ]; then
   BAD=1
-  say "✘ The receiver's address must be https://<name> without a path (--live-url)." "✘ Địa chỉ của bộ nhận phải là https://<tên> không có đường dẫn (--live-url)."
+  say "✘ The receiver's address is not known yet: add --live-url https://ingest.<your domain> (and --board https://<the board's domain>)." "✘ Chưa biết địa chỉ của bộ nhận: thêm --live-url https://ingest.<tên miền của bạn> (và --board https://<tên miền của bảng>)."
+elif [ -z "$NAME" ] || [ -z "$(host_of "$LIVE")" ]; then
+  BAD=1
+  say "✘ The receiver's address must be https://<name> without a path (--live-url), not $LIVE." "✘ Địa chỉ của bộ nhận phải là https://<tên> không có đường dẫn (--live-url), không phải $LIVE."
 fi
-if ! printf '%s' "$BOARD" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$'; then
+if [ -z "${BOARD:-}" ]; then
+  BAD=1
+  say "✘ The board's address is not known yet: add --board https://<the board's domain>." "✘ Chưa biết địa chỉ của bảng: thêm --board https://<tên miền của bảng>."
+elif ! printf '%s' "$BOARD" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$'; then
   BAD=1
   say "✘ The board's address must be https://<name> without a path (--board)." "✘ Địa chỉ của bảng phải là https://<tên> không có đường dẫn (--board)."
 fi
@@ -583,9 +612,14 @@ start
 health 30 || exit 1
 
 echo
-if [ "$FIRST" = 1 ]; then
+split_listen "$LISTEN"
+HINT=https://$NAME
+[ "$PORT" = 443 ] || HINT=$HINT:$PORT
+if [ -n "$(envget "$ENV" RECEIVER_INGEST_URLS)" ]; then
+  say "The receiver runs. RECEIVER_INGEST_URLS in $ENV is left as it was: the computers it names keep sending to the receiver." "Bộ nhận đang chạy. RECEIVER_INGEST_URLS trong $ENV được để nguyên: các máy nó chỉ định vẫn gửi tới bộ nhận."
+elif [ "$FIRST" = 1 ]; then
   say "The receiver runs, and no computer sends to it yet. To try it with a few computers, add to $ENV and restart the webhook (docs/RECEIVER.md, section 5):" "Bộ nhận đang chạy, và chưa máy nào gửi tới nó. Để thử với vài máy, thêm vào $ENV rồi khởi động lại webhook (docs/RECEIVER.vi.md, mục 5):"
-  printf '  RECEIVER_INGEST_URLS=https://%s\n  RECEIVER_INGEST_DEVICES=device-...\n  RECEIVER_CHECK_PERCENT=100\n' "$NAME"
+  printf '  RECEIVER_INGEST_URLS=%s\n  RECEIVER_INGEST_DEVICES=device-...\n  RECEIVER_CHECK_PERCENT=100\n' "$HINT"
 else
   say "Updated; the settings in $RENV are unchanged." "Đã cập nhật; cấu hình trong $RENV giữ nguyên."
 fi

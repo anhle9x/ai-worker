@@ -71,9 +71,9 @@ Cách nhanh nhất: mở Claude Code trong thư mục code của dự án, gõ `
     ```bash
     cp "$M/ai_meter.h" <thư mục dự án>/
     ```
-  - Hoặc tải từ repo này, đúng bản bạn đang chạy (ở đây là `v0.47.0`), ngay trong thư mục sẽ chứa file:
+  - Hoặc tải từ repo này, đúng bản bạn đang chạy (ở đây là `v0.50.30`), ngay trong thư mục sẽ chứa file:
     ```bash
-    curl -fLO https://raw.githubusercontent.com/anhle9x/ai-worker/v0.47.0/skills/ai-cost-report/meter/ai_meter.py
+    curl -fLO https://raw.githubusercontent.com/anhle9x/ai-worker/v0.50.30/skills/ai-cost-report/meter/ai_meter.py
     ```
     Ngôn ngữ khác thì đổi tên file ở cuối: `ai-meter.cjs`, `ai-meter.d.cts`, `AiMeter.cs`, `aimeter.go`, `AiMeter.java`, `ai_meter.rs` hay `ai_meter.h`.
   - Ngôn ngữ khác nữa (PHP, Ruby, Swift...): chưa có file chép sẵn, nên code của dự án tự làm việc của bộ đo. Sau mỗi yêu cầu của người dùng, thêm một dòng JSON vào cuối file `ai-meter.jsonl`: yêu cầu đó mất bao lâu, kết thúc ra sao, và với mỗi model đã gọi: tên hãng, tên model, số lần gọi và số token hãng trả về. Một dòng trông như sau:

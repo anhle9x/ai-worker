@@ -14,7 +14,7 @@ import threading
 import time
 from datetime import datetime
 
-from board import sealing
+from board import daily, sealing
 from board.db import account_row, data_db, dumps, keys_db, revoked_row, screen_row
 from board.lang import tx
 # what an MCP key may read: each person's row, or totals only. A key with neither word reads totals only
@@ -381,9 +381,9 @@ def device_label(ua: str) -> str:
 
 
 def side_of(kind) -> str:
-    """Paired rows live on three sides of a wall: keys for the MCP endpoint, Telegram chats, and everything else (""), which is
+    """Paired rows live on four sides of a wall: keys for the MCP endpoint, Telegram chats, keys of AI projects, and everything else (""), which is
     screens, menu bar computers, extensions and plugins. A row is found, counted and replaced only on its own side.
-    Các dòng đã ghép nằm ở ba phía của một bức tường: khoá cho cổng MCP, chat Telegram, và mọi thứ còn lại (""), tức
+    Các dòng đã ghép nằm ở bốn phía của một bức tường: khoá cho cổng MCP, chat Telegram, khoá của dự án AI, và mọi thứ còn lại (""), tức
     màn hình, máy thanh menu, tiện ích và plugin. Một dòng chỉ được tìm, đếm và thay ở đúng phía của nó."""
     return kind if kind in (KIND_MCP, KIND_TELEGRAM, KIND_PROJECT) else ""
 
@@ -716,6 +716,14 @@ class TvStore(Store):
             return dict(d[tv_id])
         return self.mutate(change)
 
+    def set_seal_told(self, tv_id: str, day: str) -> None:
+        """The newest sealed day a Telegram chat was told of (board/chat.py seals_due), kept so a restart does not tell it again.
+        Ngày niêm phong mới nhất đã báo cho một chat Telegram (seals_due trong board/chat.py), giữ lại để khởi động lại không báo lần nữa."""
+        def change(d):
+            if tv_id in d:
+                d[tv_id]["sealTold"] = day
+        self.mutate(change)
+
     def revoke(self, tv_id: str) -> str:
         def change(d):
             if tv_id not in d:
@@ -978,7 +986,9 @@ class AuditLog:
             self.write(action=self.DELEGATION, device=device, name=name, account=account, doneAt=done, **fields)
         return len(new)
 
-    def write(self, **fields) -> None:
+    def write(self, **fields) -> bool:
+        """Add one line to the chain; says whether it was written.
+        Thêm một dòng vào chuỗi; cho biết đã ghi được chưa."""
         now = datetime.now(LOCAL_TZ)
         month = now.strftime("%Y-%m")
         row = {"at": now.isoformat(timespec="seconds"), **{k: v for k, v in fields.items() if k not in ("prev", "hash")}}
@@ -996,15 +1006,41 @@ class AuditLog:
                     c.execute("DELETE FROM audit WHERE month < ?", ("%04d-%02d" % ((year, month_index) if month_index > 0 else (year - 1, month_index + 12)),))
                     month_index = now.month - MCP_CALL_KEEP_MONTHS
                     c.execute("DELETE FROM audit WHERE action IN (?, ?, ?) AND month < ?", self.APART + ("%04d-%02d" % ((year, month_index) if month_index > 0 else (year - 1, month_index + 12)),))
+            return True
         # a broken log is reported, it does not block the action
         # nhật ký hỏng thì báo, không chặn thao tác
         except sqlite3.Error as e:
             sys.stderr.write("audit log: %s\n" % e)
+            return False
 
     def read(self, month: str, limit: int = 300) -> list:
         """Newest rows first; `month` is already checked to be YYYY-MM.
         Dòng mới nhất trước; `month` đã kiểm dạng YYYY-MM."""
-        return self._read("SELECT body FROM audit WHERE month = ? AND action NOT IN (?, ?, ?) ORDER BY id DESC LIMIT ?", (month,) + self.APART + (limit,))
+        return self._read("SELECT body FROM audit WHERE month = ? AND action NOT IN (?, ?, ?, ?) ORDER BY id DESC LIMIT ?", (month,) + self.APART + (daily.SEAL_ACTION, limit))
+
+    def seals(self, limit: int = 14) -> list:
+        """The newest sealed days, newest first: {"day", "rows", "usd", "hash", "at"}, where hash is the start of the chain's fingerprint
+        on that line, the one to note down. A day sealed again counts once, with its newest line.
+        Các ngày niêm phong mới nhất, mới trước: {"day", "rows", "usd", "hash", "at"}, trong đó hash là phần đầu dấu vân tay của chuỗi ở
+        dòng đó, thứ cần ghi lại. Ngày được niêm phong lại chỉ tính một lần, theo dòng mới nhất."""
+        out, seen = [], set()
+        for (body,) in self.db.rows("SELECT body FROM audit WHERE action = ? ORDER BY id DESC", (daily.SEAL_ACTION,)):
+            try:
+                row = json.loads(body)
+            except ValueError:
+                continue
+            if not isinstance(row, dict) or row.get("day") in seen or not isinstance(row.get("hash"), str):
+                continue
+            seen.add(row.get("day"))
+            out.append({"day": str(row.get("day", "")), "rows": row.get("rows", 0), "usd": row.get("usd", 0), "hash": row["hash"][:16], "at": row.get("at", "")})
+        out.sort(key=lambda r: r["day"], reverse=True)
+        return out[:limit]
+
+    def latest_seal(self):
+        """The newest sealed day, as in seals(), or None.
+        Ngày niêm phong mới nhất, như trong seals(), hoặc None."""
+        newest = self.seals(1)
+        return newest[0] if newest else None
 
     def read_calls(self, month: str, limit: int = 300) -> list:
         """The reads of the board from outside its pages in one month, newest first: calls of the MCP tool and answers to Telegram chats.
@@ -1035,7 +1071,7 @@ class AuditLog:
         được tính; dòng cũ nhất còn giữ có thể trỏ tới một dòng đã bị bỏ vì quá cũ. Giữ kết quả một phút."""
         if self.checked and now - self.checked[0] < self.CHECK_SECONDS:
             return self.checked[1]
-        rows, since, broken, last = 0, "", "", None
+        rows, since, broken, last, seals = 0, "", "", None, {}
         for (body,) in self.db.rows("SELECT body FROM audit ORDER BY id"):
             try:
                 row = json.loads(body)
@@ -1050,14 +1086,32 @@ class AuditLog:
             since = since or str(row.get("at", ""))
             last = row["hash"]
             rows += 1
+            # a day sealed again (a person forgotten) is checked against its newest line
+            # ngày được niêm phong lại (đã xoá một người) được kiểm theo dòng mới nhất của nó
+            if row.get("action") == daily.SEAL_ACTION and isinstance(row.get("day"), str):
+                seals[row["day"]] = row
         head = self.db.get_meta(self.HEAD)
         # the newest rows taken out: the last fingerprint kept no longer matches the newest row
         # các dòng mới nhất bị xoá: dấu vân tay cuối được giữ không còn khớp dòng mới nhất
         if head and last != head:
             broken = broken or "end"
-        result = {"ok": not broken, "rows": rows, "since": since, "brokenAt": broken, "head": head[:16]}
+        changed = self.changed_days(seals, now)
+        result = {"ok": not broken and not changed, "rows": rows, "since": since, "brokenAt": broken, "head": head[:16],
+                  "sealedDays": len(seals), "changedDays": changed}
         self.checked = (now, result)
         return result
+
+    def changed_days(self, seals: dict, now: float) -> list:
+        """The sealed days whose rows in the daily table no longer give the numbers their seal holds, oldest first. A day dropped
+        by age (board/daily.py keep_from) is not looked at: its rows are gone on purpose.
+        Các ngày đã niêm phong mà các dòng trong bảng daily không còn cho ra đúng các con số trong dòng niêm phong, cũ trước. Ngày đã
+        bị bỏ vì quá cũ (keep_from trong board/daily.py) thì không xét: các dòng của nó được xoá có chủ ý."""
+        first = daily.keep_from(daily.local_day(now)).isoformat()
+        days = sorted(d for d in seals if d >= first)
+        if not days:
+            return []
+        facts = daily.day_facts(self.db, days[0], days[-1])
+        return [d for d in days if any(seals[d].get(k) != v for k, v in daily.facts_of(facts, d).items())]
 
     def _read(self, sql: str, args: tuple) -> list:
         out = []

@@ -30,7 +30,7 @@ Cùng khung đó, từ cùng `page_mini` và `mini.js`, còn mở trong tiện �
 
 | Mã | Yêu cầu | Ở đâu |
 |---|---|---|
-| F1 | `/mini` vừa khung rộng khoảng 360: tên và giờ cập nhật, năm thẻ (Đang chờ, Đang làm, Hạn mức, Chi phí hôm nay, Cài đặt), danh sách, "Mở bảng"; theo giao diện sáng hay tối | `page_mini` trong `server/webhook.py`, `server/static/mini.js`, `mini.css` |
+| F1 | `/mini` vừa khung rộng khoảng 360: tên và giờ cập nhật, năm thẻ (Đang chờ, Đang làm, Hạn mức, Chi phí hôm nay, Cài đặt), danh sách, "Mở bảng"; theo giao diện sáng hay tối | `page_mini` trong `server/board/pages.py`, `server/static/mini.js`, `mini.css` |
 | F2 | Đang chờ hiện mỗi người đã chờ bao lâu; Hạn mức hiện mọi khung tài khoản báo về, gói không giới hạn 5 giờ thì không có khung đó | `WaitTracker`, `mini.js` |
 | F3 | Quản lý tự ghép máy của mình: biểu tượng mở `/mini/pair` với mã sau dấu `#`, quản lý nhập tài khoản và mã 6 số, không cần ai khác duyệt | `mini_self_pair`, `TvPairing.self_approve` |
 | F4 | Tự ghép kiểm OTP với cùng giới hạn như đăng nhập, chỉ nhận tài khoản vai xem hoặc quản trị, chỉ yêu cầu cùng IP, mỗi tài khoản tối đa `MENUBAR_PER_ACCOUNT` máy | `mini_self_pair`, `LoginGate.check_otp` |

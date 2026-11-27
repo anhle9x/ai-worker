@@ -762,7 +762,7 @@ def admin_data(now: float, cookie: str, month: str) -> dict:
                        # khoá cho công cụ AI: số ngày tròn từ lần dùng cuối (hoặc lúc tạo), để khoá không ai dùng nữa nổi lên
                        idleDays=idle_days(x, now) if x["kind"] in (KIND_MCP, KIND_PROJECT) else None))
     return {"accounts": ACCOUNTS.list_accounts(), "screens": tv, "sessions": SESSIONS.list_sessions(cookie, now), "unnamedGroups": d["unnamedGroups"], "branches": d["branches"], "team": d["team"], "blocked7d": d.get("blocked7d"),
-            "usdRate": USD_RATE, "month": month, "auditLog": AUDIT_LOG.read(month), "auditChain": AUDIT_LOG.check(now), "mcpCalls": AUDIT_LOG.read_calls(month, 100),
+            "usdRate": USD_RATE, "month": month, "auditLog": AUDIT_LOG.read(month), "auditChain": AUDIT_LOG.check(now), "dailySeals": AUDIT_LOG.seals(14), "mcpCalls": AUDIT_LOG.read_calls(month, 100),
             # work handed to ChatGPT, Gemini or Gemma this month: totals and the newest records, never the text
             # việc giao cho ChatGPT, Gemini hay Gemma trong tháng: số tổng và các biên bản mới nhất, không bao giờ có chữ
             "delegations": AUDIT_LOG.read_delegations(month, 50), "delegationTotals": AUDIT_LOG.delegation_totals(month), "menubarDmg": bool(menubar_mac_dmg()),
@@ -1003,6 +1003,9 @@ def record_daily() -> None:
             branch = branch_of(r, branches)
             offices[r["key"]] = (branch, names.get(branch, ""))
         DAILY.record(totals_by_day(devices, now), offices, now)
+        # a day that just left the counting gets its line in the audit chain
+        # ngày vừa ra khỏi phần được đếm lại nhận dòng của nó trong chuỗi nhật ký
+        DAILY.seal(now, AUDIT_LOG.write)
         for database in (data_db(), keys_db()):
             database.drop_old_upgrade_backups(now)
         drop_old_legacy_accounts(keys_db(), settings.KEYS_DIR, now)

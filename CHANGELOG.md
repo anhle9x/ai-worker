@@ -2,6 +2,21 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.31 - 2026-11-27
+
+### Added
+- The daily cost totals are sealed into the audit chain: once a day is no longer counted again (after a week), the server writes one `daily-seal` line with the day, its number of rows, its dollars and a fingerprint of every row. The log check on the Admin page counts each sealed day again and says which day was changed by hand. `--forget-usage` seals the days it changes again, without saying who.
+- The fingerprint leaves the server each day: a Telegram chat linked to an admin account gets one short message each morning with the day, the number of cost rows and the fingerprint (no name, no money), and the Admin page lists the fingerprints of the last 14 sealed days to note down.
+
+### Changed
+- The Go receiver built for Linux `amd64` and `arm64`, with its `SHA256SUMS`, is now attached to each release on GitHub, so an organisation without Go takes it from there and puts it in `server/receiver-bin/` (docs/RECEIVER.md, section 5, "The installer").
+- The operations guide, the test plan, the architecture table and the server's README now name the receiver's installer: what to run when the receiver does not answer, and what its test covers.
+- The documents were read again against the code, and what had gone stale is corrected in both languages: each computer sends with a key of its own and a leaked package is answered with `SHARED_KEY_MODE` (no longer "everyone shares one key"); the webhook listens only inside the server, so the board is opened through the proxy and not on `http://<server-IP>:8788`; a computer set to **Any network** sends and updates from outside the office; what the tests on GitHub run (the `.msi` job, the receiver, the server test modules it names) and the tests added since 0.50.27; the board's pace, the plugin's pace and the busy answer in the benchmark page, which also says the part that takes sends now has an optional Go version; `manage-otp.sh` is run from the `server/` folder; removing the server also names the Telegram bot's service, the receiver and the OTP key; the meter's files for C#, Go, Java, Rust and C or C++; the Windows plugin installer among the parts; and where functions moved inside `server/board/`.
+
+### Fixed
+- `install-receiver.sh --take-over` now takes over a receiver set up by hand whose settings file already has the installer's name, `/etc/ai-worker-receiver.env`: it keeps that file, adds what it lacks, and says to give `--live-url` and `--board` when the receiver's or the board's address is not known yet. Before, it stopped with a wrong message that the address had a path.
+- `install-receiver.sh` no longer says that no computer sends to the receiver when `RECEIVER_INGEST_URLS` is already set, and the address it suggests for `RECEIVER_INGEST_URLS` now carries the port when the receiver does not listen on 443.
+
 ## 0.50.30 - 2026-11-27
 
 ### Added

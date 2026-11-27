@@ -50,6 +50,7 @@ Các trường mỗi vai nhận được cố định trong `server/board/views.
 | Gửi số liệu | `POST /ingest` | Máy có khoá riêng, hoặc `INGEST_KEY` khi chưa có và `SHARED_KEY_MODE` cho phép | Khoá chỉ gửi cho đúng máy của nó; máy bị gắn với người của lần gửi đầu; máy bị thu hồi bị từ chối. Từ ngoài `OFFICE_NETS` (hoặc bị Caddy đánh dấu như vậy): chỉ khoá riêng của máy quản trị đã cho gửi từ mọi mạng, nếu không thì 403 |
 | Hỏi giờ gửi tới đâu | `GET /ingest/route` | Máy có khoá riêng (khoá chung: 403) | Không ghi gì; danh sách rỗng trừ khi bộ nhận Go nhận các lần gửi của máy này. Từ ngoài văn phòng: như với `/ingest` |
 | Tải bản cập nhật | `GET /releases/...` | Máy có khoá riêng hoặc `INGEST_KEY` | Máy kiểm chữ ký trước khi cài. Từ ngoài văn phòng: như với `/ingest` |
+| Cắt một máy (Thu hồi), hoặc cho nó ghi danh lại (Cho gửi lại) | `POST /admin/device-revoke`, `POST /admin/device-forget` | `admin` | Nhập lại OTP, hiệu lực 5 phút; ghi vào nhật ký Quản trị |
 | Cho một máy gửi từ mọi mạng, hoặc thôi cho | `POST /admin/device-roam` | `admin` | Nhập lại OTP, hiệu lực 5 phút; chỉ máy đang gửi bằng khoá riêng; ghi vào nhật ký Quản trị |
 | Đặt tên địa điểm, đánh dấu nhóm bán hàng, nạp CSV gói Team | `POST /locations`, `/team-sale`, `/team-csv` | `admin` | Yêu cầu phải cùng nguồn trang |
 | Tạo, xoá, đổi vai tài khoản; kết thúc phiên | `POST /admin/accounts`, `/admin/sessions` | `admin` | Nhập lại OTP, có hiệu lực 5 phút |
@@ -72,6 +73,6 @@ Các trường mỗi vai nhận được cố định trong `server/board/views.
 - **Luôn còn ít nhất một quản trị:** máy chủ từ chối xoá hoặc hạ vai quản trị cuối cùng.
 - **Nhập sai OTP:** sai 5 lần từ một địa chỉ trong 15 phút thì khoá địa chỉ đó. Sai 20 lần trên một tài khoản trong 15 phút thì khoá tài khoản đó, nên người lạ không khoá được cả trang.
 - **Telegram:** liên kết phải nhập mã 6 số và đi qua một bước dùng một lần gắn với phiên đó, nên lấy được phiên hay bấm đường dẫn người khác gửi cũng không thêm được Telegram. Mỗi tài khoản một Telegram; tài khoản treo tường không dùng được. Cấp lại khoá hoặc chuyển sang treo tường sẽ gỡ liên kết.
-- **Giới hạn:** 200 tài khoản, 20 màn hình TV, 50 khoá cho công cụ AI, 20 khoá cho dự án hay ứng dụng AI, 300 máy.
-- **Mọi lần từ chối và mọi thay đổi đều ghi vào nhật ký quản trị** (bảng `audit` trong `board.db`): ai, vai gì, IP nào, đường dẫn nào. Nội dung CSV không chép vào.
+- **Giới hạn:** 200 tài khoản, 20 màn hình TV, 50 khoá cho công cụ AI, 20 khoá cho dự án hay ứng dụng AI, 300 máy theo mặc định (`MAX_DEVICES` nâng được).
+- **Mọi lần từ chối và mọi thay đổi đều ghi vào nhật ký quản trị** (bảng `audit` trong `board.db`): ai, vai gì, IP nào, đường dẫn nào. Nội dung CSV không chép vào. Mỗi ngày tổng chi phí được niêm phong vào chính nhật ký này khi không còn được đếm lại; chỉ quản trị thấy các dòng niêm phong, trên `/admin`, và chỉ chat Telegram đã liên kết với tài khoản quản trị nhận tin buổi sáng có mã của ngày (ngày, số dòng, mã: không tên, không tiền).
 - **Mất hết quản trị:** người có quyền sudo trên máy chủ chạy `sudo bash manage-otp.sh --rescue <tên>` trong thư mục `server/`. Xem [USER-GUIDE.vi.md](USER-GUIDE.vi.md).

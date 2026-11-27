@@ -23,11 +23,12 @@ The script will:
 - create the service `ai-worker-webhook` (it restarts itself when the server boots or the program fails), default port **8788**;
 - on the first install, print the **webhook address** and the **INGEST_KEY**: send these two lines to whoever builds the package. When you run it again to update,
   it does not print the key (the key stays in the env file);
-- if the env file has `TRUST_PROXY=1` (behind Caddy): set `BIND_ADDR=127.0.0.1` and let only localhost call in
+- if the env file has `TRUST_PROXY=1` (behind Caddy): keep `BIND_ADDR=127.0.0.1` (already the default) and let only this machine call the service in (`IPAddressAllow=localhost`)
   (systemd `IPAddressAllow=localhost`), so all access goes through HTTPS; the list of allowed IPs is in `aiworker.caddy`.
 
-To change the port: `sudo PORT=9000 bash install.sh` (first install). Firewall: open the port to the internal network,
-for example `ufw allow from 192.168.0.0/16 to any port 8788`. It does not need to be open to the Internet.
+To change the port: `sudo PORT=9000 bash install.sh` (first install). The webhook listens only inside the machine (`BIND_ADDR=127.0.0.1`):
+people and computers reach it through Caddy or nginx over HTTPS, so its own port needs no opening in the firewall. Only without a proxy, on a
+closed network, set `BIND_ADDR` to the server's internal address and open the port to that network, for example `ufw allow from 192.168.0.0/16 to any port 8788`.
 
 All settings, with notes: [`ai-worker.env.example`](ai-worker.env.example).
 
@@ -39,13 +40,14 @@ Because anyone with the install package has the key, the webhook also blocks by 
   under another person's name is refused (409, written to the log). When a computer goes to someone else: stop the service, run
   `sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --forget-device <device-id>`, start the service;
 - each computer may send 20 times at once, then once a second; 10 new devices per day for each IP; 300 devices in total (`MAX_DEVICES`);
+- **each computer gets a key of its own** (`awd1.…`) at its first send, and sends with it from then on: the shared key can no longer send as a computer that has one. `SHARED_KEY_MODE` in the env file says what the shared key may still do: `allow` (enrol new computers, the default), `known-only` (only computers already on the board) or `off`. One computer is cut off with **Revoke** on the Admin page or `webhook.py --revoke-device <device-id>`; `webhook.py --rotate-device-secret` gives every computer a new key ([docs/RECEIVER.md](../docs/RECEIVER.md), section 6, has the steps);
 - OTP login: 5 wrong tries from one IP lock that IP for 15 minutes; 20 wrong tries on one account lock that account for 15 minutes.
 
-To change the key: edit `/etc/ai-worker.env`, run `sudo systemctl restart ai-worker-webhook`, then rebuild the package.
+To change the shared key: edit `/etc/ai-worker.env`, run `sudo systemctl restart ai-worker-webhook`, then rebuild the package. If a package leaked, `SHARED_KEY_MODE=known-only` stops new computers at once, without a new package.
 
 ## The whole-team dashboard in the browser (OTP login)
 
-Open `http://<server-IP>:8788/` on a computer or phone (inside a network allowed to reach the webhook) and enter the 6-digit code
+Open the board's address (`https://<your domain>/` through Caddy or nginx) on a computer or phone inside a network allowed in, and enter the 6-digit code
 from **Google Authenticator** (or Microsoft Authenticator). It is an operations dashboard in the style of a monitoring center:
 a list of people who are active, a diagram person -> Claude -> Gemini/ChatGPT/Gemma (light beads move while work is done or delegated;
 click a card to see one person's numbers), a 24-hour cost heat map, indicators, tasks delegated per hour to each AI,
@@ -62,7 +64,7 @@ Three roles; the server checks them itself, it does not just hide buttons:
 | Email, internal IP, `/board` | Yes | Yes | No |
 | Stay logged in | 8 hours | 8 hours | 7 days |
 
-TV screens: open the dashboard page on the TV (a smart TV shows the code by itself; for a computer plugged into a TV, click "Wall screen" on the login page), then scan the QR code on the TV with a phone camera that is on the company network, or enter the code in the Paired devices and keys section of `/admin`; check the device and IP, give it a name, approve it. The TV gets the wall role, is not logged out when the webhook restarts, renews itself for 30 days while in use, and after one year at most must be paired again. Revoke it right on the page. After a new version is installed, an open screen reloads by itself within about 10 seconds; the Admin page shows which screens are running, which version, and has a remote reload button. At most 20 screens. To pair an old screen again, choose "Replace" so no extra row is made; a screen unused for over 30 days drops out of the list by itself. Sessions are stored only as hashes in `data/tv.json`; delete this file and restart to revoke them all.
+TV screens: open the dashboard page on the TV (a smart TV shows the code by itself; for a computer plugged into a TV, click "Wall screen" on the login page), then scan the QR code on the TV with a phone camera that is on the company network, or enter the code in the Paired devices and keys section of `/admin`; check the device and IP, give it a name, approve it. The TV gets the wall role, is not logged out when the webhook restarts, renews itself for 30 days while in use, and after one year at most must be paired again. Revoke it right on the page. After a new version is installed, an open screen reloads by itself within about 10 seconds; the Admin page shows which screens are running, which version, and has a remote reload button. At most 20 screens. To pair an old screen again, choose "Replace" so no extra row is made; a screen unused for over 30 days drops out of the list by itself. Sessions are stored only as hashes in the `screens` table of `data/board.db`; revoke a screen on the Admin page.
 
 Full screen: the browser only allows it when someone acts on that very computer, so a wall display uses the first touch or key press for this. A computer plugged into a TV opens Chrome in kiosk mode so nobody has to touch it; use a separate profile folder, otherwise the command is ignored when Chrome is already open. Put your board's domain in place of `<board domain>`, for example `https://board.example.com/`:
 
@@ -89,7 +91,7 @@ sudo bash manage-otp.sh --list            # who has an account, with what role
 
 Accounts and keys are in `keys/accounts.db`, a folder only the webhook can read, apart from `data/board.db`. A backup of `board.db` has no keys; to restore without scanning again, back up `keys/` separately, readable by root only. On the first run the webhook imports the accounts from `OTP=` in the env file by itself, with no new scan; `install.sh` then takes the imported names out of that line, since their secrets are in the database, sealed with `/etc/ai-worker-otp.key`. To roll back, see docs/OPERATIONS.md section 5.
 
-Action log: the `audit` table in `data/board.db` records logins, changes and refusals; kept 12 months, with no keys or CSV content.
+Action log: the `audit` table in `data/board.db` records logins, changes and refusals; kept 12 months, with no keys or CSV content. Each day of cost totals older than a week is sealed into it (`daily-seal`), and the Admin page says if a sealed day was edited.
 
 - Anyone with sudo on the server can issue keys for themselves (and read all the numbers): keep the number of people with sudo small. Every issue/revoke is logged, see it with `journalctl -t ai-worker-otp`.
 - One key per person, revoked separately.
@@ -99,6 +101,7 @@ Action log: the `audit` table in `data/board.db` records logins, changes and ref
 - Language of the pages: the visitor's own choice first (the EN / VI buttons, kept in the `lang` cookie), then `DEFAULT_LANG` in `/etc/ai-worker.env` (`en` or `vi`; empty follows the browser), then English. After changing `DEFAULT_LANG`, run `sudo systemctl restart ai-worker-webhook`. Messages the server writes to its log, the refusals sent to `/ingest`, and the TV install files are always English.
 - Log in with Telegram (optional): set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_NAME` in `/etc/ai-worker.env`, then restart the service. Steps in [docs/INSTALL.md](../docs/INSTALL.md), section "Log in with Telegram".
 - Ask the board from an AI tool (MCP): the path `/mcp` is on, and gives nothing out until an admin approves a key asked for on the page `/mcp/connect`. `MCP=0` in `/etc/ai-worker.env`, then a restart of the service, takes it away. Steps in [docs/INSTALL.md](../docs/INSTALL.md), section "Ask the board from an AI tool (MCP)".
+- The Go receiver (optional, for organisations of tens of thousands of computers): `sudo sh install-receiver.sh` sets it up beside the webhook in one command and checks the IP, the port, DNS, the certificate and the firewall; from then on every `install.sh` updates it too. See [docs/RECEIVER.md](../docs/RECEIVER.md#the-installer). An office does not need it.
 - Ask the board from Telegram (optional): add `TELEGRAM_ASK=1` to `/etc/ai-worker.env` and run `install.sh`, put the token of a bot made for this into `/etc/ai-worker-telegram.env`, run `install.sh` again. A second service, `ai-worker-telegram`, then talks to Telegram; the webhook itself never connects out. Steps and what it means for people's data in [docs/INSTALL.md](../docs/INSTALL.md), section "Ask the board from Telegram".
 - The board's window inside Telegram (optional, needs asking from Telegram): add `TELEGRAM_APP=1` and `TELEGRAM_APP_URL=https://<board domain>/tg/app` (the domain you open the board with, for example `https://board.example.com/tg/app`) to `/etc/ai-worker.env` and run `install.sh`; it writes `TELEGRAM_APP_KEY` from the bot's token. Then allow each chat on `/admin`. Each chat can also turn on messages when someone waits too long (`/alerts`), with nothing to set on the server. Steps in [docs/INSTALL.md](../docs/INSTALL.md).
 - An HTTP connection is not encrypted: open this page only inside the company network. To view it from outside you need HTTPS first.
@@ -111,13 +114,13 @@ journalctl -u ai-worker-webhook -n 50       # log (errors only, not every send)
 curl http://127.0.0.1:8788/health       # {"ok": true}
 ```
 
-Data: `/opt/ai-worker/data/board.db` (SQLite), one row of a few KB per computer, overwritten when the computer sends again. Tables and backup: [docs/DATA-MODEL.md](../docs/DATA-MODEL.md).
+Data: `/opt/ai-worker/data/board.db` (SQLite): each computer has one row for its state and one row for each hour of cost, and a send writes only the hours that changed. Tables and backup: [docs/DATA-MODEL.md](../docs/DATA-MODEL.md).
 A computer silent for over 30 days has its row deleted by itself. One total per person per day (cost, tokens, tasks delegated, office) stays for up to 13 months, so `/board` can compare weeks and months. The load is very light: each computer sends a second or two after its numbers change, at most once every 2 seconds,
 and at least once every 5 minutes while Claude is open.
 
 To update the program: copy the new version over the old one and run `sudo bash install.sh` again (the key and data are kept).
-To remove: `sudo systemctl disable --now ai-worker-webhook`, delete `/opt/ai-worker`, `/etc/ai-worker.env`,
-`/etc/systemd/system/ai-worker-webhook.service`.
+To remove: `sudo systemctl disable --now ai-worker-webhook`, delete `/opt/ai-worker`, `/etc/ai-worker.env`, `/etc/ai-worker-otp.key`,
+`/etc/systemd/system/ai-worker-webhook.service` and the folder `/etc/systemd/system/ai-worker-webhook.service.d`. With asking from Telegram: first set `TELEGRAM_ASK=0` and run `install.sh` (it removes the bot's service), then delete `/etc/ai-worker-telegram.env`. With the Go receiver: first `sudo sh install-receiver.sh --remove`, then delete `/etc/ai-worker-receiver.env`.
 
 ## What is stored
 

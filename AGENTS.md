@@ -24,7 +24,7 @@ A Claude Code plugin (`.claude-plugin/`, `hooks/`, `skills/`, `web/`) on each em
 
 ## Checks
 
-Run all twelve before calling a change done. CI runs the same ones.
+Run all twelve before calling a change done. CI runs the same checks, except that of the server's tests it runs only the modules named in `.github/workflows/test-install.yml`: the whole `cd server && python3 -m unittest` runs only on your computer, so run it there.
 
 ```bash
 claude plugin test .

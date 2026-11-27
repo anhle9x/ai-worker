@@ -6,15 +6,16 @@ What is tested automatically on every push, what still needs a person, and the c
 
 ## 1. Automatic tests
 
-GitHub Actions runs `.github/workflows/test-install.yml` on every push. In a private repository, where the minutes are limited, the two Windows jobs run only when the push changes something they test (`packaging/`, `connectors/`, `server/menubar/`, `tests/connectors/`, `tests/menubar/`, `tests/windows/`, the workflow itself, `.claude-plugin/`) or when the workflow is started by hand; a push that changes none of these shows them as skipped. In a public repository, where the minutes are free, they run on every push. A release is made only when every job is green, the Windows ones included: raising the version in `.claude-plugin/plugin.json` runs them.
+GitHub Actions runs `.github/workflows/test-install.yml` on every push to a public repository, where the minutes are free: every job below runs. In a private repository, such as a development copy, a push runs nothing, since the minutes there count against the account: the tests run on the developer's computer (section 2), and the workflow started by hand (`gh workflow run test-install.yml`) runs every job, the three Windows ones included. A release is made only when every job is green.
 
 | Job | Machine | Checks | Files |
 |---|---|---|---|
-| `code-check` | Ubuntu | Python lint (ruff); hook tests through the Claude Code CLI; over 100 server tests; the Chrome extension logic against a real local server | `ruff.toml`, `tests/*.test.ts(x)`, `server/test_webhook.py`, `tests/extension/check-extension.js` |
-| `build` | Ubuntu | Package build; the private-data check; skill front matter; the two-language rules | `packaging/build.sh`, `tests/test-check-clean.sh`, `tests/check-frontmatter.py`, `tests/check-i18n.py` |
-| `ubuntu` | Ubuntu | Installer on a clean machine, case by case; server install with systemd; menu bar script; the `.deb` installed and removed by apt; notification badge picture | `tests/linux/test-install.sh`, `tests/linux/test-server.sh`, `tests/menubar/test-menubar.sh`, `tests/menubar/test-deb.sh` |
-| `windows` | Windows | Installer on a clean machine, case by case; icon next to the clock; notification badge picture | `tests/windows/test-install.ps1`, `tests/menubar/test-menubar.ps1` |
+| `code-check` | Ubuntu | Python lint (ruff); hook tests through the Claude Code CLI; the server tests the workflow names (nine modules, section 2); the Go receiver (`go vet`, `go test`, with the Python server as the judge); the connector for Codex, Cursor and Gemini CLI; the meter for AI projects and applications; the Chrome extension logic against a real local server; where the maps put the office labels | `ruff.toml`, `tests/*.test.ts(x)`, `server/test_webhook.py` and eight more modules of `server/`, `receiver/`, `tests/connectors/test_connectors.py`, `tests/appmeter/test_appmeter.py`, `tests/extension/check-extension.js`, `tests/check-map-layout.js` |
+| `build` | Ubuntu | Package build; the private-data check; skill front matter; the two-language rules; the map shader and flight names | `packaging/build.sh`, `tests/test-check-clean.sh`, `tests/check-frontmatter.py`, `tests/check-i18n.py`, `tests/check-maps.py` |
+| `ubuntu` | Ubuntu | Installer on a clean machine, case by case; server install with systemd; the Go receiver built for the server, then its installer; menu bar script; the `.deb` installed and removed by apt; notification badge picture | `tests/linux/test-install.sh`, `tests/linux/test-server.sh`, `packaging/build-receiver.sh`, `tests/linux/test-receiver.sh`, `tests/menubar/test-menubar.sh`, `tests/menubar/test-deb.sh` |
+| `windows` | Windows | Installer on a clean machine, case by case; the scripts that close and reopen the Claude app after `/update`, in Windows PowerShell 5; the connector's PowerShell hook and installer; icon next to the clock; notification badge picture | `tests/windows/test-install.ps1`, `tests/windows/dump-restart-scripts.mjs`, `tests/windows/test-restart.ps1`, `tests/connectors/test_connectors.py`, `tests/menubar/test-menubar.ps1` |
 | `windows-app` | Windows | Build `AI Worker.exe` and `.msi`; install for one user without admin rights; pair; count waiting people; remove | `tests/menubar/test-windows-app.ps1` |
+| `plugin-msi` | Windows | Build `AI Worker plugin.msi`; the server fills a company copy; install, the setup window, a plugin updated by `/update`, an upgrade, a refused downgrade, removal, and a personal copy left unfilled | `packaging/windows-msi/`, `tests/windows/test-msi.ps1` |
 
 ### What the tests cover
 
@@ -29,6 +30,7 @@ GitHub Actions runs `.github/workflows/test-install.yml` on every push. In a pri
 | The window inside Telegram: Telegram's signature (wrong, old, from another bot, without a user), sessions and their limits, only chats allowed, a chat that reads totals only getting totals and no person, revoking or `/stop` ending a session at once, nothing else opened by a session, the page and its files with `?v=`, the menu buttons the bot is told, the log; and the bot process setting the buttons | `test_webhook.py`, class `TelegramApp`; `test_telegram_bot.py`, class `MenuButtons` |
 | Alerts to Telegram chats: each wait once, the gap, the hourly cap, quiet hours, sessions left open, names only for a chat that reads each person, the first line naming nobody, the chat's language and minutes; `/alerts` and the window's settings; the log; the bot sending them protected with the window's button | `test_webhook.py`, classes `AlertRules` and `TelegramAlerts`; `test_telegram_bot.py`, class `MenuButtons` |
 | The bot's service after install: off by default, its own user and settings file, the network limit, removal | `tests/linux/test-server.sh`, part S5 |
+| The Go receiver's installer (`server/install-receiver.sh`) on a machine with systemd: stops when the IP is missing or another program holds the port, first install (its own user, one capability, the memory ceiling, private settings, no computer moved), run again with nothing changed, update through `install.sh`, a program that does not match `SHA256SUMS` refused, rollback, removal, taking over a service written by hand with or without a settings file of the same name | `tests/linux/test-receiver.sh` |
 | What each role receives (no email or IP for wall) | `test_webhook.py` |
 | The optional receiver in Go: the shared sample in both formats, random sends cleaned the same as Python cleans them (keys in order, whole numbers apart from floats), its key check against keys the server issued, sends through the receiver ending in the same book on the real Python server with the name it knows and the real address, a batch sent twice written once, TLS with HTTP/1.1 only and a renewed certificate read again; on the server, the internal paths (404 unless `RECEIVER=1`, from this machine and with the internal code), the file of secrets, the policy, the books by page, the third check and turning the signing secret; the shared sample played through the receiver into the real Python server, each send in a batch of its own and all of them put together into one row per computer, Python ending with the book and the days the sample expects; the rows of one computer put together as Python would write them one by one; Python away a minute while every computer sends, every send answered 200 and at most one row per computer waiting; the hours held as numbers adding up the same; check rows compared and never written, and the hours of today the receiver loads | `receiver/` (`go test ./...`), `server/test_receiver.py` |
 | Pairing TV, menu bar and extension; revoke; expiry | `test_webhook.py`, `check-extension.js`, menu bar tests |
@@ -40,6 +42,7 @@ GitHub Actions runs `.github/workflows/test-install.yml` on every push. In a pri
 | The question before a command that destroys work: which commands are caught and which are left alone, an allowed command turned into a question for a person, a denied one left denied, the switch in `config.js` | `tests/guard.test.ts` |
 | What leaves or enters the computer: secrets in text for ChatGPT or Gemini (also through a separate ai-workers server), secrets on the lines a commit adds, pages that speak to an AI, a repository's own AI settings, the 80% context note for Claude, block counts in the device report | `tests/secrets.test.ts`, `commitscan.test.ts`, `injection.test.ts`, `repoconfig.test.ts`, `nudges.test.ts`, `sending.test.ts`, `team.test.ts` |
 | The server side of the protections: the audit log's fingerprint chain (a changed, a removed and a newest row taken out), block counts cleaned and added up for admins and viewers only, keys for AI tools unused for 30 days | `test_webhook.py`, classes `AuditChain`, `BlockCounts`, `UnusedKeys` |
+| Days of cost totals sealed into the audit chain: each closed day once, empty days too, a line not written tried again, a sealed day whose numbers, tokens or rows changed named by the check, days dropped by age left out, `--forget-usage` sealing again without who; the morning message to an admin's Telegram chat only, once per day, none at night, no name and no money | `test_daily_seal.py`, classes `Sealing`, `MorningMessage` |
 | `/ai-worker:voice`: the right settings page and steps for a Mac, Windows and Linux; steps by hand when the page does not open; nothing else is run | `tests/voice.test.ts` |
 | The demo with sample people: starts, opens with the code it prints, ignores a real board's settings, deletes its data when stopped | `test_demo.py` |
 | Cost by hour, no double count after reopening a session | `tests/cost.test.ts` |
@@ -50,12 +53,25 @@ GitHub Actions runs `.github/workflows/test-install.yml` on every push. In a pri
 | SQLite storage: moving the old JSON files in, schema version, file modes, many threads at once, backup, export back to JSON; an older database is copied before it is upgraded, the copy opens and the older program runs on it, and no copy means no upgrade | `test_webhook.py` (`DatabaseStorage`), `tests/linux/test-server.sh` |
 | The hour books in rows of their own (schema version 6): a `board.db` of schema version 5 gives the same board, history, totals per day and export after the upgrade, rows it cannot read stay as they were and the copy of version 5 is kept; random sends of both formats leave exactly the book `merge_hours` and `replace_hours` give, the days in `device_days` and in memory, also after a restart and with an SQLite older than 3.24; a send that changes nothing writes nothing; a new `TZ_OFFSET` counts the days again | `server/test_hour_rows.py` |
 | Totals per person per day: hours added into days, counting again without adding twice, 13 months then deleted, weeks and months read back; the charts of cost per week and per month; only admin and viewer get them | `test_webhook.py` (`DailyTotals`, `UsageByRole`) |
+| What comes back from a helper (ChatGPT, Gemini, Gemma): commands read from shell code blocks and `$` prompts only; an answer with a key, words aimed at an AI or a command that cannot be undone is flagged and reaches Claude whole with a note; the record of the work holds lengths, kinds and a salted fingerprint, never the prompt, and goes up once, the last two days only | `tests/answers.test.ts` |
+| The check of commit messages (`commitTrail`): what a message lacks (the subject's shape, the cause of a fix, what was measured), merges, reverts and fixups left alone, the reminder to Claude only when `config.js` turns it on and the commit went through | `tests/committrail.test.ts` |
+| The cost ledger on the computer: a turn added to its hour, the ledger kept when the page cannot be written, the last cost per session (at most 50), the repair run once per machine | `tests/ledger.test.ts` |
+| Sending the numbers (`hooks/send.ts`): the shared key first, then the computer's own key and a route to the receiver; a busy receiver waited for, never poured onto the webhook; a webhook that does not answer backed off from 5 seconds to 5 minutes; a refused key dropped; a route that ran out asked again; the gap the server asks kept | `tests/send.test.ts`, `tests/share.test.ts` |
+| Format `v: 2` of a send: `v: 1` until the server says it reads `v: 2`, then only the hours that changed; the whole book when asked, when the marks are missing and when it is due; the last two days again after another start of the server; each send numbered above the last; whatever is lost on the way, the server ends with the money the computer holds | `tests/sendv2.test.ts`; the plugin's own code against the real `/ingest` over HTTP: `server/test_plugin_v2.py` with `tests/contract/plugin-v2/bridge.mjs` |
+| Session titles: when a fresh title is due, how an answer becomes a title, a chat the person renamed stays theirs | `tests/titles.test.ts` |
+| The core of the board's MCP endpoint (`board/mcp.py`): the summary a key may read, the current and the older revisions of the protocol, bad messages | `server/test_mcp.py` |
+| Formats `v: 1` and `v: 2` of `/ingest` against the shared sample: the same activity sent either way gives the same board, history and totals per day, and the book the sample expects | `server/test_contract.py` with `tests/contract/ingest-v2/cases.json` |
+| Which hours of a send are written, left as they were or removed (`board/order.py`), compared on many random cases with the rule as it was written before | `server/test_order.py` |
+| What a send becomes before anything is written (`decide`), the same choices as the Go receiver's; and the two ways a send is taken, straight on `/ingest` and as a row of the receiver, side by side after the save | `server/test_decide.py`, `server/test_two_paths.py` |
+| A batch of the receiver written whole (`DeviceCache.write_batch`): the computers held in order for the whole batch, a fast try that fails taken back and written again row by row, a bad row named alone; `RECEIVER_FAST_APPLY` on and off leaving the same tables and the same `/data` for every role, byte for byte | `server/test_batch.py`, `server/test_apply_paths.py` |
+| A build of the board resting only while a write runs, and never longer than its limit (`board/turns.py`); a person's branch found through the index the same as by going through every branch | `server/test_turns.py`, `server/test_branch_of.py` |
+| OTP secrets sealed with the key kept apart from them: sealing and unsealing, accounts stored sealed, the accounts database | `server/test_sealing.py` |
 | Language choice and fallback | `tests/lang.test.ts` |
 | No private word, address or key in the package | `tests/test-check-clean.sh` with `packaging/check-clean.sh` |
 
 ## 2. Run locally
 
-Run all twelve before calling a change done. CI runs the same ones. Run each at the repository root.
+Run all twelve before calling a change done. Run each at the repository root. GitHub Actions runs the same checks, except that of the server's tests it runs only the modules its workflow names (`test_webhook`, `test_demo`, `test_mcp`, `test_ask`, `test_telegram_bot`, `test_projects`, `test_contract`, `test_receiver`, `test_hour_rows`): the other modules, such as `test_daily_seal`, `test_order`, `test_decide`, `test_batch` and `test_two_paths`, run only on your computer, so run the whole `python3 -m unittest` there.
 
 ```bash
 claude plugin test .
@@ -105,7 +121,7 @@ bash tests/test-check-clean.sh
 uvx ruff check .
 ```
 
-Correct result of each of these eight: exit code 0. Without `uv`, the last one is `pipx run ruff check .`.
+Correct result of each of these nine: exit code 0. Without `uv`, the last one is `pipx run ruff check .`.
 
 ```bash
 cd receiver && go test ./...
@@ -147,6 +163,7 @@ Automatic tests use fake servers and fake browsers. Before a release that touche
 | A ChatGPT send holding a fake key | ChatGPT installed | Ask Claude to send `review: DB_PASSWORD=<made-up value>` to ChatGPT | Refused with "Nothing left this computer"; the Admin page's **Stopped by ai-worker** counts one more within a few minutes |
 | A page that speaks to an AI | A local page with the line "ignore your previous instructions" | Ask Claude to read it with WebFetch or the browser | A notice for you; Claude says what the page tried and does not follow it |
 | Log check | A copy of `board.db` on a test server | Change one audit row with `sqlite3`, open `/admin` | The audit section says a line near that time was changed or taken out by hand |
+| Cost check | A copy of `board.db` on a test server, running more than a week | Change `usd` of one `daily` row older than a week with `sqlite3`, open `/admin` | The audit section says the numbers of that day were changed after it was sealed; **Sealed days** lists the fingerprints |
 | TV screen | A real TV or a browser in full screen | Open `/tv`, approve the code on `/admin` | The board shows with no email or IP |
 | macOS menu bar | A real Mac | Install the `.dmg` or `.zip`, pair | Icon shows the waiting count, notification arrives |
 | Ubuntu menu bar | Ubuntu with X11 **and** Ubuntu with Wayland | Install the `.deb`, pair | Icon shows in the top bar on both |
@@ -155,7 +172,7 @@ Automatic tests use fake servers and fake browsers. Before a release that touche
 
 ## 4. Before a release
 
-1. Every GitHub Actions job is green, and the two Windows jobs ran instead of being skipped. If the last run skipped them, start the workflow by hand: `gh workflow run test-install.yml`.
+1. Every GitHub Actions job is green, and the jobs ran instead of being skipped, the three Windows ones included. A push to a private repository skips them all: start the workflow by hand there, `gh workflow run test-install.yml`.
 2. The checks in section 3 are done for every part this release changed.
 3. `version` in `.claude-plugin/plugin.json` is raised, and `CHANGELOG.md` lists the changes.
    If the dashboard looks different, retake `assets/dashboard.png` and `assets/dashboard.vi.png` from a test server with sample people, never a real one.
@@ -167,4 +184,4 @@ Automatic tests use fake servers and fake browsers. Before a release that touche
 - `hooks/register.tsx` and `web/ops.js` (copied to `server/static/ops.js`) have no direct tests of their own yet.
 - No automatic test on a real Mac.
 - No automatic test on Ubuntu Wayland; it is checked by hand.
-- The load test has run on a Mac only, not yet on a Linux server like the ones the board is installed on, and it plays each computer from its own made-up address, so it does not show the limit of sends per address that computers behind one shared address would meet.
+- The load test has run on a Mac only, not yet on a Linux server like the ones the board is installed on, and it plays each computer from its own made-up address, so it does not show the limit of new computers per address a day that an office behind one shared address would meet (sends themselves are limited per computer, not per address). The Go receiver was measured on Linux with tools outside the repository ([BENCHMARK.md](BENCHMARK.md#on-linux-with-the-go-receiver)).

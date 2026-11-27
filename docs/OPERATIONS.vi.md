@@ -15,6 +15,9 @@ Mọi lệnh chạy trên máy chủ, trừ khi ghi khác.
 | Tài khoản | `/opt/ai-worker/keys/accounts.db` |
 | Thiết lập | `/etc/ai-worker.env` (chỉ root đọc) |
 | Dịch vụ | `ai-worker-webhook` (systemd), chạy bằng tài khoản `ai-worker` |
+| Khoá niêm phong khoá OTP | `/etc/ai-worker-otp.key` (chỉ root đọc); giữ một bản tách khỏi các bản sao lưu |
+| Bot Telegram, chỉ khi có `TELEGRAM_ASK=1` | Dịch vụ `ai-worker-telegram`, tài khoản riêng cùng tên, thiết lập ở `/etc/ai-worker-telegram.env` |
+| Bộ nhận Go, chỉ khi cài bằng `install-receiver.sh` | Dịch vụ `ai-worker-receiver` (tài khoản `ai-worker`), file chạy `/opt/ai-worker/ai-worker-receiver`, thiết lập ở `/etc/ai-worker-receiver.env` |
 | HTTPS và danh sách IP được vào | Caddy, ví dụ `/etc/caddy/aiworker.caddy` (mẫu: `server/aiworker.caddy`) |
 | Nhật ký truy cập | `/var/log/caddy/aiworker.log`, 10 file mỗi file 20 MB |
 
@@ -46,6 +49,7 @@ Trên bảng tổng, máy im 12 phút hiện ngoại tuyến, im một ngày th�
 |---|---|---|
 | Dịch vụ không chạy, nhật ký báo `INGEST_KEY is required` | Thiếu hoặc rỗng file thiết lập | Kiểm `/etc/ai-worker.env`, chạy lại `sudo bash install.sh` |
 | Trang Quản trị báo *Kiểm nhật ký: một dòng … đã bị sửa hay bị xoá* | Có người sửa `board.db` bằng tay, hoặc chép đè một bản cũ lên bản mới hơn | Tìm xem ai có sudo hay quyền đọc ghi file trên máy chủ; so dấu vân tay cuối với dấu đã ghi lại; khôi phục bản sao lưu làm trước khi có chuỗi thì không gây báo này |
+| Trang Quản trị báo *Kiểm sổ chi phí: số liệu ngày … đã bị sửa sau khi ngày đó được niêm phong* | Một dòng `daily` của ngày cũ hơn một tuần bị sửa, thêm hay xoá bằng tay | Như trên; dòng `daily-seal` của ngày đó trong nhật ký giữ các con số lúc niêm phong |
 | Trang Quản trị liệt kê khoá cho công cụ AI *không dùng N ngày* | Một công cụ được cài một lần rồi bỏ, hoặc file cấu hình của nó bị chép đi nơi khác | Hỏi khoá đó của ai; **Thu hồi** khoá không ai cần, để khoá bỏ quên trong file cấu hình cũ không đọc được bảng |
 | Mọi máy ngoại tuyến | Caddy dừng, chứng chỉ hết hạn, hoặc IP văn phòng đổi | `systemctl status caddy`; sửa danh sách IP trong file Caddy rồi `systemctl reload caddy` |
 | Thiếu một máy | IP của máy nằm ngoài danh sách, hoặc máy cài gói cũ | Nhờ người đó gõ `/office`; tìm IP của máy trong nhật ký truy cập Caddy |
@@ -55,8 +59,10 @@ Trên bảng tổng, máy im 12 phút hiện ngoại tuyến, im một ngày th�
 | Nhật ký báo `outside the office network` hoặc `this computer may not send from outside the office` | Một lần gửi hay `/update` tới từ ngoài `OFFICE_NETS`: bằng khoá chung, hoặc từ máy chưa được gửi từ mọi mạng. Nếu nó tới từ các máy trong văn phòng thì `OFFICE_NETS` và danh sách trong Caddy lệch nhau (trang Quản trị cảnh báo khi địa chỉ của chính bạn bị tính là ở ngoài) | Đặt `OFFICE_NETS` trong `/etc/ai-worker.env` giống `remote_ip` trong file Caddy rồi khởi động lại webhook; hoặc bấm **Mọi mạng** ở dòng của máy đó ([INSTALL.vi.md](INSTALL.vi.md#gửi-từ-ngoài-văn-phòng-máy-được-chọn)). Máy bị mất: **Thu hồi**, đừng cho quay lại |
 | Mọi máy phải nhận khoá mới (bí mật ký khoá đã cũ, hoặc file bí mật bị lộ) | | Dừng webhook, chạy `sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --rotate-device-secret`, rồi bật lại: mọi máy nhận khoá mới ở lần gửi kế tiếp, khoá cũ vẫn dùng được cho tới lúc đó. Với `--drop-old` các khoá cũ thôi hiệu lực ngay và mọi máy ghi danh lại bằng khoá chung ([RECEIVER.vi.md](RECEIVER.vi.md), mục 6) |
 | Nhật ký báo `409 this device is linked to another person` | Máy đổi người dùng | `sudo systemctl stop ai-worker-webhook`, rồi `sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --forget-device <mã máy>`, rồi bật lại dịch vụ |
+| Nhật ký báo `busy: 32 requests at once, … answered 503 in the last minute` | Có hơn `BUSY_REQUESTS` (32) yêu cầu đang được trả lời cùng lúc: lần gửi và yêu cầu của người chưa đăng nhập nhận 503 kèm `Retry-After` từ 30 tới 90 giây; người đã đăng nhập vẫn xem được bảng | Hiếm thì không cần làm gì: các máy tự gửi lại. Lặp lại nhiều thì xem [chọn cách cài theo quy mô](INSTALL.vi.md#chọn-cách-cài-theo-quy-mô) |
 | Nhật ký báo `429 too many submissions` | Một máy gửi quá nhiều, thường do vòng lặp | Kiểm máy đó; mỗi máy được gửi dồn 20 lần, sau đó mỗi giây một lần |
-| Nhật ký báo `507 device limit reached` | Đã đủ 300 máy | Chờ máy cũ tự rơi khỏi danh sách sau 30 ngày, hoặc nâng `MAX_DEVICES` trong `/etc/ai-worker.env` sau khi đo ([BENCHMARK.vi.md](BENCHMARK.vi.md)) |
+| Bộ nhận Go không trả lời, hoặc bản mới của nó chạy sai (chỉ khi cài bằng `install-receiver.sh`, [RECEIVER.vi.md](RECEIVER.vi.md#bộ-cài)) | Dịch vụ của nó đã dừng, chứng chỉ hết hạn hoặc không đọc được, hoặc file chạy mới có lỗi | `sudo sh install-receiver.sh --check` trong `server/` cho biết bước nào trong năm bước kiểm trượt và hỏi `/health` của nó; `sudo journalctl -u ai-worker-receiver -n 50` để xem nhật ký; `--rollback` đặt lại file chạy trước; `--remove` dừng nó, các máy quay về webhook ở lần gửi sau |
+| Nhật ký báo `507 device limit reached` | Đã chạm giới hạn số máy (`MAX_DEVICES`, mặc định 300) | Chờ máy cũ tự rơi khỏi danh sách sau 30 ngày, hoặc nâng `MAX_DEVICES` trong `/etc/ai-worker.env` rồi khởi động lại webhook ([chọn cách cài theo quy mô](INSTALL.vi.md#chọn-cách-cài-theo-quy-mô)) |
 | Đăng nhập báo nhập sai quá nhiều lần | Sai OTP 5 lần trong 15 phút | Chờ 15 phút; kiểm đồng hồ điện thoại đang để tự động |
 | TV báo lâu chưa thấy | TV tắt hoặc mất mạng | Bật TV; nếu TV đòi mã thì ghép lại trên `/admin` |
 | Nhân viên không nhận bản cập nhật | Plugin cũ hơn 0.23.0, kiểm chữ ký hỏng, hoặc thư mục plugin có `.git` | Xem mục 5 |
@@ -161,10 +167,10 @@ Mọi lần đổi lược đồ sau đó cũng vậy, với số phiên bản c
 
 #### Quay lui sau khi khoá OTP đã niêm phong
 
-Bản đầu tiên niêm phong khoá OTP nâng `accounts.db` từ lược đồ phiên bản 1 lên 2 và ghi vào nhật ký `Sealed <n> OTP secrets with the OTP key`. Bản cũ từ chối file đó, vì nó sẽ đọc khoá đã niêm phong như chính khoá và không ai đăng nhập được. Trước khi cài bản cũ, lưu lại khoá như cũ, trong lúc bản mới vẫn đang cài:
+Bản đầu tiên niêm phong khoá OTP nâng `accounts.db` từ lược đồ phiên bản 1 lên 2 và ghi vào nhật ký `Sealed <n> OTP secrets with the OTP key`. Bản cũ từ chối file đó, vì nó sẽ đọc khoá đã niêm phong như chính khoá và không ai đăng nhập được. Trước khi cài bản cũ, lưu lại khoá như cũ, trong lúc bản mới vẫn đang cài, ở thư mục `server/` bạn dùng để cài (`manage-otp.sh` không được chép vào `/opt/ai-worker`):
 
 ```bash
-sudo bash /opt/ai-worker/manage-otp.sh --unseal
+sudo bash manage-otp.sh --unseal
 ```
 
 Kết quả đúng: `Khoá OTP đã lưu lại dạng thường, và webhook đang dừng.` Rồi chạy `sudo bash install.sh` trong thư mục `server/` cũ. Không mất gì. Bản chép `accounts.db.schema-1.bak` cũng giữ các tài khoản như trước khi nâng; máy chủ xoá nó sau 7 ngày, vì khoá trong đó chưa niêm phong.
@@ -177,24 +183,24 @@ Nhật ký dịch vụ báo `... are sealed, but the OTP key cannot be read` ho�
 sudo install -m 600 -o root -g root <bản giữ của khoá> /etc/ai-worker-otp.key
 ```
 
-Nếu khoá mất hẳn, không ai mở được các khoá đã niêm phong. Bỏ các tài khoản đó, rồi tạo khoá mới và một quản trị mới:
+Nếu khoá mất hẳn, không ai mở được các khoá đã niêm phong. Bỏ các tài khoản đó, rồi tạo khoá mới và một quản trị mới, ở thư mục `server/`:
 
 ```bash
-sudo bash /opt/ai-worker/manage-otp.sh --forget-sealed
+sudo bash manage-otp.sh --forget-sealed
 sudo rm -f /etc/ai-worker-otp.key
 sudo bash install.sh
 ```
 
 `install.sh` tạo khoá mới và, khi không còn quản trị nào, hỏi tên người quản trị đầu tiên. Những người khác được tạo lại tài khoản ở `/admin` và quét mã QR mới.
 
-Quay về bản trước SQLite (0.24 trở về trước) mà không mất phần đã thay đổi từ đó:
+Quay về bản trước SQLite (0.24 trở về trước) mà không mất phần đã thay đổi từ đó. Bản xuất ghi mỗi tài khoản đúng như đang lưu, nên khi có khoá OTP thì khoá bí mật đi ra ở dạng niêm phong, và bản cũ cỡ đó không mở được: chạy `manage-otp.sh --unseal` trước, như ở trên (lệnh này để webhook dừng).
 
 ```bash
 sudo systemctl stop ai-worker-webhook
 sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --export-json /opt/ai-worker/data/export
 ```
 
-Sau đó chạy `install.sh` từ thư mục `server/` cũ, dời `data/export/data/*` vào `data/` và `data/export/keys/accounts.json` vào `keys/`, chạy `chown -R ai-worker: /opt/ai-worker/data /opt/ai-worker/keys`, rồi bật dịch vụ. File JSON giữ lại từ lúc chuyển nằm ở `data/legacy-json/` và `keys/legacy-json/`.
+Sau đó chạy `install.sh` từ thư mục `server/` cũ, dời `data/export/data/*` vào `data/` và `data/export/keys/accounts.json` vào `keys/`, chạy `chown -R ai-worker: /opt/ai-worker/data /opt/ai-worker/keys`, rồi bật dịch vụ. File JSON giữ lại từ lúc chuyển nằm ở `data/legacy-json/`; `keys/legacy-json/accounts.json` bị xoá 30 ngày sau lúc chuyển, vì khoá OTP trong đó chưa niêm phong.
 
 ### Plugin trên máy nhân viên
 
@@ -213,7 +219,7 @@ Quay về bản cũ: phát hành lại code cũ với số phiên bản mới, c
 
 | Nhật ký | Nội dung | Giữ | Ai đọc |
 |---|---|---|---|
-| Nhật ký quản trị, bảng `audit` trong `board.db` | Đăng nhập, đổi tài khoản và vai, ghép và thu hồi màn hình, địa điểm, nạp CSV gói Team (chỉ khoảng ngày và số người), thao tác bị từ chối: ai, vai, IP, đường dẫn, thời điểm | 12 tháng, dòng cũ hơn máy chủ tự xoá; mỗi dòng mang dấu vân tay của dòng trước, và `/admin` báo nếu có dòng bị sửa hay bị xoá bằng tay | Quản trị, trên `/admin` theo tháng |
+| Nhật ký quản trị, bảng `audit` trong `board.db` | Đăng nhập, đổi tài khoản và vai, ghép và thu hồi màn hình, địa điểm, nạp CSV gói Team (chỉ khoảng ngày và số người), thao tác bị từ chối: ai, vai, IP, đường dẫn, thời điểm. Ngoài ra, đọc riêng: các lần gọi công cụ MCP của bảng, câu trả lời cho chat Telegram, và bản ghi việc giao cho ChatGPT, Gemini hay Gemma | 12 tháng, riêng ba loại đọc riêng đó là 3 tháng; dòng cũ hơn máy chủ tự xoá; mỗi dòng mang dấu vân tay của dòng trước, và `/admin` báo nếu có dòng bị sửa hay bị xoá bằng tay. Mỗi ngày của `daily` cũ hơn một tuần được niêm phong trong đó (`daily-seal`): `/admin` liệt kê mã của 14 ngày niêm phong gần nhất, và mỗi sáng chat Telegram đã liên kết với tài khoản quản trị nhận mã mới nhất (ngày, số dòng chi phí, mã; không tên, không tiền). Giữ các tin đó hoặc chép lại mã: về sau mã khác đi nghĩa là nhật ký đã bị viết lại | Quản trị, trên `/admin` theo tháng |
 | Nhật ký dịch vụ (journald) | Khởi động, dòng đăng nhập, từ chối, lỗi. Không ghi từng lần máy gửi | Theo thiết lập journald của máy | Root trên máy chủ |
 | Nhật ký truy cập Caddy | Mọi yêu cầu: IP, đường dẫn, mã trả về | 10 file mỗi file 20 MB | Root trên máy chủ |
 | Diễn biến tua lại, bảng `history` trong `board.db` | Trạng thái từng người khi đổi | 24 giờ | Mọi người đã đăng nhập, qua nút tua lại |
@@ -228,7 +234,7 @@ Muốn xoá tổng theo ngày của một người trước khi chúng hết h�
 sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --forget-usage <email hoặc tên>
 ```
 
-Kết quả đúng: `deleted <số> daily rows of <email hoặc tên>`. Không cần dừng dịch vụ. Những ngày trong tuần vừa qua mà máy của người đó còn báo lên sẽ được ghi lại ở lần đếm kế tiếp, nên với người đã nghỉ thì chạy lệnh này sau ngày làm cuối của họ một tuần.
+Kết quả đúng: `deleted <số> daily rows of <email hoặc tên>`. Không cần dừng dịch vụ. Ngày đã niêm phong (cũ hơn một tuần) được niêm phong lại trong nhật ký, lý do `forget-usage`, để bước kiểm sổ chi phí vẫn sạch; dòng mới không ghi là ai. Những ngày trong tuần vừa qua mà máy của người đó còn báo lên sẽ được ghi lại ở lần đếm kế tiếp, nên với người đã nghỉ thì chạy lệnh này sau ngày làm cuối của họ một tuần.
 
 ## 7. Hồ sơ triển khai
 
@@ -250,7 +256,9 @@ Mỗi lần cài giữ một hồ sơ trong tài liệu nội bộ của công t
 
 ```bash
 sudo systemctl disable --now ai-worker-webhook
-sudo rm -rf /opt/ai-worker /etc/ai-worker.env /etc/systemd/system/ai-worker-webhook.service /etc/systemd/system/ai-worker-webhook.service.d
+sudo rm -rf /opt/ai-worker /etc/ai-worker.env /etc/ai-worker-otp.key /etc/systemd/system/ai-worker-webhook.service /etc/systemd/system/ai-worker-webhook.service.d
 ```
+
+Trước hai dòng đó, nếu đã cài: gỡ bộ nhận Go bằng `sudo sh install-receiver.sh --remove` trong thư mục `server/`, rồi xoá `/etc/ai-worker-receiver.env`; gỡ bot Telegram bằng cách đặt `TELEGRAM_ASK=0` trong `/etc/ai-worker.env` rồi chạy `sudo bash install.sh` thêm một lần (nó gỡ dịch vụ `ai-worker-telegram`), rồi xoá `/etc/ai-worker-telegram.env`. Hai tài khoản `ai-worker` và `ai-worker-telegram` vẫn còn cho tới khi bạn xoá (`sudo userdel <tên>`).
 
 Sao lưu `data/` và `keys/` trước nếu có thể còn cần.

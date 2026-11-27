@@ -369,10 +369,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def shed(self) -> bool:
         """When the server is busy, answer a send or a request from someone not logged in with 503 at once, so it costs almost nothing
-        and the people looking at the board still get through. A computer sends again at its next round, 30 seconds later.
+        and the people looking at the board still get through. A computer sends again after the Retry-After it is told, 30 to 90 seconds at random.
         /health always answers, for whoever watches the server. True means the request has been answered.
         Khi máy chủ đang bận, trả ngay 503 cho một lần gửi hay yêu cầu của người chưa đăng nhập, để nó gần như không tốn gì
-        và những người đang xem bảng vẫn vào được. Máy sẽ gửi lại ở vòng sau, 30 giây sau. /health luôn trả lời, cho người theo dõi máy chủ.
+        và những người đang xem bảng vẫn vào được. Máy sẽ gửi lại sau Retry-After được báo, ngẫu nhiên 30 tới 90 giây. /health luôn trả lời, cho người theo dõi máy chủ.
         True nghĩa là yêu cầu đã được trả lời."""
         path = self.path.split("?", 1)[0]
         if path == "/health" or not LOAD.busy():
@@ -2067,7 +2067,7 @@ if __name__ == "__main__":
             kid, "; old keys stop now, computers enrol again with the shared key" + (" (SHARED_KEY_MODE is off: none can)" if settings.SHARED_KEY_MODE == "off" else "") if drop_old else ""))
         sys.exit(0)
     if len(sys.argv) == 3 and sys.argv[1] == "--forget-usage":
-        forgotten = DAILY.forget(sys.argv[2])
+        forgotten = DAILY.forget(sys.argv[2], AUDIT_LOG.write)
         print("deleted %d daily rows of %s" % (forgotten, sys.argv[2]) if forgotten else "no daily rows for: %s" % sys.argv[2])
         sys.exit(0 if forgotten else 1)
     if not settings.INGEST_KEY:

@@ -10,9 +10,9 @@
   Nó không bao giờ nói chuyện với địa chỉ nào khác, nên không thể lỡ trỏ vào bảng thật. Chỉ cần Python 3.8+.
 
   Kinds of run / Các kiểu chạy:
-  office  every computer sends every 10 seconds (three times the most the plugin does) or every 60 seconds (an ordinary day), and every open board reads every
+  office  every computer sends every 10 seconds (three times the most the plugin did when this was written) or every 60 seconds (an ordinary day), and every open board reads every
           10 seconds, at 20, 50, 150 and 300 computers by default (--levels for more)
-          mỗi máy gửi mỗi 10 giây (gấp ba mức nhiều nhất của plugin) hoặc mỗi 60 giây (ngày thường), và mỗi bảng đang mở đọc mỗi 10 giây,
+          mỗi máy gửi mỗi 10 giây (gấp ba mức nhiều nhất của plugin lúc viết bài đo) hoặc mỗi 60 giây (ngày thường), và mỗi bảng đang mở đọc mỗi 10 giây,
           mặc định ở 20, 50, 150 và 300 máy (--levels để nhiều hơn)
   scale   past 300 computers (--scale), the time one send and one read take, from the server's own code in this process
           vượt 300 máy (--scale), thời gian một lần gửi và một lần đọc mất, từ chính mã của máy chủ trong tiến trình này
@@ -54,16 +54,20 @@ sys.path.insert(0, SERVER_DIR)
 import demo  # noqa: E402
 
 ACCOUNT = "loadtest"
-# the board in the browser asks for new numbers every 10 seconds (server/static/page.js)
-# bảng trên trình duyệt hỏi số mới mỗi 10 giây (server/static/page.js)
+# the board in the browser asked for new numbers every 10 seconds when this test was written; on screen it now asks every second
+# (server/static/page.js), and the runs keep 10 seconds so their numbers can be compared with docs/BENCHMARK.md
+# bảng trên trình duyệt hỏi số mới mỗi 10 giây lúc bài đo này được viết; nay khi đang hiện trên màn hình nó hỏi mỗi giây
+# (server/static/page.js), và các lượt chạy giữ 10 giây để số đo so được với docs/BENCHMARK.vi.md
 VIEW_SECONDS = 10
 # seconds a closed connection holds its local port (TIME_WAIT is twice the longest a packet may live: 30 s on macOS, 60 s on Linux)
 # số giây một kết nối đã đóng còn giữ cổng cục bộ (TIME_WAIT gấp đôi thời gian sống lâu nhất của gói tin: 30 giây trên macOS, 60 giây trên Linux)
 PORT_REST_SECONDS = 65
-# the plugin sends when its numbers change, from its heartbeat: at most every 30 seconds and at least every 5 minutes;
-# every 10 seconds is three times the most it does, for headroom, every 60 seconds an ordinary day
-# plugin gửi khi số của nó đổi, theo nhịp tim: nhiều nhất 30 giây một lần và ít nhất 5 phút một lần;
-# mỗi 10 giây là gấp ba mức nhiều nhất của nó, để có biên, mỗi 60 giây là ngày thường
+# when this test was written the plugin sent from its heartbeat, at most every 30 seconds: every 10 seconds was three times that,
+# for headroom, every 60 seconds an ordinary day. The plugin now sends a second after a change, at most once every 2 seconds
+# (hooks/team.ts), and the runs keep these paces so their numbers can be compared with docs/BENCHMARK.md
+# lúc bài đo này được viết, plugin gửi theo nhịp tim, nhiều nhất 30 giây một lần: mỗi 10 giây là gấp ba mức đó, để có biên,
+# mỗi 60 giây là ngày thường. Nay plugin gửi một giây sau một thay đổi, nhiều nhất 2 giây một lần (hooks/team.ts), và các lượt
+# chạy giữ các nhịp này để số đo so được với docs/BENCHMARK.vi.md
 SEND_SECONDS = (10, 60)
 
 

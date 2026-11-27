@@ -2,15 +2,15 @@
 
 # Benchmark
 
-How many computers one board server carries, measured, what happens past that, and what to do when you need more. Every number here comes from [`tests/load/load_test.py`](../tests/load/load_test.py); run it on your own server to get yours.
+How many computers one board server carries, measured, what happens past that, and what to do when you need more. The numbers of the Python server alone come from [`tests/load/load_test.py`](../tests/load/load_test.py): run it on your own server to get yours. The numbers on Linux with the Go receiver come from tools outside the repository, named in that section.
 
 ## In short
 
-| | Before (0.49.1) | After (next release) |
+| | Before (0.49.1) | After (0.50.0 and later) |
 |---|---|---|
 | Server work for one send, 300 computers | 79 ms | 0.5 ms |
 | Server work for one send, 10,000 computers | (not measured, 1.3 s at 5,000) | 0.6 ms |
-| Building the board, 10,000 computers | (not measured, 1.4 s at 5,000) | 164 ms, at most once every 2 s for each role |
+| Building the board, 10,000 computers | (not measured, 1.4 s at 5,000) | 164 ms, at most once every 2 s for each role when measured (every 0.5 s since 0.50.0, `VIEW_CACHE_SECONDS`) |
 | 300 computers sending every 10 s, 30 boards open | Falls over: answers take 19–24 s, 20% of sends and 33% of reads cut off | p95 5 ms for a send, 43 ms for a read, 0 errors, 10% of one core |
 | Sends per second it can take, 300 computers | about 12 | 400–600 |
 | When more arrives than it can take | Every request waits until all of them time out | Sends and people not logged in get 503 with `Retry-After` at once; people logged in still get the board |
@@ -31,8 +31,8 @@ python3 tests/load/load_test.py --scale 20,300,1000,3000,5000,10000
 
 - The test starts the real server (`server/webhook.py`) on 127.0.0.1 in a temporary folder, in its own process, and talks to nothing else. It cannot be pointed at a real board.
 - Each made-up computer sends what the plugin sends, in size and shape: 8 days of cost per hour, about 12 KB.
-- Each open board reads `/data` every 10 seconds, as the page does.
-- **office** runs: 20, 50, 150 and 300 computers, each sending every 10 seconds (three times the most the plugin does, which is every 30 seconds) or every 60 seconds (an ordinary day). One open board for every ten computers.
+- Each open board reads `/data` every 10 seconds, as the page did when this was measured. Since 0.50.0 a board on screen asks every second (every 10 seconds in a background tab), so 30 open boards now ask ten times as often as in these runs; the build they share is still made at most once every `VIEW_CACHE_SECONDS`.
+- **office** runs: 20, 50, 150 and 300 computers, each sending every 10 seconds (three times the most the plugin did when this was measured, which was every 30 seconds) or every 60 seconds (an ordinary day). Since 0.50.0 the plugin sends a second after its numbers or state change, at most once every 2 seconds, and since 0.50.15 only the hours that changed, so a busy computer now sends more often and less each time than in these runs. One open board for every ten computers.
 - **stress** runs: a fixed number of clients send, or read, again as soon as they get an answer, to find the ceiling.
 - **scale**: past 300 computers the server refuses a new computer over HTTP, so this calls the server's own code in the same process and times one send and one build of the board.
 - Each made-up computer enrols with the shared key and sends with its own key afterwards, as the plugin does. The stress and ceiling runs lift the limit of sends per computer (`INGEST_BURST`, `INGEST_PER_SECOND`), so they measure the server and not that limit.
@@ -79,7 +79,7 @@ Server memory stayed between 42 and 64 MB.
 | 16 | 416 | 54 ms | |
 | 32 | 429 | 101 ms | 34 of 13,000 got 503: the server was busy and said so |
 
-Reads of the board ran at 2,700 to 6,000 a second, since every open board of one role now shares one build every 2 seconds. The errors in those runs are the test's own: one Mac opening thousands of new connections a second runs out of local ports. The server returned no error.
+Reads of the board ran at 2,700 to 6,000 a second, since every open board of one role now shares one build every 2 seconds (the setting when this was measured; 0.5 seconds now). The errors in those runs are the test's own: one Mac opening thousands of new connections a second runs out of local ports. The server returned no error.
 
 **scale**, after the change and after the hours added up once and the rows kept per person:
 
@@ -92,7 +92,7 @@ Reads of the board ran at 2,700 to 6,000 a second, since every open board of one
 | 5,000 | 0.57 ms | 167 ms | 77 ms | under 0.01 ms |
 | 10,000 | 0.63 ms | 241 ms | 164 ms | under 0.01 ms |
 
-A send stays flat. The first build after many sends counts every person again; later builds count only the people who changed, plus the parts of the board every person shows in (the 24-hour chart of each row, the branches). At 10,000 computers the history round every 30 seconds takes about 31 ms and the daily count every 5 minutes about 250 ms, most of it writing the day's rows. The board is built at most once every 2 seconds for each role, whatever the number of open boards.
+A send stays flat. The first build after many sends counts every person again; later builds count only the people who changed, plus the parts of the board every person shows in (the 24-hour chart of each row, the branches). At 10,000 computers the history round every 30 seconds takes about 31 ms and the daily count every 5 minutes about 250 ms, most of it writing the day's rows. The board is built at most once every `VIEW_CACHE_SECONDS` for each role, whatever the number of open boards: 2 seconds when this was measured, 0.5 by default now, and 5 with the Go receiver.
 
 ## Past 10,000 computers
 
@@ -105,7 +105,7 @@ Measured the same way (`--scale`), with `MAX_DEVICES` raised for the test:
 | 50,000 | 0.7 ms | 1.0 s | 19 s | 7.3 GB |
 | 100,000 | 0.8 ms | 2.1 s | 40 s | 14.6 GB |
 
-A send still costs the same. Memory does not: each computer's 8 days of hours kept as Python dicts take about 150 KB, so 100,000 computers need 14.6 GB and 40 seconds to start. This is the limit of the present design, not of a send.
+A send still costs the same. Memory does not: each computer's 8 days of hours kept as Python dicts take about 150 KB, so 100,000 computers need 14.6 GB and 40 seconds to start. This was the limit of the design at the time, not of a send. The table is that older measurement: since then each computer's hours are rows of their own in the database and a send carries only the hours that changed, and on Linux the Python server held the books of 100,000 computers with the machine at 6.4 GB in all ([On Linux, with the Go receiver](#on-linux-with-the-go-receiver)). The table has not been measured again on the Mac.
 
 The ceiling of one server process (`--ceiling`, 8 load processes):
 
@@ -117,7 +117,7 @@ The ceiling of one server process (`--ceiling`, 8 load processes):
 
 The `/health` number is held down by the test itself: the server speaks HTTP/1.0, so every request is a new connection, and one computer opening thousands a second runs out of local ports. Caddy in front of the server would meet the same thing on Linux: without connections kept open between Caddy and the server, a few hundred new connections a second already use up its ports for a while.
 
-100,000 computers sending every 30 seconds is about 3,300 sends a second, and 40 MB a second at 12 KB each. That is about five processes like this one on this Mac, and more on a small Linux server. So 100,000 computers need, in this order: a smaller send (only the hours that changed), a pace the server sets, a key per computer, the hours kept on disk with only the day totals in memory, connections kept open, and several processes that take sends. The plan and its measured goals are in [What is next](#what-is-next).
+100,000 computers sending every 30 seconds is about 3,300 sends a second, and 40 MB a second at 12 KB each. That is about five processes like this one on this Mac, and more on a small Linux server. So 100,000 computers needed, in this order: a smaller send (only the hours that changed), a pace the server sets, a key per computer, the hours kept on disk with only the day totals in memory, connections kept open, and several processes that take sends. The first three are built, the hours are rows of their own in the database, and the optional Go receiver keeps the computers' connections open in front of Python; several processes that take sends are not. What was done and what is left: [What is next](#what-is-next).
 
 ## On Linux, with the Go receiver
 
@@ -147,8 +147,8 @@ The same run with Caddy 2.6 in front of Python on the same machine, set up as `s
 - `hours_of` in `server/board/devices.py`: each computer's hours added up per local day once, when it is stored, and reused by the board, the history and the daily count instead of going through every hour of every computer each time. A local day is found by arithmetic, since the server's time zone is a fixed offset.
 - `_person_row` in `server/board/devices.py`: each person's row of the board is kept until one of their computers sends or a moment that changes it comes: the next hour, the next local midnight, a computer going quiet, a connector's work going stale, a quota window resetting. A test compares kept rows with a fresh count across those moments.
 - A send updates the rewind history of the person who sent only. The round every 30 seconds still looks at everyone, for computers that went quiet.
-- `ViewCache` in `server/board/views.py`: the board is built at most once every `VIEW_CACHE_SECONDS` (default 2) for each role, and every board of that role gets the same bytes. A role never gets another role's build. A board asks every 10 seconds, so what it shows is at most 2 seconds older than before.
-- `Load` and `Handler.shed` in `server/webhook.py`: past `BUSY_REQUESTS` (default 32) requests answered at once, a send or a request from someone not logged in gets 503 with `Retry-After: 30` at once. The plugin sends again at its next round. People logged in, devices with their own key and `/health` are still answered, and the log says once a minute how many were turned away.
+- `ViewCache` in `server/board/views.py`: the board is built at most once every `VIEW_CACHE_SECONDS` for each role (2 seconds when this was measured; 0.5 by default since 0.50.0, 5 with the Go receiver), and every board of that role gets the same bytes. A role never gets another role's build. A board on screen asks every second, so what it shows is at most that much older.
+- `Load` and `Handler.shed` in `server/webhook.py`: past `BUSY_REQUESTS` (default 32) requests answered at once, a send or a request from someone not logged in gets 503 at once with a `Retry-After` of 30 to 90 seconds, spread at random so a crowd of computers does not come back in the same second. The plugin sends nothing before that time. People logged in, devices with their own key and `/health` are still answered, and the log says once a minute how many were turned away.
 
 ## What these numbers do not show
 
@@ -159,9 +159,9 @@ The same run with Caddy 2.6 in front of Python on the same machine, set up as `s
 
 ## Python, Rust or Go
 
-Not a rewrite, for now. The measurements above show where the time went: cleaning the same data again and again, which a faster language would have done faster but still again and again. Fixed in Python, the server's own work for one send is about 0.5 ms. What is left is the HTTP layer of one Python process. Rust is memory-safe where C and C++ are not; Python already is. A rewrite would also give up what the server is built on: the standard library only, one command to install, code anyone in an IT team can read.
+The Python server was not rewritten. The measurements above show where the time went: cleaning the same data again and again, which a faster language would have done faster but still again and again. Fixed in Python, the server's own work for one send is about 0.5 ms. What is left is the HTTP layer of one Python process. Rust is memory-safe where C and C++ are not; Python already is. A rewrite would also give up what the server is built on: the standard library only, one command to install, code anyone in an IT team can read.
 
-The signal to change: a sustained need above about 500 sends a second that more processes cannot meet. Even then only the part that takes sends would be rewritten, against shared test data that proves it cleans exactly as the Python one does. Go is the likelier choice there, for a single file to install.
+The signal to change was a sustained need above about 500 sends a second that more processes cannot meet, and even then only the part that takes sends, held to shared test data that proves it cleans exactly as the Python one does. That part now exists, and it is optional: the receiver in `receiver/` ([RECEIVER.md](RECEIVER.md)), written in Go for a single file to install, checked against Python by the shared sample in `tests/contract/ingest-v2/`. Python stays the record and still takes every send itself in an office.
 
 ## What is next
 

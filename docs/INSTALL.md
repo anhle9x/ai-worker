@@ -23,7 +23,7 @@ The server counts computers, not people: a laptop, a desktop and a connector for
 | Computers | What to set up | How far it is checked |
 |---|---|---|
 | Up to about 300 | Nothing more: the default (`MAX_DEVICES=300`) | The default; measured with 300 computers sending every 10 seconds and 30 boards open: a send p95 5 ms, 10% of one core ([BENCHMARK.md](BENCHMARK.md)) |
-| A few hundred to a few thousand | Raise `MAX_DEVICES` in `/etc/ai-worker.env`, then run `install.sh` again. Python alone is still enough. Past about 5,000 computers also raise `WEBHOOK_MEMORY_MB` (the webhook keeps about 150 KB a computer in memory, and its ceiling is 1 GB by default) | Measured on a Mac only, in one process: up to 10,000 computers a send costs 0.8 ms and the board 154 ms, in 1.5 GB ([BENCHMARK.md, Past 10,000 computers](BENCHMARK.md#past-10000-computers)). Python alone has not been measured on a Linux server: run `tests/load/load_test.py` on yours first |
+| A few hundred to a few thousand | Raise `MAX_DEVICES` in `/etc/ai-worker.env`, then run `install.sh` again. Python alone is still enough. Its memory ceiling is 1 GB by default, and it keeps about 20 to 35 KB a computer in memory (2 to 3.5 GB at 100,000), so past about 20,000 computers also raise `WEBHOOK_MEMORY_MB` | Measured on a Mac only, in one process: up to 10,000 computers a send costs 0.8 ms and the board 154 ms ([BENCHMARK.md, Past 10,000 computers](BENCHMARK.md#past-10000-computers)). Python alone has not been measured on a Linux server: run `tests/load/load_test.py` on yours first |
 | Tens of thousands | The optional Go receiver beside the webhook: `sudo sh install-receiver.sh` ([RECEIVER.md](RECEIVER.md)) | Measured on rented Linux machines with fake computers: up to about 40,000 to 50,000 on 4 vCPU and 8 GB. In real use so far: one organisation, a few computers, for a week from late November 2026. Try it with a few computers of your own first ([Trying it with a few computers](RECEIVER.md#trying-it-with-a-few-computers)) |
 
 When the limit is reached, a new computer is refused (`507 device limit reached` in the log, [OPERATIONS.md](OPERATIONS.md)); computers already on the board keep sending.
@@ -45,15 +45,18 @@ When the limit is reached, a new computer is refused (`507 device limit reached`
    bash packaging/build.sh packaging/company.json
    ```
    This makes `dist/AI-Worker-<version>-company.zip`.
-5. **Employees install.** Unzip, double-click `INSTALL-Mac.command` or `INSTALL-Windows.bat`, type the full name. The package contains the send code, so give it out inside the company only.
+5. **Employees install.** Unzip, double-click `INSTALL-Mac.command` or `INSTALL-Windows.bat` (on Linux run `bash INSTALL-Linux.sh`), type the full name. The package contains the send code, so give it out inside the company only.
    On Windows there is also one installer file, `AI-Worker-Plugin.msi`, which the server fills with its own address and send code: see [Plugin installer for Windows (.msi)](#plugin-installer-for-windows-msi).
-6. **View the dashboard.** Open the board in a browser: `https://<board domain>` behind your HTTPS proxy (for example `https://board.example.com`), or `http://<server-IP>:8788` from inside the network before the proxy is set up. Sign in with the OTP code. The `/board` page has a Plugin column showing which computers are not on the latest version yet.
+6. **View the dashboard.** Open the board in a browser: `https://<board domain>` behind your HTTPS proxy (for example `https://board.example.com`). The webhook listens only inside the server, so there is no address to open before the proxy is set up. Sign in with the OTP code. The `/board` page has a Plugin column showing which computers are not on the latest version yet.
 
 ## Commands on an employee's computer
 
 - `/office`: opens the control panel of the sessions on this computer.
 - `/office-pane`: opens the 2D view next to the chat box.
 - `/update`: checks for a new version and installs it.
+- `/ai-worker:board`: the team's numbers from the board, in the chat.
+- `/ai-worker:voice`: opens the computer's dictation settings and shows the steps.
+- `/ai-worker:help`: what the plugin does and its commands.
 
 ## Codex, Cursor and Gemini CLI on the board
 
@@ -161,7 +164,7 @@ By default only your office networks reach the server, so a laptop at home or on
 
 A computer gets its own key at its first send from the office, so each computer you want to let must have sent from the office once, with a plugin newer than 0.50.6 for `/update`. Do the steps in this order: at no step is the server open wider than you want.
 
-1. **Back up** the database folders and the Caddy file, for example `sudo cp -a /opt/ai-worker/data /opt/ai-worker/data.bak` and `sudo cp /etc/caddy/aiworker.caddy /etc/caddy/aiworker.caddy.bak`. The new version adds a table (schema version 7), and an older server refuses the upgraded file.
+1. **Back up** the database folders and the Caddy file, for example `sudo cp -a /opt/ai-worker/data /opt/ai-worker/data.bak` and `sudo cp /etc/caddy/aiworker.caddy /etc/caddy/aiworker.caddy.bak`. A newer version may take the database to a newer schema (version 8 since 0.50.19), and an older server refuses the upgraded file.
 2. **Install the new server version** as usual, with `OFFICE_NETS` still empty: nothing changes yet.
 3. **Tell the server the office networks.** Add `OFFICE_NETS=` with exactly the ranges of `remote_ip` in the Caddy block, separated by commas, to `/etc/ai-worker.env` (IPv6 ranges too, if the domain has an AAAA record), then `sudo systemctl restart ai-worker-webhook`. Caddy is still closed, so every request still comes from the office. Open the Admin page from the office: under **Computers and their keys** there must be no warning that your address counts as outside. If there is, the two lists differ: fix them before going on.
 4. **Let the computers.** On the Admin page, **Computers and their keys**, press **Any network** on the row of each chosen computer and type the OTP again. Each change goes into the Admin log.
@@ -176,7 +179,7 @@ Before you open it:
 - **Home addresses show on the board.** The board keeps the last addresses each computer sent from, and admins see them. Tell the person before you let their computer.
 - **A key lasts 90 days without a send.** A computer off for longer, or every computer after `--rotate-device-secret --drop-old`, has to send from the office once again.
 - **A CDN or another proxy in front of Caddy** (Cloudflare, for example) makes every request look like it comes from the CDN, so every computer counts as outside. This setup is not for that case.
-- **With the Go receiver** (`RECEIVER=1`, [RECEIVER.md](RECEIVER.md)) the receiver does not check this list yet: keep its own address office-only.
+- **With the Go receiver** (`RECEIVER=1`, [RECEIVER.md](RECEIVER.md)) the receiver does not check this list itself. With `OFFICE_NETS` set (or `TRUST_PROXY` with Caddy in front), a computer kept **Office only** is never told the receiver's address and keeps sending to the webhook, which checks the list; only a computer let send from **Any network** goes to the receiver.
 
 ## Plugin installer for Windows (.msi)
 
@@ -267,7 +270,7 @@ A manager who does not write code can ask the board from a Telegram chat on thei
 
 **What to know.**
 
-- **Commands:** `/waiting`, `/cost`, `/offices`, `/team`, `/quota`, `/help` and `/stop`. Vietnamese speakers also have `/cho`, `/chiphi`, `/vanphong`, `/tongquan` and `/hanmuc`. A typed question works when it holds a keyword such as "waiting", "cost" or "office"; anything else gets the list of commands. The answer follows the language of the message, then the language of the person's Telegram app.
+- **Commands:** `/waiting`, `/cost`, `/offices`, `/team`, `/quota`, `/alerts`, `/help` and `/stop`. Vietnamese speakers also have `/cho`, `/chiphi`, `/vanphong`, `/tongquan`, `/hanmuc` and `/baocho`. A typed question works when it holds a keyword such as "waiting", "cost" or "office"; anything else gets the list of commands. The answer follows the language of the message, then the language of the person's Telegram app.
 - **What a chat reads** is the admin's choice at approval: team and office totals only, or each person too. With totals, offices of fewer than 3 people share one row.
 - **A chat that no admin approved reads nothing.** `/stop` in the chat, or **Revoke** on the Admin page, ends a chat at once. A chat lapses after 30 days without use, and after 1 year at most. At most 50 chats, and 20 messages per chat in 10 minutes.
 - **Each answer with numbers is logged for 3 months** and shown on the Admin page under **Reads by AI tools and Telegram chats**: which chat and which command. The words a person typed are never stored or logged.
@@ -332,6 +335,12 @@ Once a chat is connected (above), it can ask the bot to write first: a message w
 
 **Tried so far.** Covered by the server tests (`server/test_webhook.py`, `AlertRules` and `TelegramAlerts`; `server/test_telegram_bot.py`, `MenuButtons`) and tried on the sample board; not yet on a production server.
 
+### The day's fingerprint for admins (automatic)
+
+Each day of cost totals is sealed into the audit log a week later (see [OPERATIONS.md](OPERATIONS.md)). Once the bot runs, a chat whose Telegram is linked to an **admin** account on the board gets one short message the first morning after a day is sealed (07:00 or later in the board's time zone): `Log up to the end of <day>: fingerprint <16 characters>, <n> cost rows`. No name, no money. Nothing to turn on: link your Telegram to your admin account (Telegram login, above) and connect a chat. Keep the messages: if the Admin page later shows another fingerprint for that day, the log was rewritten.
+
+**Tried so far.** Covered by the server tests (`server/test_daily_seal.py`); not yet on a real chat.
+
 ## Releasing an update
 
 1. Change `version` in `.claude-plugin/plugin.json`.
@@ -342,7 +351,7 @@ Once a chat is connected (above), it can ask the bot to write first: a message w
    This makes the package, manifest and signature in `server/releases/` (outside git).
 3. Copy `server/` to the server and run `sudo bash install.sh`.
 
-Employee computers ask the server at most once every 4 hours, and 30 minutes later if it failed. When there is a new version, the bar above the input box shows an `Update` button; after clicking, quit the app completely and open it again. A release only reaches computers installed with version 0.23.0 or newer.
+Employee computers ask the server at most once every 4 hours, and 30 minutes later if it failed. When there is a new version, the bar above the input box shows an `Update` button; after clicking, the Claude desktop app offers **Reopen now**, and elsewhere quit the app completely and open it again. A release only reaches computers installed with version 0.23.0 or newer.
 
 **Safety:** an employee computer installs only when the signature and the checksum are correct, so even a hijacked server cannot hand out a bad package. A computer that cannot check the signature (OpenSSH too old) is only told there is a new version and does not install it. A folder with `.git` never self-updates.
 
@@ -391,4 +400,4 @@ The server limits what one client can use: connections in all and per IP, header
 - **Best:** keep it reachable only from your company network, as the template `server/aiworker.caddy` does.
 - **If it must be open to the Internet:** put it behind a protection service such as Cloudflare.
 - **nginx instead of Caddy:** set `proxy_set_header X-Forwarded-For $remote_addr;` and `proxy_set_header X-Forwarded-Proto $scheme;`, otherwise visitors can fake their IP and get past the login limits. The webhook trusts these headers from a local proxy; `TRUST_PROXY=0` turns that off.
-- **One limit that remains:** everyone in the install package shares `INGEST_KEY`, so a staff member can still send false numbers under another name. Change the key and reinstall if a package leaks.
+- **One limit that remains:** everyone in the install package shares `INGEST_KEY`. A computer that already has its own key can no longer be sent for with it, but while `SHARED_KEY_MODE` is `allow` someone holding the package can still enrol a new computer under a false name. If a package leaks, set `SHARED_KEY_MODE=known-only` (no new computer gets in) and revoke on the Admin page any computer that should not be there.

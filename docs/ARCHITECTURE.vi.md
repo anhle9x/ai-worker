@@ -17,7 +17,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 - Đọc nội dung trò chuyện, câu hỏi, câu trả lời, tên file hay tên dự án.
 - Theo dõi tab Chat của app Claude, vì tab này không có plugin.
 - Token và chi phí của Codex, Cursor và Gemini CLI: hook của các công cụ này không đưa ra, và muốn đọc thì phải đọc nhật ký phiên, nơi có nội dung trò chuyện.
-- Ngăn nhân viên gửi số sai dưới tên người khác: mọi người dùng chung một mã gửi (xem [Giới hạn đã biết](#6-giới-hạn-đã-biết)).
+- Ngăn người cầm gói cài ghi nhận một máy mới dưới tên giả: gói cài mang một mã gửi chung. Máy đã có khoá riêng thì không ai gửi thay được, và `SHARED_KEY_MODE` có thể đóng việc ghi nhận máy mới (xem [Giới hạn đã biết](#6-giới-hạn-đã-biết)).
 
 ### Ai dùng
 
@@ -63,8 +63,9 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | F24 | Một dự án hay ứng dụng AI do nhóm tự làm tự đo chi phí và tốc độ của nó, với bất kỳ hãng LLM nào: mỗi lượt người dùng một dòng gồm thời gian và số token hãng trả về, theo từng model, không bao giờ có câu hỏi, câu trả lời, mã người dùng hay thông báo lỗi; token không lấy được ghi là chưa biết, không ghi 0. Báo cáo tính tiền theo bảng giá có ghi nguồn và ngày lấy, cộng file giá riêng của người dùng; model chưa có giá ghi "chưa có giá" thay vì đoán, model chạy trên máy của nhóm không cộng tiền API. Không gửi gì lên máy chủ | `skills/ai-cost-report/meter/ai_meter.py`, `skills/ai-cost-report/meter/ai-meter.cjs`, `skills/ai-cost-report/FORMAT.md`, `skills/ai-cost-report/report.py`, `skills/ai-cost-report/prices.json` |
 | F25 | Dự án hay ứng dụng AI gửi số nó đã đo lên bảng bằng khoá riêng do quản trị tạo: chỉ ghi, từ chối khi gửi từ trình duyệt, mỗi lượt được làm sạch bằng chính code của báo cáo và chỉ giữ một lần; chỉ khi có `AI_PROJECTS=1`. Quản trị và người xem đọc báo cáo theo dự án và khoảng ngày, tải về dạng HTML hay CSV; màn treo tường, cổng MCP và Telegram không xem được | `server/board/projects.py`, `server/board/costreport.py` (bản sao của `skills/ai-cost-report/report.py`); `project_ingest`, `PERM_PROJECT_KEY` trong `server/webhook.py`; `page_projects` trong `server/board/pages.py`; phần gửi của bộ đo trong `skills/ai-cost-report/meter/` |
 | F26 | `/ingest` đọc định dạng `v: 1` và `v: 2`: `v: 2` chỉ mang các giờ đã đổi, mỗi giờ thay giờ cũ, hoặc cả sổ khi `full: true`; tiền là số nguyên `usdMicro`; câu trả lời cho biết các định dạng đọc được, nhịp gửi, `needFull` và mã lần khởi động của máy chủ. Hai định dạng giữ cùng một bản ghi, và bộ dữ liệu mẫu chung buộc chúng ra cùng một bảng | `clean_payload`, `merge_hours`, `save_ingest` trong `server/board/devices.py`; `Handler.ingest` trong `server/webhook.py`; `tests/contract/ingest-v2/`, `server/test_contract.py` |
-| F27 | Bộ nhận tuỳ chọn bằng Go nhận các lần gửi của máy có khoá riêng trên một địa chỉ riêng qua TLS, làm sạch như máy chủ làm, trả lời ngay và trao chúng cho máy chủ theo lô có số thứ tự; mọi lần gửi khác nó chuyển nguyên văn cho máy chủ, kèm địa chỉ thật của máy. Nó giữ trạng thái và tổng hôm nay của từng máy và cộng chúng theo từng dòng của bảng và từng chi nhánh, như bảng làm (số trực tiếp), rồi gửi chúng tới các bảng ở `/live`, mỗi giây dựng một lần cho mỗi phạm vi dùng chung cho mọi bảng, bằng vé máy chủ cấp cho bảng đã đăng nhập; trang bảng khi đó đọc từng phạm vi một và đặt số lên từng dòng theo mã của nó. Máy chủ ghi các lô, cấp cho bộ nhận một tài liệu chính sách có số thứ tự, các sổ giờ và bảng mã dòng cùng chi nhánh của từng máy, và ghi cho nó một file bí mật | `receiver/`; `server/board/receiver.py`; các đường `/internal/` và `/sse/ticket` trong `server/webhook.py`; `server/static/page.js`; [RECEIVER.vi.md](RECEIVER.vi.md) |
+| F27 | Bộ nhận tuỳ chọn bằng Go nhận các lần gửi của máy có khoá riêng trên một địa chỉ riêng qua TLS, làm sạch như máy chủ làm, trả lời ngay và trao chúng cho máy chủ theo lô có số thứ tự; mọi lần gửi khác nó chuyển nguyên văn cho máy chủ, kèm địa chỉ thật của máy. Nó giữ trạng thái và tổng hôm nay của từng máy và cộng chúng theo từng dòng của bảng và từng chi nhánh, như bảng làm (số trực tiếp), rồi gửi chúng tới các bảng ở `/live`, mỗi giây dựng một lần cho mỗi phạm vi dùng chung cho mọi bảng, bằng vé máy chủ cấp cho bảng đã đăng nhập; trang bảng khi đó đọc từng phạm vi một và đặt số lên từng dòng theo mã của nó. Máy chủ ghi các lô, cấp cho bộ nhận một tài liệu chính sách có số thứ tự, các sổ giờ và bảng mã dòng cùng chi nhánh của từng máy, và ghi cho nó một file bí mật | `receiver/`; `server/install-receiver.sh` (cài nó); `server/board/receiver.py`; các đường `/internal/` và `/sse/ticket` trong `server/webhook.py`; `server/static/page.js`; [RECEIVER.vi.md](RECEIVER.vi.md) |
 | F28 | Các file của một repo có thể khiến công cụ AI chạy lệnh hay làm khác đi (hook, quyền rộng, chương trình phụ và biến trong `.claude/settings*.json`, server MCP trong `.mcp.json`, chữ nhắm vào AI hay lệnh nguy hiểm trong `CLAUDE.md`/`AGENTS.md`, lệnh tắt, trợ lý con và skill) được nêu cho người dùng và Claude khi một phiên bắt đầu ở đó: chỉ những gì mới hoặc đã đổi kể từ lần xem trước, không bao giờ chặn; repo thấy lần đầu mà mọi file đều cũ hơn 14 ngày được ghi nhớ lặng lẽ, chỉ bằng dấu vân tay | `hooks/repoconfig.ts`; `checkRepoConfig`, `session.start` và `prompt.compose` trong `hooks/register.tsx` |
+| F29 | Một ngày của tổng chi phí bị sửa bằng tay sau khi đã chốt sẽ lộ ra ở trang Quản trị: khi một ngày không còn được đếm lại, nó được niêm phong vào chuỗi nhật ký kèm dấu vân tay các dòng của nó, và mỗi sáng dấu vân tay của chuỗi ở ngày đó được gửi tới chat Telegram của quản trị (ngày, số dòng, mã; không tên, không tiền) | `DailyStore.seal`, `day_facts` trong `server/board/daily.py`, `AuditLog.changed_days` trong `server/board/stores.py`, `seals_due` trong `server/board/chat.py` |
 
 ### Giới hạn máy chủ áp dụng
 
@@ -72,7 +73,8 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 |---|---|
 | Kích thước một lần gửi | 256 KB |
 | Số lần gửi mỗi máy | Dồn 20 lần, sau đó mỗi giây một lần |
-| Máy mới | 10 mỗi IP mỗi ngày, tổng 300 |
+| Máy mới | 10 mỗi IP mỗi ngày, tổng 300 theo mặc định (`MAX_DEVICES`) |
+| Số yêu cầu được trả lời cùng lúc | Quá 32 (`BUSY_REQUESTS`), lần gửi hay yêu cầu của người chưa đăng nhập nhận 503 kèm `Retry-After` từ 30 tới 90 giây; người đã đăng nhập, máy có khoá riêng và `/health` vẫn được trả lời |
 | Đăng nhập sai | 5 mỗi IP và 20 mỗi tài khoản, trong 15 phút |
 | Kết nối | Tổng 256, 16 mỗi IP, mỗi kết nối 120 giây |
 | Dò quét | 20 lỗi (401/404) trong 10 phút thì chặn IP chưa đăng nhập 15 phút; 401 vì phiên đã hết (máy chủ khởi động lại) và 404 của `/sse/ticket` cho người đã đăng nhập khi không có bộ nhận thì không tính, bảng có phiên đã hết tải trang đăng nhập cũng không tính, để văn phòng chung một địa chỉ không bị khoá sau một lần khởi động lại |
@@ -95,6 +97,7 @@ Giúp công ty thấy Claude và các trợ lý AI được dùng thế nào tr�
 | Nhật ký thao tác | 12 tháng |
 | Các lần gọi công cụ MCP của bảng | 3 tháng, tính theo tháng dương lịch |
 | Các câu trả lời cho chat Telegram | 3 tháng, tính theo tháng dương lịch |
+| Bản ghi việc giao cho ChatGPT, Gemini hay Gemma | 3 tháng, tính theo tháng dương lịch |
 | Phiên đăng nhập | 8 giờ, tài khoản treo tường 7 ngày; mất khi webhook khởi động lại |
 | Phiên TV | 30 ngày, tự gia hạn khi đang dùng; tối đa 1 năm; không mất khi khởi động lại |
 | Khoá cho công cụ AI (MCP) | 30 ngày không dùng; tối đa 1 năm; không mất khi khởi động lại |
@@ -146,6 +149,7 @@ flowchart TD
 | `server/menubar/` | Biểu tượng thanh menu cho quản lý: app cho macOS, app cho Windows (`windows-app/`, C#, cài từ file .msi; script khay PowerShell giữ làm dự phòng), chương trình AppIndicator trong gói .deb cho Ubuntu (script Argos vẫn dùng được) |
 | `extensions/manager/` | Tiện ích trình duyệt cho quản lý (Chrome, Edge), cài tay |
 | `connectors/` | Bộ nối cho Codex, Cursor và Gemini CLI: hook (`ai-worker-hook.sh`, `.ps1`), bộ cài của nó (`install.sh`, `.ps1`) và phần gộp JSON mà bộ cài dùng (`merge-hooks.js`). Không cần có plugin |
+| `receiver/` | Bộ nhận tuỳ chọn viết bằng Go cho tổ chức lớn: `main.go`, `limits.go` và các gói trong `internal/`; dựng bằng `packaging/build-receiver.sh`, cài bằng `server/install-receiver.sh` ([RECEIVER.vi.md](RECEIVER.vi.md)) |
 | `packaging/` | Đóng gói, file cài, ký bản phát hành, kiểm tra trước khi công khai |
 | `skills/`, `agents/`, `commands/` | Các skill (loại dùng hằng ngày và loại cho viết code, vận hành), trợ lý `planner`, và các lệnh app liệt kê trước khi phiên bắt đầu. `skills/ai-cost-report/meter/` chứa các bộ đo mà dự án AI chép về, mỗi ngôn ngữ một file |
 | `tests/` | Test plugin, test cài trên Linux và Windows, kiểm tra ngôn ngữ, test thanh menu (`tests/menubar/`), test bộ nối (`tests/connectors/`) và bước kiểm tiện ích (`tests/extension/`) |
@@ -164,7 +168,8 @@ Mỗi phần dùng thứ có sẵn trên nền của nó, nên gần như không
 | C# | `server/menubar/windows-app/`, `server/menubar/menubar-popup.cs` | App Windows `AI Worker.exe` trên .NET Framework 4.8 và khung của nó (WebView2); dựng được trên Mac bằng .NET SDK hoặc trên Windows |
 | WiX | `server/menubar/windows-app/AIWorker.wxs` | Gói cài `AI Worker.msi`, dựng trên Windows của GitHub; `fetch-msi.sh` đưa vào `server/menubar/`, máy chủ tự điền địa chỉ của nó |
 | Shell (bash), Batchfile | `packaging/`, `server/install.sh`, `connectors/install.sh` | File cài và script đóng gói trên macOS, Linux, Windows |
-| Shell (sh) | `connectors/ai-worker-hook.sh` | Hook của bộ nối: máy macOS và Linux nào cũng có sh, awk, sed và grep |
+| Shell (sh) | `connectors/ai-worker-hook.sh`, `server/install-receiver.sh`, `packaging/build-receiver.sh` | Hook của bộ nối: máy macOS và Linux nào cũng có sh, awk, sed và grep. Bộ cài của bộ nhận và bước dựng nó cũng không cần bash |
+| Go | `receiver/` | Bộ nhận tuỳ chọn: chỉ thư viện chuẩn, một file để đặt lên máy chủ, dựng cho Linux ở máy đóng gói |
 
 Thanh ngôn ngữ của GitHub chỉ hiện sáu ngôn ngữ lớn nhất; Swift và C# được tính trong "Other". Mã của người khác (xem `THIRD-PARTY.md`) không được tính, nhờ `.gitattributes`.
 
@@ -181,13 +186,13 @@ sequenceDiagram
   participant D as data/
   P->>P: Dựng bản tóm tắt, chỉ có con số
   P->>P: Đã đổi, hoặc quá 5 phút từ lần gửi trước?
-  P->>W: POST /ingest kèm mã gửi
-  W->>W: Kiểm mã gửi, sai thì 401
+  P->>W: POST /ingest kèm khoá riêng của máy (mã chung chỉ ở lần đầu)
+  W->>W: Kiểm khoá, sai thì 401
   W->>W: Kiểm kích thước, quá thì 413
   W->>W: Chỉ giữ trường đã biết, sai thì 400
   W->>W: Tự ghi IP người gửi
   W->>W: IngestGate xét giới hạn và chủ máy, sai thì 429, 409 hoặc 507
-  W->>D: Thay file của máy này
+  W->>D: Ghi dòng của máy này và các giờ đã đổi
   W->>D: Thêm vào lịch sử nếu trạng thái đổi
   W-->>P: 200
 ```
@@ -210,7 +215,7 @@ sequenceDiagram
   H->>H: Bật phần gửi chạy ở nền
   H->>F: Đếm số phiên mở, đang làm, đang chờ theo từng công cụ
   H->>H: Số giống lần gửi trước, cách chưa tới 5 phút? Dừng
-  H->>W: POST /ingest kèm khoá gửi: các số trong "tools"
+  H->>W: POST /ingest kèm khoá riêng của máy (mã chung chỉ ở lần đầu): các số trong "tools"
   W->>W: Kiểm như với plugin, rồi chỉ giữ công cụ đã biết và tự cộng tổng
   W-->>H: 200, hoặc lời từ chối mà hook ghi lại cho --status
 ```
@@ -275,7 +280,7 @@ sequenceDiagram
   participant A as Quản trị
   T->>W: POST /tv/request-code
   W-->>T: Mã 8 số, hiệu lực 10 phút, khoá trong cookie
-  loop Mỗi giây
+  loop Mỗi 10 giây
     T->>W: POST /tv/poll
     W-->>T: pending
   end
@@ -289,7 +294,7 @@ sequenceDiagram
 
 ### Hỏi bảng từ một công cụ AI (MCP)
 
-Công cụ AI nói được MCP (Claude Code, Codex CLI, Cursor, Gemini CLI) đọc bảng bằng một khoá của riêng nó. Khoá được cấp theo đúng quy trình mã của màn hình TV, xin trên trang `/mcp/connect` của chính bảng, và quản trị chọn khoá được đọc gì. Khoá loại này chỉ được tìm thấy bằng `TvStore.find(..., mcp=True)`, và không khoá nào khác được tìm thấy theo cách đó: nó mở `/mcp` và không gì khác, và không gì khác mở được `/mcp`.
+Công cụ AI nói được MCP (Claude Code, Codex CLI, Cursor, Gemini CLI) đọc bảng bằng một khoá của riêng nó. Khoá được cấp theo đúng quy trình mã của màn hình TV, xin trên trang `/mcp/connect` của chính bảng, và quản trị chọn khoá được đọc gì. Khoá loại này chỉ được tìm thấy bằng `TvStore.find(..., side=KIND_MCP)`, và không khoá nào khác được tìm thấy theo cách đó: nó mở `/mcp` và không gì khác, và không gì khác mở được `/mcp`.
 
 ```mermaid
 sequenceDiagram
@@ -339,9 +344,9 @@ sequenceDiagram
   B->>T: sendMessage, chặn chuyển tiếp
 ```
 
-`server/board/ask.py` là mã thuần. Nó đọc một tin nhắn thành một trong tám lệnh (tên lệnh, tên tiếng Việt không dấu, một nút, hoặc một từ khoá trong câu gõ tự do) và viết câu trả lời từ phần treo tường, bằng tiếng Anh hoặc tiếng Việt. Không mô hình AI nào đọc câu hỏi, nên mọi con số đều là của chính bảng; tin không ứng với lệnh nào thì nhận danh sách lệnh. `server/board/chat.py` quyết định phần còn lại: chat chưa được quản trị duyệt chỉ nhận một mã ghép, tin nhắn hoàn tất việc ghép nhận lời chào, mỗi chat được gửi 20 tin trong 10 phút, và mỗi câu trả lời có số liệu là một dòng trong bảng nhật ký (`telegram-ask`), giữ 3 tháng và đọc cùng các lần gọi MCP. Chỉ chat riêng được trả lời; với nhóm thì tiến trình bot được bảo rời đi.
+`server/board/ask.py` là mã thuần. Nó đọc một tin nhắn thành một trong chín lệnh (tên lệnh, tên tiếng Việt không dấu, một nút, hoặc một từ khoá trong câu gõ tự do) và viết câu trả lời từ phần treo tường, bằng tiếng Anh hoặc tiếng Việt. Không mô hình AI nào đọc câu hỏi, nên mọi con số đều là của chính bảng; tin không ứng với lệnh nào thì nhận danh sách lệnh. `server/board/chat.py` quyết định phần còn lại: chat chưa được quản trị duyệt chỉ nhận một mã ghép, tin nhắn hoàn tất việc ghép nhận lời chào, mỗi chat được gửi 20 tin trong 10 phút, và mỗi câu trả lời có số liệu là một dòng trong bảng nhật ký (`telegram-ask`), giữ 3 tháng và đọc cùng các lần gọi MCP. Chỉ chat riêng được trả lời; với nhóm thì tiến trình bot được bảo rời đi.
 
-Thứ đứng thay cho một chat là số Telegram của người gửi, vốn không bí mật. Vì vậy các dòng đã ghép nằm ở ba phía (`side_of` trong `server/board/stores.py`): khoá cho cổng MCP, chat Telegram, và mọi thứ còn lại. Một dòng chỉ được tìm, đếm và thay ở đúng phía của nó, và `/bot/telegram` chỉ nhận lời gọi thẳng từ cùng máy kèm `TELEGRAM_ASK_KEY`: yêu cầu mang header của proxy nhận 404.
+Thứ đứng thay cho một chat là số Telegram của người gửi, vốn không bí mật. Vì vậy các dòng đã ghép nằm ở bốn phía (`side_of` trong `server/board/stores.py`): khoá cho cổng MCP, chat Telegram, khoá của dự án hay ứng dụng AI, và mọi thứ còn lại. Một dòng chỉ được tìm, đếm và thay ở đúng phía của nó, và `/bot/telegram` chỉ nhận lời gọi thẳng từ cùng máy kèm `TELEGRAM_ASK_KEY`: yêu cầu mang header của proxy nhận 404.
 
 `server/telegram_bot.py` không nạp gì của bảng, không ghi gì xuống đĩa và cầm hai thứ bí mật: token của bot và khoá đó. Nó dùng Bot API của Telegram qua HTTPS theo kiểu giữ kết nối chờ tin (`getUpdates`) chứ không dùng webhook do Telegram gọi tới, nên không mở gì về phía Internet và bảng không có địa chỉ công khai vẫn dùng được. Nó không dùng MTProto, giao thức của chính các app Telegram: thư viện chuẩn không nói được giao thức đó, và dùng nó là đăng nhập như một người. Khi Telegram từ chối token, khi có chương trình khác đọc cùng bot, hay khi không tới được Telegram, tiến trình báo cho webhook và trang Quản trị hiện điều đó. Bộ cài chạy nó thành dịch vụ `ai-worker-telegram` dưới người dùng riêng, với `IPAddressDeny=any` và danh sách cho phép gồm chính máy này, các máy chủ DNS của nó và các mạng của Telegram.
 
@@ -472,7 +477,7 @@ flowchart TD
 | Tin chữ ký, không tin máy chủ (signed manifest) | Máy kiểm manifest có chữ ký bằng khoá trong chính gói của nó | Chiếm được máy chủ vẫn chưa tới được máy nhân viên |
 | Tiếng Anh trong mã, tiếng Việt trong từ điển (message catalog) | `tx("...")` tra `*.vi.js`, `webhook_vi.py`, `lang.vi.ts`; script thanh menu dùng `server/menubar/vi.json`, tiện ích dùng `extensions/manager/_locales/` | Chữ có một nguồn; `tests/check-i18n.py` tìm chỗ còn thiếu |
 | Máy chủ không dùng thư viện ngoài | Chỉ dùng thư viện chuẩn của Python; bộ nhận tuỳ chọn chỉ dùng thư viện chuẩn của Go | Không phải cài, cập nhật hay rà soát thêm gì |
-| Mỗi cửa một loại khoá (khoá gắn với kênh) | Khoá cho cổng MCP chỉ được tra bằng `TvStore.find(..., mcp=True)`, và mọi lần tra khác đều bỏ qua loại khoá này | Khoá lộ từ cấu hình của một công cụ AI không mở được trang nào, và khoá của TV hay tiện ích không mở được cổng MCP |
+| Mỗi cửa một loại khoá (khoá gắn với kênh) | Khoá cho cổng MCP chỉ được tra bằng `TvStore.find(..., side=KIND_MCP)`, và mọi lần tra khác đều bỏ qua loại khoá này | Khoá lộ từ cấu hình của một công cụ AI không mở được trang nào, và khoá của TV hay tiện ích không mở được cổng MCP |
 
 ### Lưu trữ: SQLite
 
@@ -497,24 +502,26 @@ Ghi lại để lần rà sau không đề xuất lại khi không có lý do m�
 claude plugin test .
 npx -y -p typescript@5.9.3 tsc -p tsconfig.json
 uvx ruff check .
-cd server && python3 -m unittest test_webhook test_demo test_mcp test_ask test_telegram_bot
+cd server && python3 -m unittest
+cd receiver && go test ./...
 python3 tests/connectors/test_connectors.py
+python3 tests/appmeter/test_appmeter.py
 python3 tests/check-i18n.py --comments
 node tests/extension/check-extension.js
 node tests/check-map-layout.js
 ```
 
-Mỗi lần đẩy code còn chạy `.github/workflows/test-install.yml`: trên Ubuntu thì đóng gói, thử bước kiểm dữ liệu riêng (`tests/test-check-clean.sh`) và phần đầu của các skill, cài thử plugin và máy chủ, rồi thử script thanh menu và gói .deb (`tests/menubar/test-menubar.sh`, `test-deb.sh`); còn kiểm quy tắc hai ngôn ngữ (`tests/check-i18n.py`); trên Windows thì cài thử và thử biểu tượng ở khay (`tests/menubar/test-menubar.ps1`), thêm một bước Windows nữa dựng `AI Worker.exe` và `AI Worker.msi`, cài không cần quyền quản trị, ghép với máy chủ giả, cài bản mới đè lên app đang chạy rồi gỡ (`tests/menubar/test-windows-app.ps1`). Ở repo riêng tư, hai việc trên Windows chỉ chạy khi lần đẩy đổi thứ mà chúng kiểm, hoặc khi workflow được bấm chạy tay ([TEST-PLAN.vi.md](TEST-PLAN.vi.md), mục 1). Bước này không chạy `test_webhook` hay bước kiểm tiện ích, nên phải tự chạy.
+`.github/workflows/test-install.yml` chạy ở mỗi lần đẩy code lên repo công khai, và ở mọi nơi khi được bấm chạy tay; lần đẩy lên repo riêng tư, như bản phát triển, bỏ qua mọi việc, nên ở đó các bước kiểm ở trên được chạy trên máy người phát triển. Việc `code-check` kiểm mã Python, chạy test của hook, chín module test của máy chủ (`test_webhook`, `test_demo`, `test_mcp`, `test_ask`, `test_telegram_bot`, `test_projects`, `test_contract`, `test_receiver`, `test_hour_rows`; các module khác chỉ chạy với lệnh `python3 -m unittest` trơn ở trên), `go vet` và `go test` của bộ nhận, test bộ nối và bộ đo, bước kiểm tiện ích và bước kiểm bố cục bản đồ. Trên Ubuntu thì đóng gói, thử bước kiểm dữ liệu riêng (`tests/test-check-clean.sh`), phần đầu của các skill, quy tắc hai ngôn ngữ (`tests/check-i18n.py`) và các bản đồ, rồi cài thử plugin, máy chủ và bộ nhận Go (`tests/linux/test-receiver.sh`), và thử script thanh menu và gói .deb (`tests/menubar/test-menubar.sh`, `test-deb.sh`). Trên Windows có ba việc: một việc cài thử, thử mở lại app sau `/update`, bộ nối và biểu tượng ở khay (`tests/menubar/test-menubar.ps1`); một việc dựng `AI Worker.exe` và `AI Worker.msi`, cài không cần quyền quản trị, ghép với máy chủ giả, cài bản mới đè lên app đang chạy rồi gỡ (`tests/menubar/test-windows-app.ps1`); một việc dựng gói `.msi` của plugin và thử nó (`tests/windows/test-msi.ps1`). Xem thêm [TEST-PLAN.vi.md](TEST-PLAN.vi.md), mục 1.
 
 `server/test_webhook.py` đối chiếu tên trường giữa trang và máy chủ, nhưng chỉ đọc mã, nên sửa trang vẫn phải mở trình duyệt xem.
 
 ## 6. Giới hạn đã biết
 
 - **Khoá chung, để ghi danh.** Mỗi máy nhận khoá riêng (`awd1.…`) trong câu trả lời của lần gửi đầu, và khi đã gửi bằng khoá đó thì chỉ khoá đó được gửi cho máy (khoá mới chỉ được cấp thì chưa ràng buộc gì, nên plugin quá cũ không giữ được khoá cũng không bị khoá ngoài); `--revoke-device` cắt một máy. Việc ghi danh vẫn dùng `INGEST_KEY` mà mọi gói cài đều mang, nên nhân viên vẫn ghi danh được một máy bịa dưới một tên chưa gắn với máy nào. Khi mọi máy đã có khoá riêng, `SHARED_KEY_MODE=known-only` hoặc `off` đóng chỗ đó.
-- **Số máy.** `MAX_DEVICES` là 300 máy, khoảng 100 tới 150 người, và một tiến trình trên một máy nhận mọi lần gửi. Mức trần đã đo và việc tiếp theo: [BENCHMARK.vi.md](BENCHMARK.vi.md). Lần gửi bị giới hạn theo từng máy (một xô 20 lượt, tự đầy lại một lượt mỗi giây), nên các máy đi chung một địa chỉ công cộng không chặn lẫn nhau.
+- **Số máy.** `MAX_DEVICES` mặc định là 300 máy, khoảng 100 tới 150 người, và một tiến trình trên một máy nhận mọi lần gửi; nâng được cho vài nghìn máy, còn bộ nhận Go tuỳ chọn nhận lần gửi của hàng chục nghìn máy ([chọn cách cài theo quy mô](INSTALL.vi.md#chọn-cách-cài-theo-quy-mô)). Mức trần đã đo và việc tiếp theo: [BENCHMARK.vi.md](BENCHMARK.vi.md). Lần gửi bị giới hạn theo từng máy (một xô 20 lượt, tự đầy lại một lượt mỗi giây), nên các máy đi chung một địa chỉ công cộng không chặn lẫn nhau.
 - **HTTP khi không có proxy.** Kết nối chỉ được mã hoá khi đi qua Caddy hoặc nginx.
 - **Người có sudo trên máy chủ** đọc được mọi số liệu và tự cấp được tài khoản. Nên giữ ít người.
-- **Chuỗi của nhật ký** bắt được một dòng bị sửa hay bị xoá bằng tay, không bắt được người viết lại được cả cơ sở dữ liệu lẫn `audit_head`: thỉnh thoảng hãy ghi lại dấu vân tay trang Quản trị hiện. Bước kiểm bí mật và kiểm trang dựa vào hình dạng của khoá và câu chữ của lệnh, nên bí mật không có hình dạng quen, hay lệnh viết kiểu khác, vẫn lọt.
+- **Chuỗi của nhật ký** bắt được một dòng bị sửa hay bị xoá bằng tay, không bắt được người viết lại được cả cơ sở dữ liệu lẫn `audit_head`: việc đó cần một bản giữ ngoài máy chủ, nên mỗi sáng mã của ngày niêm phong được gửi tới Telegram của quản trị và được liệt kê trên trang Quản trị để chép lại. Chi phí của một ngày vẫn sửa được trong tuần nó còn được đếm lại, và máy chủ chưa có quản trị nào liên kết Telegram thì không có bản nào ở ngoài trừ khi có người chép lại. Bước kiểm bí mật và kiểm trang dựa vào hình dạng của khoá và câu chữ của lệnh, nên bí mật không có hình dạng quen, hay lệnh viết kiểu khác, vẫn lọt.
 - **File lớn.** Máy chủ đã tách vào `server/board/` (cấu hình, đăng nhập, máy gửi, tổng theo ngày, kho lưu, quyền xem, trang, gói cài), `server/webhook.py` giữ phần nhận yêu cầu và bảng đường dẫn. `hooks/register.tsx` và `server/static/ops.js` vẫn lớn: các phần trong đó dùng chung biến trong một khối và chưa có test riêng, nên chờ có test rồi mới tách. Việc gửi số liệu của máy là phần đầu tiên rời `register.tsx`, sang `hooks/send.ts`, sau khi `tests/share.test.ts` che nó đầu-cuối.
 - **Bộ nối biết ít hơn plugin.** Nó chỉ gửi khi có sự kiện, nên công cụ bị đóng mà không có sự kiện kết thúc còn hiện trên bảng tới 2 giờ. Lượt bị lỗi cũng không gửi sự kiện nào: đã thấy với Codex CLI 0.164.0, khi một yêu cầu mô hình bị từ chối để phiên kẹt ở đang làm. (Lượt bị cắt ngang bằng Esc thì gửi `Interrupt` thay cho `Stop`, và sự kiện đó đã được gắn hook.) Vì vậy máy chủ chỉ tin "đang làm" của bộ nối trong 30 phút kể từ lần gửi cuối; trong Cursor, nơi không có hook sau từng bước, một lượt chạy lâu hơn thế sẽ hiện là rảnh cho tới khi lượt đó kết thúc. Nó không biết token, chi phí, hạn mức hay mô hình. Bản sao khoá gửi của nó nằm ở một chỗ thứ hai trên máy. Tên và email của nó phải đúng cặp mà plugin gửi, nếu không một người sẽ hiện thành hai dòng. Cursor, Gemini CLI và Windows chưa được thử trong công cụ thật.
 - **Cổng MCP.** Mới thử trong công cụ thật trên macOS: Claude Code, Codex CLI, và tab Chat của app Claude trên máy tính qua một kết nối của claude.ai. Cursor, Gemini CLI và mọi công cụ trên Windows và Linux chưa được thử. Những gì công cụ đọc sẽ tới hãng làm ra nó. Khoá chỉ đọc số gộp vẫn để lộ một đội hay một nhóm còn lại chỉ một hai người qua số gộp. Các lần gọi được ghi vào bảng nhật ký sẵn có chứ không có bảng riêng, để bản máy chủ cũ hơn vẫn mở được cơ sở dữ liệu. Xem thêm [SECURITY.vi.md](../SECURITY.vi.md).

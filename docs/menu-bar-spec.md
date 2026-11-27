@@ -30,7 +30,7 @@ The same window, from the same `page_mini` and `mini.js`, also opens in the mana
 
 | ID | Requirement | Where |
 |---|---|---|
-| F1 | `/mini` fits a window of about 360 wide: name and update time, five tabs (Waiting, Working, Quota, Cost today, Settings), the list, "Open board"; it follows light or dark mode | `page_mini` in `server/webhook.py`, `server/static/mini.js`, `mini.css` |
+| F1 | `/mini` fits a window of about 360 wide: name and update time, five tabs (Waiting, Working, Quota, Cost today, Settings), the list, "Open board"; it follows light or dark mode | `page_mini` in `server/board/pages.py`, `server/static/mini.js`, `mini.css` |
 | F2 | Waiting shows how long each person has waited; Quota shows every window the account reports, so a plan without a 5-hour limit simply has none | `WaitTracker`, `mini.js` |
 | F3 | A manager pairs their own computer: the icon opens `/mini/pair` with the code after `#`, the manager enters their account and 6-digit code, and nobody else has to approve | `mini_self_pair`, `TvPairing.self_approve` |
 | F4 | Self-pairing checks the OTP with the same limits as logging in, accepts only viewer or admin accounts, only a request from the same IP, and at most `MENUBAR_PER_ACCOUNT` computers per account | `mini_self_pair`, `LoginGate.check_otp` |

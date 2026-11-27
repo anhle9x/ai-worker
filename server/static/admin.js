@@ -11,7 +11,7 @@
     'role-denied': tx('Denied by role'), error: tx('Error'), assign: tx('Add network'), unassign: tx('Remove network'), 'unassign-delete-location': tx('Last network removed, location deleted'), 'set-sales': tx('Mark as sales'), csv: tx('Load CSV'),
     'account-create': tx('Create account'), 'account-reissue': tx('Reissue key'), 'account-role': tx('Change role'), 'account-delete': tx('Delete account'), 'end-session': tx('End session'),
     'plugin-msi': tx('Downloaded the staff plugin installer'), 'tv-request-code': tx('Screen asked for code'), 'tv-refused': tx('Code request refused'), 'tv-view': tx('Viewed screen request'), 'tv-approve': tx('Approved screen'), 'tv-joined': tx('Screen joined board'), 'tv-revoke': tx('Revoked screen'), 'tv-self-exit': tx('Screen exited by itself'), 'tv-unpaired-itself': tx('Paired device unpaired itself'), 'tv-reload': tx('Reloaded screen remotely'), 'tv-rename': tx('Renamed screen'), 'tv-ip-changed': tx('Screen changed IP'), 'tv-renewed': tx('Renewed screen'),
-    'tv-revoked-key-used': tx('Revoked device asked again'), 'mcp-rate-limited': tx('Key for an AI tool asked too often'),
+    'tv-revoked-key-used': tx('Revoked device asked again'), 'telegram-seal': tx('Sent the day\'s fingerprint to Telegram'), 'mcp-rate-limited': tx('Key for an AI tool asked too often'),
     'device-revoked': tx('Revoked a computer\'s key'), 'device-forgotten': tx('Let a computer enrol again'),
     'device-roaming-on': tx('Let a computer send from any network'), 'device-roaming-off': tx('Kept a computer to the office network'),
     'account-telegram-unlink': tx('Unlink Telegram'), 'telegram-link': tx('Link Telegram'), 'telegram-unlink': tx('Unlink Telegram'), 'telegram-link-failed': tx('Telegram link failed'),
@@ -828,12 +828,19 @@
     // mỗi dòng mang dấu vân tay của dòng trước: một dòng bị sửa hay bị xoá bằng tay làm đứt chuỗi
     const chain = snapshot.auditChain
     if (chain && chain.rows) {
-      p.append(chain.ok
-        ? o('small', 'qt-muted', tx('Log check: no line changed or taken out since {since} ({n} lines). Last fingerprint {head}: note it down to compare later.', { since: stamp(chain.since, 16), n: chain.rows, head: chain.head }))
-        : o('div', 'qt-hint', chain.brokenAt === 'end'
+      if (chain.ok) p.append(o('small', 'qt-muted', tx('Log check: no line changed or taken out since {since} ({n} lines). Last fingerprint {head}: note it down to compare later.', { since: stamp(chain.since, 16), n: chain.rows, head: chain.head })))
+      else if (chain.brokenAt) {
+        p.append(o('div', 'qt-hint', chain.brokenAt === 'end'
           ? tx('Log check: the newest lines were taken out of the database by hand. Find out who can reach the server.')
           : tx('Log check: a line near {at} was changed or taken out of the database by hand. Find out who can reach the server.', { at: stamp(chain.brokenAt, 16) })))
+      }
+      // a day sealed in the chain whose cost rows no longer give the numbers of its seal
+      // ngày đã niêm phong trong chuỗi mà các dòng chi phí không còn cho ra đúng con số của dòng niêm phong
+      if (chain.changedDays && chain.changedDays.length) {
+        p.append(o('div', 'qt-hint', tx('Cost check: the numbers of {days} were changed after the day was sealed. Find out who can reach the server.', { days: chain.changedDays.join(', ') })))
+      }
     }
+    p.append(sealSection())
     const board = o('table', 'qt-table small')
     const head = o('tr')
     for (const c of [tx('Time'), tx('Who'), tx('Action'), tx('Device IP'), tx('Details')]) head.append(o('th', '', c))
@@ -847,6 +854,26 @@
     if (!snapshot.auditLog.length) p.append(o('small', '', tx('Nothing this month.')))
     else p.append(addLabel(board))
     return p
+  }
+
+  // Each day no longer counted again is sealed in the log: its fingerprint, to note down outside the server and compare later
+  // Mỗi ngày không còn được đếm lại được niêm phong trong nhật ký: dấu vân tay của nó, để chép ra ngoài máy chủ và so về sau
+  function sealSection() {
+    const box = o('div')
+    const seals = snapshot.dailySeals || []
+    if (!seals.length) return box
+    box.append(o('h3', '', tx('Sealed days')), o('small', 'qt-muted', tx('A day is sealed once it is no longer counted again. Note these fingerprints down outside the server, or keep the Telegram message admins with a linked Telegram get each morning: a different fingerprint later means the log was rewritten.')))
+    const board = o('table', 'qt-table small')
+    const head = o('tr')
+    for (const c of [tx('Day'), tx('Cost rows'), tx('Cost'), tx('Fingerprint')]) head.append(o('th', '', c))
+    board.append(head)
+    for (const x of seals) {
+      const h = o('tr')
+      h.append(o('td', 'qt-keep', x.day), o('td', '', String(x.rows)), o('td', '', money(Number(x.usd) || 0, snapshot.usdRate)), o('td', 'qt-keep', x.hash))
+      board.append(h)
+    }
+    box.append(addLabel(board))
+    return box
   }
 
   // The plugin installer for staff computers on Windows: one .msi with this server's address and send code inside, shown only when the server has it.

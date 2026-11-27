@@ -108,7 +108,7 @@ Khi người quản trị phát hành bản mới, thanh trên ô chat hiện **
 1. Bấm **Cập nhật** và chờ báo đã cài xong.
 2. Trong app Claude desktop (Mac, Windows, Linux), một câu hỏi hiện ra đề nghị đóng app rồi mở lại: chọn **Mở lại ngay** (các phiên đang làm dở sẽ dừng), hoặc **Để sau** rồi tự làm. Ở nơi khác thì thoát hẳn app Claude rồi mở lại.
 
-Bản mới chỉ được cài khi có chữ ký đúng của người quản trị. Máy phải ở trong mạng công ty mới tải được. Bản trước được giữ trong thư mục `ai-worker.old` cạnh thư mục plugin.
+Bản mới chỉ được cài khi có chữ ký đúng của người quản trị. Máy phải ở trong mạng công ty mới tải được, trừ khi quản trị đã cho máy đó gửi từ mọi mạng. Bản trước được giữ trong thư mục `ai-worker.old` cạnh thư mục plugin.
 
 ### 1.6 Máy bạn gửi những gì
 
@@ -171,7 +171,7 @@ Nếu bạn còn làm việc trong Codex, Cursor hoặc Gemini CLI, các phiên 
 
 Nếu nhóm bạn làm một dự án hay ứng dụng AI có gọi LLM và cần báo cáo chi phí và hiệu năng, skill `ai-cost-report` đo giúp. Hãng nào cũng được: Claude, GPT, Gemini, Grok, DeepSeek, Mistral, model qua OpenRouter, hay model chạy ngay trên máy của nhóm (Ollama, vLLM). Số liệu do chính dự án đo: mỗi câu trả lời của LLM kèm số token (`usage`, số mẩu chữ mà hãng tính tiền), và một bộ đo nhỏ cộng chúng lại cho từng yêu cầu của người dùng, kèm thời gian. Bộ đo không bao giờ ghi người dùng hỏi gì, model trả lời gì, người dùng là ai, hay thông báo lỗi. Không gửi gì lên bảng tổng, trừ khi máy chủ của dự án được cấp khoá cho việc đó (xem 2.6 và 3.8). Đủ các bước, cả cách làm tay và ngôn ngữ khác: [AI-PROJECTS.vi.md](AI-PROJECTS.vi.md).
 
-1. **Ở đâu:** Claude Code, mở trong thư mục code của dự án. **Làm gì:** gõ `/ai-worker:ai-cost-report` và nói dự án nào cần đo. **Kết quả đúng:** Claude tìm chỗ dự án gọi LLM và đưa ra vài dòng sẽ thêm: chép một file (`ai_meter.py` cho Python, `ai-meter.cjs` cho Node; ngôn ngữ khác tự ghi đúng dòng đó theo `FORMAT.md`). Chưa có gì thay đổi cho tới khi bạn đồng ý.
+1. **Ở đâu:** Claude Code, mở trong thư mục code của dự án. **Làm gì:** gõ `/ai-worker:ai-cost-report` và nói dự án nào cần đo. **Kết quả đúng:** Claude tìm chỗ dự án gọi LLM và đưa ra vài dòng sẽ thêm: chép một file (`ai_meter.py` cho Python, `ai-meter.cjs` cho Node, và mỗi ngôn ngữ C#, Go, Java hay Kotlin, Rust, C hay C++ một file; ngôn ngữ khác nữa thì tự ghi đúng dòng đó theo `FORMAT.md`). Chưa có gì thay đổi cho tới khi bạn đồng ý.
 2. **Ở đâu:** máy chạy dự án. **Làm gì:** chạy như thường, với người dùng thật, trong khoảng thời gian cần báo cáo. Chạy thử thì khởi động với `AI_METER_ENV=test` để tách riêng. **Kết quả đúng:** file `ai-meter.jsonl` cạnh dự án thêm một dòng cho mỗi yêu cầu.
 3. **Ở đâu:** Claude Code. **Làm gì:** đưa file cho Claude và nhờ làm báo cáo, tiếng Việt hay tiếng Anh, cho những ngày cần. **Kết quả đúng:** `ai-cost-report.html` (mở bằng trình duyệt; **In** để lưu PDF) và `ai-cost-report.csv` (mở bằng Excel hay Google Sheets): số yêu cầu, số lần gọi LLM và token mỗi yêu cầu, tiền mỗi yêu cầu và mỗi 1.000 yêu cầu, thời gian trung bình, p95 (mức thời gian mà 95 trên 100 yêu cầu không vượt quá) và chậm nhất, theo từng model.
 
@@ -341,10 +341,10 @@ Gói cá nhân (Pro, Max) không có trong báo cáo này.
 ### 3.6 Phiên đang mở và nhật ký
 
 - **Phiên đang mở:** ai đang đăng nhập, từ đâu. Bấm **Kết thúc** một phiên, hoặc **Kết thúc các phiên khác** để đăng xuất mọi người khác.
-- **Nhật ký:** đăng nhập, thay đổi và các lần bị từ chối trong tháng đã chọn. Giữ 12 tháng; trang hiện 300 dòng mới nhất. Dòng **Kiểm nhật ký** phía trên cho biết có dòng nào bị sửa hay bị xoá khỏi cơ sở dữ liệu bằng tay không, và hiện dấu vân tay cuối: thỉnh thoảng ghi lại để so về sau.
+- **Nhật ký:** đăng nhập, thay đổi và các lần bị từ chối trong tháng đã chọn. Giữ 12 tháng; trang hiện 300 dòng mới nhất. Dòng **Kiểm nhật ký** phía trên cho biết có dòng nào bị sửa hay bị xoá khỏi cơ sở dữ liệu bằng tay không, và hiện dấu vân tay cuối: thỉnh thoảng ghi lại để so về sau. Trang cũng báo nếu chi phí của một ngày cũ hơn một tuần bị sửa bằng tay (**Kiểm sổ chi phí**). Bảng **Các ngày đã niêm phong** bên dưới liệt kê mã của 14 ngày gần nhất không còn được đếm lại; quản trị đã liên kết Telegram nhận mã mới nhất mỗi sáng. Giữ các tin đó, hoặc chép lại mã: về sau mã khác đi nghĩa là nhật ký đã bị viết lại.
 - **ai-worker đã chặn:** trên cả team trong 7 ngày qua, bao nhiêu lần khoá hay mật khẩu không được gửi sang ChatGPT hay Gemini, bao nhiêu commit hay lệnh rủi ro được hỏi lại, bao nhiêu trang tìm cách lái Claude bị cảnh báo. Chỉ số đếm, không bao giờ có nội dung.
 - **Khoá cho công cụ AI không dùng 30 ngày** được liệt kê phía trên bảng ở mục **Thiết bị và khoá đã ghép**; thu hồi khoá nào không ai cần.
-- **Máy nhân viên và khoá riêng** liệt kê mọi máy nhân viên đã có khoá riêng. Khi một máy bị mất, bị lấy, hay người dùng nghỉ việc, bấm **Thu hồi** ở dòng của máy đó rồi nhập OTP: máy dừng gửi ngay, và khoá trong gói cài cũng không đưa nó quay lại được. **Cho gửi lại** để máy ghi danh lại.
+- **Máy nhân viên và khoá riêng** liệt kê mọi máy nhân viên đã có khoá riêng. Khi một máy bị mất, bị lấy, hay người dùng nghỉ việc, bấm **Thu hồi** ở dòng của máy đó rồi nhập OTP: máy dừng gửi ngay, và khoá trong gói cài cũng không đưa nó quay lại được. **Cho gửi lại** để máy ghi danh lại. **Mọi mạng** cho máy đó gửi số liệu và nhận bản cập nhật từ ngoài các mạng văn phòng, **Chỉ văn phòng** thì rút lại; xem bảng vẫn cần mạng văn phòng.
 
 ### 3.7 File cài biểu tượng thanh menu
 
@@ -360,7 +360,7 @@ Khi máy chủ có `AI_PROJECTS=1` (xem INSTALL), mục **Dự án và ứng d�
 
 - **Quản lý có đọc được nhân viên đã gõ gì cho Claude không?** Không. Nội dung chat không bao giờ được gửi; bảng tổng chỉ có số liệu.
 - **Có người dùng Claude cả ngày mà bảng báo đang rảnh. Vì sao?** Nhiều khả năng họ dùng claude.ai trên trình duyệt hoặc thẻ Chat của app. Chỉ Claude Code (thẻ Code, terminal, trình soạn mã) trên máy đã cài plugin mới được đếm.
-- **Ra ngoài văn phòng có dùng được không?** Plugin dùng được ở mọi nơi. Gửi số liệu, xem bảng tổng và cập nhật thì cần mạng công ty.
+- **Ra ngoài văn phòng có dùng được không?** Plugin dùng được ở mọi nơi. Xem bảng tổng thì cần mạng công ty. Gửi số liệu và cập nhật cũng vậy, trừ khi quản trị đã đặt máy bạn là **Mọi mạng**.
 - **Có bắt buộc cài Gemini, ChatGPT hay Gemma không?** Không. Mọi thứ chạy được chỉ với Claude.
 - **Chi phí có phải tiền thật không?** Đó là giá theo bảng giá API. Với gói thuê bao, chỉ để so sánh.
 - **Báo lỗi ở đâu?** Chụp màn hình gửi người quản trị. Với dự án mã nguồn mở, mở issue trên GitHub; lỗi bảo mật thì theo [SECURITY.vi.md](../SECURITY.vi.md).

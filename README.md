@@ -57,7 +57,7 @@ Usage reports tell you what the company spent on AI. AI Worker tells you **who n
 - **Ask from other AI tools:** the server has a read-only MCP endpoint, so any AI tool that speaks MCP can ask too, with a key an admin approves.
 - **The board inside Telegram:** a manager taps the bot's **AI Worker** button to open a small board on their phone: who is waiting, the 7-day cost chart, quotas. The bot answers with buttons, no AI model reads the question, and it writes first when someone waits too long (`/alerts 10`). Optional, off by default. See [the window inside Telegram](docs/INSTALL.md#the-boards-window-inside-telegram-optional) and [messages when someone waits too long](docs/INSTALL.md#messages-when-someone-waits-too-long-optional-per-chat).
 - **Turn a procedure into a skill:** give `/ai-worker:make-skill` an SOP or a description of how a job is done. It writes a draft skill, stops at passwords and keys, leaves personal data out, and switches the skill on only after you say yes.
-- **Roles and audit:** admins, managers and wall screens see different data; log in with a 6-digit OTP code or with Telegram (needs a bot set up first, see the [install guide](docs/INSTALL.md)); every change is logged for 12 months.
+- **Roles and audit:** admins, managers and wall screens see different data; log in with a 6-digit OTP code or with Telegram (needs a bot set up first, see the [install guide](docs/INSTALL.md)); every change is logged for 12 months, in a chain that shows a line edited by hand; each day of cost is sealed into it once closed, and its fingerprint goes to the admin's Telegram each morning.
 
 ## Is it the right tool?
 
@@ -158,6 +158,8 @@ Where the project is going. There are no dates: an item ships when it has been c
 - [x] A Telegram message when someone waits too long, turned on by each chat (`/alerts`), with a button that opens the window
 - [x] Cost and speed of an AI project or application your team built (0.44.0), with any LLM provider; sent to the board and read there (0.45.0). Tried on a real board with test turns
 - [ ] A real project measured for a whole period and reported from the board
+- [x] An optional receiver in Go for organisations of tens of thousands of computers, set up with one command (0.50.30). Measured with fake computers up to about 40,000 to 50,000
+- [ ] The Go receiver in real use across a whole large organisation. So far one organisation runs it with a few computers
 
 ## Documents
 

@@ -108,7 +108,7 @@ When your admin releases a new version, a bar above the chat box shows **New ver
 1. Click **Update** and wait for the message that it is installed.
 2. In the Claude desktop app (Mac, Windows, Linux), a question offers to close the app and open it again: choose **Reopen now** (sessions that are still working stop), or **Later** and do it yourself. Anywhere else, quit the Claude app completely and open it again.
 
-A version is installed only when it carries the admin's signature. Your computer must be on the company network to download it. The previous version is kept in the `ai-worker.old` folder next to the plugin.
+A version is installed only when it carries the admin's signature. Your computer must be on the company network to download it, unless an admin let it send from any network. The previous version is kept in the `ai-worker.old` folder next to the plugin.
 
 ### 1.6 What your computer sends
 
@@ -171,7 +171,7 @@ If you also work in Codex, Cursor or Gemini CLI, those sessions can show on the 
 
 If your team built an AI project or application that calls an LLM and needs a cost and performance report, the `ai-cost-report` skill measures it. Any provider works: Claude, GPT, Gemini, Grok, DeepSeek, Mistral, a model through OpenRouter, or one that runs on your own machine (Ollama, vLLM). The numbers come from the project itself: each LLM answer carries its token counts (`usage`, the number of pieces of text the provider bills), and a small meter adds them up for each request of a user, with the time it took. It never writes what the user asked, what the model answered, who the user is, or an error message. Nothing is sent to the board unless the project's server is given a key for it (see 2.6 and 3.8). Every step, also by hand and for other languages: [AI-PROJECTS.md](AI-PROJECTS.md).
 
-1. **Where:** Claude Code, opened in the project's code folder. **Do:** type `/ai-worker:ai-cost-report` and say which project to measure. **Right result:** Claude finds where the project calls an LLM and shows the few lines it would add: one copied file (`ai_meter.py` for Python, `ai-meter.cjs` for Node; another language writes the same line by hand from `FORMAT.md`). Nothing changes until you say yes.
+1. **Where:** Claude Code, opened in the project's code folder. **Do:** type `/ai-worker:ai-cost-report` and say which project to measure. **Right result:** Claude finds where the project calls an LLM and shows the few lines it would add: one copied file (`ai_meter.py` for Python, `ai-meter.cjs` for Node, and one each for C#, Go, Java or Kotlin, Rust and C or C++; any other language writes the same line by hand from `FORMAT.md`). Nothing changes until you say yes.
 2. **Where:** the machine that runs the project. **Do:** run it as usual, with real users, for the period you report on. Trial runs: start it with `AI_METER_ENV=test` so they stay apart. **Right result:** a file `ai-meter.jsonl` next to it grows by one line per request.
 3. **Where:** Claude Code. **Do:** give Claude the file and ask for the report, in Vietnamese or English, for the days you want. **Right result:** `ai-cost-report.html` (open it in a browser; **Print** saves it as PDF) and `ai-cost-report.csv` (opens in Excel or Google Sheets): number of requests, LLM calls and tokens per request, cost per request and per 1,000 requests, average, 95th percentile (the time 95 requests in 100 stay under) and slowest time, by model.
 
@@ -341,10 +341,10 @@ Personal plans (Pro, Max) are not in that report.
 ### 3.6 Open sessions and the audit log
 
 - **Open sessions:** who is logged in, from where. **End** one, or **End the other sessions** to log everyone else out.
-- **Audit log:** logins, changes and refusals for the chosen month. Kept 12 months; the page shows the newest 300 lines. **Log check** above it says whether any line was changed or taken out of the database by hand, and shows the last fingerprint: note it down now and then to compare later.
+- **Audit log:** logins, changes and refusals for the chosen month. Kept 12 months; the page shows the newest 300 lines. **Log check** above it says whether any line was changed or taken out of the database by hand, and shows the last fingerprint: note it down now and then to compare later. It also says if the cost of a day older than a week was changed by hand (**Cost check**). **Sealed days** below lists the fingerprint of each of the last 14 days no longer counted again; an admin who linked Telegram gets the newest one each morning. Keep those messages, or note the fingerprints: a different one later means the log was rewritten.
 - **Stopped by ai-worker:** how many times, across the team in the last 7 days, a key or password was kept from ChatGPT or Gemini, a commit or a risky command was asked about, or a page that tried to steer Claude was flagged. Counts only, never what it was.
 - **Keys for AI tools not used for 30 days** are listed above the table in **Paired devices and keys**; revoke the ones nobody needs.
-- **Computers and their keys** lists every staff computer that has its own key. When a computer is lost, stolen or its owner leaves, click **Revoke** on its row and enter your OTP: it stops sending at once, and the key in the install package cannot bring it back. **Let back** lets it enrol again.
+- **Computers and their keys** lists every staff computer that has its own key. When a computer is lost, stolen or its owner leaves, click **Revoke** on its row and enter your OTP: it stops sending at once, and the key in the install package cannot bring it back. **Let back** lets it enrol again. **Any network** lets that computer send its numbers and get updates from outside the office networks, and **Office only** takes that back; viewing the board still needs an office network.
 
 ### 3.7 Menu bar downloads
 
@@ -360,7 +360,7 @@ With `AI_PROJECTS=1` on the server (see INSTALL), the section **AI projects and 
 
 - **Can a manager read what staff typed to Claude?** No. Chat content is never sent; the board only has numbers.
 - **Someone uses Claude all day but the board shows them idle. Why?** They are probably on claude.ai in a browser or in the Chat tab of the app. Only Claude Code (the Code tab, the terminal, an editor) on a computer with the plugin is counted.
-- **Does it work outside the office?** The plugin works anywhere. Sending numbers, the board and updates need the company network.
+- **Does it work outside the office?** The plugin works anywhere. Viewing the board needs the company network. Sending numbers and updates need it too, unless an admin set your computer to **Any network**.
 - **Do I need Gemini, ChatGPT or Gemma?** No. Everything works with Claude alone.
 - **Is the cost real money?** It is the price at API rates. On a subscription plan it is for comparison only.
 - **Where do I report a problem?** Take a screenshot and send it to your admin. For the open-source project, open an issue on GitHub; security problems go through [SECURITY.md](../SECURITY.md).

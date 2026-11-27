@@ -340,6 +340,7 @@ VI = {
     "This chat may not open the board's window. Ask an admin of the board.": "Chat này không được mở khung của bảng. Hãy hỏi quản trị của bảng.",
     "Too many tries. Try again in a minute.": "Thử quá nhiều lần. Một phút nữa hãy thử lại.",
     "Alerts are off.": "Tin báo đang tắt.",
+    "Log up to the end of {day}: fingerprint {hash}, {n} cost rows. Keep this message to compare later.": "Nhật ký tới hết ngày {day}: mã {hash}, {n} dòng chi phí. Giữ tin này để so về sau.",
     "Alerts are off. Send /alerts 10 to get them again.": "Đã tắt tin báo. Gửi /baocho 10 để bật lại.",
     "Alerts are on: a message when someone has waited more than {m} min.": "Đã bật tin báo: nhắn khi có người chờ quá {m} phút.",
     "At most one message every 5 minutes, none from 19:00 to 07:00. Send /alerts off to stop.": "Tối đa một tin mỗi 5 phút, không gửi từ 19:00 tới 07:00. Gửi /baocho tat để tắt.",

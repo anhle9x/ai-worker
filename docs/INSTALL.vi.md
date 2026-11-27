@@ -23,7 +23,7 @@ Máy chủ đếm máy, không đếm người: laptop, máy bàn và bộ nối
 | Số máy | Cài gì | Đã kiểm tới đâu |
 |---|---|---|
 | Tới khoảng 300 | Không cần thêm gì: mặc định (`MAX_DEVICES=300`) | Mặc định; đo với 300 máy gửi mỗi 10 giây và 30 bảng mở: một lần gửi p95 5 ms, 10% của một lõi ([BENCHMARK.vi.md](BENCHMARK.vi.md)) |
-| Vài trăm tới vài nghìn | Nâng `MAX_DEVICES` trong `/etc/ai-worker.env`, rồi chạy lại `install.sh`. Python một mình vẫn đủ. Quá khoảng 5.000 máy thì nâng cả `WEBHOOK_MEMORY_MB` (webhook giữ khoảng 150 KB mỗi máy trong bộ nhớ, và trần của nó mặc định là 1 GB) | Mới đo trên máy Mac, một tiến trình: tới 10.000 máy một lần gửi tốn 0,8 ms và dựng bảng 154 ms, trong 1,5 GB ([BENCHMARK.vi.md, Vượt 10.000 máy](BENCHMARK.vi.md#vượt-10000-máy)). Python một mình chưa được đo trên máy chủ Linux: chạy `tests/load/load_test.py` trên máy chủ của bạn trước |
+| Vài trăm tới vài nghìn | Nâng `MAX_DEVICES` trong `/etc/ai-worker.env`, rồi chạy lại `install.sh`. Python một mình vẫn đủ. Trần bộ nhớ của nó mặc định là 1 GB, và nó giữ khoảng 20 tới 35 KB mỗi máy trong bộ nhớ (2 tới 3,5 GB ở 100.000 máy), nên quá khoảng 20.000 máy thì nâng cả `WEBHOOK_MEMORY_MB` | Mới đo trên máy Mac, một tiến trình: tới 10.000 máy một lần gửi tốn 0,8 ms và dựng bảng 154 ms ([BENCHMARK.vi.md, Vượt 10.000 máy](BENCHMARK.vi.md#vượt-10000-máy)). Python một mình chưa được đo trên máy chủ Linux: chạy `tests/load/load_test.py` trên máy chủ của bạn trước |
 | Hàng chục nghìn | Bộ nhận Go tuỳ chọn cạnh webhook: `sudo sh install-receiver.sh` ([RECEIVER.vi.md](RECEIVER.vi.md)) | Đã đo trên máy Linux thuê với máy giả: tới khoảng 40.000 tới 50.000 máy trên 4 vCPU và 8 GB. Chạy thật tới nay: một tổ chức, vài máy, một tuần từ cuối tháng 11/2026. Hãy thử với vài máy của bạn trước ([Thử với vài máy](RECEIVER.vi.md#thử-với-vài-máy)) |
 
 Khi chạm giới hạn, máy mới bị từ chối (`507 device limit reached` trong nhật ký, [OPERATIONS.vi.md](OPERATIONS.vi.md)); các máy đã có trên bảng vẫn gửi bình thường.
@@ -45,15 +45,18 @@ Khi chạm giới hạn, máy mới bị từ chối (`507 device limit reached`
    bash packaging/build.sh packaging/company.json
    ```
    Được `dist/AI-Worker-<phiên bản>-company.zip`.
-5. **Nhân viên cài.** Giải nén, bấm đúp `INSTALL-Mac.command` hoặc `INSTALL-Windows.bat`, nhập họ tên. Gói có mã gửi nên chỉ phát trong công ty.
+5. **Nhân viên cài.** Giải nén, bấm đúp `INSTALL-Mac.command` hoặc `INSTALL-Windows.bat` (trên Linux chạy `bash INSTALL-Linux.sh`), nhập họ tên. Gói có mã gửi nên chỉ phát trong công ty.
    Trên Windows còn có một file cài duy nhất, `AI-Worker-Plugin.msi`, do máy chủ điền sẵn địa chỉ và mã gửi của nó: xem [Gói cài plugin cho Windows (.msi)](#gói-cài-plugin-cho-windows-msi).
-6. **Xem bảng.** Mở bảng trên trình duyệt: `https://<domain của bảng>` sau proxy HTTPS (ví dụ `https://board.example.com`), hoặc `http://<IP-máy-chủ>:8788` từ trong mạng khi chưa dựng proxy. Đăng nhập bằng mã OTP. Trang `/board` có cột Plugin cho biết máy nào chưa lên bản mới nhất.
+6. **Xem bảng.** Mở bảng trên trình duyệt: `https://<domain của bảng>` sau proxy HTTPS (ví dụ `https://board.example.com`). Webhook chỉ nghe trong máy chủ, nên chưa dựng proxy thì chưa có địa chỉ nào để mở. Đăng nhập bằng mã OTP. Trang `/board` có cột Plugin cho biết máy nào chưa lên bản mới nhất.
 
 ## Lệnh trên máy nhân viên
 
 - `/office`: mở bảng điều khiển các phiên trên máy.
 - `/office-pane`: mở bản 2D cạnh khung chat.
 - `/update`: kiểm tra và cài bản mới.
+- `/ai-worker:board`: số liệu của cả nhóm lấy từ bảng, ngay trong khung chat.
+- `/ai-worker:voice`: mở phần cài đặt đọc chính tả của máy và chỉ các bước.
+- `/ai-worker:help`: plugin làm gì và các lệnh của nó.
 
 ## Codex, Cursor và Gemini CLI trên bảng
 
@@ -161,7 +164,7 @@ Mặc định chỉ các mạng văn phòng tới được máy chủ, nên lapt
 
 Một máy nhận khoá riêng ở lần gửi đầu từ văn phòng, nên mỗi máy bạn muốn cho phải đã gửi từ văn phòng một lần, với bản plugin mới hơn 0.50.6 để dùng `/update`. Làm theo đúng thứ tự dưới đây: không bước nào máy chủ mở rộng hơn ý bạn.
 
-1. **Sao lưu** các thư mục cơ sở dữ liệu và file Caddy, ví dụ `sudo cp -a /opt/ai-worker/data /opt/ai-worker/data.bak` và `sudo cp /etc/caddy/aiworker.caddy /etc/caddy/aiworker.caddy.bak`. Bản mới thêm một bảng (lược đồ phiên bản 7), và máy chủ bản cũ từ chối file đã nâng.
+1. **Sao lưu** các thư mục cơ sở dữ liệu và file Caddy, ví dụ `sudo cp -a /opt/ai-worker/data /opt/ai-worker/data.bak` và `sudo cp /etc/caddy/aiworker.caddy /etc/caddy/aiworker.caddy.bak`. Bản mới hơn có thể nâng cơ sở dữ liệu lên lược đồ mới hơn (phiên bản 8 từ bản 0.50.19), và máy chủ bản cũ từ chối file đã nâng.
 2. **Cài bản máy chủ mới** như thường lệ, `OFFICE_NETS` vẫn để trống: chưa có gì thay đổi.
 3. **Báo cho máy chủ các mạng văn phòng.** Thêm `OFFICE_NETS=` với đúng các dải của `remote_ip` trong khối Caddy, cách nhau bằng dấu phẩy, vào `/etc/ai-worker.env` (cả dải IPv6, nếu tên miền có bản ghi AAAA), rồi `sudo systemctl restart ai-worker-webhook`. Caddy vẫn đóng, nên mọi yêu cầu vẫn từ văn phòng. Mở trang Quản trị từ văn phòng: trong mục **Máy nhân viên và khoá riêng** không được có cảnh báo địa chỉ của bạn bị tính là ở ngoài. Nếu có, hai danh sách đang lệch nhau: sửa cho khớp rồi mới làm tiếp.
 4. **Cho các máy.** Trên trang Quản trị, mục **Máy nhân viên và khoá riêng**, bấm **Mọi mạng** ở dòng của từng máy được chọn rồi nhập lại OTP. Mỗi thay đổi được ghi vào nhật ký Quản trị.
@@ -176,7 +179,7 @@ Trước khi mở:
 - **Địa chỉ ở nhà hiện trên bảng.** Bảng giữ các địa chỉ gần nhất mỗi máy đã gửi từ đó, và quản trị viên nhìn thấy. Báo trước cho người dùng máy trước khi cho.
 - **Khoá sống 90 ngày nếu máy không gửi.** Máy tắt lâu hơn, hay mọi máy sau `--rotate-device-secret --drop-old`, phải gửi từ văn phòng thêm một lần.
 - **CDN hay proxy khác đứng trước Caddy** (ví dụ Cloudflare) làm mọi yêu cầu như tới từ CDN, nên máy nào cũng bị tính là ở ngoài. Cách này không dành cho trường hợp đó.
-- **Có bộ nhận Go** (`RECEIVER=1`, [RECEIVER.vi.md](RECEIVER.vi.md)) thì bộ nhận chưa kiểm danh sách này: giữ địa chỉ riêng của nó chỉ cho văn phòng.
+- **Có bộ nhận Go** (`RECEIVER=1`, [RECEIVER.vi.md](RECEIVER.vi.md)) thì bộ nhận không tự kiểm danh sách này. Khi đã đặt `OFFICE_NETS` (hoặc `TRUST_PROXY` với Caddy đứng trước), máy để **Chỉ văn phòng** không bao giờ được báo địa chỉ của bộ nhận và vẫn gửi tới webhook, nơi kiểm danh sách; chỉ máy được cho gửi từ **Mọi mạng** mới sang bộ nhận.
 
 ## Gói cài plugin cho Windows (.msi)
 
@@ -267,7 +270,7 @@ Quản lý không viết code có thể hỏi bảng từ một chat Telegram tr
 
 **Cần biết.**
 
-- **Lệnh:** `/waiting`, `/cost`, `/offices`, `/team`, `/quota`, `/help` và `/stop`. Người nói tiếng Việt còn có `/cho`, `/chiphi`, `/vanphong`, `/tongquan` và `/hanmuc`. Câu gõ tự do chạy được khi có một từ khoá như "chờ", "tốn", "chi phí" hay "văn phòng"; còn lại thì nhận danh sách lệnh. Từ đơn tiếng Việt phải gõ có dấu, cụm hai từ trở lên thì không dấu cũng được. Câu trả lời theo ngôn ngữ của tin nhắn, rồi tới ngôn ngữ app Telegram của người đó.
+- **Lệnh:** `/waiting`, `/cost`, `/offices`, `/team`, `/quota`, `/alerts`, `/help` và `/stop`. Người nói tiếng Việt còn có `/cho`, `/chiphi`, `/vanphong`, `/tongquan`, `/hanmuc` và `/baocho`. Câu gõ tự do chạy được khi có một từ khoá như "chờ", "tốn", "chi phí" hay "văn phòng"; còn lại thì nhận danh sách lệnh. Từ đơn tiếng Việt phải gõ có dấu, cụm hai từ trở lên thì không dấu cũng được. Câu trả lời theo ngôn ngữ của tin nhắn, rồi tới ngôn ngữ app Telegram của người đó.
 - **Chat đọc được gì** là do quản trị chọn lúc duyệt: chỉ số gộp của cả đội và từng văn phòng, hay cả từng người. Với số gộp, các văn phòng dưới 3 người dùng chung một dòng.
 - **Chat chưa được quản trị duyệt thì không đọc được gì.** Gửi `/stop` trong chat, hoặc bấm **Thu hồi** ở trang Quản trị, là chat dừng ngay. Chat hết hạn sau 30 ngày không dùng, và tối đa sau 1 năm. Tối đa 50 chat, mỗi chat 20 tin trong 10 phút.
 - **Mỗi câu trả lời có số liệu được ghi nhật ký 3 tháng** và hiện ở trang Quản trị, mục **Các lần công cụ AI và chat Telegram đọc bảng**: chat nào và lệnh nào. Chữ người dùng gõ không bao giờ được lưu hay ghi nhật ký.
@@ -332,6 +335,12 @@ Khi chat đã được kết nối (mục trên), nó có thể nhờ bot tự n
 
 **Đã thử tới đâu.** Có bài test máy chủ (`server/test_webhook.py`, `AlertRules` và `TelegramAlerts`; `server/test_telegram_bot.py`, `MenuButtons`) và đã thử trên bảng mẫu; chưa thử trên máy chủ thật.
 
+### Mã niêm phong của ngày cho quản trị (tự động)
+
+Mỗi ngày tổng chi phí được niêm phong vào nhật ký sau một tuần (xem [OPERATIONS.vi.md](OPERATIONS.vi.md)). Khi bot đã chạy, chat có Telegram liên kết với tài khoản **quản trị** trên bảng nhận một tin ngắn vào buổi sáng đầu tiên sau khi một ngày được niêm phong (từ 07:00 theo múi giờ của bảng): `Nhật ký tới hết ngày <ngày>: mã <16 ký tự>, <n> dòng chi phí`. Không tên, không tiền. Không cần bật gì: liên kết Telegram với tài khoản quản trị (đăng nhập bằng Telegram, ở trên) và ghép một chat. Hãy giữ các tin này: nếu về sau trang Quản trị hiện mã khác cho ngày đó, nhật ký đã bị viết lại.
+
+**Đã thử tới đâu.** Có bài test máy chủ (`server/test_daily_seal.py`); chưa thử trên chat thật.
+
 ## Phát hành bản cập nhật
 
 1. Đổi `version` trong `.claude-plugin/plugin.json`.
@@ -342,7 +351,7 @@ Khi chat đã được kết nối (mục trên), nó có thể nhờ bot tự n
    Tạo gói, manifest và chữ ký trong `server/releases/` (ngoài git).
 3. Chép `server/` lên máy chủ và chạy `sudo bash install.sh`.
 
-Máy nhân viên hỏi máy chủ tối đa 4 giờ một lần, thất bại thì 30 phút sau hỏi lại. Có bản mới thì thanh trên ô nhập hiện nút `Cập nhật`; bấm xong phải thoát hẳn app rồi mở lại. Việc phát hành chỉ tới máy đã cài từ bản 0.23.0 trở lên.
+Máy nhân viên hỏi máy chủ tối đa 4 giờ một lần, thất bại thì 30 phút sau hỏi lại. Có bản mới thì thanh trên ô nhập hiện nút `Cập nhật`; bấm xong, app Claude trên máy tính đưa nút **Mở lại ngay**, còn ở nơi khác thì thoát hẳn app rồi mở lại. Việc phát hành chỉ tới máy đã cài từ bản 0.23.0 trở lên.
 
 **An toàn:** máy nhân viên chỉ cài khi đúng chữ ký và mã kiểm tra, nên máy chủ bị chiếm cũng không phát được gói độc. Máy không kiểm được chữ ký (OpenSSH quá cũ) chỉ được báo có bản mới, không tự cài. Thư mục có `.git` không bao giờ tự cập nhật.
 
@@ -391,4 +400,4 @@ Máy chủ giới hạn phần một máy được dùng: tổng số kết nố
 - **Tốt nhất:** chỉ cho mạng công ty truy cập, như file mẫu `server/aiworker.caddy`.
 - **Nếu buộc phải mở ra Internet:** đặt sau dịch vụ bảo vệ như Cloudflare.
 - **Dùng nginx thay Caddy:** đặt `proxy_set_header X-Forwarded-For $remote_addr;` và `proxy_set_header X-Forwarded-Proto $scheme;`, nếu không người ngoài có thể giả IP và vượt giới hạn đăng nhập. Webhook tin các header này khi đến từ proxy trên máy; `TRUST_PROXY=0` để tắt.
-- **Một giới hạn vẫn còn:** mọi người trong gói cài dùng chung `INGEST_KEY`, nên nhân viên vẫn có thể gửi số liệu sai dưới tên người khác. Nếu gói bị lộ thì đổi mã và cài lại.
+- **Một giới hạn vẫn còn:** mọi người trong gói cài dùng chung `INGEST_KEY`. Máy đã có khoá riêng thì không ai gửi thay bằng mã này được nữa, nhưng khi `SHARED_KEY_MODE` còn là `allow`, người cầm gói cài vẫn ghi nhận được một máy mới dưới tên giả. Nếu gói bị lộ, đặt `SHARED_KEY_MODE=known-only` (không máy mới nào vào được) và thu hồi ở trang Quản trị những máy không nên có.

@@ -9,14 +9,15 @@ Nothing here talks to Telegram, and the words a person typed are neither stored 
 
 import re
 import threading
+from datetime import datetime
 
-from board import ask, settings, tgapp
-from board.alerts import ALERTS
+from board import ask, lang, settings, tgapp
+from board.alerts import ALERTS, quiet
 from webhook_vi import ALERT_WORDS
 from board.lang import speaking, tx
-from board.security import WALL, CallLimit
+from board.security import ADMIN, WALL, CallLimit
 from board.settings import KIND_TELEGRAM, TELEGRAM_CALLS_PER_CHAT, TELEGRAM_CALLS_WINDOW_SECONDS, TELEGRAM_STRANGER_SECONDS
-from board.stores import AUDIT_LOG, TELEGRAM_BOT, TV, TV_PAIRING, TV_STATUS, chat_key
+from board.stores import ACCOUNTS, AUDIT_LOG, TELEGRAM_BOT, TV, TV_PAIRING, TV_STATUS, chat_key
 from board.summary import SCOPE_PEOPLE
 from board.views import role_view
 
@@ -74,7 +75,7 @@ def on_call(msg, now: float) -> dict:
     # mỗi vòng tiến trình bot hỏi cần đổi nút menu của chat nào: khung của bảng cho chat được quản trị cho phép, menu thường cho chat
     # bị bỏ quyền đó (board/tgapp.py)
     if isinstance(msg, dict) and msg.get("tick") is True:
-        return {"ok": True, "menus": tgapp.MENUS.changes(now), "menuText": tgapp.MENU_TEXT, "send": alerts_due(now)}
+        return {"ok": True, "menus": tgapp.MENUS.changes(now), "menuText": tgapp.MENU_TEXT, "send": alerts_due(now) + seals_due(now)}
     TELEGRAM_BOT.seen(now)
     return on_message(msg, now)
 
@@ -117,6 +118,32 @@ def alerts_due(now: float) -> list:
         AUDIT_LOG.write(action="telegram-alert", tv=chat["name"], id=chat["id"], kind=KIND_TELEGRAM, people=m["count"])
         window = settings.TELEGRAM_APP_ENABLED and chat.get("app") is True and chat.get("scope") == SCOPE_PEOPLE
         out.append({"to": m["to"], "text": m["text"], "app": settings.TELEGRAM_APP_URL if window else None})
+    return out
+
+
+def seals_due(now: float) -> list:
+    """The morning message to each Telegram chat linked to an admin account: the fingerprint the audit chain had on the newest sealed
+    day (board/daily.py), so a copy of it lives outside the server. Only the day, the number of rows and the fingerprint: no name, no money.
+    Once per chat for each new sealed day, never at night. One row in the log for each.
+    Tin buổi sáng tới mỗi chat Telegram đã liên kết với tài khoản quản trị: dấu vân tay của chuỗi nhật ký ở ngày niêm phong mới nhất
+    (board/daily.py), để có một bản nằm ngoài máy chủ. Chỉ có ngày, số dòng và dấu vân tay: không tên, không tiền.
+    Mỗi chat một lần cho mỗi ngày niêm phong mới, không bao giờ vào ban đêm. Mỗi tin một dòng nhật ký."""
+    if quiet(datetime.fromtimestamp(now, settings.LOCAL_TZ)):
+        return []
+    chats = [dict(v, id=k) for k, v in TV.d.items() if v.get("kind") == KIND_TELEGRAM and v["expiresAt"] > now]
+    admins = [c for c in chats if re.fullmatch(r"[0-9]{1,20}", str(c.get("telegramId", ""))) and ACCOUNTS.role_of(ACCOUNTS.find_by_telegram(c["telegramId"]) or "") == ADMIN]
+    seal = AUDIT_LOG.latest_seal() if admins else None
+    out = []
+    for c in admins if seal else []:
+        if c.get("sealTold", "") >= seal["day"]:
+            continue
+        language = c.get("notifyLang") if c.get("notifyLang") in ("en", "vi") else (lang.DEFAULT_LANG or "en")
+        with speaking(language):
+            text = "🔏 AI Worker · " + tx("Log up to the end of {day}: fingerprint {hash}, {n} cost rows. Keep this message to compare later.",
+                                         day=seal["day"], hash=seal["hash"], n=seal["rows"])
+        TV.set_seal_told(c["id"], seal["day"])
+        AUDIT_LOG.write(action="telegram-seal", tv=c["name"], id=c["id"], kind=KIND_TELEGRAM, day=seal["day"])
+        out.append({"to": int(c["telegramId"]), "text": text, "app": None})
     return out
 
 

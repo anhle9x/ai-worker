@@ -8,17 +8,19 @@ Every part of AI Worker, where it runs, what it needs and which version is pinne
 
 | Part | Runs on | Language | Version |
 |---|---|---|---|
-| Plugin (hooks, `/office`, skills) | Staff computers, inside Claude Code | TypeScript | `version` in `.claude-plugin/plugin.json` (now 0.50.30) |
+| Plugin (hooks, `/office`, skills) | Staff computers, inside Claude Code | TypeScript | `version` in `.claude-plugin/plugin.json` (now 0.50.31) |
 | Dashboard server (webhook) | Linux server | Python, standard library only; data in SQLite | Same as the plugin release |
 | 3D office page | Browser | JavaScript, three.js | Same as the plugin release |
 | Menu bar icon | macOS, Windows, Ubuntu | Python (SwiftBar on Mac, Ubuntu), Swift app (`macos-app/`), PowerShell and C# (Windows) | Built by the server for each download |
-| Manager browser extension | Chrome | JavaScript | `version` in `extensions/manager/manifest.json` (now 0.1.0) |
+| Manager browser extension | Chrome, Edge | JavaScript | `version` in `extensions/manager/manifest.json` (now 0.1.0) |
+| Receiver in Go (`receiver/`, set up by `server/install-receiver.sh`), optional, for tens of thousands of computers | Linux server, beside the webhook, as a service of its own | Go 1.22 or later, standard library only; built on the packaging computer, so the server needs no Go | Same as the plugin release |
 | Telegram bot (`server/telegram_bot.py`), optional | Linux server, as a service of its own | Python, standard library only | Same as the plugin release |
 | The board's window inside Telegram (`/tg/app`, `server/static/tg-app.js`), optional | Telegram's built-in browser on a phone or a computer | JavaScript, the menu bar window's own `mini.js`; no script from Telegram | Same as the plugin release |
 | Connector for Codex, Cursor and Gemini CLI (`connectors/`) | Staff computers, as a hook inside each tool | sh and PowerShell; its installer also uses `osascript` or Node to merge JSON | Inside the package; updated by running its installer again |
-| Meter for AI projects and applications (`skills/ai-cost-report/meter/`), optional | Inside a project a team built, on the machine that runs it | Python 3.8+ (standard library only) and Node 18+ (no package); any other language by the line format | Same as the plugin release; copied into the project by hand |
+| Meter for AI projects and applications (`skills/ai-cost-report/meter/`), optional | Inside a project a team built, on the machine that runs it | Python 3.8+ (standard library only) and Node 18+ (no package), with TypeScript types; one file each for C#, Go, Java, Rust and C or C++; any other language by the line format | Same as the plugin release; copied into the project by hand |
 | Price file for those reports (`skills/ai-cost-report/prices.json`, copied to `server/board/prices.json`) | Read by the skill and by the server | JSON, prices read from each provider's pricing page with the day | Same as the plugin release |
 | Installers | macOS, Windows, Linux | Bash, PowerShell | Inside the package |
+| Plugin installer for Windows (`AI-Worker-Plugin.msi`, `packaging/windows-msi/`), handed out by the Admin page | Staff computers on Windows | WiX 5.0.2 around the package's zip and its `.bat` installer; built on GitHub (job `plugin-msi`) | Same as the plugin release; fetched with `packaging/windows-msi/fetch-msi.sh` after each release |
 
 ## 2. What each machine needs
 
@@ -49,6 +51,8 @@ Every part of AI Worker, where it runs, what it needs and which version is pinne
 |---|---|---|
 | Claude Code CLI (`plugin test`) | 2.1.319 | GitHub Actions, `code-check` |
 | ruff | 0.17.4, rules in `ruff.toml` | GitHub Actions, `code-check` |
+| Go (`go vet`, `go test` of the receiver; builds it in the `ubuntu` job) | the version in `receiver/go.mod` (1.22) or later | GitHub Actions, `code-check` and `ubuntu` |
+| WiX (`wix build` of the two `.msi` files) | 5.0.2 | GitHub Actions, `windows-app` and `plugin-msi` |
 | TypeScript (`tsc`) | run locally only | Developer computer |
 | GitHub runners | `ubuntu-latest`, `windows-latest` | `.github/workflows/test-install.yml` |
 

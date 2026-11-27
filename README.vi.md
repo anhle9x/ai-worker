@@ -57,7 +57,7 @@ Báo cáo sử dụng cho biết công ty đã tiêu bao nhiêu cho AI. AI Worke
 - **Hỏi từ công cụ AI khác:** máy chủ có cổng MCP chỉ đọc, nên công cụ AI nào hỗ trợ MCP cũng hỏi được, bằng khoá do quản trị duyệt.
 - **Bảng ngay trong Telegram:** quản lý bấm nút **AI Worker** của bot là mở bảng nhỏ trên điện thoại: ai đang chờ, chi phí 7 ngày, hạn mức. Bot trả lời bằng nút bấm, không mô hình AI nào đọc câu hỏi, và tự nhắn khi có người chờ quá lâu (`/baocho 10`). Tuỳ chọn, mặc định tắt. Xem [khung bên trong Telegram](docs/INSTALL.vi.md#khung-của-bảng-bên-trong-telegram-tuỳ-chọn) và [tin báo khi có người chờ quá lâu](docs/INSTALL.vi.md#tin-báo-khi-có-người-chờ-quá-lâu-tuỳ-chọn-theo-từng-chat).
 - **Biến quy trình thành skill:** đưa cho `/ai-worker:make-skill` một SOP hay mô tả cách làm một việc. Nó viết bản nháp skill, dừng lại khi gặp mật khẩu hay khoá, bỏ dữ liệu cá nhân, và chỉ bật skill khi bạn đồng ý.
-- **Phân quyền và nhật ký:** quản trị, quản lý và màn hình treo tường thấy những phần dữ liệu khác nhau; đăng nhập bằng mã OTP 6 số hoặc bằng Telegram (cần cài thêm bot, xem [hướng dẫn cài đặt](docs/INSTALL.vi.md)); mọi thay đổi được lưu nhật ký 12 tháng.
+- **Phân quyền và nhật ký:** quản trị, quản lý và màn hình treo tường thấy những phần dữ liệu khác nhau; đăng nhập bằng mã OTP 6 số hoặc bằng Telegram (cần cài thêm bot, xem [hướng dẫn cài đặt](docs/INSTALL.vi.md)); mọi thay đổi được lưu nhật ký 12 tháng, theo chuỗi để lộ dòng bị sửa bằng tay; mỗi ngày chi phí đã chốt được niêm phong vào chuỗi đó, và mỗi sáng mã của nó được gửi tới Telegram của quản trị.
 
 ## Có hợp với bạn không?
 
@@ -158,6 +158,8 @@ Hướng đi của dự án. Không ghi ngày: mục nào kiểm xong thì phát
 - [x] Tin nhắn Telegram khi có người chờ quá lâu, do từng chat tự bật (`/baocho`), kèm nút mở khung
 - [x] Chi phí và tốc độ của dự án hay ứng dụng AI do nhóm tự làm (0.44.0), với bất kỳ hãng LLM nào; gửi lên bảng và xem ở đó (0.45.0). Đã thử trên bảng thật với lượt thử
 - [ ] Đo một dự án thật trọn một kỳ và lấy báo cáo từ bảng
+- [x] Bộ nhận tuỳ chọn viết bằng Go cho tổ chức hàng chục nghìn máy, cài bằng một lệnh (0.50.30). Đã đo với máy giả tới khoảng 40.000 tới 50.000 máy
+- [ ] Bộ nhận Go chạy thật cho cả một tổ chức lớn. Tới nay mới một tổ chức chạy nó với vài máy
 
 ## Tài liệu
 

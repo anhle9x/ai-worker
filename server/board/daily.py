@@ -1,7 +1,10 @@
 """Use per person per day, kept for months: built from the hourly numbers each computer sends, read back as weeks and months.
 Mức dùng của từng người theo từng ngày, giữ nhiều tháng: dựng từ số liệu theo giờ mỗi máy gửi, đọc ra theo tuần và theo tháng."""
 
+import hashlib
+import json
 import threading
+import time
 from datetime import date, datetime, timedelta
 
 from board.devices import hours_of, person_key, person_name
@@ -18,6 +21,12 @@ PERIODS = ("week", "weekBefore", "weekBeforeSameDays", "month", "monthBefore", "
 # the row of the meta table that holds the first day ever counted on this server
 # dòng của bảng meta giữ ngày đầu tiên từng được đếm trên máy chủ này
 SINCE_KEY = "daily_since"
+# a day no longer counted again is sealed: one line of this action in the audit chain, with the day, how many rows it has, their dollars
+# and a fingerprint of every row. The meta row holds the last day sealed, so a day is sealed once and a day missed is sealed later
+# ngày không còn được đếm lại thì được niêm phong: một dòng hành động này trong chuỗi nhật ký, có ngày, số dòng của ngày, tổng đô la
+# và dấu vân tay của mọi dòng. Dòng meta giữ ngày cuối đã niêm phong, để mỗi ngày niêm phong một lần và ngày bị lỡ được niêm phong sau
+SEAL_ACTION = "daily-seal"
+SEALED_ROW = "daily_sealed"
 
 
 def local_day(now: float) -> date:
@@ -51,6 +60,25 @@ def totals_by_day(devices: list, now: float) -> dict:
         for r in people.values():
             r["usd"] = r["usd"] / 1_000_000
     return out
+
+
+def day_facts(database, first: str, last: str) -> dict:
+    """{day: {"rows", "usd", "digest"}} for every day from first to last that has rows. The digest is a fingerprint of all the columns
+    of the day's rows, taken in order of person, so any number changed, any row added or taken out gives another one.
+    {ngày: {"rows", "usd", "digest"}} cho mọi ngày từ first tới last có dòng. digest là dấu vân tay của mọi cột trong các dòng của ngày,
+    lấy theo thứ tự người, nên đổi bất kỳ con số nào, thêm hay bớt một dòng nào đều cho ra dấu khác."""
+    by_day = {}
+    for r in database.rows("SELECT " + COLUMNS + " FROM daily WHERE day >= ? AND day <= ? ORDER BY day, person", (first, last)):
+        by_day.setdefault(r[0], []).append(list(r))
+    return {day: {"rows": len(rows), "usd": round(sum(r[6] for r in rows), 4),
+                  "digest": hashlib.sha256(json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()}
+            for day, rows in by_day.items()}
+
+
+def facts_of(facts: dict, day: str) -> dict:
+    """The facts of one day, a day with no rows included.
+    Các con số của một ngày, kể cả ngày không có dòng nào."""
+    return facts.get(day) or {"rows": 0, "usd": 0, "digest": hashlib.sha256(b"[]").hexdigest()}
 
 
 def keep_from(today: date) -> date:
@@ -256,14 +284,54 @@ class DailyStore:
         first = self.db.get_meta(SINCE_KEY)
         return max(first, keep_from(today).isoformat()) if first else ""
 
-    def forget(self, who: str) -> int:
+    def seal(self, now: float, write) -> int:
+        """Seal each day that left the counting and is not sealed yet, oldest first, days with no use too; write(**fields) writes one
+        line of the audit chain and says whether it did. Stops at the first line not written, so that day is tried again. Returns how many.
+        Niêm phong từng ngày đã ra khỏi phần được đếm lại mà chưa niêm phong, cũ trước, cả ngày không ai dùng; write(**fields) ghi một
+        dòng của chuỗi nhật ký và cho biết đã ghi được chưa. Dừng ở dòng đầu tiên không ghi được, để ngày đó được thử lại. Trả về số ngày."""
+        today = local_day(now)
+        with self.lock:
+            since = self.since(today)
+            if not since:
+                return 0
+            sealed = self.db.get_meta(SEALED_ROW)
+            day = max(date.fromisoformat(since), date.fromisoformat(sealed) + timedelta(days=1) if sealed else date.min)
+            last = today - timedelta(days=DAILY_RECOUNT_DAYS)
+            if day > last:
+                return 0
+            facts = day_facts(self.db, day.isoformat(), last.isoformat())
+            done = 0
+            while day <= last:
+                if not write(action=SEAL_ACTION, day=day.isoformat(), **facts_of(facts, day.isoformat())):
+                    break
+                with self.db.tx() as c:
+                    c.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)", (SEALED_ROW, day.isoformat()))
+                day += timedelta(days=1)
+                done += 1
+            return done
+
+    def forget(self, who: str, write=None, now: float = None) -> int:
         """Delete every daily row of one person, named by account email or by name (letter case ignored). Returns how many rows went.
-        Xoá mọi dòng theo ngày của một người, chỉ ra bằng email tài khoản hoặc bằng tên (không phân biệt hoa thường). Trả về số dòng đã xoá."""
+        A day already sealed that lost rows is sealed again with write, reason "forget-usage", so the check of the chain stays whole; the
+        new line does not say who was forgotten.
+        Xoá mọi dòng theo ngày của một người, chỉ ra bằng email tài khoản hoặc bằng tên (không phân biệt hoa thường). Trả về số dòng đã xoá.
+        Ngày đã niêm phong mà mất dòng thì được niêm phong lại bằng write, lý do "forget-usage", để lần kiểm chuỗi vẫn trọn vẹn; dòng mới
+        không ghi ai bị xoá."""
         who = who.strip().lower()
         with self.lock:
             keys = [person for person, name, account in self.db.rows("SELECT DISTINCT person, name, account FROM daily") if who and who in (name.lower(), account.lower())]
+            sealed = self.db.get_meta(SEALED_ROW)
+            days = set()
             removed = 0
             with self.db.tx() as c:
                 for person in keys:
+                    if sealed:
+                        days.update(d for (d,) in c.execute("SELECT day FROM daily WHERE person = ? AND day <= ?", (person, sealed)).fetchall())
                     removed += c.execute("DELETE FROM daily WHERE person = ?", (person,)).rowcount
+            if write and days:
+                first = keep_from(local_day(time.time() if now is None else now)).isoformat()
+                days = sorted(d for d in days if d >= first)
+                facts = day_facts(self.db, days[0], days[-1]) if days else {}
+                for day in days:
+                    write(action=SEAL_ACTION, day=day, reason="forget-usage", **facts_of(facts, day))
             return removed

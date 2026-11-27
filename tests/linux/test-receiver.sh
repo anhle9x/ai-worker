@@ -178,6 +178,28 @@ check 'its settings are taken' 'grep -qx "RECEIVER_LISTEN=$IP:443" "$RENV" && gr
 check 'the service by hand is stopped, its file kept beside' '[ ! -f "$HAND" ] && [ -f "$HAND.before-install-receiver" ] && [ "$(systemctl is-active receiver-by-hand)" != active ]'
 check 'the installer'"'"'s service runs instead' '[ "$(systemctl is-active $SERVICE)" = active ] && curl -kfsS --resolve $NAME:443:$IP https://$NAME/health > /dev/null'
 
+echo '== R9 a service by hand whose settings file has the installer'"'"'s own name, as the trial on a real server had'
+run --remove
+rm -f "$BIN.prev" "$HAND.before-install-receiver"
+sed -i '/^RECEIVER_LIVE_URL=/d; /^RECEIVER_BOARD_ORIGIN=/d' "$ENV_FILE"
+printf 'RECEIVER_LISTEN=%s:443\nRECEIVER_TLS_CERT=%s/fullchain.pem\nRECEIVER_TLS_KEY=%s/privkey.pem\nRECEIVER_SECRETS_FILE=/opt/ai-worker/keys/receiver-secrets.json\nRECEIVER_BATCH_MS=3000\n' "$IP" "$TLS" "$TLS" > "$RENV"
+cat > "$HAND" <<EOF
+[Service]
+EnvironmentFile=$RENV
+ExecStart=$BIN
+User=ai-worker
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload; systemctl start receiver-by-hand; sleep 2
+run --take-over
+check 'without the addresses it stops and says which flags to add' '[ "$RESULT" = 1 ] && grep -q "add --live-url https://ingest" "$OUT" && grep -q "not known yet: add --board" "$OUT" && [ "$(systemctl is-active receiver-by-hand)" = active ]'
+run --take-over --live-url "https://$NAME" --board https://board.example.com
+check '--take-over with them: exit 0' '[ "$RESULT" = 0 ]'
+check 'the file by hand is kept and filled in' 'grep -qx "RECEIVER_BATCH_MS=3000" "$RENV" && grep -qx "RECEIVER_NAME=$NAME" "$RENV" && grep -q "^RECEIVER_MEMORY_MB=[0-9]" "$RENV" && grep -q "^RECEIVER_WEBHOOK=http://127.0.0.1:" "$RENV"'
+check 'the installer'"'"'s service runs instead' '[ ! -f "$HAND" ] && [ "$(systemctl is-active $SERVICE)" = active ] && curl -kfsS --resolve $NAME:443:$IP https://$NAME/health > /dev/null'
+
 if [ "$errors" != 0 ]; then
   echo "$errors checks FAILED"
   journalctl -u "$SERVICE" -n 20 --no-pager

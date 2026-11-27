@@ -17,7 +17,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 - Reading chat content, questions, answers, file names or project names.
 - Tracking the Chat tab of the Claude app, which has no plugins.
 - Tokens and cost of Codex, Cursor and Gemini CLI: their hooks do not hand them over, and reading them would mean reading the session logs, which hold the chat.
-- Stopping a staff member from sending false numbers under another name: everyone shares one send key (see [Known limits](#6-known-limits)).
+- Stopping someone who holds the install package from enrolling a new computer under a false name: the package carries one shared send key. A computer that already has its own key cannot be sent for, and `SHARED_KEY_MODE` can close enrolling (see [Known limits](#6-known-limits)).
 
 ### Who uses it
 
@@ -63,8 +63,9 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | F24 | An AI project or application a team built measures its own cost and speed, with any LLM provider: one line per user turn with times and the token counts the provider returned, per model, never a prompt, an answer, a user id or an error message; tokens it did not get are written as unknown, never as zero. The report prices them from a price file that names its source and day, plus the user's own price file; a model with no price says "no price" rather than guess, and a model on the team's own machines adds no API cost. Nothing is sent to the server | `skills/ai-cost-report/meter/ai_meter.py`, `skills/ai-cost-report/meter/ai-meter.cjs`, `skills/ai-cost-report/FORMAT.md`, `skills/ai-cost-report/report.py`, `skills/ai-cost-report/prices.json` |
 | F25 | An AI project or application sends what it measured to the board with a key of its own that an admin made: write-only, refused from a browser, each turn cleaned by the report's own code and kept once; only with `AI_PROJECTS=1`. Admins and viewers read the report by project and days and download it as HTML or CSV; the wall display, the MCP endpoint and Telegram do not | `server/board/projects.py`, `server/board/costreport.py` (a copy of `skills/ai-cost-report/report.py`); `project_ingest`, `PERM_PROJECT_KEY` in `server/webhook.py`; `page_projects` in `server/board/pages.py`; the sending part of the meters in `skills/ai-cost-report/meter/` |
 | F26 | `/ingest` reads format `v: 1` and `v: 2`: `v: 2` carries only the hours that changed, each replacing its hour, or the whole book with `full: true`; money in whole `usdMicro`; the answer gives the formats read, the pace, `needFull` and the server's start id. Both formats keep the same record, and a shared sample holds them to the same board | `clean_payload`, `merge_hours`, `save_ingest` in `server/board/devices.py`; `Handler.ingest` in `server/webhook.py`; `tests/contract/ingest-v2/`, `server/test_contract.py` |
-| F27 | The optional receiver in Go takes the sends of computers that have a key of their own on an address of its own over TLS, cleans them as the server does, answers at once and hands them to the server in numbered batches; any other send it passes to the server as it came, with the computer's real address. It keeps each computer's state and today's totals and adds them up per row of the board and per branch, as the board does (the live numbers), and sends them to the boards on `/live`, built once a second per scope for every board, with a ticket the server gives a logged-in board; the board's page then reads one scope at a time and puts the numbers on each row by its code. The server writes the batches, gives the receiver a numbered policy, the hour books and the table of each computer's row code and branch, and writes it a file of secrets | `receiver/`; `server/board/receiver.py`; the `/internal/` paths and `/sse/ticket` in `server/webhook.py`; `server/static/page.js`; [RECEIVER.md](RECEIVER.md) |
+| F27 | The optional receiver in Go takes the sends of computers that have a key of their own on an address of its own over TLS, cleans them as the server does, answers at once and hands them to the server in numbered batches; any other send it passes to the server as it came, with the computer's real address. It keeps each computer's state and today's totals and adds them up per row of the board and per branch, as the board does (the live numbers), and sends them to the boards on `/live`, built once a second per scope for every board, with a ticket the server gives a logged-in board; the board's page then reads one scope at a time and puts the numbers on each row by its code. The server writes the batches, gives the receiver a numbered policy, the hour books and the table of each computer's row code and branch, and writes it a file of secrets | `receiver/`; `server/install-receiver.sh` (sets it up); `server/board/receiver.py`; the `/internal/` paths and `/sse/ticket` in `server/webhook.py`; `server/static/page.js`; [RECEIVER.md](RECEIVER.md) |
 | F28 | A repository's files that can make an AI tool run commands or act differently (hooks, broad permissions, helper programs and variables in `.claude/settings*.json`, MCP servers in `.mcp.json`, text aimed at an AI or dangerous commands in `CLAUDE.md`/`AGENTS.md`, slash commands, agents and skills) are named to the person and to Claude when a session starts there: only what is new or changed since the last look, never blocked; a repository first seen whose files are all older than 14 days is remembered quietly, by fingerprints only | `hooks/repoconfig.ts`; `checkRepoConfig`, `session.start` and `prompt.compose` in `hooks/register.tsx` |
+| F29 | A day of cost totals edited by hand after it is closed shows on the Admin page: once a day is no longer counted again it is sealed into the audit chain with a fingerprint of its rows, and each morning the chain's fingerprint at that day goes to an admin's Telegram chat (day, number of rows, fingerprint; no name, no money) | `DailyStore.seal`, `day_facts` in `server/board/daily.py`, `AuditLog.changed_days` in `server/board/stores.py`, `seals_due` in `server/board/chat.py` |
 
 ### Limits the server enforces
 
@@ -72,7 +73,8 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 |---|---|
 | Size of one send | 256 KB |
 | Sends per computer | 20 at once, then one a second |
-| New devices | 10 per IP per day, 300 in total |
+| New devices | 10 per IP per day, 300 in total by default (`MAX_DEVICES`) |
+| Requests answered at once | Past 32 (`BUSY_REQUESTS`), a send or a request from someone not logged in gets 503 with a `Retry-After` of 30 to 90 seconds; people logged in, computers with their own key and `/health` are still answered |
 | Wrong logins | 5 per IP and 20 per account, in 15 minutes |
 | Connections | 256 in total, 16 per IP, 120 seconds each |
 | Probing | 20 errors (401/404) in 10 minutes blocks an IP that is not logged in for 15 minutes; a 401 for a session that ended (the server started again) and the 404 of `/sse/ticket` for someone logged in without the receiver are not counted, nor is a board with an ended session loading the login page, so an office sharing one address is not locked out after a restart |
@@ -95,6 +97,7 @@ Let a company see how Claude and the AI assistants are used, across all staff co
 | Action log | 12 months |
 | Calls of the board's MCP tool | 3 months, counted by calendar month |
 | Answers to Telegram chats | 3 months, counted by calendar month |
+| Records of work handed to ChatGPT, Gemini or Gemma | 3 months, counted by calendar month |
 | Login sessions | 8 hours, wall accounts 7 days; lost when the webhook restarts |
 | TV sessions | 30 days, renewed while in use; 1 year at most; survive restarts |
 | Keys for AI tools (MCP) | 30 days without use; 1 year at most; survive restarts |
@@ -146,6 +149,7 @@ flowchart TD
 | `server/menubar/` | The menu bar icon for managers: an app for macOS, an app for Windows (`windows-app/`, C#, installed from an .msi; the PowerShell tray script stays as the fallback), an AppIndicator program in a .deb for Ubuntu (the Argos script still works) |
 | `extensions/manager/` | The browser extension for managers (Chrome, Edge), installed by hand |
 | `connectors/` | The connector for Codex, Cursor and Gemini CLI: the hook (`ai-worker-hook.sh`, `.ps1`), its installer (`install.sh`, `.ps1`) and the JSON merge the installer uses (`merge-hooks.js`). It does not need the plugin |
+| `receiver/` | The optional receiver in Go for large organisations: `main.go`, `limits.go` and the packages in `internal/`; built by `packaging/build-receiver.sh`, set up by `server/install-receiver.sh` ([RECEIVER.md](RECEIVER.md)) |
 | `packaging/` | Building packages, installers, signing releases, checks before publishing |
 | `skills/`, `agents/`, `commands/` | The skills (everyday ones and those for coding and systems), the `planner` assistant, and the commands the app lists before a session starts. `skills/ai-cost-report/meter/` holds the meters an AI project copies, one file per language |
 | `tests/` | Plugin tests, install tests for Linux and Windows, language checks, the menu bar tests (`tests/menubar/`), the connector tests (`tests/connectors/`) and the extension check (`tests/extension/`) |
@@ -164,7 +168,8 @@ Each part uses what its platform already has, so almost nothing extra needs inst
 | C# | `server/menubar/windows-app/`, `server/menubar/menubar-popup.cs` | The Windows app `AI Worker.exe` on .NET Framework 4.8 and its window (WebView2); builds on a Mac with the .NET SDK or on Windows |
 | WiX | `server/menubar/windows-app/AIWorker.wxs` | The `AI Worker.msi` installer, built on GitHub's Windows; `fetch-msi.sh` puts it in `server/menubar/`, and the server fills in its own address |
 | Shell (bash), Batchfile | `packaging/`, `server/install.sh`, `connectors/install.sh` | Installers and build scripts on macOS, Linux and Windows |
-| Shell (sh) | `connectors/ai-worker-hook.sh` | The connector's hook: every macOS and Linux computer has sh, awk, sed and grep |
+| Shell (sh) | `connectors/ai-worker-hook.sh`, `server/install-receiver.sh`, `packaging/build-receiver.sh` | The connector's hook: every macOS and Linux computer has sh, awk, sed and grep. The receiver's installer and its build need no bash either |
+| Go | `receiver/` | The optional receiver: the standard library only, one file to put on the server, built for Linux on the packaging computer |
 
 GitHub's language bar shows only the largest six; Swift and C# are counted under "Other". Code from other people (see `THIRD-PARTY.md`) is left out of the count by `.gitattributes`.
 
@@ -181,13 +186,13 @@ sequenceDiagram
   participant D as data/
   P->>P: Build the summary, numbers only
   P->>P: Changed, or over 5 minutes since the last send?
-  P->>W: POST /ingest with the send key
+  P->>W: POST /ingest with the computer's own key (the shared key only the first time)
   W->>W: Check the key, else 401
   W->>W: Check the size, else 413
   W->>W: Keep only known fields, else 400
   W->>W: Write the sender IP itself
   W->>W: IngestGate limits and owner, else 429, 409 or 507
-  W->>D: Replace this device's file
+  W->>D: Write this computer's row and the hours that changed
   W->>D: Add to history if a status changed
   W-->>P: 200
 ```
@@ -210,7 +215,7 @@ sequenceDiagram
   H->>H: Start the sender in the background
   H->>F: Count sessions open, working, waiting per tool
   H->>H: Same counts as the last send, less than 5 minutes ago? Stop
-  H->>W: POST /ingest with the send key: the counts in "tools"
+  H->>W: POST /ingest with the computer's own key (the shared key only the first time): the counts in "tools"
   W->>W: Same checks as for the plugin, then keep known tools only and add the totals itself
   W-->>H: 200, or a refusal the hook notes for --status
 ```
@@ -275,7 +280,7 @@ sequenceDiagram
   participant A as Admin
   T->>W: POST /tv/request-code
   W-->>T: 8-digit code, valid 10 minutes, key in a cookie
-  loop Every second
+  loop Every 10 seconds
     T->>W: POST /tv/poll
     W-->>T: pending
   end
@@ -289,7 +294,7 @@ sequenceDiagram
 
 ### Asking the board from an AI tool (MCP)
 
-An AI tool that speaks MCP (Claude Code, Codex CLI, Cursor, Gemini CLI) reads the board with a key of its own. The key comes through the same code flow as a TV screen, asked for on the board's own page `/mcp/connect`, and an admin chooses what it may read. A key of this kind is found only by `TvStore.find(..., mcp=True)`, and no other key is found that way: it opens `/mcp` and nothing else, and nothing else opens `/mcp`.
+An AI tool that speaks MCP (Claude Code, Codex CLI, Cursor, Gemini CLI) reads the board with a key of its own. The key comes through the same code flow as a TV screen, asked for on the board's own page `/mcp/connect`, and an admin chooses what it may read. A key of this kind is found only by `TvStore.find(..., side=KIND_MCP)`, and no other key is found that way: it opens `/mcp` and nothing else, and nothing else opens `/mcp`.
 
 ```mermaid
 sequenceDiagram
@@ -339,9 +344,9 @@ sequenceDiagram
   B->>T: sendMessage, protected from forwarding
 ```
 
-`server/board/ask.py` is pure. It reads a message as one of eight commands (a command name, a Vietnamese name without accents, a button, or a keyword in a typed question) and writes the answer from the wall view, in English or Vietnamese. No AI model reads the question, so every number is the board's own; a message that means no command gets the list of commands. `server/board/chat.py` decides the rest: a chat that no admin approved gets a pairing code and nothing else, the message that finishes the pairing gets a welcome, a chat may send 20 messages in 10 minutes, and each answer with numbers is one row in the audit table (`telegram-ask`), kept 3 months and read with the MCP calls. Only private chats are answered; for a group the bot process is told to leave.
+`server/board/ask.py` is pure. It reads a message as one of nine commands (a command name, a Vietnamese name without accents, a button, or a keyword in a typed question) and writes the answer from the wall view, in English or Vietnamese. No AI model reads the question, so every number is the board's own; a message that means no command gets the list of commands. `server/board/chat.py` decides the rest: a chat that no admin approved gets a pairing code and nothing else, the message that finishes the pairing gets a welcome, a chat may send 20 messages in 10 minutes, and each answer with numbers is one row in the audit table (`telegram-ask`), kept 3 months and read with the MCP calls. Only private chats are answered; for a group the bot process is told to leave.
 
-What stands for a chat is the sender's Telegram number, which is no secret. So paired rows live on three sides (`side_of` in `server/board/stores.py`): keys for the MCP endpoint, Telegram chats, and everything else. A row is found, counted and replaced only on its own side, and `/bot/telegram` takes only a direct call from the same machine with `TELEGRAM_ASK_KEY`: a request that carries a proxy's headers gets 404.
+What stands for a chat is the sender's Telegram number, which is no secret. So paired rows live on four sides (`side_of` in `server/board/stores.py`): keys for the MCP endpoint, Telegram chats, keys of AI projects and applications, and everything else. A row is found, counted and replaced only on its own side, and `/bot/telegram` takes only a direct call from the same machine with `TELEGRAM_ASK_KEY`: a request that carries a proxy's headers gets 404.
 
 `server/telegram_bot.py` imports nothing of the board, keeps nothing on disk and holds two secrets: the bot's token and that key. It uses Telegram's Bot API over HTTPS with long polling (`getUpdates`) and not a webhook from Telegram, so nothing is opened towards the Internet and a board with no public address can use it. It does not use MTProto, the protocol of Telegram's own apps: the standard library does not speak it, and it would log in as a person. When Telegram refuses the token, when another program reads the same bot, or when Telegram cannot be reached, the process tells the webhook, and the Admin page shows it. The installer runs it as the service `ai-worker-telegram` under its own user, with `IPAddressDeny=any` and an allow-list of this machine, its DNS servers and Telegram's networks.
 
@@ -472,7 +477,7 @@ flowchart TD
 | Trust the signature, not the server (signed manifest) | The computer checks a signed manifest with keys in its own package | Taking over the server is not enough to reach staff computers |
 | English in the code, Vietnamese in dictionaries (message catalog) | `tx("...")` looks up `*.vi.js`, `webhook_vi.py`, `lang.vi.ts`; the menu bar scripts use `server/menubar/vi.json` and the extension `extensions/manager/_locales/` | One source of text; `tests/check-i18n.py` finds what is missing |
 | No outside libraries on the server | Only the Python standard library; the optional receiver only the Go standard library | Nothing extra to install, update or audit |
-| One kind of key per door (channel-bound credentials) | A key for the MCP endpoint is looked up only with `TvStore.find(..., mcp=True)`, and every other lookup leaves such keys out | A key that leaks from an AI tool's settings opens no page, and a TV's or an extension's key does not open the MCP endpoint |
+| One kind of key per door (channel-bound credentials) | A key for the MCP endpoint is looked up only with `TvStore.find(..., side=KIND_MCP)`, and every other lookup leaves such keys out | A key that leaks from an AI tool's settings opens no page, and a TV's or an extension's key does not open the MCP endpoint |
 
 ### Storage: SQLite
 
@@ -497,24 +502,26 @@ Written down so a later review does not propose them again without a new reason.
 claude plugin test .
 npx -y -p typescript@5.9.3 tsc -p tsconfig.json
 uvx ruff check .
-cd server && python3 -m unittest test_webhook test_demo test_mcp test_ask test_telegram_bot
+cd server && python3 -m unittest
+cd receiver && go test ./...
 python3 tests/connectors/test_connectors.py
+python3 tests/appmeter/test_appmeter.py
 python3 tests/check-i18n.py --comments
 node tests/extension/check-extension.js
 node tests/check-map-layout.js
 ```
 
-Each push also runs `.github/workflows/test-install.yml`: on Ubuntu it builds the package, tests the private-data check (`tests/test-check-clean.sh`) and the skills' front matter, then tries installing the plugin and the server, and tests the menu bar script and the .deb (`tests/menubar/test-menubar.sh`, `test-deb.sh`); it also checks the two-language rules (`tests/check-i18n.py`); on Windows it tries installing and tests the tray icon (`tests/menubar/test-menubar.ps1`), and a second Windows job builds `AI Worker.exe` and `AI Worker.msi`, installs it without admin rights, pairs with a fake server, installs a newer build over the running app, and removes it (`tests/menubar/test-windows-app.ps1`). In a private repository the two Windows jobs run only when a push changes what they test, or when the workflow is started by hand ([TEST-PLAN.md](TEST-PLAN.md), section 1). It does not run `test_webhook` or the extension check, so run those yourself.
+`.github/workflows/test-install.yml` runs on each push to a public repository, and anywhere when it is started by hand; a push to a private repository, such as a development copy, skips every job, so there the checks above are run on the developer's computer. The `code-check` job lints the Python code, runs the hooks' tests, nine of the server's test modules (`test_webhook`, `test_demo`, `test_mcp`, `test_ask`, `test_telegram_bot`, `test_projects`, `test_contract`, `test_receiver`, `test_hour_rows`; the others run only with the plain `python3 -m unittest` above), `go vet` and `go test` of the receiver, the connector and meter tests, the extension check and the map layout check. On Ubuntu it builds the package, tests the private-data check (`tests/test-check-clean.sh`), the skills' front matter, the two-language rules (`tests/check-i18n.py`) and the maps, then tries installing the plugin, the server and the Go receiver (`tests/linux/test-receiver.sh`), and tests the menu bar script and the .deb (`tests/menubar/test-menubar.sh`, `test-deb.sh`). Three jobs run on Windows: one tries installing, reopening the app after `/update`, the connector and the tray icon (`tests/menubar/test-menubar.ps1`); one builds `AI Worker.exe` and `AI Worker.msi`, installs it without admin rights, pairs with a fake server, installs a newer build over the running app, and removes it (`tests/menubar/test-windows-app.ps1`); one builds the plugin's `.msi` and tests it (`tests/windows/test-msi.ps1`). More in [TEST-PLAN.md](TEST-PLAN.md), section 1.
 
 `server/test_webhook.py` compares the field names of the pages with what the server sends, but it only reads the code, so a page change still needs looking at in a browser.
 
 ## 6. Known limits
 
 - **Shared send key, for enrolling.** Each computer gets a key of its own (`awd1.…`) in the answer to its first send, and once it has sent with that key only that key sends for it (a key only given binds nothing, so a plugin too old to keep it is not shut out); `--revoke-device` cuts one computer off. Enrolling still uses `INGEST_KEY`, which every install package carries, so a staff member can still enrol a made-up computer under a name not yet tied to one. Once every computer has its own key, `SHARED_KEY_MODE=known-only` or `off` closes that.
-- **How many computers.** `MAX_DEVICES` is 300 computers, about 100 to 150 people, and one process on one machine takes the sends. Measured ceilings and what comes next: [BENCHMARK.md](BENCHMARK.md). Sends are limited per computer (a bucket of 20 that refills one a second), so computers behind one shared public address do not stop each other.
+- **How many computers.** `MAX_DEVICES` is 300 computers by default, about 100 to 150 people, and one process on one machine takes the sends; it can be raised for a few thousand computers, and the optional Go receiver takes the sends of tens of thousands ([which setup for your size](INSTALL.md#which-setup-for-your-size)). Measured ceilings and what comes next: [BENCHMARK.md](BENCHMARK.md). Sends are limited per computer (a bucket of 20 that refills one a second), so computers behind one shared public address do not stop each other.
 - **HTTP without a proxy.** The connection is encrypted only behind Caddy or nginx.
 - **People with sudo on the server** can read all numbers and issue accounts for themselves. Keep them few.
-- **The audit log's chain** catches a row changed or taken out by hand, not someone who can rewrite the whole database and `audit_head` together: note the fingerprint the Admin page shows now and then. The secret and page checks go by the shape of keys and the wording of orders, so a secret with no known shape, or an order worded otherwise, passes.
+- **The audit log's chain** catches a row changed or taken out by hand, not someone who can rewrite the whole database and `audit_head` together: that needs a copy kept outside the server, which is why each sealed day's fingerprint goes to an admin's Telegram each morning and is listed on the Admin page to note down. A day's cost can still be changed during the week it is counted again, and a server with no admin's Telegram linked keeps no copy outside unless someone notes it. The secret and page checks go by the shape of keys and the wording of orders, so a secret with no known shape, or an order worded otherwise, passes.
 - **Large files.** The server is split into `server/board/` (settings, login, devices, daily totals, stores, views, pages, packages) with `server/webhook.py` keeping the request handler and routes. `hooks/register.tsx` and `server/static/ops.js` are still large: their parts share state in one closure and have no tests of their own yet, so they wait for those tests before being split. The send of a computer's numbers was the first part to leave `register.tsx`, for `hooks/send.ts`, once `tests/share.test.ts` covered it end to end.
 - **The connector knows less than the plugin.** It sends only on an event, so a tool closed without its end event stays on the board for up to 2 hours. A turn that fails sends no event either: seen with Codex CLI 0.164.0, where a refused model request left the session as working. (A turn cut short with Esc sends `Interrupt` instead of `Stop`, and that one is hooked.) The server therefore believes "working" from the connector for 30 minutes after the last send; in Cursor, which has no hook after each step, a turn that runs longer than that shows as idle until it ends. It knows no tokens, cost, quota or model. Its copy of the send key sits in a second place on the computer. Its name and email must be the ones the plugin sends, or the person shows as two rows. Cursor, Gemini CLI and Windows have not been tried in the real tools yet.
 - **The MCP endpoint.** Tried in the real tools on macOS only: Claude Code, Codex CLI, and the Chat tab of the Claude desktop app through a claude.ai connector. Cursor, Gemini CLI and every tool on Windows and Linux have not been tried. What a tool reads goes to the company that makes it. A key that reads totals only still shows a team or a leftover group of one or two people through the totals. Calls are logged in the audit table, not a table of their own, so that an older server version can still open the database. More in [SECURITY.md](../SECURITY.md).

@@ -15,6 +15,9 @@ All commands run on the server unless stated otherwise.
 | Accounts | `/opt/ai-worker/keys/accounts.db` |
 | Settings | `/etc/ai-worker.env` (root only) |
 | Service | `ai-worker-webhook` (systemd), runs as user `ai-worker` |
+| The key that seals the OTP secrets | `/etc/ai-worker-otp.key` (root only); keep a copy apart from the backups |
+| Telegram bot, only with `TELEGRAM_ASK=1` | Service `ai-worker-telegram`, its own user of the same name, settings in `/etc/ai-worker-telegram.env` |
+| Go receiver, only when set up with `install-receiver.sh` | Service `ai-worker-receiver` (user `ai-worker`), program `/opt/ai-worker/ai-worker-receiver`, settings in `/etc/ai-worker-receiver.env` |
 | HTTPS and IP allow-list | Caddy, for example `/etc/caddy/aiworker.caddy` (sample: `server/aiworker.caddy`) |
 | Access log | `/var/log/caddy/aiworker.log`, 10 files of 20 MB |
 
@@ -46,6 +49,7 @@ On the dashboard, a computer silent for 12 minutes shows as offline and one sile
 |---|---|---|
 | Service will not start, log says `INGEST_KEY is required` | Settings file missing or empty | Check `/etc/ai-worker.env`, run `sudo bash install.sh` again |
 | Admin page says *Log check: a line … was changed or taken out* | Someone edited `board.db` by hand, or restored an old copy over a newer one | Find who has sudo or file access on the server; compare the last fingerprint with the one you noted; restoring a backup made before the chain began does not trigger it |
+| Admin page says *Cost check: the numbers of … were changed after the day was sealed* | A row of `daily` for a day older than a week was edited, added or deleted by hand | As above; the day's line `daily-seal` in the log holds the numbers it had when sealed |
 | Admin page lists keys for AI tools *not used for N days* | A tool was set up once and dropped, or its config file was copied elsewhere | Ask whose it is; **Revoke** what nobody needs, so a key left in an old config file cannot read the board |
 | Every computer offline | Caddy stopped, certificate expired, or the office IP changed | `systemctl status caddy`; update the IP list in the Caddy file and `systemctl reload caddy` |
 | One computer missing | Its IP is outside the allow-list, or it was installed with an old package | Ask the user to run `/office`; check the Caddy access log for its IP |
@@ -55,8 +59,10 @@ On the dashboard, a computer silent for 12 minutes shows as offline and one sile
 | Log shows `outside the office network` or `this computer may not send from outside the office` | A send or `/update` came from outside `OFFICE_NETS`: with the shared key, or from a computer not let send from any network. If it comes from computers in the office, `OFFICE_NETS` and the Caddy list differ (the Admin page warns when your own address counts as outside) | Make `OFFICE_NETS` in `/etc/ai-worker.env` the same as `remote_ip` in the Caddy file and restart the webhook; or press **Any network** on that computer's row ([INSTALL.md](INSTALL.md#sending-from-outside-the-office-chosen-computers)). A lost computer: **Revoke** it, do not let it back |
 | Every computer must get a new key (the secret that signs them is old, or the file of secrets leaked) | | Stop the webhook, run `sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --rotate-device-secret`, start it again: every computer gets a new key at its next send, and old keys still work until then. With `--drop-old` the old keys stop at once and every computer enrols again with the shared key ([RECEIVER.md](RECEIVER.md), section 6) |
 | Log shows `409 this device is linked to another person` | The computer changed hands | `sudo systemctl stop ai-worker-webhook`, then `sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --forget-device <device id>`, then start the service |
+| Log shows `busy: 32 requests at once, … answered 503 in the last minute` | More than `BUSY_REQUESTS` (32) requests were being answered at once: sends and requests from people not logged in got 503 with a `Retry-After` of 30 to 90 seconds; people logged in still got the board | Nothing when it is rare: the computers send again by themselves. When it keeps coming, see [which setup for your size](INSTALL.md#which-setup-for-your-size) |
 | Log shows `429 too many submissions` | One computer sends too often, usually a loop | Check that computer; each computer may send 20 times at once, then once a second |
-| Log shows `507 device limit reached` | 300 computers reached | Wait for old computers to drop after 30 days, or raise `MAX_DEVICES` in `/etc/ai-worker.env` after measuring ([BENCHMARK.md](BENCHMARK.md)) |
+| The Go receiver does not answer, or a new version of it misbehaves (only with `install-receiver.sh`, [RECEIVER.md](RECEIVER.md#the-installer)) | Its service stopped, its certificate ran out or cannot be read, or the new program has a fault | `sudo sh install-receiver.sh --check` in `server/` says which of the five checks fails and asks its `/health`; `sudo journalctl -u ai-worker-receiver -n 50` for its log; `--rollback` puts the program before back; `--remove` stops it, and the computers go back to the webhook on their next send |
+| Log shows `507 device limit reached` | The limit of computers is reached (`MAX_DEVICES`, 300 by default) | Wait for old computers to drop after 30 days, or raise `MAX_DEVICES` in `/etc/ai-worker.env` and restart the webhook ([which setup for your size](INSTALL.md#which-setup-for-your-size)) |
 | "Too many wrong tries" at login | 5 wrong OTP codes in 15 minutes | Wait 15 minutes; check the phone clock is set automatically |
 | A TV shows "not seen for a while" | The TV is off or lost its network | Turn it on; if it asks for a code, pair it again on `/admin` |
 | Staff do not get the update | Plugin older than 0.23.0, signature check failed, or the plugin folder has `.git` | See section 5 |
@@ -161,10 +167,10 @@ The same holds for every later schema change, with that version's number in the 
 
 #### Going back after the OTP secrets were sealed
 
-The first version that seals the OTP secrets raises `accounts.db` from schema version 1 to 2 and logs `Sealed <n> OTP secrets with the OTP key`. An older version refuses that file, because it would read a sealed secret as the secret itself and nobody could log in. Before installing the older version, store the secrets as they were, with the newer version still installed:
+The first version that seals the OTP secrets raises `accounts.db` from schema version 1 to 2 and logs `Sealed <n> OTP secrets with the OTP key`. An older version refuses that file, because it would read a sealed secret as the secret itself and nobody could log in. Before installing the older version, store the secrets as they were, with the newer version still installed, in the `server/` folder you install from (`manage-otp.sh` is not copied to `/opt/ai-worker`):
 
 ```bash
-sudo bash /opt/ai-worker/manage-otp.sh --unseal
+sudo bash manage-otp.sh --unseal
 ```
 
 Correct result: `The OTP secrets are stored as they are again, and the webhook is stopped.` Then run `sudo bash install.sh` in the old `server/` folder. Nothing is lost. The copy `accounts.db.schema-1.bak` also holds the accounts as they were before the upgrade; the server deletes it after 7 days, since its secrets are not sealed.
@@ -177,24 +183,24 @@ The service log says `... are sealed, but the OTP key cannot be read` or `... it
 sudo install -m 600 -o root -g root <copy of the key> /etc/ai-worker-otp.key
 ```
 
-If the key is gone for good, the sealed secrets cannot be opened by anyone. Remove those accounts, then make a new key and a new admin:
+If the key is gone for good, the sealed secrets cannot be opened by anyone. Remove those accounts, then make a new key and a new admin, in the `server/` folder:
 
 ```bash
-sudo bash /opt/ai-worker/manage-otp.sh --forget-sealed
+sudo bash manage-otp.sh --forget-sealed
 sudo rm -f /etc/ai-worker-otp.key
 sudo bash install.sh
 ```
 
 `install.sh` makes a new key and, when no admin is left, asks for the name of the first one. Everyone else gets a new account on `/admin` and scans a new QR code.
 
-Going back to a version before SQLite (0.24 or older) without losing what changed since:
+Going back to a version before SQLite (0.24 or older) without losing what changed since. The export writes each account as it is stored, so with the OTP key its secrets come out sealed, and a version that old does not open them: run `manage-otp.sh --unseal` first, as above (it leaves the webhook stopped).
 
 ```bash
 sudo systemctl stop ai-worker-webhook
 sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --export-json /opt/ai-worker/data/export
 ```
 
-Then run `install.sh` from the old `server/` folder, move `data/export/data/*` into `data/` and `data/export/keys/accounts.json` into `keys/`, run `chown -R ai-worker: /opt/ai-worker/data /opt/ai-worker/keys`, and start the service. The JSON files kept since the move are in `data/legacy-json/` and `keys/legacy-json/`.
+Then run `install.sh` from the old `server/` folder, move `data/export/data/*` into `data/` and `data/export/keys/accounts.json` into `keys/`, run `chown -R ai-worker: /opt/ai-worker/data /opt/ai-worker/keys`, and start the service. The JSON files kept since the move are in `data/legacy-json/`; `keys/legacy-json/accounts.json` is deleted 30 days after the move, since its OTP secrets are not sealed.
 
 ### Plugin on staff computers
 
@@ -213,7 +219,7 @@ Rolling back the plugin: release the old code again under a new version number, 
 
 | Log | Content | Kept | Who reads it |
 |---|---|---|---|
-| Audit log, table `audit` in `board.db` | Login, account and role changes, pairing and revoking screens, locations, Team CSV loads (date range and count only), refused actions: who, role, IP, path, time | 12 months, older rows deleted by the server; each row carries the fingerprint of the one before, and `/admin` says if one was changed or taken out by hand | Admin, on `/admin` by month |
+| Audit log, table `audit` in `board.db` | Login, account and role changes, pairing and revoking screens, locations, Team CSV loads (date range and count only), refused actions: who, role, IP, path, time. Also, read apart: calls of the board's MCP tool, answers to Telegram chats, and records of work handed to ChatGPT, Gemini or Gemma | 12 months, and 3 months for those three kinds read apart; older rows deleted by the server; each row carries the fingerprint of the one before, and `/admin` says if one was changed or taken out by hand. Each day of `daily` older than a week is sealed in it (`daily-seal`): `/admin` lists the fingerprint of the last 14 sealed days, and each morning a Telegram chat linked to an admin account gets the newest one (day, number of cost rows, fingerprint; no name, no money). Keep those messages or note the fingerprints: a different one later means the log was rewritten | Admin, on `/admin` by month |
 | Service log (journald) | Start, login lines, refusals, errors. Not every send | By the system's journald settings | Root on the server |
 | Caddy access log | Every request: IP, path, status | 10 files of 20 MB | Root on the server |
 | Rewind history, table `history` in `board.db` | State changes per person | 24 hours | Everyone logged in, through the rewind button |
@@ -228,7 +234,7 @@ To delete one person's totals per day before they expire, for example when they 
 sudo -u ai-worker env DATA_DIR=/opt/ai-worker/data KEYS_DIR=/opt/ai-worker/keys python3 /opt/ai-worker/webhook.py --forget-usage <email or name>
 ```
 
-Correct result: `deleted <number> daily rows of <email or name>`. The service can keep running. Days of the last week that a computer of that person still reports are written again at the next count, so for someone who has left, run it a week after their last day.
+Correct result: `deleted <number> daily rows of <email or name>`. The service can keep running. A day already sealed (older than a week) is sealed again in the audit log, reason `forget-usage`, so the cost check stays clean; the new line does not say who. Days of the last week that a computer of that person still reports are written again at the next count, so for someone who has left, run it a week after their last day.
 
 ## 7. Site record
 
@@ -250,7 +256,9 @@ Keep one record per installation in the company's internal documents, **not in t
 
 ```bash
 sudo systemctl disable --now ai-worker-webhook
-sudo rm -rf /opt/ai-worker /etc/ai-worker.env /etc/systemd/system/ai-worker-webhook.service /etc/systemd/system/ai-worker-webhook.service.d
+sudo rm -rf /opt/ai-worker /etc/ai-worker.env /etc/ai-worker-otp.key /etc/systemd/system/ai-worker-webhook.service /etc/systemd/system/ai-worker-webhook.service.d
 ```
+
+Before those two lines, when they were set up: the Go receiver with `sudo sh install-receiver.sh --remove` in the `server/` folder, then delete `/etc/ai-worker-receiver.env`; the Telegram bot by setting `TELEGRAM_ASK=0` in `/etc/ai-worker.env` and running `sudo bash install.sh` once more (it removes the service `ai-worker-telegram`), then delete `/etc/ai-worker-telegram.env`. The users `ai-worker` and `ai-worker-telegram` stay until you remove them (`sudo userdel <name>`).
 
 Back up `data/` and `keys/` first if you may need them again.
