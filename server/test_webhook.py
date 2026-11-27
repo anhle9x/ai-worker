@@ -33,7 +33,10 @@ os.environ.update(INGEST_KEY="test", DATA_DIR=os.path.join(TMP, "data"), KEYS_DI
                   BRANCHES_FILE=os.path.join(TMP, "missing.json"), OTP="", OTP_KEY_FILE=os.path.join(TMP, "no-otp.key"),
                   # every request builds the board afresh, so a test sees what it just changed
                   # mỗi yêu cầu dựng bảng mới, để test thấy ngay thứ nó vừa đổi
-                  VIEW_CACHE_SECONDS="0")
+                  VIEW_CACHE_SECONDS="0",
+                  # the days of the tests and of the shared sample (tests/contract/ingest-v2/cases.json) are counted at +7, whatever the shell says
+                  # ngày của các test và của bộ mẫu dùng chung (tests/contract/ingest-v2/cases.json) tính theo +7, dù shell đặt gì
+                  TZ_OFFSET="7")
 os.makedirs(os.environ["DATA_DIR"])
 
 import telegram_bot  # noqa: E402

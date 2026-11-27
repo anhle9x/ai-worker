@@ -76,4 +76,10 @@ cd receiver && go test ./...
 
 Without `uv`, the ruff check is `pipx run ruff check .`. The last one needs Go 1.22 or later and `python3`: the receiver's tests run the Python server as the judge.
 
+When you change `hooks/` or `tests/*.ts(x)`, also run the type check on your computer; CI cannot, since it needs the type files Claude Code writes to `.claude-plugin/types` (see `docs/ARCHITECTURE.md`):
+
+```bash
+npx -y -p typescript@5.9.3 tsc -p tsconfig.json
+```
+
 `bash packaging/check-clean.sh` is not in this list: it looks for private data in the folder it runs in, so it belongs on what gets published. In a checkout that holds your own `packaging/company.json` it reports that file, and that is expected.

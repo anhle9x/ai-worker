@@ -127,6 +127,8 @@ How to use each screen: [docs/USER-GUIDE.md](docs/USER-GUIDE.md).
 | Telegram bot, its alerts and its window (optional) | Telegram on a phone or a computer | A bot made with @BotFather; `TELEGRAM_ASK=1` on the server, and `TELEGRAM_APP=1` for the window, which opens on the networks the server lets in. The window was tried on Android and Telegram Desktop, not yet on an iPhone |
 | Browser extension | Chrome, Edge | Download from the server's Admin page, pair with a code |
 
+One server takes about 300 computers as installed, a few thousand with one setting raised, and tens of thousands with the optional Go receiver: [which setup for your size](docs/INSTALL.md#which-setup-for-your-size).
+
 ### What is not counted
 
 The board shows Claude Code on computers where the plugin is installed, and Codex, Cursor and Gemini CLI on computers where the connector is installed (sessions only: no tokens, cost or quota). It does not show:

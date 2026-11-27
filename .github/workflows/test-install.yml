@@ -115,6 +115,11 @@ jobs:
         run: bash tests/linux/test-install.sh "$RUNNER_TEMP/package/AI-Worker"
       - name: Test the server install
         run: sudo bash tests/linux/test-server.sh
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: receiver/go.mod
+      - name: Test the Go receiver install
+        run: sh packaging/build-receiver.sh && sudo bash tests/linux/test-receiver.sh
       - name: Test the menu bar script
         run: bash tests/menubar/test-menubar.sh
       - name: Test the Ubuntu menu bar package

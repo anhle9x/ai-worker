@@ -17,7 +17,7 @@ Một máy chủ bảng gánh được bao nhiêu máy, có số đo, vượt m�
 
 **Một lần gửi không còn tốn thêm khi số máy tăng.** Trước đây mỗi lần gửi và mỗi lần đọc bảng đều làm sạch lại dữ liệu 8 ngày của mọi máy, nên phần việc tăng theo từng máy thêm vào. Giờ lần gửi mới nhất của mỗi máy được làm sạch một lần rồi giữ trong bộ nhớ.
 
-**Giới hạn 300 máy (`MAX_DEVICES`) chưa được nâng.** Mỗi máy là một dòng: một người có laptop, máy bàn và Codex là ba máy, nên 300 máy là khoảng 100 tới 150 người. Mã giờ gánh được nhiều hơn rất nhiều, nhưng giới hạn giữ nguyên tới khi bảng được đo trên máy chủ Linux và đội lớn có trang bảng theo chi nhánh (xem [Việc tiếp theo](#việc-tiếp-theo)).
+**Mặc định vẫn là 300 máy (`MAX_DEVICES`); nâng được trong `/etc/ai-worker.env`.** Mỗi máy là một dòng: một người có laptop, máy bàn và Codex là ba máy, nên 300 máy là khoảng 100 tới 150 người. Mã gánh được nhiều hơn rất nhiều: tới 10.000 máy mới đo trên máy Mac (bên dưới), và máy chủ Python một mình, không có bộ nhận Go, chưa được đo trên máy chủ Linux; các số đo Linux phía dưới là có bộ nhận Go. Cỡ nào cài thế nào: [INSTALL.vi.md](INSTALL.vi.md#chọn-cách-cài-theo-quy-mô).
 
 ## Cách đo
 
@@ -152,8 +152,8 @@ Cùng lượt đo đó với Caddy 2.6 đứng trước Python trên cùng máy,
 
 ## Những gì các con số này chưa cho thấy
 
-- **Máy chủ Linux.** Bảng chạy trên Linux; một máy chủ cloud nhỏ chậm hơn máy Mac này. Hãy chạy bài đo ở đó trước khi tin các con số này cho cỡ của bạn.
-- **Một địa chỉ cho nhiều máy.** Bài đo cho mỗi máy một địa chỉ riêng. Một văn phòng thật đi ra ngoài qua một địa chỉ công cộng dùng chung giới hạn 300 lần gửi mỗi địa chỉ trong 10 phút: với nhịp 30 giây một lần, khoảng 15 máy đang làm việc sau một địa chỉ là chạm giới hạn. Đây là giới hạn đã biết cho tới khi lần gửi được đếm theo máy.
+- **Máy chủ Linux, với Python một mình.** Bảng chạy trên Linux; một máy chủ cloud nhỏ chậm hơn máy Mac này. Linux mới được đo khi có bộ nhận Go đứng trước ([Trên Linux, có bộ nhận Go](#trên-linux-có-bộ-nhận-go)). Hãy chạy bài đo trên máy chủ của bạn trước khi tin các con số này cho cỡ của bạn.
+- **Một địa chỉ cho nhiều máy.** Bài đo cho mỗi máy một địa chỉ riêng. Lần gửi giờ được giới hạn theo từng máy, không theo địa chỉ (`INGEST_BURST`, `INGEST_PER_SECOND`), nên một văn phòng đi ra ngoài qua một địa chỉ công cộng không còn dùng chung một giới hạn; chỉ máy mới là vẫn được đếm theo địa chỉ mỗi ngày.
 - **HTTPS và Caddy.** Bài đo nói chuyện thẳng với máy chủ, không qua TLS.
 - **Chính bài đo thành nút thắt.** Tải đến từ một tiến trình Python trên cùng máy. Quá vài trăm yêu cầu mỗi giây thì có thể bài đo, chứ không phải máy chủ, là thứ chạm trần.
 
@@ -166,6 +166,6 @@ Dấu hiệu để đổi: nhu cầu kéo dài trên khoảng 500 lần gửi m�
 ## Việc tiếp theo
 
 1. **Đo trên Linux**: đã đo với bộ nhận Go ([Trên Linux, có bộ nhận Go](#trên-linux-có-bộ-nhận-go)); cả khi đi qua Caddy có TLS (25/11/2026).
-2. **Trang bảng theo chi nhánh** cho đội lớn, thay cho trả mọi người trong một câu trả lời.
-3. **Nâng `MAX_DEVICES`**, cho cấu hình được, khi bước 1 và 2 đạt ở cỡ đó.
+2. **Trang bảng theo chi nhánh** cho đội lớn, thay cho trả mọi người trong một câu trả lời: đã làm (`/data?scope=`, [RECEIVER.vi.md](RECEIVER.vi.md#mã-dòng-và-phạm-vi)).
+3. **Nâng `MAX_DEVICES`**: đặt được trong `/etc/ai-worker.env`; mặc định giữ 300 cho tới khi Python một mình được đo trên Linux.
 4. **Vượt một tiến trình**, cho tổ chức 100.000 máy trở lên: nhiều tiến trình nhận số cấp cho một tiến trình phục vụ người xem. Đã làm và đo tới nay: plugin gửi gọn hơn (chỉ các giờ đã đổi, 0.50.15), máy chủ đặt nhịp gửi, khoá riêng cho từng máy, và một bộ nhận Go đứng trước Python ([Trên Linux, có bộ nhận Go](#trên-linux-có-bộ-nhận-go)).

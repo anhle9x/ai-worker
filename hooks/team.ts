@@ -489,7 +489,7 @@ export type IngestRoute = { urls: string[]; until: number; rest?: { until: numbe
 
 function hostOf(url: string): string | undefined {
   const m = /^https:\/\/([a-z0-9.-]+)(:\d{1,5})?$/i.exec(url)
-  return m ? m[1].toLowerCase() : undefined
+  return m?.[1]?.toLowerCase()
 }
 
 /**
@@ -508,7 +508,7 @@ export function receiverAllowed(url: string, webhook: string, ingestHosts: strin
   const parent = labels.slice(1)
   // a parent like com.vn or co.uk is a public suffix, not the company's domain: congty.com.vn opens nothing more
   // tên miền cha như com.vn hay co.uk là hậu tố công cộng, không phải tên miền của công ty: congty.com.vn không mở thêm gì
-  if (parent.length === 2 && parent[1].length === 2 && SECOND_LEVEL.includes(parent[0])) return false
+  if (parent.length === 2 && parent[1]?.length === 2 && SECOND_LEVEL.includes(parent[0] ?? '')) return false
   return host.endsWith('.' + parent.join('.'))
 }
 

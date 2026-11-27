@@ -127,6 +127,8 @@ Cách dùng từng màn hình: [docs/USER-GUIDE.vi.md](docs/USER-GUIDE.vi.md).
 | Bot Telegram, tin báo và khung của nó (tuỳ chọn) | Telegram trên điện thoại hoặc máy tính | Một bot tạo bằng @BotFather; `TELEGRAM_ASK=1` trên máy chủ, thêm `TELEGRAM_APP=1` cho khung, khung mở được ở các mạng mà máy chủ cho vào. Khung đã thử trên Android và Telegram Desktop, chưa thử trên iPhone |
 | Tiện ích trình duyệt | Chrome, Edge | Tải ở trang Quản trị, ghép bằng mã |
 
+Một máy chủ nhận khoảng 300 máy khi cài mặc định, vài nghìn máy khi nâng một tuỳ chỉnh, và hàng chục nghìn máy với bộ nhận Go tuỳ chọn: [chọn cách cài theo quy mô](docs/INSTALL.vi.md#chọn-cách-cài-theo-quy-mô).
+
 ### Những gì không được đếm
 
 Bảng cho thấy Claude Code trên các máy đã cài plugin, và Codex, Cursor, Gemini CLI trên các máy đã cài bộ nối (chỉ có số phiên: không có token, chi phí hay hạn mức). Bảng không cho thấy:

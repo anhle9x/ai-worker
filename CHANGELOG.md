@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.30 - 2026-11-27
+
+### Added
+- `server/install-receiver.sh` sets up the optional Go receiver in one command, in place of building it and writing its systemd service by hand (docs/RECEIVER.md, section 5, "The installer"). The server needs no Go: `sh packaging/build-receiver.sh` builds it for Linux `amd64` and `arm64` into `server/receiver-bin/` with their `SHA256SUMS`, copied with `server/`. The installer checks the second IP, that nothing else (such as Caddy without `default_bind`) holds port 443, the DNS name, the certificate and the firewall, and prints what to add instead of changing them; keeps its settings in `/etc/ai-worker-receiver.env`; writes the service as `ai-worker` with `CAP_NET_BIND_SERVICE`, `MemoryMax` above `RECEIVER_MEMORY_MB` and `OOMScoreAdjust=500`; sets `RECEIVER=1` and the live feed's two addresses only where they are empty; and never moves a computer to the receiver. `--check`, `--rollback` (to the program before), `--remove` and `--take-over` (of a service written by hand) are there too. Once it is set up, every run of `install.sh` updates the receiver as well.
+
+### Changed
+- The documents now say which setup fits which size, for organisations that download AI Worker: about 300 computers as installed, a few hundred to a few thousand with `MAX_DEVICES` (and past about 5,000 `WEBHOOK_MEMORY_MB`) raised, tens of thousands with the Go receiver, and how far each is checked (docs/INSTALL.md, "Which setup for your size"; a line in the README; the top of docs/RECEIVER.md). docs/BENCHMARK.md no longer says the limit cannot be raised or that sends are limited per address: `MAX_DEVICES` can be set, sends are limited per computer, and the Python server alone has still not been measured on Linux.
+
 ## 0.50.29 - 2026-11-27
 
 ### Fixed

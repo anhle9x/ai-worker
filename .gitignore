@@ -4,6 +4,9 @@ dist/
 # Signed update: made by packaging/release.sh, copy it to the server
 # Bản cập nhật đã ký: do packaging/release.sh tạo, chép lên máy chủ
 server/releases/
+# The Go receiver built for the server by packaging/build-receiver.sh: copy it to the server with server/
+# Bộ nhận Go dựng cho máy chủ bằng packaging/build-receiver.sh: chép lên máy chủ cùng server/
+server/receiver-bin/
 # Real send code + webhook address: only on the packaging computer
 # Mã gửi + địa chỉ webhook thật: chỉ ở máy đóng gói
 packaging/company.json

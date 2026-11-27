@@ -2,7 +2,7 @@
 
 [Tiếng Việt](RECEIVER.vi.md) | English <!-- i18n-allow -->
 
-A small company does not need this page: the Python server takes every send itself. The receiver in `receiver/` is a second program, written with the Go standard library only, for an organisation with many thousands of computers. It takes the computers' sends on an address of its own over TLS, answers them at once, and hands them to the Python server in batches. Python stays the record: logins, roles, the board, the history and the SQLite files are unchanged.
+A small company does not need this page: the Python server takes every send itself, up to a few thousand computers with `MAX_DEVICES` raised ([which setup for your size](INSTALL.md#which-setup-for-your-size)). How far the receiver is checked: measured with fake computers up to about 40,000 to 50,000 on one Linux machine (section 5), and in real use so far in one organisation, with a few computers, for a week from late November 2026. Try it with a few computers of your own before the whole organisation ("Trying it with a few computers", section 5). The receiver in `receiver/` is a second program, written with the Go standard library only, for an organisation with many thousands of computers. It takes the computers' sends on an address of its own over TLS, answers them at once, and hands them to the Python server in batches. Python stays the record: logins, roles, the board, the history and the SQLite files are unchanged.
 
 **What this first stage does and does not do.** It takes sends correctly and gives Python the same records Python would have written itself; tests hold the two to that. It also serves the boards their live numbers, per branch or for the whole organisation, on `/live` (section 3, "The live feed"), and the board's page opens that feed when it is set up. On Linux with 4 vCPU and 8 GB it carries 40,000 computers sending `v: 2`, the format of the plugin from 0.50.15 on, even after a `kill -9` of the receiver and of Python (section 5). The plugin sends to the receiver only once the server tells it where (`ingestUrls`, "Which computers send to the receiver" below), so nothing changes until `RECEIVER_INGEST_URLS` is set.
 
@@ -152,10 +152,29 @@ Where it listens was decided with the design: a **second public IP on the same s
 3. Add a DNS A record for `ingest.<your domain>` pointing to the second IP.
 4. Get a certificate for that name with an outside tool, checked over DNS (nobody listens on port 80 of the second IP).
 5. Open port 443 of the second IP in the firewall.
-6. Build the receiver (`cd receiver && go build -o /opt/ai-worker/ai-worker-receiver .`), set `RECEIVER=1`, `RECEIVER_LIVE_URL=https://ingest.<your domain>` and `RECEIVER_BOARD_ORIGIN=https://<the board's domain>` in `/etc/ai-worker.env` and restart the webhook, then run the receiver with systemd as the `ai-worker` account with `AmbientCapabilities=CAP_NET_BIND_SERVICE`, never as root. In the unit, `MemoryMax=` a little above `RECEIVER_MEMORY_MB` and `OOMScoreAdjust=500`, so if memory still runs out the kernel kills the receiver, which restarts in seconds, and never the Python server. Run `install.sh` again after setting `RECEIVER=1`: the webhook's own ceiling goes from 1 GB to 45% of the machine, since Python then holds the books of every computer (2 to 3.5 GB at 100,000); `WEBHOOK_MEMORY_MB` in the env file sets it by hand.
+6. Run the installer, as below: it puts the receiver in place, sets `RECEIVER=1`, `RECEIVER_LIVE_URL` and `RECEIVER_BOARD_ORIGIN` in `/etc/ai-worker.env` where they are empty and runs `install.sh` again (the webhook's own ceiling goes from 1 GB to 45% of the machine, since Python then holds the books of every computer, 2 to 3.5 GB at 100,000; `WEBHOOK_MEMORY_MB` in the env file sets it by hand), then starts the receiver.
 7. Once every computer has its own key, set `SHARED_KEY_MODE` to `known-only` or `off`.
 
 Not known yet: whether your provider gives a second IP, and at what price (otherwise port 8443, then measure how many computers it stops).
+
+### The installer
+
+`server/install-receiver.sh` does step 6 in one command and checks steps 1 to 5. The server needs no Go: on the computer that copies `server/` to the server, `sh packaging/build-receiver.sh` builds the receiver for Linux on Intel or AMD (`amd64`) and on ARM (`arm64`) into `server/receiver-bin/`, with their `SHA256SUMS` (not kept in git; build it again for every version). Then copy `server/` to the server as for `install.sh`, and run there, in the `server/` folder:
+
+```bash
+sudo sh install-receiver.sh --listen 203.0.113.2:443 --cert /etc/ai-worker-receiver/fullchain.pem --key /etc/ai-worker-receiver/privkey.pem --live-url https://ingest.example.com --board https://board.example.com
+```
+
+The right result ends with `✔ The receiver answers on https://ingest.example.com:443/health` and the lines to add for trying it with a few computers (below). What it does:
+
+- **It checks steps 1 to 5 and changes none of them**: that the IP is on this machine; that nothing else listens on port 443 of every address or of that IP (Caddy without `default_bind`: it prints the lines to add to the Caddyfile); that the name points to the IP; that the certificate and its key are there, readable by the account `ai-worker` (not under `/home`, `/root` or `/tmp`, which the service cannot see), not expired and for that name; and, when ufw or firewalld runs, that port 443 is open (else it prints the one command that opens it). A ✘ stops it before anything starts, a `!` only warns.
+- **The settings of the receiver** go to `/etc/ai-worker-receiver.env` (root only), made once and kept at every run; a value given again on the command line changes that line. `RECEIVER_MEMORY_MB` is 40% of the machine when the file is made.
+- **The service** `ai-worker-receiver` is written again at every run, as the account `ai-worker` with `CAP_NET_BIND_SERVICE` only, never root, `MemoryMax=` 10% and 64 MB above `RECEIVER_MEMORY_MB` and `OOMScoreAdjust=500`, so if memory still runs out the kernel kills the receiver, which restarts in seconds, and never the Python server.
+- **It moves no computer.** `RECEIVER_INGEST_URLS`, `RECEIVER_INGEST_DEVICES` and `RECEIVER_INGEST_PERCENT` stay yours to set. A `RECEIVER_LIVE_URL` or `RECEIVER_BOARD_ORIGIN` already set is never changed: it says so instead.
+- **Updates.** Once it set the receiver up, every `sudo bash install.sh` puts in the receiver of that copy of `server/` too (`install-receiver.sh --update`), and restarts it only when the program or its service changed. A copy without `server/receiver-bin/` keeps the program it has.
+- **Going back.** The program it replaced is kept as `/opt/ai-worker/ai-worker-receiver.prev`: `sudo sh install-receiver.sh --rollback` puts it back (run again, it goes forward again). `--remove` stops the receiver and takes its service away; the computers that sent to it go back to the webhook on their next send, and its settings, the program and `RECEIVER=1` are kept. `--check` only checks, and asks the receiver's `/health`.
+- **A receiver service written by hand** (one whose `ExecStart` runs `ai-worker-receiver`, as the trial was set up) is left alone, and the installer stops and says so. With `--take-over` it keeps a copy of that file beside it (`.before-install-receiver`), takes the `RECEIVER_` settings in its `Environment=` lines and its `EnvironmentFile=`, stops it and runs its own service instead.
+- **Only Linux with systemd**, like `install.sh`. A server on Windows is not supported. On another processor, build the receiver with Go and give it with `--binary <file>`.
 
 ### Trying it with a few computers
 

@@ -2,7 +2,7 @@
 
 Tiếng Việt | [English](RECEIVER.md)
 
-Công ty nhỏ không cần trang này: máy chủ Python tự nhận mọi lần gửi. Bộ nhận trong `receiver/` là một chương trình thứ hai, viết chỉ bằng thư viện chuẩn của Go, cho tổ chức có nhiều nghìn máy. Nó nhận các lần gửi của máy trên một địa chỉ riêng qua TLS, trả lời ngay, rồi trao chúng cho máy chủ Python theo lô. Python vẫn là bản gốc: đăng nhập, vai, bảng, lịch sử và các file SQLite không đổi.
+Công ty nhỏ không cần trang này: máy chủ Python tự nhận mọi lần gửi, tới vài nghìn máy khi nâng `MAX_DEVICES` ([chọn cách cài theo quy mô](INSTALL.vi.md#chọn-cách-cài-theo-quy-mô)). Bộ nhận đã được kiểm tới đâu: đo với máy giả tới khoảng 40.000 tới 50.000 máy trên một máy Linux (mục 5), và chạy thật tới nay ở một tổ chức, với vài máy, trong một tuần từ cuối tháng 11/2026. Hãy thử với vài máy của bạn trước khi dùng cho cả tổ chức ("Thử với vài máy", mục 5). Bộ nhận trong `receiver/` là một chương trình thứ hai, viết chỉ bằng thư viện chuẩn của Go, cho tổ chức có nhiều nghìn máy. Nó nhận các lần gửi của máy trên một địa chỉ riêng qua TLS, trả lời ngay, rồi trao chúng cho máy chủ Python theo lô. Python vẫn là bản gốc: đăng nhập, vai, bảng, lịch sử và các file SQLite không đổi.
 
 **Đợt đầu này làm gì và chưa làm gì.** Nó nhận số đúng và đưa cho Python đúng những bản ghi mà Python tự ghi sẽ ra; các bài kiểm giữ hai bên như vậy. Nó còn phục vụ các bảng số trực tiếp, theo chi nhánh hoặc cho cả tổ chức, ở `/live` (mục 3, "Luồng số trực tiếp"), và trang bảng mở luồng đó khi luồng đã được cài. Trên Linux 4 vCPU, 8 GB, nó chịu được 40.000 máy gửi `v: 2`, định dạng của plugin từ bản 0.50.15, kể cả sau khi bộ nhận và Python bị `kill -9` (mục 5). Plugin chỉ gửi tới bộ nhận khi máy chủ báo nơi gửi (`ingestUrls`, "Máy nào gửi tới bộ nhận" bên dưới), nên không có gì đổi cho tới khi đặt `RECEIVER_INGEST_URLS`.
 
@@ -152,10 +152,29 @@ Nơi nghe đã được quyết cùng bản thiết kế: **một IP công khai 
 3. Thêm bản ghi DNS A cho `ingest.<tên miền của bạn>` trỏ về IP thứ hai.
 4. Lấy chứng chỉ cho tên đó bằng một công cụ ngoài, xác minh qua DNS (cổng 80 của IP thứ hai không có ai nghe).
 5. Mở cổng 443 của IP thứ hai trên tường lửa.
-6. Dựng bộ nhận (`cd receiver && go build -o /opt/ai-worker/ai-worker-receiver .`), đặt `RECEIVER=1`, `RECEIVER_LIVE_URL=https://ingest.<tên miền của bạn>` và `RECEIVER_BOARD_ORIGIN=https://<tên miền của bảng>` trong `/etc/ai-worker.env` rồi khởi động lại webhook, sau đó chạy bộ nhận bằng systemd với tài khoản `ai-worker` và `AmbientCapabilities=CAP_NET_BIND_SERVICE`, không bao giờ bằng root. Trong unit, đặt `MemoryMax=` cao hơn `RECEIVER_MEMORY_MB` một chút và `OOMScoreAdjust=500`, để nếu vẫn hết bộ nhớ thì nhân giết bộ nhận (khởi động lại trong vài giây), không bao giờ giết máy chủ Python. Đặt `RECEIVER=1` xong thì chạy lại `install.sh`: trần bộ nhớ của chính webhook đổi từ 1 GB thành 45% bộ nhớ của máy, vì khi đó Python giữ sổ của mọi máy (2 tới 3,5 GB ở 100.000 máy); `WEBHOOK_MEMORY_MB` trong file env đặt tay con số này.
+6. Chạy bộ cài, như bên dưới: nó đặt bộ nhận vào chỗ, ghi `RECEIVER=1`, `RECEIVER_LIVE_URL` và `RECEIVER_BOARD_ORIGIN` vào `/etc/ai-worker.env` ở những dòng đang trống rồi chạy lại `install.sh` (trần bộ nhớ của chính webhook đổi từ 1 GB thành 45% bộ nhớ của máy, vì khi đó Python giữ sổ của mọi máy, 2 tới 3,5 GB ở 100.000 máy; `WEBHOOK_MEMORY_MB` trong file env đặt tay con số này), rồi chạy bộ nhận.
 7. Khi mọi máy đã có khoá riêng, đặt `SHARED_KEY_MODE` thành `known-only` hoặc `off`.
 
 Chưa biết: nhà cung cấp của bạn có cho gắn IP thứ hai không, và giá bao nhiêu (không được thì dùng cổng 8443, rồi đo bao nhiêu máy bị chặn).
+
+### Bộ cài
+
+`server/install-receiver.sh` làm bước 6 bằng một lệnh và kiểm các bước 1 tới 5. Máy chủ không cần Go: ở máy chép `server/` lên máy chủ, `sh packaging/build-receiver.sh` dựng bộ nhận cho Linux trên Intel hay AMD (`amd64`) và trên ARM (`arm64`) vào `server/receiver-bin/`, kèm `SHA256SUMS` (không đưa vào git; dựng lại cho mỗi phiên bản). Rồi chép `server/` lên máy chủ như với `install.sh`, và chạy ở đó, trong thư mục `server/`:
+
+```bash
+sudo sh install-receiver.sh --listen 203.0.113.2:443 --cert /etc/ai-worker-receiver/fullchain.pem --key /etc/ai-worker-receiver/privkey.pem --live-url https://ingest.example.com --board https://board.example.com
+```
+
+Kết quả đúng kết thúc bằng `✔ Bộ nhận trả lời ở https://ingest.example.com:443/health` và các dòng cần thêm để thử với vài máy (bên dưới). Nó làm gì:
+
+- **Kiểm các bước 1 tới 5 và không sửa bước nào**: IP nằm trên máy này; không gì khác nghe cổng 443 của mọi địa chỉ hay của IP đó (Caddy chưa có `default_bind`: nó in các dòng cần thêm vào Caddyfile); tên trỏ tới IP; chứng chỉ và khoá của nó có ở đó, tài khoản `ai-worker` đọc được (không nằm dưới `/home`, `/root` hay `/tmp`, nơi dịch vụ không thấy), còn hạn và đúng tên; và khi ufw hay firewalld đang chạy, cổng 443 đã mở (nếu chưa thì in đúng một lệnh để mở). Một dấu ✘ dừng lại trước khi chạy gì, dấu `!` chỉ cảnh báo.
+- **Cấu hình của bộ nhận** nằm ở `/etc/ai-worker-receiver.env` (chỉ root), tạo một lần và giữ nguyên ở mỗi lần chạy; một giá trị đưa lại trên dòng lệnh thì sửa dòng đó. `RECEIVER_MEMORY_MB` là 40% bộ nhớ của máy lúc tạo file.
+- **Dịch vụ** `ai-worker-receiver` được viết lại ở mỗi lần chạy, chạy bằng tài khoản `ai-worker` chỉ với `CAP_NET_BIND_SERVICE`, không bao giờ bằng root, `MemoryMax=` cao hơn `RECEIVER_MEMORY_MB` 10% cộng 64 MB và `OOMScoreAdjust=500`, để nếu vẫn hết bộ nhớ thì nhân giết bộ nhận (khởi động lại trong vài giây), không bao giờ giết máy chủ Python.
+- **Không chuyển máy nào.** `RECEIVER_INGEST_URLS`, `RECEIVER_INGEST_DEVICES` và `RECEIVER_INGEST_PERCENT` vẫn do bạn đặt. `RECEIVER_LIVE_URL` hay `RECEIVER_BOARD_ORIGIN` đã có giá trị thì không bao giờ bị đổi: nó báo ra thay vào đó.
+- **Cập nhật.** Một khi nó đã cài bộ nhận, mỗi lần `sudo bash install.sh` cũng đặt vào bộ nhận của bản `server/` đó (`install-receiver.sh --update`), và chỉ khởi động lại khi file chạy hay dịch vụ của nó đổi. Bản không có `server/receiver-bin/` thì giữ file chạy đang có.
+- **Quay lui.** File chạy bị thay được giữ ở `/opt/ai-worker/ai-worker-receiver.prev`: `sudo sh install-receiver.sh --rollback` đặt nó lại (chạy lần nữa thì đi tới lại). `--remove` dừng bộ nhận và gỡ dịch vụ của nó; các máy đang gửi tới nó quay về webhook ở lần gửi sau, còn cấu hình, file chạy và `RECEIVER=1` được giữ. `--check` chỉ kiểm, và hỏi `/health` của bộ nhận.
+- **Dịch vụ bộ nhận viết tay** (dịch vụ có `ExecStart` chạy `ai-worker-receiver`, như bản thử đã cài) được để nguyên, và bộ cài dừng lại báo ra. Với `--take-over` nó giữ một bản của file đó bên cạnh (`.before-install-receiver`), lấy các cấu hình `RECEIVER_` trong các dòng `Environment=` và `EnvironmentFile=` của nó, dừng nó và chạy dịch vụ của mình thay vào.
+- **Chỉ Linux có systemd**, như `install.sh`. Máy chủ Windows chưa được hỗ trợ. Bộ xử lý khác thì tự dựng bộ nhận bằng Go rồi đưa vào bằng `--binary <file>`.
 
 ### Thử với vài máy
 

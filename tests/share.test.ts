@@ -1,6 +1,10 @@
 import type { On } from 'claude-code'
 import { expect, mock, test, type TestBody } from 'claude-code/testing'
 
+// the test runtime has timers, but the plugin's type files describe none
+// môi trường chạy test có bộ hẹn giờ, nhưng file kiểu của plugin không mô tả
+declare const setTimeout: (run: (value?: unknown) => void, ms: number) => unknown
+
 type Engine = Parameters<TestBody>[0]
 
 // End to end through the engine: the send that session.start makes, with the store keys and answers a real computer meets.

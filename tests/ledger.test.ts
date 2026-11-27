@@ -27,7 +27,7 @@ test('the store keys of the ledger keep their names', () => {
 
 test('a turn adds to its hour, and the page gets the ledger and the long history', async () => {
   const m = machine()
-  await logSpend(m.io, HOUR * 3_600_000 + 5, { input: 10, output: 2, cacheRead: 0, cacheWrite: 1 }, 0.5)
+  await logSpend(m.io, HOUR * 3_600_000 + 5, { input: 10, output: 2, cacheRead: 0, cacheWrite: 1, turns: 1 }, 0.5)
   await logSpend(m.io, HOUR * 3_600_000 + 60_000, undefined, 0.25)
   expect(await readLedger(m.store)).toEqual({ [HOUR]: { usd: 0.75, input: 10, output: 2, cacheRead: 0, cacheWrite: 1 } })
   expect(m.page['cost.js']).toBe(`window.__aiWorkerCost = ${JSON.stringify(m.data.ledger)};\n`)

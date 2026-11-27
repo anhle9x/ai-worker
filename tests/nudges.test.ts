@@ -1,4 +1,4 @@
-import type { On } from 'claude-code'
+import type { On, PromptSubmitInput } from 'claude-code'
 import { expect, mock, test, type TestBody } from 'claude-code/testing'
 import { LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT } from '../hooks/update'
 
@@ -333,7 +333,7 @@ async function toldBeside($: Engine, on: On, percents: number[]): Promise<(reado
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   for (const percent of percents) {
     await $.session.measure({ context: { tokens: percent * 10_000, window: 1_000_000, percent }, rateLimits: [], changed: ['context'] })
-    await $.prompt.submit({ text: 'carry on', asUser: true })
+    await $.prompt.submit({ text: 'carry on', origin: { kind: 'composer' } } satisfies Partial<PromptSubmitInput> as PromptSubmitInput)
   }
   return told
 }
@@ -342,7 +342,7 @@ test('past 80% Claude is told once, beside the next message, to finish and then 
   const told = await toldBeside($, on, [62, 82, 88, 20, 84])
   const notes = told.map(c => c.filter(t => t.startsWith('ai-worker:')))
   expect(notes.map(n => n.length)).toEqual([0, 1, 0, 0, 1])
-  expect(notes[1][0]).toContain('82%')
-  expect(notes[1][0]).toContain('/handoff')
-  expect(notes[1][0]).toContain('First finish what this message asks')
+  expect(notes[1]?.[0]).toContain('82%')
+  expect(notes[1]?.[0]).toContain('/handoff')
+  expect(notes[1]?.[0]).toContain('First finish what this message asks')
 })

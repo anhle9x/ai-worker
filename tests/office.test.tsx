@@ -1,4 +1,4 @@
-import type { On } from 'claude-code'
+import type { AgentSpawnInput, On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import { assistantName } from '../hooks/office'
 
@@ -146,7 +146,7 @@ test('a subagent is named by its type and model, not just as an assistant', asyn
   on('agent.spawn', () => ({ model: 'claude-haiku-4-5-20251001', agentId: 'a1' }))
   on('tool.call', async (_, e) => {
     if (e.tool === 'Agent') {
-      await $.agent.spawn({ prompt: 'Find where the office is drawn', subagentType: 'Explore', description: 'Find the drawing' })
+      await $.agent.spawn({ prompt: 'Find where the office is drawn', subagentType: 'Explore', description: 'Find the drawing' } satisfies Partial<AgentSpawnInput> as AgentSpawnInput)
       const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
       seen = (await ui.find({ type: 'Text', text: /Explore/ }))?.text ?? ''
       await ui.unmount()

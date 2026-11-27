@@ -17,7 +17,7 @@ How many computers one board server carries, measured, what happens past that, a
 
 **One send no longer costs more as the number of computers grows.** Before, each send and each read of the board cleaned the last 8 days of every computer again, so the work grew with every computer added. Now each computer's last send is cleaned once and kept in memory.
 
-**The limit of 300 computers (`MAX_DEVICES`) has not been raised yet.** A computer is one row: a person with a laptop, a desktop and Codex counts as three, so 300 computers is about 100 to 150 people. The code now carries far more, but the limit stays until the board is measured on a Linux server and large teams get a board page per branch (see [What is next](#what-is-next)).
+**The default stays at 300 computers (`MAX_DEVICES`); it can be raised in `/etc/ai-worker.env`.** A computer is one row: a person with a laptop, a desktop and Codex counts as three, so 300 computers is about 100 to 150 people. The code carries far more: up to 10,000 computers it was measured on a Mac only (below), and the Python server alone, with no Go receiver, has not been measured on a Linux server yet; the Linux numbers further down are with the Go receiver. Which setup for which size: [INSTALL.md](INSTALL.md#which-setup-for-your-size).
 
 ## How it was measured
 
@@ -152,8 +152,8 @@ The same run with Caddy 2.6 in front of Python on the same machine, set up as `s
 
 ## What these numbers do not show
 
-- **A Linux server.** The board runs on Linux; a small cloud server is slower than this Mac. Run the test there before trusting these numbers for your size.
-- **One address for many computers.** The test gives each computer its own address. A real office behind one public address shares the limit of 300 sends per address in 10 minutes: at one send every 30 seconds, about 15 busy computers behind one address reach it. This is a known limit until sends are counted per computer.
+- **A Linux server, for Python alone.** The board runs on Linux; a small cloud server is slower than this Mac. Linux was measured only with the Go receiver in front ([On Linux, with the Go receiver](#on-linux-with-the-go-receiver)). Run the test on your server before trusting these numbers for your size.
+- **One address for many computers.** The test gives each computer its own address. Sends are now limited per computer, not per address (`INGEST_BURST`, `INGEST_PER_SECOND`), so an office behind one public address no longer shares one limit; only new computers are still counted per address each day.
 - **HTTPS and Caddy.** The test talks to the server directly, without TLS.
 - **The test as the bottleneck.** The load comes from one Python process on the same computer. Past a few hundred requests a second the test, not the server, may be what tops out.
 
@@ -166,6 +166,6 @@ The signal to change: a sustained need above about 500 sends a second that more 
 ## What is next
 
 1. **Measure on Linux**: done with the Go receiver ([On Linux, with the Go receiver](#on-linux-with-the-go-receiver)); through Caddy with TLS too (2026-11-25).
-2. **A board page per branch** for large teams, instead of every person in one answer.
-3. **Raise `MAX_DEVICES`**, configurable, once 1 and 2 pass at that size.
+2. **A board page per branch** for large teams, instead of every person in one answer: done (`/data?scope=`, [RECEIVER.md](RECEIVER.md#rows-and-scopes)).
+3. **Raise `MAX_DEVICES`**: it can be set in `/etc/ai-worker.env`; the default stays 300 until Python alone is measured on Linux.
 4. **Past one process**, for organisations of 100,000 computers and more: several processes that take sends feeding one that serves people. Built and measured so far: a smaller send from the plugin (only the hours that changed, 0.50.15), a pace the server sets, a key per computer, and one Go receiver in front of Python ([On Linux, with the Go receiver](#on-linux-with-the-go-receiver)).

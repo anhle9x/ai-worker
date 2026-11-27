@@ -56,11 +56,11 @@ test('a .env-style setting is found in the middle of a line, and in JSON and YAM
     [`{"${PASS}": "abc12345xyz"}`, `${PASS}=…`],
     [`${PASS}: 'abc12345xyz'`, `${PASS}=…`],
     [`run with ${TOKEN}=Zq8wLp3nVb7x ./app`, `${TOKEN}=…`],
-  ]) {
+  ] as [string, string][]) {
     const found = findSecrets(text)
     expect([text, found.map(s => s.kind)]).toEqual([text, ['password or key in a .env line']])
-    expect(found[0].hint).toBe(hint)
-    expect(found[0].hint).not.toContain('abc12345xyz')
+    expect(found[0]?.hint).toBe(hint)
+    expect(found[0]?.hint).not.toContain('abc12345xyz')
   }
 })
 

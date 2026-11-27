@@ -365,6 +365,13 @@ elif [ -f "$BOT_UNIT" ]; then
   systemctl daemon-reload
   say "  Asking from Telegram is off: the bot's service is removed. Its token stays in $BOT_ENV; delete that file if you will not use it again." "  Hỏi bảng qua Telegram đang tắt: dịch vụ của bot đã bị gỡ. Khoá của nó vẫn nằm trong $BOT_ENV; hãy xoá file đó nếu bạn không dùng lại."
 fi
+# The Go receiver, when install-receiver.sh set it up: it takes the program of this copy of server/ too. Nothing otherwise.
+# Bộ nhận Go, khi install-receiver.sh đã cài nó: nó cũng nhận file chạy của bản server/ này. Không thì không làm gì.
+if [ -z "${AI_WORKER_FROM_RECEIVER:-}" ] && [ -f install-receiver.sh ]; then
+  if ! sh install-receiver.sh --update; then
+    say "✘ The receiver was not updated: see above, or 'journalctl -u ai-worker-receiver'" "✘ Bộ nhận chưa được cập nhật: xem phía trên, hoặc 'journalctl -u ai-worker-receiver'"
+  fi
+fi
 echo
 # the key is printed only on the first install; a re-run to update does not print it (so it does not leak through the screen history)
 # mã chỉ in lần cài đầu; chạy lại để cập nhật thì không in (khỏi lộ qua lịch sử màn hình)

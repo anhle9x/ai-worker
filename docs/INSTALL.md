@@ -16,10 +16,23 @@ To look at the board before deploying anything, run `python3 server/demo.py` (on
 
 Real addresses, the `INGEST_KEY` and the keys do not go into git. The repo only uses sample addresses such as `https://board.company.com`.
 
+## Which setup for your size
+
+The server counts computers, not people: a laptop, a desktop and a connector for Codex are three, so 300 computers is about 100 to 150 people.
+
+| Computers | What to set up | How far it is checked |
+|---|---|---|
+| Up to about 300 | Nothing more: the default (`MAX_DEVICES=300`) | The default; measured with 300 computers sending every 10 seconds and 30 boards open: a send p95 5 ms, 10% of one core ([BENCHMARK.md](BENCHMARK.md)) |
+| A few hundred to a few thousand | Raise `MAX_DEVICES` in `/etc/ai-worker.env`, then run `install.sh` again. Python alone is still enough. Past about 5,000 computers also raise `WEBHOOK_MEMORY_MB` (the webhook keeps about 150 KB a computer in memory, and its ceiling is 1 GB by default) | Measured on a Mac only, in one process: up to 10,000 computers a send costs 0.8 ms and the board 154 ms, in 1.5 GB ([BENCHMARK.md, Past 10,000 computers](BENCHMARK.md#past-10000-computers)). Python alone has not been measured on a Linux server: run `tests/load/load_test.py` on yours first |
+| Tens of thousands | The optional Go receiver beside the webhook: `sudo sh install-receiver.sh` ([RECEIVER.md](RECEIVER.md)) | Measured on rented Linux machines with fake computers: up to about 40,000 to 50,000 on 4 vCPU and 8 GB. In real use so far: one organisation, a few computers, for a week from late November 2026. Try it with a few computers of your own first ([Trying it with a few computers](RECEIVER.md#trying-it-with-a-few-computers)) |
+
+When the limit is reached, a new computer is refused (`507 device limit reached` in the log, [OPERATIONS.md](OPERATIONS.md)); computers already on the board keep sending.
+
 ## First deployment
 
 1. **Install the webhook.** Copy `server/` to the server and run `sudo bash install.sh`. The first time, the script prints the `INGEST_KEY` and creates the first admin account. Details in [`server/README.md`](../server/README.md).
 2. **Turn on HTTPS.** Add a Caddy block for the domain with the allow-list of IPs (template: `server/aiworker.caddy`, change it to your domain and IPs), then add `TRUST_PROXY=1` to `/etc/ai-worker.env` and run `install.sh` again.
+   With many thousands of computers, the optional Go receiver goes beside the webhook with one command, `sudo sh install-receiver.sh`, which also checks the second IP, Caddy, DNS, the certificate and the firewall ([RECEIVER.md](RECEIVER.md#the-installer)). An office does not need it.
 3. **Make the signing keys**, on the signing computer:
    ```bash
    mkdir -p ~/.ai-worker-keys && chmod 700 ~/.ai-worker-keys

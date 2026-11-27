@@ -16,10 +16,23 @@ Muốn xem bảng trước khi triển khai, chạy `python3 server/demo.py` (tr
 
 Địa chỉ thật, `INGEST_KEY` và khoá không đưa vào git. Trong repo chỉ dùng địa chỉ mẫu như `https://bang.cong-ty.vn`.
 
+## Chọn cách cài theo quy mô
+
+Máy chủ đếm máy, không đếm người: laptop, máy bàn và bộ nối cho Codex là ba máy, nên 300 máy là khoảng 100 tới 150 người.
+
+| Số máy | Cài gì | Đã kiểm tới đâu |
+|---|---|---|
+| Tới khoảng 300 | Không cần thêm gì: mặc định (`MAX_DEVICES=300`) | Mặc định; đo với 300 máy gửi mỗi 10 giây và 30 bảng mở: một lần gửi p95 5 ms, 10% của một lõi ([BENCHMARK.vi.md](BENCHMARK.vi.md)) |
+| Vài trăm tới vài nghìn | Nâng `MAX_DEVICES` trong `/etc/ai-worker.env`, rồi chạy lại `install.sh`. Python một mình vẫn đủ. Quá khoảng 5.000 máy thì nâng cả `WEBHOOK_MEMORY_MB` (webhook giữ khoảng 150 KB mỗi máy trong bộ nhớ, và trần của nó mặc định là 1 GB) | Mới đo trên máy Mac, một tiến trình: tới 10.000 máy một lần gửi tốn 0,8 ms và dựng bảng 154 ms, trong 1,5 GB ([BENCHMARK.vi.md, Vượt 10.000 máy](BENCHMARK.vi.md#vượt-10000-máy)). Python một mình chưa được đo trên máy chủ Linux: chạy `tests/load/load_test.py` trên máy chủ của bạn trước |
+| Hàng chục nghìn | Bộ nhận Go tuỳ chọn cạnh webhook: `sudo sh install-receiver.sh` ([RECEIVER.vi.md](RECEIVER.vi.md)) | Đã đo trên máy Linux thuê với máy giả: tới khoảng 40.000 tới 50.000 máy trên 4 vCPU và 8 GB. Chạy thật tới nay: một tổ chức, vài máy, một tuần từ cuối tháng 11/2026. Hãy thử với vài máy của bạn trước ([Thử với vài máy](RECEIVER.vi.md#thử-với-vài-máy)) |
+
+Khi chạm giới hạn, máy mới bị từ chối (`507 device limit reached` trong nhật ký, [OPERATIONS.vi.md](OPERATIONS.vi.md)); các máy đã có trên bảng vẫn gửi bình thường.
+
 ## Triển khai lần đầu
 
 1. **Cài webhook.** Chép `server/` lên máy chủ rồi chạy `sudo bash install.sh`. Lần đầu script in `INGEST_KEY` và tạo tài khoản quản trị đầu tiên. Chi tiết ở [`server/README.md`](../server/README.md).
 2. **Bật HTTPS.** Thêm khối Caddy cho tên miền với danh sách IP được vào (mẫu: `server/aiworker.caddy`, đổi sang tên miền và IP của bạn), rồi thêm `TRUST_PROXY=1` vào `/etc/ai-worker.env` và chạy lại `install.sh`.
+   Với hàng nghìn máy, bộ nhận Go tuỳ chọn được cài cạnh webhook bằng một lệnh, `sudo sh install-receiver.sh`, lệnh này cũng kiểm IP thứ hai, Caddy, DNS, chứng chỉ và tường lửa ([RECEIVER.vi.md](RECEIVER.vi.md#bộ-cài)). Một văn phòng không cần nó.
 3. **Tạo khoá ký**, trên máy giữ khoá ký:
    ```bash
    mkdir -p ~/.ai-worker-keys && chmod 700 ~/.ai-worker-keys

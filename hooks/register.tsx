@@ -2202,7 +2202,7 @@ export const register: Register = on => {
         await noteBlock($, 'answer', `${key}:${flags.join(',')}`)
         if (!e.agentId) await Promise.resolve($.ui.toast(answerToast(checked, worker))).catch(() => undefined)
         const note = answerNote(checked, worker)
-        if (note) ran = { ...ran, context: [...(ran.context ?? []), note] }
+        if (note && ran.deny === undefined && !ran.isError) ran = { ...ran, context: [...(ran.context ?? []), note] }
       }
       if (job?.brief) {
         const outcome = why.outcome ?? (ran.deny !== undefined ? 'declined' : ran.isError ? 'error' : 'ok')
