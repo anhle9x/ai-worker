@@ -25,11 +25,7 @@ EXPECTED = {
     # chính bộ nhận đã ghi nó, nên nó giữ sổ của nó
     ("row", "saved"): (True, True, False),
     ("straight", "need-full"): (True, True, False),
-    # NOT on purpose: a row that needs the whole book drops its records of work; harmless (the plugin sends them again for 48 hours and
-    # the log keeps each once), to be written as /ingest does after the pilot ends (about 2026-12-04)
-    # KHÔNG chủ ý: dòng cần cả sổ bỏ mất biên bản giao việc của nó; vô hại (plugin gửi lại chúng trong 48 giờ và nhật ký giữ mỗi cái một
-    # lần), sẽ được ghi như /ingest sau khi thí điểm xong (khoảng 2026-12-04)
-    ("row", "need-full"): (False, True, False),
+    ("row", "need-full"): (True, True, False),
 }
 
 

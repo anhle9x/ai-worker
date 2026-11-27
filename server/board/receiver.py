@@ -51,7 +51,6 @@ from board.devices import (
     HOUR_KINDS,
     NEED_FULL,
     SAVED,
-    STALE,
     clean_delegations,
     clean_payload,
     branch_facts,
@@ -467,11 +466,9 @@ def apply_row(row, now: float, identities: dict, out: dict, people: set, delegat
         out["needFull"].append(d["device"])
     elif outcome == SAVED:
         people.add(person_key(d))
-        delegations.append((d, clean_delegations(row["v"].get("delegations"), at * 1000)))
-    elif outcome == STALE:
-        # its numbers are older than the book here, but its records of work handed to helpers still go to the audit log, once each
-        # số của nó cũ hơn sổ ở đây, nhưng biên bản giao việc của nó vẫn vào nhật ký, mỗi cái một lần
-        delegations.append((d, clean_delegations(row["v"].get("delegations"), at * 1000)))
+    # the records of work handed to helpers go to the audit log, once each, even when the numbers wait for the whole book, as on /ingest
+    # biên bản giao việc vào nhật ký, mỗi cái một lần, kể cả khi số liệu còn chờ cả sổ, như ở /ingest
+    delegations.append((d, clean_delegations(row["v"].get("delegations"), at * 1000)))
     if "raw" in row and settings.RECEIVER_CHECK_PERCENT > 0:
         check_row(row, at)
 

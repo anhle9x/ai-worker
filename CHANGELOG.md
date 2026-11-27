@@ -2,6 +2,11 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.29 - 2026-11-27
+
+### Fixed
+- With the Go receiver, the records of work handed to helpers that come with a send are now written to the audit log even when the server asks that computer for its whole book first, as a send straight to `/ingest` already did. Before, they waited for the plugin to send them again (it keeps them 48 hours), so the log could show them later.
+
 ## 0.50.28 - 2026-11-27
 
 ### Changed
