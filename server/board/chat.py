@@ -143,7 +143,11 @@ def seals_due(now: float) -> list:
                                          day=seal["day"], hash=seal["hash"], n=seal["rows"])
         TV.set_seal_told(c["id"], seal["day"])
         AUDIT_LOG.write(action="telegram-seal", tv=c["name"], id=c["id"], kind=KIND_TELEGRAM, day=seal["day"])
-        out.append({"to": int(c["telegramId"]), "text": text, "app": None})
+        # the bot's messages cannot be copied (protect_content), so the fingerprint alone rides on a button that copies it
+        # tin của bot không chép được (protect_content), nên riêng dấu vân tay đi kèm trên một nút bấm để chép nó
+        with speaking(language):
+            copy = {"label": tx("Copy the fingerprint"), "text": seal["hash"]}
+        out.append({"to": int(c["telegramId"]), "text": text, "app": None, "copy": copy})
     return out
 
 

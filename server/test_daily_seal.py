@@ -212,6 +212,7 @@ class MorningMessage(unittest.TestCase):
         fingerprint = self.log.latest_seal()["hash"]
         self.assertIn("2026-11-11", text)
         self.assertIn(fingerprint, text)
+        self.assertEqual(out[0]["copy"], {"label": "Copy the fingerprint", "text": fingerprint})
         self.assertIn("3", text)
         for word in ("12.5", "12,5", "$", "boss", "Chat"):
             self.assertNotIn(word, text)

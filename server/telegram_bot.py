@@ -277,6 +277,11 @@ class Bot:
         if status == 429:
             self.sleep(self.retry_after(reply, 30))
             status, reply = self.telegram("sendMessage", payload)
+        # Telegram refused the buttons under the message: the words still go, since the webhook has already counted the message as sent
+        # Telegram từ chối các nút dưới tin: phần chữ vẫn được gửi, vì webhook đã tính tin này là đã gửi rồi
+        if status == 400 and markup:
+            payload.pop("reply_markup", None)
+            status, reply = self.telegram("sendMessage", payload)
         if status != 200:
             self.log("an answer could not be sent (status %d)" % status)
 
@@ -314,8 +319,14 @@ class Bot:
             chat_id, text, url = (row.get("to"), row.get("text"), row.get("app")) if isinstance(row, dict) else (None, None, None)
             if not isinstance(chat_id, int) or isinstance(chat_id, bool) or chat_id <= 0 or not isinstance(text, str) or not text:
                 continue
-            button = {"inline_keyboard": [[{"text": "AI Worker", "web_app": {"url": url}}]]} if isinstance(url, str) and url.startswith("https://") and len(url) <= 512 else None
-            self.send(chat_id, text, {}, button)
+            buttons = [{"text": "AI Worker", "web_app": {"url": url}}] if isinstance(url, str) and url.startswith("https://") and len(url) <= 512 else []
+            # a button that puts one short text on the clipboard (Telegram's copy_text, 1 to 256 characters): the message itself stays protected
+            # một nút đưa một đoạn chữ ngắn vào bộ nhớ tạm (copy_text của Telegram, 1 tới 256 ký tự): bản thân tin nhắn vẫn được bảo vệ
+            copy = row.get("copy")
+            label, value = (copy.get("label"), copy.get("text")) if isinstance(copy, dict) else (None, None)
+            if isinstance(label, str) and 0 < len(label) <= 64 and isinstance(value, str) and 0 < len(value) <= 256:
+                buttons.append({"text": label, "copy_text": {"text": value}})
+            self.send(chat_id, text, {}, {"inline_keyboard": [[b] for b in buttons]} if buttons else None)
 
     def run(self) -> None:
         # the webhook may still be starting: wait for it, and stop at once if it does not take this process

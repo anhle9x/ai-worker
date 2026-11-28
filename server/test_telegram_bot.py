@@ -688,6 +688,33 @@ class MenuButtons(BotCase):
         self.assertNotIn("reply_markup", sent[1])
         self.assertNotIn("reply_markup", sent[2])
 
+    def test_a_message_can_carry_a_button_that_copies_one_text(self):
+        copy = {"label": "Copy the fingerprint", "text": "35ca6e904f93a1c2"}
+        self.board.sends = [{"to": 700100200, "text": "seal", "app": None, "copy": copy},
+                            {"to": 700100201, "text": "both", "app": "https://aiworker.example.com/tg/app", "copy": copy},
+                            {"to": 700100202, "text": "too long", "app": None, "copy": {"label": "Copy", "text": "x" * 257}},
+                            {"to": 700100203, "text": "odd", "app": None, "copy": {"label": "", "text": "x"}},
+                            {"to": 700100204, "text": "odd", "app": None, "copy": "x"}]
+        self.bot.step()
+        sent = self.telegram.sent()
+        self.assertTrue(all(s["protect_content"] is True for s in sent))
+        self.assertEqual(sent[0]["reply_markup"], {"inline_keyboard": [[{"text": "Copy the fingerprint", "copy_text": {"text": "35ca6e904f93a1c2"}}]]})
+        self.assertEqual(sent[1]["reply_markup"], {"inline_keyboard": [[{"text": "AI Worker", "web_app": {"url": "https://aiworker.example.com/tg/app"}}],
+                                                                       [{"text": "Copy the fingerprint", "copy_text": {"text": "35ca6e904f93a1c2"}}]]})
+        for s in sent[2:]:
+            self.assertNotIn("reply_markup", s)
+
+    def test_a_message_whose_buttons_telegram_refuses_still_goes_without_them(self):
+        self.board.sends = [{"to": 700100200, "text": "seal", "app": None, "copy": {"label": "Copy the fingerprint", "text": "35ca6e904f93a1c2"}}]
+        self.telegram.script("sendMessage", 400, {"ok": False, "description": "Bad Request"})
+        self.bot.step()
+        calls = [body for method, body in self.telegram.calls if method == "sendMessage"]
+        self.assertEqual(len(calls), 2)
+        self.assertIn("reply_markup", calls[0])
+        self.assertNotIn("reply_markup", calls[1])
+        self.assertEqual(calls[1]["text"], "seal")
+        self.assertTrue(calls[1]["protect_content"])
+
     def test_not_asked_while_the_webhook_does_not_answer(self):
         self.bot.step()
         self.board.status = 500

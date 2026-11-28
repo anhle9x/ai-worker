@@ -345,9 +345,9 @@ Khi chat đã được kết nối (mục trên), nó có thể nhờ bot tự n
 
 ### Mã niêm phong của ngày cho quản trị (tự động)
 
-Mỗi ngày tổng chi phí được niêm phong vào nhật ký sau một tuần (xem [OPERATIONS.vi.md](OPERATIONS.vi.md)). Khi bot đã chạy, chat có Telegram liên kết với tài khoản **quản trị** trên bảng nhận một tin ngắn vào buổi sáng đầu tiên sau khi một ngày được niêm phong (từ 07:00 theo múi giờ của bảng): `Nhật ký tới hết ngày <ngày>: mã <16 ký tự>, <n> dòng chi phí`. Không tên, không tiền. Không cần bật gì: liên kết Telegram với tài khoản quản trị (đăng nhập bằng Telegram, ở trên) và ghép một chat. Hãy giữ các tin này: nếu về sau trang Quản trị hiện mã khác cho ngày đó, nhật ký đã bị viết lại.
+Mỗi ngày tổng chi phí được niêm phong vào nhật ký sau một tuần (xem [OPERATIONS.vi.md](OPERATIONS.vi.md)). Khi bot đã chạy, chat có Telegram liên kết với tài khoản **quản trị** trên bảng nhận một tin ngắn vào buổi sáng đầu tiên sau khi một ngày được niêm phong (từ 07:00 theo múi giờ của bảng): `Nhật ký tới hết ngày <ngày>: mã <16 ký tự>, <n> dòng chi phí`. Không tên, không tiền. Không cần bật gì: liên kết Telegram với tài khoản quản trị (đăng nhập bằng Telegram, ở trên) và ghép một chat. Hãy giữ các tin này: nếu về sau trang Quản trị hiện mã khác cho ngày đó, nhật ký đã bị viết lại. Tin của bot không chép hay chuyển tiếp được, nên dưới tin này có nút **Chép mã**, bấm vào thì riêng mã được đưa vào bộ nhớ tạm.
 
-**Đã thử tới đâu.** Có bài test máy chủ (`server/test_daily_seal.py`); chưa thử trên chat thật.
+**Đã thử tới đâu.** Có bài test máy chủ (`server/test_daily_seal.py`, `server/test_telegram_bot.py`). Trên chat thật, tin đã tới lúc 07:00 và mã trong tin khớp với trang Quản trị; nút chép mã thì chưa thử trên chat thật. Nếu Telegram từ chối nút, bot gửi lại tin đó không kèm nút.
 
 ## Phát hành bản cập nhật
 

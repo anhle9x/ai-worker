@@ -345,9 +345,9 @@ Once a chat is connected (above), it can ask the bot to write first: a message w
 
 ### The day's fingerprint for admins (automatic)
 
-Each day of cost totals is sealed into the audit log a week later (see [OPERATIONS.md](OPERATIONS.md)). Once the bot runs, a chat whose Telegram is linked to an **admin** account on the board gets one short message the first morning after a day is sealed (07:00 or later in the board's time zone): `Log up to the end of <day>: fingerprint <16 characters>, <n> cost rows`. No name, no money. Nothing to turn on: link your Telegram to your admin account (Telegram login, above) and connect a chat. Keep the messages: if the Admin page later shows another fingerprint for that day, the log was rewritten.
+Each day of cost totals is sealed into the audit log a week later (see [OPERATIONS.md](OPERATIONS.md)). Once the bot runs, a chat whose Telegram is linked to an **admin** account on the board gets one short message the first morning after a day is sealed (07:00 or later in the board's time zone): `Log up to the end of <day>: fingerprint <16 characters>, <n> cost rows`. No name, no money. Nothing to turn on: link your Telegram to your admin account (Telegram login, above) and connect a chat. Keep the messages: if the Admin page later shows another fingerprint for that day, the log was rewritten. The bot's messages cannot be copied or forwarded, so a button under this one, **Copy the fingerprint**, puts the fingerprint alone on the clipboard.
 
-**Tried so far.** Covered by the server tests (`server/test_daily_seal.py`); not yet on a real chat.
+**Tried so far.** Covered by the server tests (`server/test_daily_seal.py`, `server/test_telegram_bot.py`). On a real chat the message arrived at 07:00 and its fingerprint matched the Admin page; the button that copies it has not been tried on a real chat yet. If Telegram refuses the button, the bot sends the message again without it.
 
 ## Releasing an update
 

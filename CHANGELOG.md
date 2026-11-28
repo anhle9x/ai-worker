@@ -2,6 +2,14 @@
 
 Changes that matter to people who install or run AI Worker. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.50.38 - 2026-11-28
+
+### Added
+- The morning message with the day's fingerprint on Telegram carries a button, "Copy the fingerprint", that puts the fingerprint alone on the clipboard: the bot's messages cannot be copied, so it could only be compared by eye. The message itself stays protected. If Telegram refuses the buttons under a message, the bot sends the words again without them.
+
+### Changed
+- The Vietnamese Admin page names a fingerprint with the word for "check code" in place of a word-for-word "fingerprint", in the column of the sealed days and of the delegation records and in the log check line, as the Telegram message already says "code".
+
 ## 0.50.37 - 2026-11-28
 
 ### Fixed
