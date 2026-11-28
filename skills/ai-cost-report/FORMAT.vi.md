@@ -59,6 +59,7 @@ Lấy từ `usage` hãng trả kèm mỗi câu trả lời; không ước lượ
 | Gemini | `usageMetadata.promptTokenCount` − đọc cache | `candidatesTokenCount` + `thoughtsTokenCount` | `usageMetadata.cachedContentTokenCount` | không có |
 | API chép theo Chat Completions của OpenAI (Azure OpenAI, DeepSeek, Mistral, Groq, OpenRouter, xAI Grok, vLLM, LM Studio, `/v1` của Ollama...) | như OpenAI Chat Completions | `usage.completion_tokens`, cộng `completion_tokens_details.reasoning_tokens` khi `total_tokens` cho thấy phần đó không nằm trong nó (xAI làm vậy: ví dụ của họ là 32 + 9 + 110 = 151) | `prompt_tokens_details.cached_tokens`, hoặc `prompt_cache_hit_tokens` của DeepSeek | như OpenAI, khi có |
 | Vercel AI SDK (`generateText` và tương tự) | `usage.inputTokenDetails.noCacheTokens`, không có thì `inputTokens` − đọc cache − ghi cache | `usage.outputTokens` | `inputTokenDetails.cacheReadTokens` | `inputTokenDetails.cacheWriteTokens` |
+| LangChain và LangGraph (`usage_metadata` trên câu trả lời; do `ai_meter_langchain.py` và `ai-meter-langchain.cjs` đọc) | `input_tokens` − đọc cache − ghi cache | `output_tokens` | `input_token_details.cache_read` | `input_token_details.cache_creation` |
 | Bedrock Converse | `usage.inputTokens` (đã không gồm cache) | `usage.outputTokens` | `usage.cacheReadInputTokens` | `usage.cacheWriteInputTokens` |
 | Ollama `/api/chat` | `prompt_eval_count` | `eval_count` | không có | không có |
 | Cohere v2 chat | `usage.billed_units.input_tokens` | `usage.billed_units.output_tokens` | không có | không có |

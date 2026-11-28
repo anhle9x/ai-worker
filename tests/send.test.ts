@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import type { Answer } from '../hooks/io'
-import { DEVICE_KEY, PACE_KEY, REFUSED_KEY, ROUTE_KEY, SEND_KEY, send, SHARED_KEY, WEBHOOK_DOWN_KEY, type SendMem, type SendResult, type SendTarget } from '../hooks/send'
+import { DEVICE_KEY, GEMMA_BOARD_KEY, PACE_KEY, REFUSED_KEY, ROUTE_KEY, SEND_KEY, send, SHARED_KEY, WEBHOOK_DOWN_KEY, type SendMem, type SendResult, type SendTarget } from '../hooks/send'
 import { buildMachineSummary, PACE_MIN_MS } from '../hooks/team'
 
 // hooks/send.ts without the engine: a store in memory that logs each step, a server that answers from a script, a fixed random.
@@ -268,4 +268,25 @@ test('a write of the store that must not be lost throws; one whose loss only cos
   await expect(send({ store, fetch, random: () => 0.5 }, WEB, c.mem, summaryOf('An', NOW), NOW)).rejects.toThrow('disk full')
   failing.delete('ingestRoute')
   expect(await send({ store, fetch, random: () => 0.5 }, WEB, c.mem, summaryOf('An', NOW), NOW)).toMatchObject({ kind: 'sent' })
+})
+
+test('the Gemma server the dashboard announces is kept, taken away on null, and kept when an answer says nothing', async () => {
+  const c = computer({ [DEVICE_KEY]: OWN })
+  const told = { url: 'https://aiworker.example.com/gemma', model: 'gemma4:26b' }
+  c.answer(() => ok({ ok: true, gemmaServer: told }))
+  await c.send(NOW)
+  expect(c.data[GEMMA_BOARD_KEY]).toEqual(told)
+  // an older dashboard, or the Go receiver, says nothing: what is held stays
+  // bảng tổng cũ hơn, hay bộ nhận Go, không nói gì: cái đang giữ ở lại
+  c.answer(() => ok({ ok: true }))
+  await c.send(NOW + 60_000)
+  expect(c.data[GEMMA_BOARD_KEY]).toEqual(told)
+  // an address that is not https is never taken from the dashboard
+  // địa chỉ không phải https không bao giờ được nhận từ bảng tổng
+  c.answer(() => ok({ ok: true, gemmaServer: { url: 'http://aiworker.example.com/gemma' } }))
+  await c.send(NOW + 120_000)
+  expect(c.data[GEMMA_BOARD_KEY]).toEqual(told)
+  c.answer(() => ok({ ok: true, gemmaServer: null }))
+  await c.send(NOW + 180_000)
+  expect(GEMMA_BOARD_KEY in c.data).toBe(false)
 })

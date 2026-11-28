@@ -36,6 +36,8 @@ Cách nhanh nhất: mở Claude Code trong thư mục code của dự án, gõ `
   | Python | `ai_meter.py` | Python 3.8+ | có | có |
   | JavaScript (Node) | `ai-meter.cjs` | Node 18+ | có | có |
   | TypeScript | `ai-meter.cjs` và `ai-meter.d.cts`, nằm cạnh nhau | Node 18+ (đã thử với TypeScript 5.9) | có | có |
+  | LangChain hay LangGraph (Python) | `ai_meter.py` và `ai_meter_langchain.py`, nằm cạnh nhau | Python 3.8+, langchain-core 0.3.9+ | có, qua một callback | có |
+  | LangChain.js hay LangGraph.js | `ai-meter.cjs` và `ai-meter-langchain.cjs`, nằm cạnh nhau | Node 18+ | có, qua một callback | có |
   | C# | `AiMeter.cs` | .NET 6+ | có | có |
   | Go | `aimeter.go`, trong thư mục `aimeter/` | Go 1.21+ | có | có |
   | Java, Kotlin và ngôn ngữ JVM khác | `AiMeter.java`, trong thư mục `aimeter/` | Java 11+ | có | có |
@@ -317,6 +319,44 @@ void handle_request(void) {
 - Lần gọi lỗi: `ai_turn_fail(&t, hãng, model, 0)`; gọi lại: `ai_turn_count_retry(..., 1)`; streaming: `ai_turn_first_token(&t)`; quá thời gian: `ai_turn_set_outcome(&t, "timeout")`.
 - Mỗi `ai_turn` chỉ dùng trong một luồng. Một lượt giữ tối đa 16 model khác nhau; quá số đó thì bỏ qua.
 - Muốn đưa lên bảng thì gửi các dòng của file bằng HTTP client của bạn như [FORMAT.vi.md](../skills/ai-cost-report/FORMAT.vi.md#gửi-lên-bảng-ai-worker) hướng dẫn, hoặc làm báo cáo từ file bằng skill.
+
+### LangChain và LangGraph
+
+App dựng bằng LangChain hay LangGraph gọi LLM ở bên trong khung, nên không có phản hồi nào để đưa cho `t.record()`. Chép thêm một file cạnh bộ đo rồi truyền callback của nó khi chạy chuỗi, agent hay đồ thị: mọi lần gọi model bên dưới, ở bất kỳ bước nào, đều được đếm vào lượt đó.
+
+- **Python:** chép `ai_meter_langchain.py` cạnh `ai_meter.py`.
+
+  ```python
+  from ai_meter import Meter
+  from ai_meter_langchain import MeterCallback
+
+  meter = Meter("ai-meter.jsonl")   # mỗi tiến trình một cái
+
+  # trong hàm xử lý mỗi yêu cầu:
+  with meter.turn() as t:           # hoặc: async with meter.turn() as t:
+      answer = chain.invoke(question, config={"callbacks": [MeterCallback(t)]})
+  ```
+
+- **JavaScript hay TypeScript:** chép `ai-meter-langchain.cjs` (và `ai-meter-langchain.d.cts` nếu dùng TypeScript) cạnh `ai-meter.cjs`.
+
+  ```js
+  const { Meter } = require('./ai-meter.cjs')
+  const { meterCallback } = require('./ai-meter-langchain.cjs')
+
+  const meter = new Meter({ file: 'ai-meter.jsonl' })   // mỗi tiến trình một cái
+
+  // trong hàm xử lý mỗi yêu cầu:
+  const answer = await meter.turn((t) => chain.invoke(question, { callbacks: [meterCallback(t)] }))
+  ```
+
+Điều cần biết:
+
+- Mỗi lượt tạo một callback mới, như trên; đừng gắn một callback vào model lúc tạo model, nếu không lần gọi của mọi người dùng sẽ dồn vào một lượt.
+- Số liệu lấy từ `usage_metadata` của chính LangChain trên mỗi câu trả lời (`input_tokens` đã gồm phần đọc và ghi cache, callback trừ chúng ra để không token nào bị đếm hai lần). Câu trả lời không có trường này thì dùng usage của chính hãng; không có cả hai thì lần gọi được ghi là "không đo được", không bao giờ ghi là 0.
+- Streaming: một lần gọi chỉ đo được khi tích hợp của hãng gửi usage kèm luồng. Nếu các lần gọi streaming với Chat Completions của OpenAI hiện là "không đo được", hãy đặt `stream_usage=True` (`streamUsage: true` trong JavaScript) trên model; bản nào cần đặt thì ở đây chưa kiểm.
+- Callback đọc số token, tên model và tên hãng theo cách LangChain gọi. Nó không bao giờ đọc câu hỏi, câu trả lời hay chữ của lỗi.
+
+**Đã thử tới đâu.** Với thư viện thật và một model trả lời theo kịch bản (langchain-core 1.8.5 cho Python, @langchain/core 1.5.1 cho JavaScript): chuỗi có hai model, streaming, một lần gọi lỗi, các nhánh chạy song song, và câu trả lời chỉ có usage kiểu cũ. Chưa thử với khoá của một hãng thật, nên các trường mà tích hợp của từng hãng điền (cách tách phần ghi cache của Anthropic, usage khi streaming) là đọc từ tài liệu của LangChain, chưa thấy tận mắt. Cần langchain-core 0.3.9 trở lên để có số cache.
 
 ### React, Next.js và các giao diện web khác
 

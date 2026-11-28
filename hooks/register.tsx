@@ -15,12 +15,12 @@ import { EDIT_TOOLS, addUsage, buildFileEdit, compactKeepInstructions, compacted
 import { answerModel, buildMachineSummary, PACE_MIN_MS, quotaWarning, HARDWARE_ID_PROBES, hardwareMark, LAN_IP_PROBES, mergeShare, mergeTeam, newDeviceId, OPEN_MS, parseHardwareId, parseLanIp, parseSessionFile, readShareConfig, SHARE_OFF, SHARE_WARN_MS, shareProblem, shareWarning, signedInEmail, toQuota } from './team'
 import { chatTitle, cleanTitle, newTitles, nextTitle, notePrompt, noteRename, titleDue } from './titles'
 import { lastCost, logSpend, readLedger, rememberCost, repairLedgerOnce, writeLedger, writeLongSpend, type LedgerIo } from './ledger'
-import { DEVICE_KEY, send, type SendMem, type SendTarget } from './send'
+import { DEVICE_KEY, GEMMA_BOARD_KEY, send, type SendMem, type SendTarget } from './send'
 import type { Store } from './io'
 import type { ShareConfig } from './team'
 import { DESKTOP_BUNDLE_ID, DETACH_PERL, LINUX_DETACH, LINUX_FIND_SCRIPT, LINUX_RESTART_SCRIPT, RESTART_SCRIPT, WINDOWS_FIND_SCRIPT, WINDOWS_HELPER, WINDOWS_RESTART_SCRIPT, WINDOWS_CLAUDE_SCRIPT, UNIX_CLAUDE_SCRIPT, claudeCandidate, isClaudeCodeVersion, findHostApp, parseLinuxHost, parseWindowsHost, parseHash, hasSigningKeys, parseSignatureResult, parseManifest, releaseKeys, shouldOfferUpdate, type SignatureResult, type Manifest } from './update'
-import { AGY_BRAIN, IMAGE_DIR, IMAGE_SCHEMA, IMAGE_SETTLE_MS, OLLAMA_URL, PROMPT_LEVEL_SCHEMA, PROMPT_SCHEMA, WORKER_TIMEOUT_MS, imageArgv, imageTargets, newImages, safeImageName, sendingNeedsAsking, sendingRefusal, agyArgv, codexArgv, codexInput, isBatchLauncher, delegationRules, gemmaAnswer, gemmaRequest, mcpConfigured, ownTools, pickGemma } from './workers'
-import type { OwnWorkers } from './workers'
+import { AGY_BRAIN, IMAGE_DIR, IMAGE_SCHEMA, IMAGE_SETTLE_MS, OLLAMA_URL, GEMMA_MODEL, gemmaLabel, gemmaWorkers, gemmaTarget, gemmaFallsBack, gemmaFellBack, readGemmaMode, GEMMA_REST_MS, gemmaServerAnswer, gemmaServerArgv, readGemmaServer, PROMPT_LEVEL_SCHEMA, PROMPT_SCHEMA, WORKER_TIMEOUT_MS, imageArgv, imageTargets, newImages, safeImageName, sendingNeedsAsking, sendingRefusal, agyArgv, codexArgv, codexInput, isBatchLauncher, delegationRules, gemmaAnswer, gemmaRequest, mcpConfigured, ownTools, pickGemma } from './workers'
+import type { GemmaMode, GemmaServer, OwnWorkers } from './workers'
 import { pageLanguageScript, setLang, tx } from './lang'
 import { BOARD_SCHEMA, BOARD_TOOL, boardToolDescription, boardUserAgent } from './board'
 import { readBoard, readPairing, runBoard as runBoardOn, type BoardIo } from './boardtool'
@@ -683,7 +683,7 @@ async function lookForMcp($: EngineInterface, now: number) {
     // công cụ riêng của plugin đã được đăng ký trước khi ai-workers kết nối: cất chúng đi
     await tuckOwnTools($, names)
     own = {
-      ...(own?.gemma ? { gemma: own.gemma } : {}),
+      ...(own?.gemma && !own.gemmaServer ? { gemma: own.gemma } : {}),
       ...(names.includes('mcp__ai-workers__ask_chatgpt') ? { chatgpt: 'ai-workers' } : {}),
       ...(names.includes('mcp__ai-workers__ask_gemini') ? { gemini: 'ai-workers' } : {}),
     }
@@ -801,7 +801,7 @@ async function shareOnce($: EngineInterface) {
         ...(own
           ? {
               assistants: {
-                ...(own.gemma ? { gemma: own.gemma } : {}),
+                ...(own.gemma ? { gemma: gemmaLabel(own) } : {}),
                 // a machine whose helper has answered has it, even where the program was not found by name
                 // một máy mà trợ lý đã trả lời thì có trợ lý đó, kể cả khi không tìm thấy chương trình theo tên
                 chatgpt: !!own.chatgpt || !!helperModels.chatgpt,
@@ -873,6 +873,16 @@ let viaMcp = false
 let helperModels: { chatgpt?: string; gemini?: string } = {}
 const HELPER_MODELS_KEY = 'helperModels'
 let chatgptSlot = 0
+let gemmaSlot = 0
+/** The server that runs Gemma for this computer when it cannot (loadConfig reads it). */
+/** Máy chủ chạy Gemma cho máy này khi nó không tự chạy được (loadConfig đọc). */
+let gemmaServer: GemmaServer | undefined
+/** How a computer that runs Gemma itself uses that server (config.js, `gemmaMode`). */
+/** Máy tự chạy được Gemma dùng máy chủ đó như thế nào (config.js, `gemmaMode`). */
+let gemmaMode: GemmaMode = 'auto'
+/** No call goes to the Gemma server before this time on a computer that can answer itself: the server failed a moment ago. */
+/** Trước thời điểm này, máy tự trả lời được không gọi máy chủ Gemma: máy chủ vừa hỏng. */
+let gemmaRestUntil = 0
 /** Images already handed to an earlier call, so a later one never picks them up again. */
 /** Ảnh đã giao cho một lệnh gọi trước, để lệnh sau không nhặt lại. */
 const takenImages = new Set<string>()
@@ -977,6 +987,35 @@ async function findProgram($: EngineInterface, names: string[], folders: string[
   return undefined
 }
 
+/** What this computer's own Ollama says now: it has Gemma, it answers without it, or it does not answer. */
+/** Ollama của chính máy này nói gì lúc này: có Gemma, trả lời nhưng không có, hoặc không trả lời. */
+async function localGemma($: EngineInterface): Promise<'has' | 'lacks' | 'off'> {
+  try {
+    const r = await $.http.fetch(`${OLLAMA_URL}/api/tags`)
+    if (r.ok) return pickGemma(r.text) ? 'has' : 'lacks'
+  } catch {
+    // Ollama not installed or not running
+    // Ollama chưa cài hoặc không chạy
+  }
+  return 'off'
+}
+
+/** Whether this computer has run Gemma itself: then an Ollama that is merely off never sends its work to the server (workers.ts, gemmaPlace). */
+/** Máy này đã từng tự chạy Gemma hay chưa: nếu rồi thì Ollama chỉ đang tắt không bao giờ làm việc của nó bị gửi sang máy chủ (workers.ts, gemmaPlace). */
+const GEMMA_HERE_KEY = 'gemmaRanHere'
+
+/** Gemma for the plugin's own tool: on this computer when it runs gemma4:26b, else on the server it was given, else none. */
+/** Gemma cho công cụ riêng của plugin: trên máy này khi nó chạy được gemma4:26b, nếu không thì trên máy chủ được cho, nếu không nữa thì không có. */
+async function findGemma($: EngineInterface): Promise<OwnWorkers> {
+  const local = await localGemma($)
+  const ranHere = (await $.store.get(GEMMA_HERE_KEY).catch(() => undefined)) === true
+  if (local === 'has' && !ranHere) await $.store.set(GEMMA_HERE_KEY, true).catch(() => undefined)
+  // Ollama answers and the model is gone: the person removed it, so this is no longer a computer that runs Gemma itself
+  // Ollama trả lời mà mô hình không còn: người dùng đã gỡ nó, nên đây không còn là máy tự chạy Gemma
+  if (local === 'lacks' && ranHere) await $.store.delete(GEMMA_HERE_KEY).catch(() => undefined)
+  return gemmaWorkers(local, ranHere, gemmaServer, gemmaMode)
+}
+
 async function findOwnWorkers($: EngineInterface): Promise<OwnWorkers> {
   let mcp: string[] = []
   try {
@@ -990,13 +1029,7 @@ async function findOwnWorkers($: EngineInterface): Promise<OwnWorkers> {
     // ai-workers giao việc trên máy này: báo những gì nó cung cấp, chỉ tìm mô hình của Gemma
     viaMcp = mcpSeen = true
     const found: OwnWorkers = {}
-    try {
-      const r = await $.http.fetch(`${OLLAMA_URL}/api/tags`)
-      if (r.ok) found.gemma = pickGemma(r.text)
-    } catch {
-      // Ollama not running
-      // Ollama không chạy
-    }
+    if ((await localGemma($)) === 'has') found.gemma = GEMMA_MODEL
     if (mcp.includes('mcp__ai-workers__ask_chatgpt')) found.chatgpt = 'ai-workers'
     if (mcp.includes('mcp__ai-workers__ask_gemini')) found.gemini = 'ai-workers'
     return found
@@ -1029,23 +1062,10 @@ async function findOwnWorkers($: EngineInterface): Promise<OwnWorkers> {
     }
     viaMcp = true
     const found: OwnWorkers = {}
-    try {
-      const r = await $.http.fetch(`${OLLAMA_URL}/api/tags`)
-      if (r.ok) found.gemma = pickGemma(r.text)
-    } catch {
-      // Ollama not running
-      // Ollama không chạy
-    }
+    if ((await localGemma($)) === 'has') found.gemma = GEMMA_MODEL
     return found
   }
-  const found: OwnWorkers = {}
-  try {
-    const r = await $.http.fetch(`${OLLAMA_URL}/api/tags`)
-    if (r.ok) found.gemma = pickGemma(r.text)
-  } catch {
-    // Ollama not installed or not running
-    // Ollama chưa cài hoặc không chạy
-  }
+  const found: OwnWorkers = await findGemma($)
   const unixBins = [`${home}/.local/bin`, `${home}/.local/node/bin`, `${home}/.codex/bin`, '/opt/homebrew/bin', '/usr/local/bin']
   const winBins = [`${home}\\.local\\bin`, `${home}\\AppData\\Roaming\\npm`, `${home}\\AppData\\Local\\Programs\\OpenAI\\Codex\\bin`]
   found.chatgpt = await findProgram($, ['codex'], windows ? winBins : unixBins, windows)
@@ -1102,10 +1122,16 @@ function toolInput(args: Record<string, unknown>): Record<string, unknown> {
 /** The plugin answers these tools itself, so the engine's permission step must be asked here. Text for ChatGPT or Gemini leaves this computer. */
 /** Plugin tự trả lời các công cụ này, nên phải hỏi bước kiểm quyền của engine ở đây. Chữ gửi cho ChatGPT hay Gemini rời khỏi máy này. */
 type Refused = { outcome?: 'refused' | 'declined'; found?: string[] }
-async function refuseToSend($: EngineInterface, name: string, args: Record<string, unknown>, prompt: string, why: Refused): Promise<string | undefined> {
+async function refuseToSend($: EngineInterface, name: string, args: Record<string, unknown>, prompt: string, why: Refused, gemmaHost?: string): Promise<string | undefined> {
   const tool = `mcp__ai-worker__${name}`
   const verdict = await $.tool.check({ tool, input: toolInput(args) }).catch(() => ({ decision: 'ask' as const }))
-  const worker = name === 'ask_chatgpt' ? 'ChatGPT' : name === 'ask_gemini' || name === 'generate_image' ? 'Gemini' : undefined
+  // Gemma on this computer sends nothing out and is not asked about; Gemma on a server is another machine, asked about like the two below
+  // Gemma trên máy này không gửi gì ra ngoài nên không bị hỏi; Gemma trên máy chủ là một máy khác, bị hỏi như hai trợ lý bên dưới
+  const worker =
+    name === 'ask_chatgpt' ? 'ChatGPT'
+    : name === 'ask_gemini' || name === 'generate_image' ? 'Gemini'
+    : name === 'ask_local' && gemmaHost ? tx('Gemma on the server {host}', { host: gemmaHost })
+    : undefined
   // a key, a token or a password in the text stops it here, before anyone is asked: it never leaves, whatever the mode
   // khoá, token hay mật khẩu trong chữ thì dừng ở đây, trước khi hỏi ai: nó không bao giờ rời máy, ở mọi chế độ
   const secrets = worker ? findSecrets(prompt) : []
@@ -1130,18 +1156,60 @@ async function serveOwn($: EngineInterface, name: string, args: Record<string, u
   const prompt = typeof args.prompt === 'string' ? args.prompt : ''
   const answer = (text: string, isError = false) => ({ result: text, isError }) as unknown as ToolCallResult
   if (!prompt.trim()) return answer(tx('The prompt is missing.'), true)
-  const refusal = await refuseToSend($, name, args, prompt, why)
+  // Gemma: on this computer nothing leaves and nobody is asked; a call bound for the server is asked about like ChatGPT and Gemini.
+  // A computer that can answer itself skips a server that failed a moment ago, and then nothing leaves either
+  // Gemma: trên máy này thì không gì rời máy và không ai bị hỏi; lệnh gọi đi tới máy chủ thì bị hỏi như ChatGPT và Gemini.
+  // Máy tự trả lời được thì bỏ qua máy chủ vừa hỏng, và khi đó cũng không gì rời máy
+  const now = await $.clock.now()
+  const toServer = name === 'ask_local' && !!own?.gemma && gemmaTarget(own, args.where) === 'server'
+  const resting = toServer && !!own && gemmaFallsBack(own) && now < gemmaRestUntil
+  const refusal = await refuseToSend($, name, args, prompt, why, toServer && !resting ? gemmaServer?.host : undefined)
   if (refusal) return answer(refusal, true)
   const work = `${await webFolder($)}/viec`
   try {
     if (name === 'ask_local') {
-      if (!own?.gemma) return answer(tx('This computer has no Gemma yet (Ollama is not installed or the model is not downloaded).'), true)
-      const r = await $.process.run(['curl', '-s', '-m', String(WORKER_TIMEOUT_MS / 1000), `${OLLAMA_URL}/api/chat`, '-d', '@-'], {
-        stdin: gemmaRequest(own.gemma, prompt),
-        timeoutMs: WORKER_TIMEOUT_MS + 30_000,
-      })
-      const g = gemmaAnswer(r.stdout)
-      return answer(g.text, g.isError)
+      if (!own?.gemma) return answer(tx('This computer has no Gemma: it does not run {model} itself and no Gemma server is set up. Claude can do this work itself.', { model: GEMMA_MODEL }), true)
+      const here = async () => {
+        const r = await $.process.run(['curl', '-s', '-m', String(WORKER_TIMEOUT_MS / 1000), `${OLLAMA_URL}/api/chat`, '-d', '@-'], {
+          stdin: gemmaRequest(GEMMA_MODEL, prompt),
+          timeoutMs: WORKER_TIMEOUT_MS + 30_000,
+        })
+        return gemmaAnswer(r.stdout)
+      }
+      if (!toServer) {
+        const g = await here()
+        return answer(g.text, g.isError)
+      }
+      const fallsBack = gemmaFallsBack(own)
+      if (resting && gemmaServer) {
+        const g = gemmaFellBack(tx('The Gemma server {host} failed a few minutes ago, so it was not tried this time and nothing left this computer.', { host: gemmaServer.host }), await here())
+        return answer(g.text, g.isError)
+      }
+      const onServer = async (): Promise<{ text: string; isError: boolean }> => {
+        if (!gemmaServer) return { text: tx('The Gemma server is no longer set up on this computer. Claude can do this work itself.'), isError: true }
+        // the server's own key when it has one, else this computer's key, which the dashboard checks for Caddy (server/gemma.caddy)
+        // khoá riêng của máy chủ khi có, nếu không thì khoá của máy này, do bảng tổng kiểm giúp Caddy (server/gemma.caddy)
+        const mine = await $.store.get(DEVICE_KEY).catch(() => undefined)
+        const key = gemmaServer.key ?? (typeof mine === 'string' && mine.startsWith('awd1.') ? mine : undefined)
+        if (!key) return { text: tx('This computer has no key of its own for the Gemma server {host} yet: it gets one after it first sends its numbers to the company dashboard. Try again later, or Claude can do this work itself.', { host: gemmaServer.host }), isError: true }
+        // a few header files in turn (calls may overlap); emptied after use, the plugin cannot delete files
+        // vài file header lần lượt (các lệnh gọi có thể chồng nhau); làm trống sau khi dùng, vì plugin không xoá được file
+        const headerFile = `${work}/gemma-${(gemmaSlot = (gemmaSlot + 1) % 8)}.txt`
+        await $.fs.write(headerFile, `Authorization: Bearer ${key}\n`)
+        const r = await $.process
+          .run(gemmaServerArgv(gemmaServer, headerFile, WORKER_TIMEOUT_MS / 1000), { stdin: gemmaRequest(gemmaServer.model, prompt), timeoutMs: WORKER_TIMEOUT_MS + 30_000 })
+          .finally(() => $.fs.write(headerFile, '').catch(() => undefined))
+        return gemmaServerAnswer(r.stdout, gemmaServer.host)
+      }
+      // a run that throws (killed at its time limit) is a server that did not answer
+      // lần chạy ném lỗi (bị dừng khi hết giờ) cũng là máy chủ không trả lời
+      const g = await onServer().catch(() => gemmaServerAnswer('', gemmaServer?.host ?? ''))
+      if (!g.isError || !fallsBack) return answer(g.text, g.isError)
+      // the server failed and this computer runs Gemma itself: answer here, say so, and leave the server alone for a while
+      // máy chủ hỏng mà máy này tự chạy được Gemma: trả lời tại đây, nói rõ, và để máy chủ yên một lúc
+      gemmaRestUntil = (await $.clock.now()) + GEMMA_REST_MS
+      const back = gemmaFellBack(g.text, await here())
+      return answer(back.text, back.isError)
     }
     if (name === 'ask_chatgpt') {
       if (!own?.chatgpt) return answer(tx('The Codex CLI is not installed on this computer.'), true)
@@ -1241,6 +1309,23 @@ async function loadConfig($: EngineInterface, dir: string) {
   // tắt, trừ khi config.js của máy này ghi true: nhóm muốn mỗi commit ghi nguyên nhân và thứ đã đo
   commitTrail = (mine as Record<string, unknown> | undefined)?.commitTrail === true
   share = readShareConfig(mergeShare(shipped?.sharing, mine?.sharing, person), dir.slice(0, -WEB_DIR.length))
+  // the Gemma server for a computer too weak to run Gemma: the address may come with the package or from config.js; a key, when the
+  // server is not behind the dashboard, only from gemma-server.json, which sits beside the web folder where no page reads
+  // máy chủ Gemma cho máy quá yếu không tự chạy được: địa chỉ có thể đi kèm gói hoặc từ config.js; khoá, khi máy chủ không đứng
+  // sau bảng tổng, chỉ lấy từ gemma-server.json, nằm cạnh thư mục web ở chỗ không trang nào đọc
+  let secret: unknown
+  try {
+    secret = JSON.parse(await $.fs.read(`${dir}-keys/gemma-server.json`))
+  } catch {
+    // no such file: the computer's own key is used, or there is no Gemma server
+    // không có file này: dùng khoá riêng của máy, hoặc không có máy chủ Gemma
+  }
+  const field = (c: unknown) => (c as { gemmaServer?: unknown } | undefined)?.gemmaServer
+  // lowest of all, the server the company dashboard announced at an earlier send: an address set here beats it
+  // thấp nhất, máy chủ bảng tổng của công ty đã báo ở một lần gửi trước: địa chỉ đặt ở đây thắng nó
+  const announced = share.enabled ? await $.store.get(GEMMA_BOARD_KEY).catch(() => undefined) : undefined
+  gemmaServer = readGemmaServer([field(shipped), field(mine)], secret, announced)
+  gemmaMode = readGemmaMode((mine as { gemmaMode?: unknown } | undefined)?.gemmaMode)
 }
 
 // ---- updating the plugin: the server only hands out files; the signature and hash decide ----

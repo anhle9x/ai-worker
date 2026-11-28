@@ -183,9 +183,9 @@ test('open sessions are counted per Claude model, and installed helpers ride alo
   const now = 10 * 3_600_000
   const s = (model?: string) => ({ seenAt: now, now, jobs: [], ...(model ? { model } : {}) })
   const m = buildMachineSummary([s('claude-opus-5-5'), s('claude-opus-5-5'), s('claude-fable-5-1'), s()] as never, {}, now,
-    { device: 'device-1', name: 'A', account: 'a@x.com', assistants: { gemma: 'gemma4:e4b', chatgpt: true, gemini: false } })
+    { device: 'device-1', name: 'A', account: 'a@x.com', assistants: { gemma: 'gemma4:26b', chatgpt: true, gemini: false } })
   expect(m.models).toEqual({ 'claude-opus-5-5': 2, 'claude-fable-5-1': 1 })
-  expect(m.assistants).toEqual({ gemma: 'gemma4:e4b', chatgpt: true, gemini: false })
+  expect(m.assistants).toEqual({ gemma: 'gemma4:26b', chatgpt: true, gemini: false })
 })
 
 test('the answering model is read from the last line of a helper answer', () => {

@@ -14,6 +14,7 @@
     'tv-revoked-key-used': tx('Revoked device asked again'), 'telegram-seal': tx('Sent the day\'s fingerprint to Telegram'), 'mcp-rate-limited': tx('Key for an AI tool asked too often'),
     'device-revoked': tx('Revoked a computer\'s key'), 'device-forgotten': tx('Let a computer enrol again'),
     'device-roaming-on': tx('Let a computer send from any network'), 'device-roaming-off': tx('Kept a computer to the office network'),
+    'gemma-server-set': tx('Set the Gemma server'), 'gemma-server-off': tx('Turned the Gemma server off'), 'gemma-check': tx('Checked a Gemma server'),
     'account-telegram-unlink': tx('Unlink Telegram'), 'telegram-link': tx('Link Telegram'), 'telegram-unlink': tx('Unlink Telegram'), 'telegram-link-failed': tx('Telegram link failed'),
     'telegram-app-on': tx('Allowed a chat the window'), 'telegram-app-off': tx('Stopped a chat\'s window'), 'telegram-app-open': tx('Chat opened the window'), 'telegram-app-refused': tx('Window refused'),
   }
@@ -324,6 +325,67 @@
     }))
     box.append(line)
     return box
+  }
+
+  // The Gemma server: the staff computers too weak to run Gemma ask it, and are told of it at their next send. Setting it needs the OTP again.
+  // Máy chủ Gemma: máy nhân viên quá yếu để tự chạy Gemma sẽ hỏi nó, và được báo ở lần gửi kế tiếp. Đặt nó phải nhập lại OTP.
+  let gemmaCheck = null
+  // what the admin typed, kept while the page redraws (after Check, say) until it is saved
+  // điều quản trị đã gõ, giữ lại khi trang vẽ lại (ví dụ sau khi Kiểm tra) cho tới khi được lưu
+  let gemmaDraft = null
+  function gemmaSection() {
+    const g = snapshot.gemmaServer || {}
+    const p = section(tx('Gemma server'), tx('Computers too weak to run Gemma themselves ask the Gemma at this address; a strong computer may send it long text with no sensitive data. Each person is asked before each send.'))
+    p.append(o('div', 'qt-row', g.url
+      ? tx('In use: {url} ({model}), set by {by} at {at}.', { url: g.url, model: g.model || 'gemma4:31b', by: g.setBy || '?', at: g.setAt ? dateTime(g.setAt) : '?' })
+      : tx('Not set: a computer that cannot run Gemma itself has no Gemma.')))
+    p.append(o('div', 'qt-hint', tx('The text people hand to Gemma goes to this address. Use only a server your company runs, behind the Caddy block in server/gemma.caddy. Each computer hears of a change at its next send and uses it from its next Claude session.')))
+    const row = o('div', 'qt-row')
+    const url = o('input')
+    url.placeholder = 'https://aiworker.example.com/gemma'
+    url.setAttribute('aria-label', tx('Address of the Gemma server'))
+    url.maxLength = 200
+    url.value = gemmaDraft ? gemmaDraft.url : g.url || ''
+    const model = o('input')
+    model.placeholder = 'gemma4:31b'
+    model.setAttribute('aria-label', tx('Model on the server'))
+    model.maxLength = 60
+    model.value = gemmaDraft ? gemmaDraft.model : g.model || ''
+    const keep = () => { gemmaDraft = { url: url.value, model: model.value } }
+    url.addEventListener('input', keep)
+    model.addEventListener('input', keep)
+    row.append(url, model, button(tx('Check'), () => {
+      if (!url.value.trim()) return toast(tx('Type the address first'), true)
+      post('/admin/gemma-check', { url: url.value.trim(), model: model.value.trim() }, d => { gemmaCheck = { url: url.value.trim(), ...d.check } })
+    }, 'qt-button'), button(tx('Save'), () => {
+      const to = url.value.trim()
+      const question = to
+        ? tx('Tell every staff computer to use Gemma at {url}? The text people hand to Gemma will go there.', { url: to })
+        : tx('Turn the Gemma server off? Computers that cannot run Gemma themselves will have none.')
+      if (confirm(question)) post('/admin/gemma-server', { url: to, model: model.value.trim() }, () => {
+        gemmaDraft = null
+        toast(to ? tx('Gemma server saved') : tx('Gemma server turned off'))
+      })
+    }, 'qt-button primary'))
+    p.append(row)
+    // the last check, kept until the page is reloaded
+    // lần kiểm gần nhất, giữ tới khi tải lại trang
+    if (gemmaCheck) {
+      const c = gemmaCheck
+      // each line with its own colour: a warning only where something needs doing
+      // mỗi dòng một màu riêng: chỉ cảnh báo ở chỗ cần làm gì đó
+      const lines = [
+        !c.reachable ? [tx('{url} did not answer: {error}', { url: c.url, error: c.error || '?' }), true]
+        : c.guarded ? [tx('{url} answered in {ms} ms and refused a request with no key: the gate is on.', { url: c.url, ms: c.ms }), false]
+        : c.open ? [tx('{url} answered with no key: anyone could use this Gemma. Put the Caddy block in front of it before saving.', { url: c.url }), true]
+        : [tx('{url} answered with code {code}: check the Caddy block and the address.', { url: c.url, code: c.status }), true],
+        !c.localOllama ? [tx('Ollama is not running on this server (fine if Gemma runs on another machine).'), false]
+        : c.hasModel ? [tx('Ollama on this server has the model.'), false]
+        : [tx('Ollama on this server does not have the model; it has: {list}', { list: (c.localModels || []).join(', ') || '-' }), true],
+      ]
+      for (const [line, warn] of lines) p.append(o('div', warn ? 'qt-hint' : 'qt-row', line))
+    }
+    return p
   }
 
   // Computers with a key of their own: each sends its numbers with it after its first send. Revoking one stops it at once.
@@ -985,7 +1047,7 @@
     if (snapshot.olderHours && snapshot.olderHours.hours > 0) {
       column.append(o('div', 'qt-hint', tx('Since this server started, {hours} hours sent by {computers} computers came older than the numbers already kept and were left out: a send that arrived late, or a computer whose clock went back. The newer numbers stay, so nothing is lost. If the count keeps growing, check the clock of those computers.', { hours: snapshot.olderHours.hours, computers: snapshot.olderHours.computers })))
     }
-    column.append(accountsSection(), tvSection(), computersSection(), ...(snapshot.projectsOn ? [projectsSection()] : []), ...(snapshot.mcpCalls.length ? [mcpCallsSection()] : []), ...(snapshot.pluginMsi ? [pluginSection()] : []), menubarSection(), locationsSection(), teamSection(), sessionsSection(), ...(snapshot.blocked7d ? [blockedSection()] : []), ...((snapshot.delegations || []).length ? [delegationsSection()] : []), auditSection())
+    column.append(accountsSection(), tvSection(), computersSection(), gemmaSection(), ...(snapshot.projectsOn ? [projectsSection()] : []), ...(snapshot.mcpCalls.length ? [mcpCallsSection()] : []), ...(snapshot.pluginMsi ? [pluginSection()] : []), menubarSection(), locationsSection(), teamSection(), sessionsSection(), ...(snapshot.blocked7d ? [blockedSection()] : []), ...((snapshot.delegations || []).length ? [delegationsSection()] : []), auditSection())
     root.replaceChildren(head, notice, column)
   }
 

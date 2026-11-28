@@ -89,7 +89,7 @@ Claude giao việc phụ cho các trợ lý theo quy định của công ty:
 
 | Trợ lý | Giỏi việc gì | Quy tắc dữ liệu |
 |---|---|---|
-| **Gemma** | Tóm tắt, phân loại, chạy ngay trên máy bạn | Trợ lý duy nhất được nhận dữ liệu nhạy cảm, vì dữ liệu không rời máy |
+| **Gemma** | Tóm tắt, phân loại | Trợ lý duy nhất được nhận dữ liệu nhạy cảm. Chạy ngay trên máy bạn (`gemma4:26b`, với máy đủ mạnh) thì dữ liệu không rời máy. Với máy quá yếu, Gemma có thể chạy trên máy chủ của công ty: khi đó chữ gửi đi rời máy bạn tới máy chủ đó, Claude nêu tên máy chủ và hỏi bạn trước mỗi lần gửi. Máy mạnh mà được cho thêm máy chủ thì giữ dữ liệu nhạy cảm trên máy và có thể gửi chữ dài không có dữ liệu nhạy cảm lên máy chủ, vẫn hỏi bạn trước; máy chủ hỏng thì Gemma trên máy bạn trả lời và nói rõ điều đó |
 | **ChatGPT** | Xem lại code, tìm lỗi | Không bao giờ nhận tên người, tài liệu nội bộ, số liệu hay mật khẩu |
 | **Gemini** | Tra cứu web, tạo ảnh | Như ChatGPT |
 

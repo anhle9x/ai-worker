@@ -19,7 +19,7 @@ A Claude Code plugin (`.claude-plugin/`, `hooks/`, `skills/`, `web/`) on each em
 - `web/ops.js`, `ops.css`, `ops3d.js`, `i18n.js`, `ops.vi.js` must equal their copies in `server/static/`.
 - `server/board/costreport.py`, `labels.json`, `prices.json` must equal `skills/ai-cost-report/report.py`, `labels.json`, `prices.json` (`server/test_projects.py` checks).
 - Never commit real names, emails, IPs, domains, keys or company numbers. Use `aiworker.example.com` and `example.com`.
-- The employee's computer never sends chat content, prompts, file names or project names. Keep it that way.
+- The employee's computer never sends chat content, prompts, file names or project names. Keep it that way. Text for Gemma on a server goes straight to Ollama behind Caddy (`server/gemma.caddy`): the dashboard sees only the head of that request, at `/gemma/auth`.
 - `connectors/ai-worker-hook.sh` and `connectors/ai-worker-hook.ps1` do the same thing, as do `install.sh` and `install.ps1`: change both. The hook runs with sh, awk, sed, grep and curl or wget only: no Python, no Node.
 
 ## Checks

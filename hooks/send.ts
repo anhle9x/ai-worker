@@ -5,6 +5,7 @@
 // cho các lần gửi sau. Các khoá của kho và hình dạng giá trị của chúng giữ như các bản trước file này: máy phải giữ được khoá riêng
 // và tuyến của nó qua lần cập nhật.
 import type { Fetch, Store } from './io'
+import { gemmaServerIn } from './workers'
 import { afterAnswer, packetFor, type SendState } from './sendv2'
 import {
   backoff, deviceKeyIn, FALLBACK_SPREAD_MS, paceFrom, receiverOutcome, refusalAfter, routeFrom, routeRested, routeTarget, summarySignature,
@@ -17,6 +18,9 @@ export const SHARED_KEY = 'sharedLast'
 /** The key of its own the server gave this computer (awd1.…), kept in the plugin's store, never in config.js where the office page reads. */
 /** Khoá riêng máy chủ cấp cho máy này (awd1.…), giữ trong kho của plugin, không bao giờ trong config.js nơi trang văn phòng đọc được. */
 export const DEVICE_KEY = 'deviceKey'
+/** The Gemma server the company dashboard announced (workers.ts, gemmaServerIn); an address set on this computer beats it. */
+/** Máy chủ Gemma do bảng tổng của công ty báo (workers.ts, gemmaServerIn); địa chỉ đặt trên máy này thắng nó. */
+export const GEMMA_BOARD_KEY = 'gemmaFromBoard'
 /** After the server refuses a send (401 or 403), no send before `until` (refusalAfter). */
 /** Sau khi máy chủ từ chối một lần gửi (401 hay 403), không gửi trước `until` (refusalAfter). */
 export const REFUSED_KEY = 'shareRefused'
@@ -115,6 +119,7 @@ export async function send(io: SendIo, target: SendTarget, mem: SendMem, summary
     // địa chỉ đã hết hạn: hỏi webhook giờ gửi tới đâu, việc này không ghi gì; không trả lời thì gửi tới webhook
     const asked = await io.fetch(`${webhook}/ingest/route${sendState?.v2 ? '?v=2' : ''}`, { method: 'GET', headers: { Authorization: `Bearer ${key}` } }).catch(() => undefined)
     route = (asked?.ok ? routeFrom(asked.text, webhook, ingestHosts, now, random) : null) ?? undefined
+    if (asked?.ok) await keepGemmaServer(store, asked.text)
     if (route) await store.set(ROUTE_KEY, route)
     else await store.delete(ROUTE_KEY).catch(() => undefined)
   }
@@ -177,6 +182,7 @@ export async function send(io: SendIo, target: SendTarget, mem: SendMem, summary
   if (refused.wait) await store.delete(REFUSED_KEY).catch(() => undefined)
   const given = deviceKeyIn(r.text)
   if (given) await store.set(DEVICE_KEY, given)
+  await keepGemmaServer(store, r.text)
   // the webhook says where to send from now on: the Go receiver, or here again (an empty list); nothing said keeps what is held
   // webhook dặn từ giờ gửi tới đâu: bộ nhận Go, hoặc lại về đây (danh sách rỗng); không dặn gì thì giữ cái đang có
   const next = ownKey || given ? routeFrom(r.text, webhook, ingestHosts, now, random) : undefined
@@ -184,4 +190,12 @@ export async function send(io: SendIo, target: SendTarget, mem: SendMem, summary
   else if (next === null) await store.delete(ROUTE_KEY).catch(() => undefined)
   await store.set(SHARED_KEY, { sig, at: now })
   return { kind: 'sent', to: to && route ? 'receiver' : 'webhook', full: packet.full, needFull: !!after.needFull }
+}
+
+/** Keeps the Gemma server an answer announced, drops it when the answer says null, and keeps what is held when it says nothing. */
+/** Giữ máy chủ Gemma mà câu trả lời đã báo, bỏ nó khi câu trả lời ghi null, và giữ cái đang có khi không nói gì. */
+async function keepGemmaServer(store: Store, answer: string) {
+  const g = gemmaServerIn(answer)
+  if (g) await store.set(GEMMA_BOARD_KEY, g).catch(() => undefined)
+  else if (g === null) await store.delete(GEMMA_BOARD_KEY).catch(() => undefined)
 }

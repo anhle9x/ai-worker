@@ -20,6 +20,8 @@ ALERT_WORDS = {"on": ("bat", "bật"), "off": ("tat", "tắt")}
 
 VI = {
     "At least one admin must remain": "Phải còn ít nhất một quản trị",
+    "the address must start with https:// and hold no password or ?": "địa chỉ phải bắt đầu bằng https:// và không chứa mật khẩu hay dấu ?",
+    "invalid model name": "tên mô hình không hợp lệ",
     "This name is already taken": "Tên này đã có",
     "Account limit reached": "Đã đủ số tài khoản",
     "This account no longer exists": "Tài khoản không còn",

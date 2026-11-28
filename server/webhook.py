@@ -93,7 +93,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable, NamedTuple, Optional
 from urllib.parse import parse_qs, quote, urlparse
 
-from board import assets, chat, db, mcp, packages, projects, receiver, settings, tgapp
+from board import assets, chat, db, gemma, mcp, packages, projects, receiver, settings, tgapp
 from board.assets import RELEASE_NAME_RE, STATIC_DIR, STATIC_FILES, has_3d_page
 from board.devicekeys import DEVICE_KEYS, PREFIX
 from board.devices import BOOT_ID, DEVICES, NEED_FULL, SAVED, SEND_PACE, clean_delegations, clean_payload, key_matches, person_key, refuse_constant, save_ingest, send_kind, state_loop
@@ -1123,6 +1123,10 @@ class Handler(BaseHTTPRequestHandler):
         route = receiver.ingest_route(d["device"]) if claims is not None and send_kind(raw) != "v1" else None
         if route:
             answer.update(route)
+        # a computer with its own key is told the Gemma server an admin set (or null once it is taken away); the shared key could not use it
+        # máy có khoá riêng được báo máy chủ Gemma quản trị đã đặt (hoặc null khi đã bỏ); khoá chung thì không dùng được nó
+        if claims is not None:
+            answer.update(gemma.for_computer())
         self.reply(200, answer)
 
     def get_ingest_route(self, y: "RequestCtx") -> None:
@@ -1137,7 +1141,20 @@ class Handler(BaseHTTPRequestHandler):
         # chỉ plugin gửi v: 2 mới hỏi kèm ?v=2; bản cũ hơn (0.50.13 gửi v: 1) được đưa về lại đây
         v2 = (parse_qs(urlparse(self.path).query).get("v") or [""])[0] == "2"
         route = receiver.ingest_route(claims["device"]) if v2 else None
-        self.reply(200, route or {"ingestUrls": [], "ingestTtlMs": settings.RECEIVER_INGEST_TTL_SECONDS * 1000})
+        # a computer sending to the Go receiver hears of the Gemma server here, since the receiver's answers do not carry it
+        # máy đang gửi tới bộ nhận Go được báo máy chủ Gemma ở đây, vì câu trả lời của bộ nhận không mang nó
+        self.reply(200, {**(route or {"ingestUrls": [], "ingestTtlMs": settings.RECEIVER_INGEST_TTL_SECONDS * 1000}), **gemma.for_computer()})
+
+    def get_gemma_auth(self, y: "RequestCtx") -> None:
+        """Whether this computer may use Gemma on the company's server, asked by Caddy (forward_auth) in front of Ollama with the head of
+        the request only: the text for Gemma never comes here. Only a computer's own key; from outside the office the gate has already
+        kept it to a computer an admin let send from any network. Writes nothing (server/gemma.caddy).
+        Máy này có được dùng Gemma trên máy chủ của công ty không, do Caddy (forward_auth) đứng trước Ollama hỏi, chỉ kèm phần đầu của
+        yêu cầu: chữ gửi cho Gemma không bao giờ tới đây. Chỉ khoá riêng của máy; từ ngoài văn phòng thì cổng kiểm đã giới hạn ở máy
+        quản trị cho gửi từ mọi mạng. Không ghi gì (server/gemma.caddy)."""
+        if self.device_claims is None:
+            return self.reply(403, {"error": "use this computer's own key"})
+        self.reply(200, {})
 
     def internal_rows(self, y: "RequestCtx") -> None:
         try:
@@ -1504,6 +1521,18 @@ class Handler(BaseHTTPRequestHandler):
                 if not DEVICE_KEYS.set_roaming(device, on, user, time.time()) and on and not DEVICE_KEYS.roams(device):
                     raise ValueError(tx("Only a computer sending with its own key can send from any network"))
                 details = {"action": "device-roaming-on" if on else "device-roaming-off", "device": device, "personName": name, "personAccount": account}
+            elif self.path == "/admin/gemma-server":
+                # the address the staff computers ask Gemma at; empty turns it off. Each computer hears of it at its next send
+                # địa chỉ mà máy nhân viên hỏi Gemma; trống là tắt. Mỗi máy nghe được ở lần gửi kế tiếp
+                details = gemma.set_server(body.get("url"), body.get("model"), user, time.time())
+            elif self.path == "/admin/gemma-check":
+                # reads only: asks the address with no key and Ollama on this server for its models
+                # chỉ đọc: hỏi địa chỉ mà không kèm khoá, và hỏi Ollama trên máy chủ này danh sách mô hình
+                cleaned = gemma.clean(body.get("url"), body.get("model"))
+                if not cleaned:
+                    raise ValueError(tx("the address must start with https:// and hold no password or ?"))
+                result = gemma.probe(cleaned["url"], cleaned.get("model", ""))
+                details, extra = {"action": "gemma-check", "toUrl": cleaned["url"], "status": result["status"]}, {"check": result}
             elif self.path == "/admin/project-delete":
                 # only a project whose key is already revoked: a live project would only send again
                 # chỉ dự án đã thu hồi khoá: dự án còn khoá sẽ lại gửi tiếp
@@ -1884,6 +1913,9 @@ GET_ROUTES = {
     # where a computer sends now, for a plugin holding an address of the Go receiver (docs/RECEIVER.md, section 4)
     # máy gửi tới đâu lúc này, cho plugin đang giữ địa chỉ của bộ nhận Go (docs/RECEIVER.vi.md, mục 4)
     "/ingest/route": Route(Handler.get_ingest_route, PERM_INGEST_KEY, allow_query=True),
+    # Caddy in front of the Gemma server asks here whether a computer's key is good; the text for Gemma does not pass (server/gemma.caddy)
+    # Caddy đứng trước máy chủ Gemma hỏi ở đây khoá của một máy có hợp lệ không; chữ gửi cho Gemma không đi qua (server/gemma.caddy)
+    "/gemma/auth": Route(Handler.get_gemma_auth, PERM_INGEST_KEY),
     "/login.js": Route(Handler.get_login_js, PERM_PUBLIC),
     "/tv": Route(Handler.get_tv, PERM_PUBLIC),
     "/tv.js": Route(Handler.get_tv_js, PERM_PUBLIC),
@@ -1986,6 +2018,10 @@ POST_ROUTES = {
     # let one computer send numbers and fetch updates from any network, or take that back (OFFICE_NETS)
     # cho một máy gửi số liệu và tải bản cập nhật từ mọi mạng, hoặc thôi cho (OFFICE_NETS)
     "/admin/device-roam": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True),
+    # the Gemma server the staff computers are told of: setting it needs the OTP again, checking it only reads (board/gemma.py)
+    # máy chủ Gemma được báo cho máy nhân viên: đặt thì phải nhập lại OTP, kiểm thì chỉ đọc (board/gemma.py)
+    "/admin/gemma-server": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED, require_otp=True),
+    "/admin/gemma-check": Route(Handler.admin_action, PERM_ADMIN, origin_policy=ORIGIN_REQUIRED),
     # an AI tool with a key an admin approved asks the board's numbers; read-only
     # công cụ AI có khoá đã được quản trị duyệt hỏi số liệu của bảng; chỉ đọc
     "/mcp": Route(Handler.mcp_post, PERM_MCP_KEY, mcp=True),

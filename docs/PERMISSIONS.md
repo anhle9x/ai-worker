@@ -49,9 +49,12 @@ The fields each role receives are fixed in `server/board/views.py` (`COMMON_FIEL
 |---|---|---|---|
 | Send numbers | `POST /ingest` | Computer with its own key, or `INGEST_KEY` while it has none and `SHARED_KEY_MODE` allows it | A key sends only for its own computer; the computer stays tied to the person of its first send; a revoked computer is refused. From outside `OFFICE_NETS` (or marked so by Caddy): only the own key of a computer an admin let send from any network, else 403 |
 | Ask where to send now | `GET /ingest/route` | Computer with its own key (the shared key: 403) | Writes nothing; an empty list unless the Go receiver takes this computer's sends. From outside the office: as for `/ingest` |
+| Say whether a computer may use Gemma on the server | `GET /gemma/auth` | Computer with its own key (the shared key: 403) | Asked by Caddy in front of Ollama with the head of the request only: the text for Gemma never reaches the dashboard. Writes nothing. A revoked computer is refused. From outside the office: as for `/ingest` ([INSTALL.md](INSTALL.md), "Gemma on a server") |
 | Download an update | `GET /releases/...` | Computer with its own key or `INGEST_KEY` | The computer checks the signature before installing. From outside the office: as for `/ingest` |
 | Cut a computer off (Revoke), or let it enrol again (Let back) | `POST /admin/device-revoke`, `POST /admin/device-forget` | `admin` | Re-enter OTP, valid 5 minutes; written in the Admin log |
 | Let a computer send from any network, or take it back | `POST /admin/device-roam` | `admin` | Re-enter OTP, valid 5 minutes; only a computer sending with its own key; written in the Admin log |
+| Set or turn off the Gemma server the staff computers are told of | `POST /admin/gemma-server` | `admin` | Re-enter OTP, valid 5 minutes; `https://` only; written in the Admin log with the old and the new address |
+| Check a Gemma server before saving it | `POST /admin/gemma-check` | `admin` | Reads only: asks the address with no key and Ollama on the server itself for its models; written in the Admin log |
 | Name locations, mark the sales team, load the Team CSV | `POST /locations`, `/team-sale`, `/team-csv` | `admin` | Same-origin request |
 | Create, delete, change role of accounts; end sessions | `POST /admin/accounts`, `/admin/sessions` | `admin` | Re-enter OTP, valid 5 minutes |
 | Approve, rename, revoke TV screens, extensions, keys for AI tools and Telegram chats; choose what such a key or chat may read | `POST /admin/tv-*` | `admin` | Re-enter OTP, valid 5 minutes |

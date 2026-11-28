@@ -189,6 +189,30 @@ Before you open it:
 - **A CDN or another proxy in front of Caddy** (Cloudflare, for example) makes every request look like it comes from the CDN, so every computer counts as outside. This setup is not for that case.
 - **With the Go receiver** (`RECEIVER=1`, [RECEIVER.md](RECEIVER.md)) the receiver does not check this list itself. With `OFFICE_NETS` set (or `TRUST_PROXY` with Caddy in front), a computer kept **Office only** is never told the receiver's address and keeps sending to the webhook, which checks the list; only a computer let send from **Any network** goes to the receiver.
 
+## Gemma on a server (for computers too weak to run it)
+
+Gemma on an employee's computer is always `gemma4:26b`. The installer puts it only on a computer that can run it: 32 GB RAM or more, Apple silicon or a dedicated graphics card (NVIDIA on Linux; NVIDIA or Radeon on Windows), and 25 GB free. The smaller sizes (`e4b`, `e2b`) are no longer installed or used. A computer below that line has no Gemma of its own; it can use one Gemma on a server instead.
+
+What changes for the person: Gemma on their own computer keeps the data on that computer and is never asked about. Gemma on a server is another machine, so the text leaves the computer: the plugin names the server, asks before each send (unless the person has allowed that tool with a rule of their own), and refuses text that holds a key or a password. Work meant for this computer never moves to the server by itself: if Ollama here is off, the person is told to open Ollama.
+
+**A computer that runs Gemma itself and is given the server too** has both, and Claude chooses per task. Anything with sensitive data, short tasks, and anything Claude is not sure about stay on the computer. Long text, careful work or a batch with no sensitive data may go to the server, and the person is still asked before each send. If the server cannot be reached, answers with an error or is cut off, Gemma on the computer answers instead and the answer opens with a line saying so; the server is then left alone for five minutes. To take the choice away, set `"gemmaMode"` in that computer's `config.js`: `"here"` never uses the server, `"server"` asks the server first (and still answers here when it fails); leaving it out means Claude chooses. Waiting in the server's queue does not yet count as a failure: that limit has to be measured on a real server first.
+
+The text goes from the computer straight to Ollama through Caddy. It does not pass the dashboard's program, and that block of Caddy keeps no access log.
+
+**On the server.** These steps put Gemma on the dashboard's own server, at the path `/gemma` of the dashboard's address: no DNS name, certificate or port to add.
+
+1. Install Ollama with its official Linux installer (ollama.com/download) and pull the model: `ollama pull gemma4:31b`, or `gemma4:26b`, which is much lighter on a server with no graphics card. Leave Ollama listening on `127.0.0.1` (its default); do not set `OLLAMA_HOST=0.0.0.0`.
+2. Keep the dashboard's share of the machine. A limit on Ollama's CPU (`CPUQuota=` in a file under `/etc/systemd/system/ollama.service.d/`) must come with as many threads: Ollama starts one per core, and in one measurement 16 threads on 8 cores' worth ran about four times slower than 8 threads. Make a copy of the model that keeps to that count, and use its name on the Admin page: a file `Modelfile` holding the two lines `FROM gemma4:26b` and `PARAMETER num_thread 8`, then `ollama create gemma4-26b-server -f Modelfile`.
+3. Copy `server/gemma.caddy` next to your Caddyfile, put the dashboard's port in place of `8788` and your office ranges in place of the two sample ones (the same as in `aiworker.caddy`), add the line `import gemma.caddy` **inside** the dashboard's block, then `sudo systemctl reload caddy`. Caddy asks the dashboard at `GET /gemma/auth` with the head of each request only: a computer passes with its own key (`awd1.…`), one revoked on `/admin` loses Gemma at once, and from outside the office only a computer let send from "Any network" passes. No new key to hand out. The line `log_skip` needs Caddy 2.8 or later (`caddy version`).
+
+**On the Admin page.** In the section **Gemma server**, type `https://<the dashboard's address>/gemma` and the model (empty means `gemma4:31b`; for the copy above, `gemma4-26b-server`), then press **Check**. A good result says the address refused a request with no key (the gate is on) and that Ollama on this server has the model; an address that answers with no key is not safe to save. Press **Save** and type the OTP code again: the change is written in the Admin log. Each computer with a key of its own hears of it in the answer to its next send and uses it from its next Claude session; `/ai-worker:help` then says "Gemma, runs on the server …". An empty address and **Save** turns it off for every computer.
+
+An address written on a computer itself (`"gemmaServer": {"url": "…", "model": "…"}` in its `config.js`, or in the company package's `company.json` next to `"sharing"`) always wins over the one the Admin page announces. The address must be `https://`; plain `http://` is accepted only for the computer itself, and never from the dashboard. A separate machine for Gemma is not covered by this template yet.
+
+**How many people one server carries** has not been measured: it depends on the server's graphics card. With no graphics card, expect a few tokens a second at best: time one answer with `ollama run <model> --verbose --think=false "…"` before telling people to rely on it. Ollama answers one request per model at a time unless `OLLAMA_NUM_PARALLEL` is set higher (each parallel request needs more memory), and queues the rest in order, up to `OLLAMA_MAX_QUEUE` (512 by default). The plugin waits nine minutes for an answer, then says the server is busy. Measure on your own server before telling people to rely on it: time one request with `curl` against `/api/chat`, then several at once.
+
+**When the server cannot be reached** from a computer with no Gemma of its own, the person is told so by name, and Claude does the work itself. Nothing is sent to another assistant instead.
+
 ## Plugin installer for Windows (.msi)
 
 Instead of the zip, staff computers on Windows can install from one file, `AI-Worker-Plugin.msi`. It installs for the person only, with no admin rights, and has an entry in Settings > Apps. The file itself is the same for every company: GitHub builds it with a placeholder, and your server fills in its own address, the send code (`INGEST_KEY`) and the update signing keys at the moment an admin downloads it. So the send code never goes to GitHub, and you do not build anything on your own computer.
@@ -398,7 +422,7 @@ The product comes in English and Vietnamese.
 
 Cost is the figure Claude Code calculates at API prices. On a subscription plan it is a converted cost for comparison, not the money actually charged.
 
-Without Gemini, ChatGPT or Gemma the plugin still runs with Claude alone. The installer asks which assistants to install.
+Without Gemini, ChatGPT or Gemma the plugin still runs with Claude alone. The installer asks which assistants to install; Gemma is installed only on a computer that can run `gemma4:26b` (see "Gemma on a server").
 
 No server but a shared drive: leave out `webhook` and set `folders` to the path of the mounted drive. This way there is no admin page and no self-update.
 

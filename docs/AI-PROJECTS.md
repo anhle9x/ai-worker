@@ -36,6 +36,8 @@ The quickest way: open Claude Code in the project's code folder and type `/ai-wo
   | Python | `ai_meter.py` | Python 3.8+ | yes | yes |
   | JavaScript (Node) | `ai-meter.cjs` | Node 18+ | yes | yes |
   | TypeScript | `ai-meter.cjs` and `ai-meter.d.cts`, side by side | Node 18+ (tested with TypeScript 5.9) | yes | yes |
+  | LangChain or LangGraph (Python) | `ai_meter.py` and `ai_meter_langchain.py`, side by side | Python 3.8+, langchain-core 0.3.9+ | yes, through a callback | yes |
+  | LangChain.js or LangGraph.js | `ai-meter.cjs` and `ai-meter-langchain.cjs`, side by side | Node 18+ | yes, through a callback | yes |
   | C# | `AiMeter.cs` | .NET 6+ | yes | yes |
   | Go | `aimeter.go`, in a folder `aimeter/` | Go 1.21+ | yes | yes |
   | Java, Kotlin and other JVM languages | `AiMeter.java`, in a folder `aimeter/` | Java 11+ | yes | yes |
@@ -317,6 +319,44 @@ void handle_request(void) {
 - A failed call: `ai_turn_fail(&t, provider, model, 0)`; a retry: `ai_turn_count_retry(..., 1)`; streaming: `ai_turn_first_token(&t)`; a timeout: `ai_turn_set_outcome(&t, "timeout")`.
 - One `ai_turn` belongs to one thread. A turn holds at most 16 different models; more are left out.
 - To reach a board, send the file's lines from your own HTTP client as [FORMAT.md](../skills/ai-cost-report/FORMAT.md#sending-to-the-ai-worker-board) says, or make the report from the file with the skill.
+
+### LangChain and LangGraph
+
+An app built with LangChain or LangGraph makes its LLM calls inside the framework, so there is no response to hand to `t.record()`. Copy one more file next to the meter and pass its callback when you run the chain, the agent or the graph: every model call under it, in any step, is counted into the turn.
+
+- **Python:** copy `ai_meter_langchain.py` next to `ai_meter.py`.
+
+  ```python
+  from ai_meter import Meter
+  from ai_meter_langchain import MeterCallback
+
+  meter = Meter("ai-meter.jsonl")   # one per process
+
+  # in the function that handles each request:
+  with meter.turn() as t:           # or: async with meter.turn() as t:
+      answer = chain.invoke(question, config={"callbacks": [MeterCallback(t)]})
+  ```
+
+- **JavaScript or TypeScript:** copy `ai-meter-langchain.cjs` (and `ai-meter-langchain.d.cts` for TypeScript) next to `ai-meter.cjs`.
+
+  ```js
+  const { Meter } = require('./ai-meter.cjs')
+  const { meterCallback } = require('./ai-meter-langchain.cjs')
+
+  const meter = new Meter({ file: 'ai-meter.jsonl' })   // one per process
+
+  // in the function that handles each request:
+  const answer = await meter.turn((t) => chain.invoke(question, { callbacks: [meterCallback(t)] }))
+  ```
+
+What to know:
+
+- Make a new callback for each turn, as above; do not put one on the model when you build it, or every user's calls land in one turn.
+- The numbers come from LangChain's own `usage_metadata` on each answer (`input_tokens` holds the cache reads and writes, and the callback takes them out so no token is counted twice). An answer without it falls back to the provider's own usage; with neither, the call is written as "not measured", never as zero.
+- Streaming: a call is measured only when the provider's integration sends usage with the stream. If streamed calls show as "not measured" with OpenAI's Chat Completions, set `stream_usage=True` (`streamUsage: true` in JavaScript) on the model; which versions need it was not checked here.
+- The callback reads token counts, the model's name and LangChain's name for the provider. It never reads the prompts, the answers or an error's text.
+
+**Tried so far.** With the real libraries and a model that answers from a script (langchain-core 1.8.5 for Python, @langchain/core 1.5.1 for JavaScript): a chain with two models, streaming, a failed call, branches run in parallel, and an answer with only the older usage. Not yet with a real provider's key, so the exact fields each provider's integration fills (the split of Anthropic's cache writes, usage while streaming) are read from LangChain's documentation, not seen. Needs langchain-core 0.3.9 or later for the cache counts.
 
 ### React, Next.js and other web front ends
 

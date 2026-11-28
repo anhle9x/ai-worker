@@ -49,7 +49,7 @@ export function mediaPaths(text: string, cwd = ''): string[] {
 
 /** Blocks the app or the engine puts into a message: reminders, results of background work, events. Not the person's words. */
 /** Các khối mà app hoặc engine chèn vào tin nhắn: lời nhắc, kết quả việc chạy nền, sự kiện. Không phải lời của người dùng. */
-const INSERTED = 'system-reminder|task-notification|agent-message|scheduled-task|side-sessions-event|ci-monitor-event|local-command-stdout|local-command-stderr|local-command-caveat'
+const INSERTED = 'system-reminder|task-notification|agent-message|cross-session-message|scheduled-task|side-sessions-event|ci-monitor-event|local-command-stdout|local-command-stderr|local-command-caveat'
 const INSERTED_BLOCK = new RegExp(`<(${INSERTED})\\b[^>]*>[\\s\\S]*?(?:</\\1>|$)`, 'g')
 
 /** Whole messages the app sends by itself, with no tag around them: the one that resumes a session after the app was closed. */

@@ -1150,7 +1150,7 @@
     /* lines written before the plugin left the app's own blocks and its resume message out still hold them: they are cut here too */
     /* các dòng ghi từ trước khi plugin bỏ khối của app và câu làm tiếp của nó vẫn còn chứa chúng: ở đây cũng cắt bỏ */
     const APP_SENT = 'The app was quit while you were working. Please continue from where you left off.'
-    const cut = t => { const own = t.replace(/<system-reminder>[\s\S]*?(<\/system-reminder>|$)/g, '').trim(); return own === APP_SENT ? '' : own }
+    const cut = t => { const own = t.replace(/<(system-reminder|cross-session-message)\b[^>]*>[\s\S]*?(<\/\1>|$)/g, '').trim(); return own === APP_SENT ? '' : own }
     const own = a => (a.kind === 'you' ? { ...a, text: cut(a.text || '') } : a)
     const keep = a => (a.text || a.pasted) && (filter === 'all' || (filter === 'talk' ? a.kind !== 'tool' : a.kind === 'tool'))
     /* one group per session, the session with the newest line first; inside a group, newest first */

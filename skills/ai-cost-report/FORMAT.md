@@ -59,6 +59,7 @@ Take them from the `usage` the provider returned with each answer; never estimat
 | Gemini | `usageMetadata.promptTokenCount` − cached | `candidatesTokenCount` + `thoughtsTokenCount` | `usageMetadata.cachedContentTokenCount` | none |
 | APIs that copy OpenAI's Chat Completions (Azure OpenAI, DeepSeek, Mistral, Groq, OpenRouter, xAI Grok, vLLM, LM Studio, Ollama's `/v1`...) | as OpenAI Chat Completions | `usage.completion_tokens`, plus `completion_tokens_details.reasoning_tokens` when `total_tokens` shows they were left out of it (xAI does this: its example has 32 + 9 + 110 = 151) | `prompt_tokens_details.cached_tokens`, or DeepSeek's `prompt_cache_hit_tokens` | as OpenAI, when present |
 | Vercel AI SDK (`generateText` and the like) | `usage.inputTokenDetails.noCacheTokens`, else `inputTokens` − cache read − cache write | `usage.outputTokens` | `inputTokenDetails.cacheReadTokens` | `inputTokenDetails.cacheWriteTokens` |
+| LangChain and LangGraph (`usage_metadata` on the answer; read by `ai_meter_langchain.py` and `ai-meter-langchain.cjs`) | `input_tokens` − cache read − cache write | `output_tokens` | `input_token_details.cache_read` | `input_token_details.cache_creation` |
 | Bedrock Converse | `usage.inputTokens` (already excludes the cache) | `usage.outputTokens` | `usage.cacheReadInputTokens` | `usage.cacheWriteInputTokens` |
 | Ollama `/api/chat` | `prompt_eval_count` | `eval_count` | none | none |
 | Cohere v2 chat | `usage.billed_units.input_tokens` | `usage.billed_units.output_tokens` | none | none |

@@ -11,7 +11,7 @@ export type HelpInfo = {
   version?: string
   skills: SkillLine[]
   /** The helpers found on this computer; undefined before the first look. */
-  workers?: { gemma?: string; chatgpt?: string; gemini?: string }
+  workers?: { gemma?: string; gemmaServer?: string; gemmaAlso?: { host: string; model: string }; chatgpt?: string; gemini?: string }
   /** An ai-workers MCP server hands out the work to ChatGPT and Gemini instead of the plugin. */
   viaMcp: boolean
   sharing: boolean
@@ -101,7 +101,11 @@ export function buildHelp(i: HelpInfo): string {
   lines.push('', tx('Helper assistants (Claude gives them side jobs by itself, you do not call them):'))
   if (!i.workers) lines.push(`- ${tx('not checked yet: send any message first, then run this again')}`)
   else {
-    lines.push(`- Gemma, ${tx('runs on this computer')}: ${has(i.workers.gemma)}`)
+    // where Gemma runs is said outright: on a server the text leaves this computer
+    // Gemma chạy ở đâu được nói thẳng: trên máy chủ thì chữ rời khỏi máy này
+    if (i.workers.gemmaServer) lines.push(`- Gemma, ${tx('runs on the server {host} (the text leaves this computer; you are asked before each send)', { host: i.workers.gemmaServer })}: ${has(i.workers.gemma)}`)
+    else lines.push(`- Gemma, ${tx('runs on this computer')}: ${has(i.workers.gemma)}`)
+    if (i.workers.gemmaAlso) lines.push(`- Gemma, ${tx('also on the server {host} for long text with no sensitive data (you are asked before each send; this computer answers if the server fails)', { host: i.workers.gemmaAlso.host })}: ${i.workers.gemmaAlso.model}`)
     if (i.viaMcp) lines.push(`- ChatGPT, Gemini: ${tx('set up separately on this computer (ai-workers)')}`)
     else {
       lines.push(`- ChatGPT: ${has(i.workers.chatgpt)}`)

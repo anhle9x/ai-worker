@@ -50,9 +50,11 @@ bạn chỉ việc dán vào tab Code. Chỉ làm tay theo các bước dưới 
 NHÂN VIÊN AI PHỤ (file cài làm sau khi cài văn phòng)
 - ChatGPT (Codex CLI): cài mặc định. Đăng nhập bằng tài khoản ChatGPT của công ty (hỏi người quản trị).
   Để sau thì mở Terminal / PowerShell gõ: codex login
-- Gemma (chạy ngay trên máy, dữ liệu không ra ngoài): file cài tự chọn cỡ theo RAM và ổ cứng
-  (32 GB RAM trở lên: bản 26b; 16 GB: e4b; 8 GB: e2b; ít hơn thì không cài), hỏi trước khi cài.
-  Mô hình 5 đến 17 GB tải ngầm; tải xong, mở lại Claude là bàn Gemma hiện.
+- Gemma (chạy ngay trên máy, dữ liệu không ra ngoài): chỉ cài trên máy đủ mạnh cho bản 26b
+  (RAM từ 32 GB, chip Apple hoặc có card đồ hoạ rời, ổ trống 25 GB); file cài hỏi trước khi cài.
+  Mô hình 17 GB tải ngầm; tải xong, mở lại Claude là bàn Gemma hiện.
+  Máy yếu hơn thì không có Gemma của riêng mình. Nếu công ty có chạy Gemma trên máy chủ, Claude dùng bản đó:
+  khi đó chữ gửi đi rời máy bạn tới máy chủ đó, và Claude hỏi bạn trước mỗi lần gửi.
 - Gemini: tuỳ chọn (gõ y khi được hỏi). Miễn phí, đăng nhập bằng tài khoản Google của bạn; chỉ dùng
   tra cứu web, không gửi gì của công ty. Lần đầu: gõ agy trong Terminal / PowerShell để đăng nhập.
 Claude tự giao việc phụ cho các nhân viên này theo quy tắc của công ty: dữ liệu nhạy cảm chỉ giao Gemma;

@@ -89,7 +89,7 @@ Claude hands side jobs to the helper assistants following the company rules:
 
 | Assistant | Good at | Data rule |
 |---|---|---|
-| **Gemma** | Summaries and sorting, on your own computer | The only one allowed sensitive data, because nothing leaves the computer |
+| **Gemma** | Summaries and sorting | The only one allowed sensitive data. On your own computer (`gemma4:26b`, for a computer strong enough) nothing leaves the computer. On a computer too weak for it, Gemma may run on a company server instead: the text then leaves your computer for that server, and Claude names the server and asks you before each send. A strong computer that is also given the server keeps sensitive data on the computer and may send long text with no sensitive data to the server, still asking you first; if the server fails, Gemma on your computer answers and says so |
 | **ChatGPT** | Code review, finding bugs | Never receives names, internal documents, figures or passwords |
 | **Gemini** | Web research, images | Same as ChatGPT |
 

@@ -9,6 +9,7 @@ import glob
 import hashlib
 import hmac
 import http.client
+import http.server
 import inspect
 import io
 import json
@@ -719,6 +720,7 @@ class RoutePermissions(unittest.TestCase):
         "/robots.txt": (200, 200, 200, 200, 200),
         "/health": (200, 200, 200, 200, 200),
         "/ingest/route": (401, 401, 401, 401, 401),
+        "/gemma/auth": (401, 401, 401, 401, 401),
         "/login.js": (200, 200, 200, 200, 200),
         "/tv.js": (200, 200, 200, 200, 200),
         "/tv-qr.js": (200, 200, 200, 200, 200),
@@ -764,9 +766,10 @@ class RoutePermissions(unittest.TestCase):
     }
     POST_ADMIN = ("/locations", "/team-csv", "/team-sale", "/admin/confirm", "/admin/accounts", "/admin/sessions",
                      "/admin/tv-view", "/admin/tv-approve", "/admin/tv-revoke", "/admin/tv-rename", "/admin/tv-reload", "/admin/tv-app",
-                     "/admin/device-revoke", "/admin/device-forget", "/admin/device-roam")
+                     "/admin/device-revoke", "/admin/device-forget", "/admin/device-roam", "/admin/gemma-server", "/admin/gemma-check")
     NEEDS_OTP_CONFIRM = ("/admin/accounts", "/admin/sessions", "/admin/tv-view", "/admin/tv-approve",
-                        "/admin/tv-revoke", "/admin/tv-rename", "/admin/tv-app", "/admin/device-revoke", "/admin/device-forget", "/admin/device-roam")
+                        "/admin/tv-revoke", "/admin/tv-rename", "/admin/tv-app", "/admin/device-revoke", "/admin/device-forget", "/admin/device-roam",
+                        "/admin/gemma-server")
 
     @classmethod
     def setUpClass(cls):
@@ -4162,6 +4165,8 @@ class PageMatchesServer(unittest.TestCase):
             "/admin/device-revoke": body_reads(action.split('elif self.path in ("/admin/device-revoke", "/admin/device-forget"):')[1].split("elif self.path")[0]),
             "/admin/device-forget": body_reads(action.split('elif self.path in ("/admin/device-revoke", "/admin/device-forget"):')[1].split("elif self.path")[0]),
             "/admin/device-roam": body_reads(action.split('elif self.path == "/admin/device-roam":')[1].split("elif self.path")[0]),
+            "/admin/gemma-server": body_reads(branch("/admin/gemma-server")),
+            "/admin/gemma-check": body_reads(branch("/admin/gemma-check")),
         }
         seen = set()
         for m in re.finditer(r"(?:post|submit)\('(/[\w/-]+)',\s*(\{|\w+)", self.admin_js):
@@ -5785,6 +5790,76 @@ class DeviceKeys(unittest.TestCase):
         self.send("device-k28", self.SHARED, ip=self.OFFICE)
         self.assertEqual(self.admin("/admin/device-roam", {"device": "device-k28", "roaming": True})[0], 400)
         self.assertNotEqual(self.admin("/admin/device-roam", {"device": "../etc", "roaming": True})[0], 200)
+
+    def test_an_admin_sets_the_gemma_server_and_computers_with_their_own_key_hear_of_it(self):
+        from board import gemma
+        self.addCleanup(lambda: gemma.GEMMA.mutate(lambda d: d.clear()))
+        key = self.enrol("device-k31")
+        # nothing set: a computer with its own key is told there is none, the shared key is told nothing
+        # chưa đặt gì: máy có khoá riêng được báo là không có, khoá chung không được báo gì
+        self.assertIsNone(self.send("device-k31", key)[1]["gemmaServer"])
+        self.assertNotIn("gemmaServer", self.send("device-k32", self.SHARED)[1])
+        # setting it needs the OTP again; a wrong address or model is refused and nothing changes
+        # đặt thì phải nhập lại OTP; địa chỉ hay mô hình sai bị từ chối và không gì thay đổi
+        body = {"url": "https://aiworker.example.com/gemma/", "model": "gemma4:26b"}
+        self.assertNotEqual(self.admin("/admin/gemma-server", body, confirmed=False)[0], 200)
+        for bad in ({"url": "http://aiworker.example.com/gemma"}, {"url": "https://u:p@aiworker.example.com"}, {"url": "https://aiworker.example.com/?x=1"},
+                    {"url": "aiworker.example.com"}, {"url": "https://aiworker.example.com", "model": "a b; rm"}):
+            self.assertEqual(self.admin("/admin/gemma-server", bad)[0], 400, bad)
+        self.assertEqual(gemma.current(), {})
+        self.assertEqual(self.admin("/admin/gemma-server", body)[0], 200)
+        row = all_audit_rows()[-1]
+        self.assertEqual((row["action"], row["toUrl"], row["toModel"]), ("gemma-server-set", "https://aiworker.example.com/gemma", "gemma4:26b"))
+        self.assertEqual(views.admin_data(time.time(), "", "")["gemmaServer"]["url"], "https://aiworker.example.com/gemma")
+        told = {"url": "https://aiworker.example.com/gemma", "model": "gemma4:26b"}
+        self.assertEqual(self.send("device-k31", key)[1]["gemmaServer"], told)
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        try:
+            conn.request("GET", "/ingest/route?v=2", headers={"Authorization": "Bearer " + key})
+            self.assertEqual(json.loads(conn.getresponse().read())["gemmaServer"], told)
+        finally:
+            conn.close()
+        # turned off: the computers are told null, so they drop it
+        # tắt: máy được báo null, nên chúng bỏ nó đi
+        self.assertEqual(self.admin("/admin/gemma-server", {"url": ""})[0], 200)
+        self.assertEqual(all_audit_rows()[-1]["action"], "gemma-server-off")
+        self.assertIsNone(self.send("device-k31", key)[1]["gemmaServer"])
+
+    def test_checking_a_gemma_server_says_whether_its_gate_is_on(self):
+        from board import gemma
+        answers = {"/api/tags": 401}
+
+        class Fake(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                code = answers.get(self.path, 404)
+                body = json.dumps({"models": [{"name": "gemma4:26b"}]}).encode() if code == 200 else b""
+                self.send_response(code)
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *a):
+                pass
+        fake = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Fake)
+        threading.Thread(target=fake.serve_forever, daemon=True).start()
+        self.addCleanup(fake.server_close)
+        self.addCleanup(fake.shutdown)
+        here = "http://127.0.0.1:%d" % fake.server_address[1]
+        guarded = gemma.probe(here, "gemma4:26b", local=here)
+        self.assertEqual((guarded["reachable"], guarded["guarded"], guarded["open"], guarded["localOllama"]), (True, True, False, False))
+        answers["/api/tags"] = 200
+        both = gemma.probe(here, "gemma4:26b", local=here)
+        self.assertEqual((both["open"], both["localOllama"], both["hasModel"], both["localModels"]), (True, True, True, ["gemma4:26b"]))
+        self.assertFalse(gemma.probe(here, "gemma4:31b", local=here)["hasModel"])
+        gone = gemma.probe("http://127.0.0.1:9", "", local="http://127.0.0.1:9", seconds=2)
+        self.assertEqual((gone["reachable"], gone["localOllama"], gone["hasModel"]), (False, False, None))
+        self.assertTrue(gone["error"])
+        # from the page: only https, and the check is written in the audit log without needing the OTP again
+        # từ trang: chỉ https, và lần kiểm được ghi vào nhật ký mà không cần nhập lại OTP
+        self.assertEqual(self.admin("/admin/gemma-check", {"url": here})[0], 400)
+        status, answer = self.admin("/admin/gemma-check", {"url": "https://127.0.0.1:9/gemma"}, confirmed=False)
+        self.assertEqual(status, 200)
+        self.assertFalse(answer["check"]["reachable"])
+        self.assertEqual(all_audit_rows()[-1]["action"], "gemma-check")
 
     def test_updates_still_download_with_either_key(self):
         key = self.enrol("device-k11")

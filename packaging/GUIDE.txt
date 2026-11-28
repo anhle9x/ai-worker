@@ -50,9 +50,11 @@ command for you and you only paste it into the Code tab. Follow these steps by h
 HELPER AI ASSISTANTS (the installer does this after installing the office)
 - ChatGPT (Codex CLI): installed by default. Sign in with the company ChatGPT account (ask your admin).
   To do it later, open Terminal / PowerShell and type: codex login
-- Gemma (runs on this computer, data stays here): the installer picks a size from your RAM and disk
-  (32 GB RAM or more: the 26b version; 16 GB: e4b; 8 GB: e2b; less than that: not installed), and asks before installing.
-  The 5 to 17 GB model downloads in the background; when it finishes, reopen Claude and the Gemma desk appears.
+- Gemma (runs on this computer, data stays here): installed only on a computer strong enough for the 26b version
+  (32 GB RAM or more, Apple chip or a dedicated graphics card, 25 GB free); the installer asks before installing.
+  The 17 GB model downloads in the background; when it finishes, reopen Claude and the Gemma desk appears.
+  A weaker computer gets no Gemma of its own. If your company runs Gemma on a server, Claude uses that one:
+  the text then leaves your computer for that server, and Claude asks you before each send.
 - Gemini: optional (type y when asked). Free, sign in with your own Google account; used only for
   web research, nothing from the company is sent. First time: type agy in Terminal / PowerShell to sign in.
 Claude hands side jobs to these assistants following the company rules: sensitive data goes only to Gemma;

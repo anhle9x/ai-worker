@@ -189,6 +189,30 @@ Trước khi mở:
 - **CDN hay proxy khác đứng trước Caddy** (ví dụ Cloudflare) làm mọi yêu cầu như tới từ CDN, nên máy nào cũng bị tính là ở ngoài. Cách này không dành cho trường hợp đó.
 - **Có bộ nhận Go** (`RECEIVER=1`, [RECEIVER.vi.md](RECEIVER.vi.md)) thì bộ nhận không tự kiểm danh sách này. Khi đã đặt `OFFICE_NETS` (hoặc `TRUST_PROXY` với Caddy đứng trước), máy để **Chỉ văn phòng** không bao giờ được báo địa chỉ của bộ nhận và vẫn gửi tới webhook, nơi kiểm danh sách; chỉ máy được cho gửi từ **Mọi mạng** mới sang bộ nhận.
 
+## Gemma trên máy chủ (cho máy quá yếu không tự chạy được)
+
+Gemma trên máy nhân viên luôn là `gemma4:26b`. File cài chỉ cài nó trên máy chạy nổi: RAM từ 32 GB, chip Apple hoặc có card đồ hoạ rời (Linux: NVIDIA; Windows: NVIDIA hoặc Radeon), và ổ trống từ 25 GB. Các bản nhỏ (`e4b`, `e2b`) không còn được cài hay dùng. Máy dưới mức đó không có Gemma của riêng mình; nó có thể dùng một Gemma đặt trên máy chủ.
+
+Với người dùng thì khác ở chỗ: Gemma trên máy của họ giữ dữ liệu ngay trên máy và không bao giờ bị hỏi. Gemma trên máy chủ là một máy khác, nên chữ gửi đi rời khỏi máy: plugin nêu tên máy chủ, hỏi trước mỗi lần gửi (trừ khi người dùng đã cho phép công cụ đó bằng quy tắc của riêng họ), và từ chối chữ có khoá hay mật khẩu. Việc dành cho máy này không bao giờ tự chuyển sang máy chủ: nếu Ollama ở đây đang tắt, người dùng được bảo mở Ollama.
+
+**Máy tự chạy được Gemma mà được cho thêm máy chủ** thì có cả hai, và Claude chọn theo từng việc. Mọi thứ có dữ liệu nhạy cảm, việc ngắn, và mọi thứ Claude không chắc đều ở lại trên máy. Chữ dài, việc cần làm kỹ hoặc cả loạt không có dữ liệu nhạy cảm thì có thể đi máy chủ, và người dùng vẫn được hỏi trước mỗi lần gửi. Nếu không tới được máy chủ, máy chủ trả lỗi hoặc đứt giữa chừng, Gemma trên máy trả lời thay và câu trả lời mở đầu bằng một dòng nói rõ điều đó; sau đó máy chủ được để yên năm phút. Muốn bỏ quyền tự chọn thì đặt `"gemmaMode"` trong `config.js` của máy đó: `"here"` không bao giờ dùng máy chủ, `"server"` hỏi máy chủ trước (và vẫn trả lời tại máy khi máy chủ hỏng); không ghi gì thì Claude tự chọn. Chờ trong hàng của máy chủ thì chưa bị tính là hỏng: ngưỡng đó phải đo trên máy chủ thật trước.
+
+Chữ đi từ máy thẳng tới Ollama qua Caddy. Nó không đi qua chương trình của bảng tổng, và khối Caddy đó không ghi nhật ký truy cập.
+
+**Trên máy chủ.** Các bước dưới đặt Gemma trên chính máy chủ bảng tổng, ở đường dẫn `/gemma` của địa chỉ bảng tổng: không phải thêm tên miền, chứng chỉ hay cổng.
+
+1. Cài Ollama bằng bộ cài chính thức cho Linux (ollama.com/download) và tải mô hình: `ollama pull gemma4:31b`, hoặc `gemma4:26b`, nhẹ hơn nhiều trên máy chủ không có card đồ hoạ. Để Ollama nghe ở `127.0.0.1` (mặc định của nó); đừng đặt `OLLAMA_HOST=0.0.0.0`.
+2. Giữ phần máy của bảng tổng. Giới hạn CPU cho Ollama (`CPUQuota=` trong một file ở `/etc/systemd/system/ollama.service.d/`) phải đi kèm số luồng bằng chừng đó: Ollama mở mỗi nhân một luồng, và trong một lần đo, 16 luồng chạy trên phần 8 nhân chậm hơn khoảng bốn lần so với 8 luồng. Tạo một bản sao của mô hình giữ đúng số luồng đó, rồi dùng tên của nó trên trang Quản trị: một file `Modelfile` có hai dòng `FROM gemma4:26b` và `PARAMETER num_thread 8`, rồi chạy `ollama create gemma4-26b-server -f Modelfile`.
+3. Chép `server/gemma.caddy` vào cạnh Caddyfile, thay `8788` bằng cổng của bảng tổng và thay hai dải mẫu bằng các dải văn phòng của bạn (giống trong `aiworker.caddy`), thêm dòng `import gemma.caddy` **bên trong** khối của bảng tổng, rồi `sudo systemctl reload caddy`. Caddy hỏi bảng tổng ở `GET /gemma/auth`, chỉ kèm phần đầu của mỗi yêu cầu: máy qua được bằng khoá riêng (`awd1.…`), máy bị thu hồi ở `/admin` mất Gemma ngay, và từ ngoài văn phòng chỉ máy được cho gửi từ "Mọi mạng" mới qua. Không phải phát thêm khoá nào. Dòng `log_skip` cần Caddy 2.8 trở lên (`caddy version`).
+
+**Trên trang Quản trị.** Ở mục **Máy chủ Gemma**, gõ `https://<địa chỉ bảng tổng>/gemma` và tên mô hình (để trống là `gemma4:31b`; với bản sao ở trên là `gemma4-26b-server`), rồi bấm **Kiểm tra**. Kết quả tốt báo địa chỉ đã từ chối yêu cầu không có khoá (cổng kiểm đang bật) và Ollama trên máy chủ này có mô hình đó; địa chỉ trả lời dù không có khoá thì không an toàn để lưu. Bấm **Lưu** và nhập lại mã OTP: thay đổi được ghi vào nhật ký Quản trị. Mỗi máy có khoá riêng nghe được địa chỉ trong câu trả lời cho lần gửi kế tiếp và dùng nó từ phiên Claude kế tiếp; `/ai-worker:help` khi đó ghi "Gemma, chạy trên máy chủ …". Để trống địa chỉ rồi bấm **Lưu** là tắt cho mọi máy.
+
+Địa chỉ ghi ngay trên một máy (`"gemmaServer": {"url": "…", "model": "…"}` trong `config.js` của máy đó, hoặc trong `company.json` của gói công ty, cạnh `"sharing"`) luôn thắng địa chỉ do trang Quản trị báo. Địa chỉ phải là `https://`; `http://` thường chỉ được nhận khi trỏ về chính máy đó, và không bao giờ được nhận từ bảng tổng. Máy riêng cho Gemma thì file mẫu này chưa hỗ trợ.
+
+**Một máy chủ phục vụ được bao nhiêu người** thì chưa đo: tuỳ card đồ hoạ của máy chủ. Không có card đồ hoạ thì cùng lắm vài token mỗi giây: bấm giờ một câu trả lời bằng `ollama run <mô hình> --verbose --think=false "…"` trước khi bảo mọi người dựa vào nó. Ollama trả lời mỗi mô hình một yêu cầu một lúc trừ khi đặt `OLLAMA_NUM_PARALLEL` cao hơn (mỗi yêu cầu song song cần thêm bộ nhớ), và xếp các yêu cầu còn lại vào hàng theo thứ tự, tối đa `OLLAMA_MAX_QUEUE` (mặc định 512). Plugin chờ câu trả lời chín phút, rồi báo máy chủ đang bận. Hãy đo trên máy chủ của bạn trước khi bảo mọi người dựa vào nó: bấm giờ một yêu cầu bằng `curl` tới `/api/chat`, rồi vài yêu cầu cùng lúc.
+
+**Khi không tới được máy chủ** từ một máy không có Gemma của riêng mình, người dùng được báo rõ tên máy chủ, và Claude tự làm việc đó. Không có gì bị gửi sang trợ lý khác thay thế.
+
 ## Gói cài plugin cho Windows (.msi)
 
 Thay cho gói zip, máy nhân viên Windows có thể cài từ một file duy nhất, `AI-Worker-Plugin.msi`. File cài cho riêng người dùng, không cần quyền quản trị, và có mục gỡ trong Settings > Apps. Bản thân file giống nhau cho mọi công ty: GitHub dựng nó với một chuỗi giữ chỗ, còn máy chủ của bạn điền địa chỉ của nó, mã gửi (`INGEST_KEY`) và khoá ký bản cập nhật đúng lúc quản trị tải về. Vì vậy mã gửi không bao giờ lên GitHub, và bạn không phải dựng gì trên máy mình.
@@ -398,7 +422,7 @@ Sản phẩm có tiếng Anh và tiếng Việt.
 
 Chi phí là con số Claude Code tính theo bảng giá API. Dùng gói thuê bao thì đây là chi phí quy đổi để so sánh, không phải số tiền bị trừ thật.
 
-Không có Gemini, ChatGPT hay Gemma thì plugin vẫn chạy với mình Claude. File cài hỏi cài trợ lý nào.
+Không có Gemini, ChatGPT hay Gemma thì plugin vẫn chạy với mình Claude. File cài hỏi cài trợ lý nào. Gemma chỉ được cài trên máy chạy nổi `gemma4:26b` (xem "Gemma trên máy chủ").
 
 Không có máy chủ nhưng có ổ dùng chung: bỏ `webhook`, ghi `folders` là đường dẫn ổ đã gắn. Cách này không có trang quản trị và không tự cập nhật.
 

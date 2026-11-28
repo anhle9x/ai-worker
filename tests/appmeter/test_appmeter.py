@@ -22,6 +22,7 @@ SKILL = os.path.join(ROOT, "skills", "ai-cost-report")
 sys.path.insert(0, os.path.join(SKILL, "meter"))
 sys.path.insert(0, SKILL)
 import ai_meter  # noqa: E402
+import ai_meter_langchain  # noqa: E402
 import report  # noqa: E402
 
 # words that sit in the sample answers and must never reach a line or a report
@@ -308,6 +309,105 @@ def model(name, provider="anthropic", **counts):
     return row
 
 
+class LangChainMeter(Tmp):
+    """The callback for apps built with LangChain or LangGraph, fed the events LangChain sends (langchain-core's own shapes).
+    Callback cho app dựng bằng LangChain hay LangGraph, được đưa các sự kiện LangChain gửi (đúng dạng của langchain-core)."""
+
+    @staticmethod
+    def answer(usage=None, info=None, llm_output=None, plain=False):
+        from types import SimpleNamespace as N
+        message = None if plain else N(content=PRIVATE[1], usage_metadata=usage, response_metadata=info or {})
+        return N(generations=[[N(text=PRIVATE[1], message=message)]], llm_output=llm_output)
+
+    def test_every_call_of_a_turn_is_counted_with_each_input_token_once(self):
+        m = ai_meter.Meter(self.file)
+        with m.turn() as t:
+            cb = ai_meter_langchain.MeterCallback(t)
+            cb.on_chat_model_start({}, [[PRIVATE[0]]], run_id=1, metadata={"ls_provider": "anthropic", "ls_model_name": "claude-sonnet-4-5"})
+            cb.on_llm_end(self.answer({"input_tokens": 350, "output_tokens": 240, "total_tokens": 590,
+                                       "input_token_details": {"cache_creation": 200, "cache_read": 100}}, {"model_name": "claude-sonnet-4-5"}), run_id=1)
+            cb.on_chat_model_start({}, [[PRIVATE[0]]], run_id=2, metadata={"ls_provider": "google_genai"})
+            cb.on_llm_end(self.answer({"input_tokens": 50, "output_tokens": 5, "total_tokens": 55}, {"model_name": "gemini-2.5-pro"}), run_id=2)
+            cb.on_chat_model_start({}, [[PRIVATE[0]]], run_id=3, metadata={"ls_provider": "anthropic", "ls_model_name": "claude-sonnet-4-5"})
+            cb.on_llm_end(self.answer({"input_tokens": 1000, "output_tokens": 1, "total_tokens": 1001,
+                                       "input_token_details": {"cache_read": 0, "ephemeral_5m_input_tokens": 300, "ephemeral_1h_input_tokens": 600}}), run_id=3)
+        rows = {(r["provider"], r["model"]): r for r in self.lines()[0]["models"]}
+        claude = rows[("anthropic", "claude-sonnet-4-5")]
+        self.assertEqual([claude[k] for k in ("calls", "input", "output", "cacheRead", "cacheWrite", "cacheWriteLong")], [2, 150, 241, 100, 1100, 600])
+        gemini = rows[("google", "gemini-2.5-pro")]
+        self.assertEqual([gemini[k] for k in ("calls", "input", "output", "cacheRead", "cacheWrite")], [1, 50, 5, 0, 0])
+        for word in PRIVATE:
+            self.assertNotIn(word, self.raw())
+
+    def test_usage_that_does_not_add_up_is_not_measured_and_never_guessed(self):
+        counts = ai_meter_langchain.usage_counts
+        self.assertEqual(counts({"input_tokens": 10, "output_tokens": 2}), {"input": 10, "output": 2, "cache_read": 0, "cache_write": 0, "cache_write_long": 0})
+        self.assertIsNone(counts({"input_tokens": 10, "output_tokens": 2, "input_token_details": {"cache_read": 11}}))
+        self.assertIsNone(counts({"input_tokens": 10, "output_tokens": 2, "input_token_details": {"cache_creation": 4, "ephemeral_1h_input_tokens": 5}}))
+        self.assertIsNone(counts({"input_tokens": True, "output_tokens": 2}))
+        self.assertIsNone(counts({"output_tokens": 2}))
+        self.assertIsNone(counts(None))
+
+    def test_an_answer_with_no_standard_usage_falls_back_to_the_providers_own(self):
+        m = ai_meter.Meter(self.file)
+        with m.turn() as t:
+            cb = ai_meter_langchain.MeterCallback(t)
+            cb.on_chat_model_start({}, [[]], run_id=1, metadata={"ls_provider": "openai", "ls_model_name": "gpt-6-luna"})
+            cb.on_llm_end(self.answer(None, {"token_usage": {"prompt_tokens": 9, "completion_tokens": 4, "prompt_tokens_details": {"cached_tokens": 3}}}), run_id=1)
+            cb.on_llm_start({}, [PRIVATE[0]], run_id=2, metadata={"ls_provider": "openai"}, invocation_params={"model_name": "gpt-6-luna"})
+            cb.on_llm_end(self.answer(plain=True, llm_output={"token_usage": {"prompt_tokens": 2, "completion_tokens": 1}, "model_name": "gpt-6-luna"}), run_id=2)
+            cb.on_chat_model_start({}, [[]], run_id=3, metadata={"ls_provider": "ollama", "ls_model_name": "llama-local"})
+            cb.on_llm_end(self.answer(), run_id=3)
+        rows = {(r["provider"], r["model"]): r for r in self.lines()[0]["models"]}
+        gpt = rows[("openai", "gpt-6-luna")]
+        self.assertEqual([gpt[k] for k in ("calls", "unmeasured", "input", "output", "cacheRead")], [2, 0, 8, 5, 3])
+        local = rows[("ollama", "llama-local")]
+        self.assertEqual((local["calls"], local["unmeasured"], local["input"]), (1, 1, None))
+
+    def test_a_failed_call_and_the_first_streamed_piece_are_marked_without_their_text(self):
+        m = ai_meter.Meter(self.file)
+        with m.turn() as t:
+            cb = ai_meter_langchain.MeterCallback(t)
+            cb.on_chat_model_start({}, [[]], run_id=1, metadata={"ls_provider": "anthropic", "ls_model_name": "claude-sonnet-4-5"})
+            cb.on_llm_new_token(PRIVATE[1], run_id=1)
+            cb.on_llm_error(RuntimeError(PRIVATE[2]), run_id=1)
+            cb.on_llm_error(RuntimeError(PRIVATE[2]), run_id="never started")
+        line = self.lines()[0]
+        self.assertIn("ttftMs", line)
+        rows = {(r["provider"], r["model"]): r for r in line["models"]}
+        self.assertEqual((rows[("anthropic", "claude-sonnet-4-5")]["calls"], rows[("anthropic", "claude-sonnet-4-5")]["errors"]), (1, 1))
+        self.assertEqual(rows[("other", "unknown")]["errors"], 1)
+        for word in PRIVATE:
+            self.assertNotIn(word, self.raw())
+
+    def test_the_callback_never_breaks_the_app(self):
+        m = ai_meter.Meter(self.file)
+        with m.turn() as t:
+            cb = ai_meter_langchain.MeterCallback(t)
+            cb.on_chat_model_start(None, None, run_id=None, metadata="odd", invocation_params=7)
+            cb.on_llm_end(None, run_id=None)
+            cb.on_llm_end(self.answer({"input_tokens": "many"}), run_id=5)
+            cb.on_llm_error(None)
+            cb.on_llm_new_token(None)
+        self.assertEqual(len(self.lines()), 1)
+
+    def test_it_counts_under_the_real_langchain_when_installed(self):
+        try:
+            from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+            from langchain_core.messages import AIMessage
+        except Exception:
+            self.skipTest("langchain-core is not installed")
+        usage = {"input_tokens": 350, "output_tokens": 240, "total_tokens": 590, "input_token_details": {"cache_creation": 200, "cache_read": 100}}
+        model = GenericFakeChatModel(messages=iter([AIMessage(content=PRIVATE[1], usage_metadata=usage, response_metadata={"model_name": "claude-sonnet-4-5"})]))
+        m = ai_meter.Meter(self.file)
+        with m.turn() as t:
+            model.invoke(PRIVATE[0], config={"callbacks": [ai_meter_langchain.MeterCallback(t)]})
+        row = self.lines()[0]["models"][0]
+        self.assertEqual([row[k] for k in ("calls", "input", "output", "cacheRead", "cacheWrite")], [1, 50, 240, 100, 200])
+        for word in PRIVATE:
+            self.assertNotIn(word, self.raw())
+
+
 class Report(Tmp):
     def write(self, rows, extra=()):
         with open(self.file, "w", encoding="utf-8") as f:
@@ -441,6 +541,52 @@ class NodeMeter(Tmp):
         raw = self.raw()
         for word in PRIVATE:
             self.assertNotIn(word, raw)
+
+
+# The events LangChain.js sends to a handler, fed by hand to the callbacks: the same cases as LangChainMeter above
+# Các sự kiện LangChain.js gửi tới một handler, đưa bằng tay cho các callback: cùng các trường hợp với LangChainMeter ở trên
+NODE_LANGCHAIN_SCRIPT = r"""
+const [dir, file, priv] = process.argv.slice(1)
+const { Meter } = require(dir + '/ai-meter.cjs')
+const { meterCallback, usageCounts } = require(dir + '/ai-meter-langchain.cjs')
+const meter = new Meter({ file, sync: true })
+const answer = (usage, info, llmOutput) => ({ generations: [[{ text: priv, message: { content: priv, usage_metadata: usage, response_metadata: info || {} } }]], llmOutput })
+const t = meter.start(), cb = meterCallback(t)
+cb.handleChatModelStart({}, [[priv]], 'r1', undefined, {}, [], { ls_provider: 'anthropic', ls_model_name: 'claude-sonnet-4-5' })
+cb.handleLLMNewToken(priv)
+cb.handleLLMEnd(answer({ input_tokens: 350, output_tokens: 240, total_tokens: 590, input_token_details: { cache_creation: 200, cache_read: 100 } },
+  { model_name: 'claude-sonnet-4-5claude-sonnet-4-5' }), 'r1')
+cb.handleChatModelStart({}, [[priv]], 'r2', undefined, {}, [], { ls_provider: 'google_genai' })
+cb.handleLLMEnd(answer({ input_tokens: 50, output_tokens: 5, total_tokens: 55 }, { model_name: 'gemini-2.5-pro' }), 'r2')
+cb.handleLLMStart({}, [priv], 'r3', undefined, { invocation_params: { model: 'gpt-6-luna' } }, [], { ls_provider: 'openai' })
+cb.handleLLMEnd(answer(undefined, {}, { tokenUsage: { promptTokens: 9, completionTokens: 4, totalTokens: 13 } }), 'r3')
+cb.handleChatModelStart({}, [[priv]], 'r4', undefined, {}, [], { ls_provider: 'ollama', ls_model_name: 'llama-local' })
+cb.handleLLMEnd(answer(), 'r4')
+cb.handleChatModelStart({}, [[priv]], 'r5', undefined, {}, [], { ls_provider: 'anthropic', ls_model_name: 'claude-sonnet-4-5' })
+cb.handleLLMError(new Error(priv), 'r5')
+cb.handleLLMEnd(null, null); cb.handleLLMError(null); cb.handleChatModelStart(null, null, null, null, 7, null, 'odd')
+t.end()
+console.log(JSON.stringify([usageCounts({ input_tokens: 10, output_tokens: 2, input_token_details: { cache_read: 11 } }),
+  usageCounts({ input_tokens: 1000, output_tokens: 1, input_token_details: { ephemeral_5m_input_tokens: 300, ephemeral_1h_input_tokens: 600 } }), usageCounts(null)]))
+"""
+
+
+class NodeLangChainMeter(Tmp):
+    @unittest.skipUnless(NODE, "node is not installed")
+    def test_the_node_callbacks_count_like_the_python_one(self):
+        res = subprocess.run([NODE, "-e", NODE_LANGCHAIN_SCRIPT, os.path.join(SKILL, "meter"), self.file, PRIVATE[1]], capture_output=True, text=True, timeout=30)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(json.loads(res.stdout), [None, {"input": 100, "output": 1, "cacheRead": 0, "cacheWrite": 900, "cacheWriteLong": 600}, None])
+        line = self.lines()[0]
+        self.assertIn("ttftMs", line)
+        self.assertIsNotNone(report.clean_line(line))
+        rows = {(r["provider"], r["model"]): r for r in line["models"]}
+        claude = rows[("anthropic", "claude-sonnet-4-5")]
+        self.assertEqual([claude[k] for k in ("calls", "errors", "input", "output", "cacheRead", "cacheWrite")], [2, 1, 50, 240, 100, 200])
+        self.assertEqual([rows[("google", "gemini-2.5-pro")][k] for k in ("calls", "input", "output")], [1, 50, 5])
+        self.assertEqual([rows[("openai", "gpt-6-luna")][k] for k in ("calls", "unmeasured", "input", "output")], [1, 0, 9, 4])
+        self.assertEqual((rows[("ollama", "llama-local")]["unmeasured"], rows[("ollama", "llama-local")]["input"]), (1, None))
+        self.assertNotIn(PRIVATE[1], self.raw())
 
 
 METER = os.path.join(SKILL, "meter")

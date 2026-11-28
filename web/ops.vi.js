@@ -9,7 +9,7 @@ window.I18n.add({
   '2 AWAITING INPUT: Claude has stopped and is waiting for 2 people to reply.': '2 AWAITING INPUT: có 2 người mà Claude đang dừng lại chờ họ trả lời.',
   'AI models the whole team is using.': 'Mô hình AI cả team đang dùng.',
   'Claude: how many people have a session open with each model. Fable (yellow) is the strongest but costs about 2.5 times more than Opus.': 'Claude: số người đang mở phiên với từng mô hình. Fable (màu vàng) mạnh nhất nhưng đắt hơn Opus khoảng 2,5 lần.',
-  'Gemma: size of the model installed on each person\'s computer (26b is the strongest, e4b and e2b are lighter) and how many people have it.': 'Gemma: cỡ mô hình cài trên máy nhân viên (26b mạnh nhất, e4b, e2b nhẹ hơn) và số người có.',
+  'Gemma: the model each person\'s computer uses and how many people have it; "(server)" means that computer asks the Gemma of the company server and does not run it itself.': 'Gemma: mô hình mà máy của từng người dùng và số người có; "(server)" nghĩa là máy đó hỏi Gemma của máy chủ công ty chứ không tự chạy.',
   'ChatGPT, Gemini: the model that last replied on each person\'s computer (for example gpt-6.1-sol, Gemini 3.8 Flash); "not used" means it is installed but has never been given a task.': 'ChatGPT, Gemini: mô hình đã trả lời lần gần nhất trên máy từng người (ví dụ gpt-6.1-sol, Gemini 3.8 Flash); "chưa dùng" là có cài nhưng chưa giao việc lần nào.',
   '"Unknown": the computer runs an old plugin version and has not sent this information.': '"Chưa rõ": máy chạy bản plugin cũ, chưa gửi thông tin này.',
   'List of the whole team: who is doing what.': 'Danh sách cả team: ai đang làm gì.',

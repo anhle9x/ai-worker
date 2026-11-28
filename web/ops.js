@@ -65,7 +65,7 @@
       tx('2 AWAITING INPUT: Claude has stopped and is waiting for 2 people to reply.')],
     models: [tx('AI models the whole team is using.'),
       tx('Claude: how many people have a session open with each model. Fable (yellow) is the strongest but costs about 2.5 times more than Opus.'),
-      tx('Gemma: size of the model installed on each person\'s computer (26b is the strongest, e4b and e2b are lighter) and how many people have it.'),
+      tx('Gemma: the model each person\'s computer uses and how many people have it; "(server)" means that computer asks the Gemma of the company server and does not run it itself.'),
       tx('ChatGPT, Gemini: the model that last replied on each person\'s computer (for example gpt-6.1-sol, Gemini 3.8 Flash); "not used" means it is installed but has never been given a task.'),
       tx('"Unknown": the computer runs an old plugin version and has not sent this information.')],
     ops: [tx('List of the whole team: who is doing what.'),

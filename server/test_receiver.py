@@ -653,7 +653,7 @@ class IngestRoute(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertNotIn("ingestUrls", answer)
         self.assertNotIn("ingestTtlMs", answer)
-        self.assertEqual(self.call("GET", "/ingest/route", Authorization="Bearer " + key), (200, {"ingestUrls": [], "ingestTtlMs": 3600000}))
+        self.assertEqual(self.call("GET", "/ingest/route", Authorization="Bearer " + key), (200, {"ingestUrls": [], "ingestTtlMs": 3600000, "gemmaServer": None}))
 
     def test_a_chosen_computer_is_told_with_its_own_key_only(self):
         settings.RECEIVER_INGEST_URLS, settings.RECEIVER_INGEST_DEVICES = list(self.URLS), frozenset({DEVICES[0]})
@@ -666,7 +666,7 @@ class IngestRoute(unittest.TestCase):
         key = answer["deviceKey"]
         status, answer = self.send(DEVICES[0], key)
         self.assertEqual((status, answer["ingestUrls"], answer["ingestTtlMs"]), (200, self.URLS, 3600000))
-        self.assertEqual(self.call("GET", "/ingest/route?v=2", Authorization="Bearer " + key), (200, {"ingestUrls": self.URLS, "ingestTtlMs": 3600000}))
+        self.assertEqual(self.call("GET", "/ingest/route?v=2", Authorization="Bearer " + key), (200, {"ingestUrls": self.URLS, "ingestTtlMs": 3600000, "gemmaServer": None}))
         # a plugin that sends v: 1 (0.50.13) is never told: its whole book of 8 days in every send is too heavy for the receiver
         # plugin gửi v: 1 (0.50.13) không bao giờ được báo: cả sổ 8 ngày trong mỗi lần gửi quá nặng cho bộ nhận
         status, answer = self.send(DEVICES[0], key, v=1)
@@ -675,6 +675,11 @@ class IngestRoute(unittest.TestCase):
         self.assertEqual(self.call("GET", "/ingest/route", Authorization="Bearer " + key)[1]["ingestUrls"], [])
         self.assertEqual(self.call("GET", "/ingest/route", Authorization="Bearer " + settings.INGEST_KEY)[0], 403)
         self.assertEqual(self.call("GET", "/ingest/route")[0], 401)
+        # Caddy in front of the Gemma server asks with the head of the request: a computer's own key passes, the shared key and no key do not
+        # Caddy đứng trước máy chủ Gemma hỏi bằng phần đầu của yêu cầu: khoá riêng của máy thì qua, khoá chung và không khoá thì không
+        self.assertEqual(self.call("GET", "/gemma/auth", Authorization="Bearer " + key), (200, {}))
+        self.assertEqual(self.call("GET", "/gemma/auth", Authorization="Bearer " + settings.INGEST_KEY)[0], 403)
+        self.assertEqual(self.call("GET", "/gemma/auth")[0], 401)
         # another computer, not on the list, is not told
         # máy khác, không có trong danh sách, không được báo
         other = self.enrol(DEVICES[1])

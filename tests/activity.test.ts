@@ -46,6 +46,8 @@ test('a message keeps the words the person typed, not the blocks the app inserte
   expect(ownWords('hello <system-reminder>left open')).toBe('hello')
   expect(ownWords('<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n</task-notification>')).toBe('')
   expect(ownWords('<agent-message from="a1">\n[Subagent hand-back] done\n</agent-message>')).toBe('')
+  expect(ownWords('<cross-session-message from="local_1" from-name="Other session">\nA decision to pass on\n</cross-session-message>')).toBe('')
+  expect(ownWords('<cross-session-message from="local_1">cut at 300 chars and never clo')).toBe('')
   expect(ownWords('The app was quit while you were working. Please continue from where you left off.')).toBe('')
   expect(ownWords(`${linked}\nThe app was quit while you were working. Please continue from where you left off.`)).toBe('')
   expect(ownWords('The app was quit while you were working. Please continue from where you left off. And fix the tab')).toBe('The app was quit while you were working. Please continue from where you left off. And fix the tab')

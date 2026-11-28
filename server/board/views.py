@@ -778,6 +778,9 @@ def admin_data(now: float, cookie: str, month: str) -> dict:
             "mcpOn": settings.MCP_ENABLED, "mcpIdleDays": settings.MCP_IDLE_DAYS,
             # AI projects and applications: whether AI_PROJECTS=1, and the prices an admin pasted
             # dự án hay ứng dụng AI: có AI_PROJECTS=1 không, và giá quản trị đã dán
+            # the Gemma server the staff computers are told of (board/gemma.py)
+            # máy chủ Gemma được báo cho máy nhân viên (board/gemma.py)
+            "gemmaServer": gemma_server(),
             "projectsOn": settings.PROJECTS_ENABLED, "projectPrices": project_prices() if settings.PROJECTS_ENABLED else {},
             # projects whose key was revoked but whose numbers are kept: the Admin page offers to delete those numbers
             # dự án đã thu hồi khoá nhưng số liệu còn giữ: trang Quản trị cho xoá số liệu đó
@@ -798,6 +801,12 @@ def receiver_lag(now: float):
 def revoked_projects() -> list:
     from board import projects
     return [{"id": k, "name": v} for k, v in sorted(projects.revoked(time.time()).items(), key=lambda kv: kv[1].lower())]
+
+
+def gemma_server() -> dict:
+    from board.gemma import GEMMA
+    d = GEMMA.read()
+    return {k: d[k] for k in ("url", "model", "setBy", "setAt") if k in d}
 
 
 def project_prices() -> dict:

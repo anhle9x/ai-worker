@@ -484,7 +484,7 @@ Rolling back is a new release of the old version: a different version is accepte
 
 ### Sending text to an assistant
 
-This applies to the plugin's own tools, used when a computer has no `ai-workers` MCP server; the secret check applies to a separate `ai-workers` server too, in `tool.check`. Gemma runs on the computer; ChatGPT and Gemini are outside companies.
+This applies to the plugin's own tools, used when a computer has no `ai-workers` MCP server; the secret check applies to a separate `ai-workers` server too, in `tool.check`. Gemma runs on the computer when it can run `gemma4:26b`, and is then never asked about; on a computer too weak for it Gemma may run on a server the company set up, which is another machine: the person is asked before each send as for the other two, a secret stops the send, and the text goes straight to Ollama behind Caddy without passing the dashboard ([INSTALL.md](INSTALL.md), "Gemma on a server"). ChatGPT and Gemini are outside companies.
 
 ```mermaid
 %%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%

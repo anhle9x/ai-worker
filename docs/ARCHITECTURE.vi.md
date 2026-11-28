@@ -484,7 +484,7 @@ Quay lui là phát hành lại bản cũ với chữ ký mới: phiên bản kh�
 
 ### Gửi chữ cho trợ lý
 
-Áp dụng cho các công cụ riêng của plugin, dùng khi máy không có máy chủ MCP `ai-workers`; bước kiểm bí mật áp dụng cả cho server `ai-workers` riêng, ở `tool.check`. Gemma chạy trên máy; ChatGPT và Gemini là công ty bên ngoài.
+Áp dụng cho các công cụ riêng của plugin, dùng khi máy không có máy chủ MCP `ai-workers`; bước kiểm bí mật áp dụng cả cho server `ai-workers` riêng, ở `tool.check`. Gemma chạy trên máy khi máy chạy nổi `gemma4:26b`, và khi đó không bao giờ bị hỏi; với máy quá yếu, Gemma có thể chạy trên một máy chủ do công ty dựng, tức là một máy khác: người dùng được hỏi trước mỗi lần gửi như với hai trợ lý kia, có bí mật thì dừng gửi, và chữ đi thẳng tới Ollama đứng sau Caddy mà không qua bảng tổng ([INSTALL.vi.md](INSTALL.vi.md), "Gemma trên máy chủ"). ChatGPT và Gemini là công ty bên ngoài.
 
 ```mermaid
 %%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%

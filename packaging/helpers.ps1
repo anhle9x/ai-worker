@@ -104,51 +104,55 @@ if ($codex) {
   Say-Text 'ChatGPT (Codex): could not install, skipped. Take a screenshot and send it to your admin.' 'ChatGPT (Codex): cài chưa được, bỏ qua. Chụp màn hình gửi người quản trị.'
 }
 
-# ---- Gemma (Ollama): size by RAM, downloaded in the background ----
-# ---- Gemma (Ollama): cỡ theo RAM, tải ngầm ----
+# ---- Gemma (Ollama): gemma4:26b on a computer strong enough, else none here (the plugin asks a Gemma server when one is set) ----
+# ---- Gemma (Ollama): gemma4:26b trên máy đủ mạnh, nếu không thì không cài ở đây (plugin hỏi máy chủ Gemma khi có cấu hình) ----
 $ramGb = 0; $slow = ''
 try { $ramGb = [math]::Floor((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB) } catch { }
 $noGpu = (
   Say-Text -AsString 'no dedicated graphics card' 'không có card đồ hoạ rời')
 try {
-  # Without a dedicated NVIDIA / AMD Radeon card Ollama runs on the CPU: go down one size
-  # Không có card rời NVIDIA / AMD Radeon thì Ollama chạy bằng CPU: hạ một cỡ
+  # Without a dedicated NVIDIA / AMD Radeon card Ollama runs on the CPU: too slow for this model
+  # Không có card rời NVIDIA / AMD Radeon thì Ollama chạy bằng CPU: quá chậm cho mô hình này
   $card = (Get-CimInstance Win32_VideoController | ForEach-Object { $_.Name }) -join ' '
   if ($card -notmatch 'NVIDIA|Radeon RX|Radeon Pro') { $slow = $noGpu }
 } catch { $slow = $noGpu }
 $freeGb = 0
 try { $freeGb = [math]::Floor((Get-PSDrive ($env:USERPROFILE.Substring(0, 1))).Free / 1GB) } catch { }
-$tier = 0
-if ($ramGb -ge 8) { $tier = 1 }
-if ($ramGb -ge 16) { $tier = 2 }
-if ($ramGb -ge 32) { $tier = 3 }
-if ($slow -and $tier -gt 0) { $tier-- }
-$gemmaVariants = @{ 3 = @('gemma4:26b', 17, 25); 2 = @('gemma4:e4b', 7, 14); 1 = @('gemma4:e2b', 5, 12) }
-$ramTier = $tier
-# If the disk has no room for the size that fits the RAM, go down until one fits
-# Ổ không đủ chỗ cho bản hợp RAM thì hạ dần tới bản vừa
-while ($tier -gt 0 -and $freeGb -lt $gemmaVariants[$tier][2]) { $tier-- }
-$gemma = $gemmaVariants[$tier]
+# One size only: a computer that cannot run it gets no smaller one (hooks/workers.ts, GEMMA_MODEL): name, size, free disk and RAM it needs, in GB
+# Chỉ một cỡ: máy không chạy nổi thì không nhận bản nhỏ hơn (hooks/workers.ts, GEMMA_MODEL): tên, dung lượng, chỗ trống và RAM cần có, theo GB
+$gemma = @('gemma4:26b', 17, 25, 32)
+# Why this computer does not run it, empty when it can
+# Vì sao máy này không chạy được nó, để trống khi chạy được
+$weak = ''
+if ($ramGb -lt $gemma[3]) {
+  $weak = (
+    Say-Text -AsString "it needs at least $($gemma[3]) GB RAM" "cần ít nhất $($gemma[3]) GB RAM")
+} elseif ($slow) {
+  $weak = (
+    Say-Text -AsString 'this computer would run it too slowly' 'máy này chạy nó quá chậm')
+} elseif ($freeGb -lt $gemma[2]) {
+  $weak = (
+    Say-Text -AsString "it needs at least $($gemma[2]) GB free" "cần trống ít nhất $($gemma[2]) GB")
+}
 $desc = (
   Say-Text -AsString "This computer has $ramGb GB RAM and $freeGb GB free disk space" "Máy có $ramGb GB RAM, ổ còn trống $freeGb GB") + $(if ($slow) { ", $slow" } else { '' })
 $api = 'http://127.0.0.1:11434'
 function Ollama-Alive { try { Invoke-RestMethod "$api/api/tags" -TimeoutSec 2 | Out-Null; return $true } catch { return $false } }
-if ($gemma) {
-  $qGemma = (
-    Say-Text -AsString "Gemma (runs on this computer, data stays here): $desc -> install version $($gemma[0]) (about $($gemma[1]) GB, downloaded in the background). OK?" "Gemma (chạy ngay trên máy, dữ liệu không ra ngoài): $desc -> cài bản $($gemma[0]) (khoảng $($gemma[1]) GB, tải ngầm). Đồng ý?")
-}
+$qGemma = (
+  Say-Text -AsString "Gemma (runs on this computer, data stays here): $desc -> install version $($gemma[0]) (about $($gemma[1]) GB, downloaded in the background). OK?" "Gemma (chạy ngay trên máy, dữ liệu không ra ngoài): $desc -> cài bản $($gemma[0]) (khoảng $($gemma[1]) GB, tải ngầm). Đồng ý?")
 # Already downloaded (Ollama running and the model listed): say so and do not ask
 # Đã tải sẵn (Ollama đang chạy và có mô hình trong danh sách): báo luôn, không hỏi
 $haveGemma = $false
-if ($gemma -and (Ollama-Alive)) {
-  try { $haveGemma = [bool]((Invoke-RestMethod "$api/api/tags" -TimeoutSec 2).models | Where-Object { $_.name -eq $gemma[0] }) } catch { }
+$installed = @()
+if (Ollama-Alive) {
+  try { $installed = @((Invoke-RestMethod "$api/api/tags" -TimeoutSec 2).models | ForEach-Object { $_.name }) } catch { }
+  $haveGemma = $installed -contains $gemma[0]
 }
 if ($haveGemma) {
   Say-Text "Gemma: $($gemma[0]) is already there." "Gemma: đã có sẵn $($gemma[0])."
-} elseif (-not $gemma -and $ramTier -eq 0) {
-  Say-Text "Gemma: not installed ($desc; needs at least 8 GB RAM)." "Gemma: không cài ($desc; cần ít nhất 8 GB RAM)."
-} elseif (-not $gemma) {
-  Say-Text "Gemma: not installed ($desc; needs at least 12 GB free)." "Gemma: không cài ($desc; cần trống ít nhất 12 GB)."
+} elseif ($weak) {
+  Say-Text "Gemma: not installed on this computer ($desc; $($gemma[0]): $weak)." "Gemma: không cài trên máy này ($desc; $($gemma[0]): $weak)."
+  Say-Text '  If your company runs Gemma on a server, Claude uses that one and asks you before each send. Otherwise Claude handles sensitive data itself.' '  Nếu công ty có chạy Gemma trên máy chủ, Claude dùng bản đó và hỏi bạn trước mỗi lần gửi. Nếu không, Claude tự xử lý dữ liệu nhạy cảm.'
 } elseif (Ask-Yes $qGemma) {
   $ollama = Find 'ollama' @((Join-Path $env:LOCALAPPDATA 'Programs\Ollama'))
   if (-not $ollama) {
@@ -176,6 +180,13 @@ if ($haveGemma) {
   }
 } else {
   Say-Text 'Gemma: skipped.' 'Gemma: bỏ qua.'
+}
+# A small Gemma from an earlier install is no longer used. Nothing is removed here: the person decides
+# Bản Gemma nhỏ từ lần cài trước không còn được dùng. Ở đây không gỡ gì: người dùng tự quyết
+foreach ($old in @('gemma4:e4b', 'gemma4:e2b')) {
+  if ($installed -contains $old) {
+    Say-Text "Gemma: $old from an earlier install is no longer used. To free its disk space, run: ollama rm $old" "Gemma: bản $old từ lần cài trước không còn được dùng. Muốn lấy lại chỗ trên ổ, chạy: ollama rm $old"
+  }
 }
 
 # ---- Gemini (Antigravity CLI): optional, personal Google account ----

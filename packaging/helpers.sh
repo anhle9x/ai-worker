@@ -56,12 +56,12 @@ else
   say "ChatGPT (Codex): could not install, skipped. Take a screenshot and send it to your admin." "ChatGPT (Codex): cài chưa được, bỏ qua. Chụp màn hình gửi người quản trị."
 fi
 
-# ---- Gemma (Ollama): size by RAM, downloaded in the background ----
-# ---- Gemma (Ollama): cỡ theo RAM, tải ngầm ----
+# ---- Gemma (Ollama): gemma4:26b on a computer strong enough, else none here (the plugin asks a Gemma server when one is set) ----
+# ---- Gemma (Ollama): gemma4:26b trên máy đủ mạnh, nếu không thì không cài ở đây (plugin hỏi máy chủ Gemma khi có cấu hình) ----
 if [ "$(uname -s)" = Darwin ]; then
   RAM_GB=$(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1073741824 ))
-  # An Intel Mac runs models much slower than Apple silicon: go down one size
-  # Mac chip Intel chạy mô hình chậm hơn hẳn chip Apple: hạ một cỡ
+  # An Intel Mac runs models much slower than Apple silicon: too slow for this model
+  # Mac chip Intel chạy mô hình chậm hơn hẳn chip Apple: quá chậm cho mô hình này
   SLOW=""
   if [ "$(uname -m)" = x86_64 ]; then
     SLOW=$(
@@ -70,8 +70,8 @@ if [ "$(uname -s)" = Darwin ]; then
   fi
 else
   RAM_GB=$(( $(awk '/^MemTotal:/{print $2}' /proc/meminfo 2>/dev/null || echo 0) / 1048576 ))
-  # Without an NVIDIA card Ollama runs on the CPU: go down one size
-  # Không có card NVIDIA thì Ollama chạy bằng CPU: hạ một cỡ
+  # Without an NVIDIA card Ollama runs on the CPU: too slow for this model
+  # Không có card NVIDIA thì Ollama chạy bằng CPU: quá chậm cho mô hình này
   SLOW=""
   if ! command -v nvidia-smi >/dev/null 2>&1; then
     SLOW=$(
@@ -80,24 +80,26 @@ else
   fi
 fi
 FREE_GB=$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2{print int($4/1048576)}')
-TIER=0
-[ "$RAM_GB" -ge 8 ] && TIER=1
-[ "$RAM_GB" -ge 16 ] && TIER=2
-[ "$RAM_GB" -ge 32 ] && TIER=3
-[ -n "$SLOW" ] && [ "$TIER" -gt 0 ] && TIER=$((TIER - 1))
-pick_variant() {
-  case $TIER in
-    3) GEMMA=gemma4:26b; SIZE_GB=17; NEED_GB=25 ;;
-    2) GEMMA=gemma4:e4b; SIZE_GB=7; NEED_GB=14 ;;
-    1) GEMMA=gemma4:e2b; SIZE_GB=5; NEED_GB=12 ;;
-    *) GEMMA=""; NEED_GB=0 ;;
-  esac
-}
-RAM_TIER=$TIER
-pick_variant
-# If the disk has no room for the size that fits the RAM, go down until one fits
-# Ổ không đủ chỗ cho bản hợp RAM thì hạ dần tới bản vừa
-while [ -n "$GEMMA" ] && [ -n "$FREE_GB" ] && [ "$FREE_GB" -lt "$NEED_GB" ]; do TIER=$((TIER - 1)); pick_variant; done
+# One size only: a computer that cannot run it gets no smaller one (hooks/workers.ts, GEMMA_MODEL)
+# Chỉ một cỡ: máy không chạy nổi thì không nhận bản nhỏ hơn (hooks/workers.ts, GEMMA_MODEL)
+GEMMA=gemma4:26b; SIZE_GB=17; NEED_RAM_GB=32; NEED_GB=25
+TAGS=$(curl -s -m 2 http://127.0.0.1:11434/api/tags 2>/dev/null || true)
+# Why this computer does not run it, empty when it can
+# Vì sao máy này không chạy được nó, để trống khi chạy được
+WEAK=""
+if [ "$RAM_GB" -lt "$NEED_RAM_GB" ]; then
+  WEAK=$(
+  say "it needs at least $NEED_RAM_GB GB RAM" "cần ít nhất $NEED_RAM_GB GB RAM"
+  )
+elif [ -n "$SLOW" ]; then
+  WEAK=$(
+  say "this computer would run it too slowly" "máy này chạy nó quá chậm"
+  )
+elif [ -n "$FREE_GB" ] && [ "$FREE_GB" -lt "$NEED_GB" ]; then
+  WEAK=$(
+  say "it needs at least $NEED_GB GB free" "cần trống ít nhất $NEED_GB GB"
+  )
+fi
 DESC=$(
 say "This computer has ${RAM_GB} GB RAM and ${FREE_GB:-?} GB free disk space${SLOW:+, $SLOW}" "Máy có ${RAM_GB} GB RAM, ổ còn trống ${FREE_GB:-?} GB${SLOW:+, $SLOW}"
 )
@@ -106,12 +108,11 @@ say "Gemma (runs on this computer, data stays here): $DESC -> install version $G
 )
 # Already downloaded (Ollama running and the model listed): say so and do not ask
 # Đã tải sẵn (Ollama đang chạy và có mô hình trong danh sách): báo luôn, không hỏi
-if [ -n "$GEMMA" ] && curl -s -m 2 http://127.0.0.1:11434/api/tags 2>/dev/null | grep -q "\"name\":\"$GEMMA\""; then
+if printf '%s' "$TAGS" | grep -q "\"name\":\"$GEMMA\""; then
   say "Gemma: $GEMMA is already there." "Gemma: đã có sẵn $GEMMA."
-elif [ -z "$GEMMA" ] && [ "$RAM_TIER" -eq 0 ]; then
-  say "Gemma: not installed ($DESC; needs at least 8 GB RAM)." "Gemma: không cài ($DESC; cần ít nhất 8 GB RAM)."
-elif [ -z "$GEMMA" ]; then
-  say "Gemma: not installed ($DESC; needs at least 12 GB free)." "Gemma: không cài ($DESC; cần trống ít nhất 12 GB)."
+elif [ -n "$WEAK" ]; then
+  say "Gemma: not installed on this computer ($DESC; $GEMMA: $WEAK)." "Gemma: không cài trên máy này ($DESC; $GEMMA: $WEAK)."
+  say "  If your company runs Gemma on a server, Claude uses that one and asks you before each send. Otherwise Claude handles sensitive data itself." "  Nếu công ty có chạy Gemma trên máy chủ, Claude dùng bản đó và hỏi bạn trước mỗi lần gửi. Nếu không, Claude tự xử lý dữ liệu nhạy cảm."
 elif ask_yes "$GEMMA_Q"; then
   if ! command -v ollama >/dev/null 2>&1 && [ ! -d /Applications/Ollama.app ]; then
     say "Installing Ollama (the official installer; it may ask for the computer password)..." "Cài Ollama (bộ cài chính thức; có thể hỏi mật khẩu máy)..."
@@ -140,6 +141,13 @@ elif ask_yes "$GEMMA_Q"; then
 else
   say "Gemma: skipped." "Gemma: bỏ qua."
 fi
+# A small Gemma from an earlier install is no longer used. Nothing is removed here: the person decides
+# Bản Gemma nhỏ từ lần cài trước không còn được dùng. Ở đây không gỡ gì: người dùng tự quyết
+for OLD in gemma4:e4b gemma4:e2b; do
+  if printf '%s' "$TAGS" | grep -q "\"name\":\"$OLD\""; then
+    say "Gemma: $OLD from an earlier install is no longer used. To free its disk space, run: ollama rm $OLD" "Gemma: bản $OLD từ lần cài trước không còn được dùng. Muốn lấy lại chỗ trên ổ, chạy: ollama rm $OLD"
+  fi
+done
 
 # ---- Gemini (Antigravity CLI): optional, personal Google account ----
 # ---- Gemini (Antigravity CLI): tuỳ chọn, tài khoản Google cá nhân ----

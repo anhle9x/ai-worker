@@ -1,0 +1,51 @@
+# Gemma on the dashboard's own server, at the path /gemma of the dashboard's address, for computers too weak to run gemma4:26b.
+# Not a site of its own: load it with one line `import gemma.caddy` INSIDE the dashboard's block (aiworker.caddy), then
+# `sudo systemctl reload caddy`. No DNS name, certificate or port to add. To remove: delete that line and reload.
+# Before use: put the dashboard's port in place of 8788 (PORT when it was installed) and the office ranges of aiworker.caddy in place of
+# the two sample ranges. Then set https://<the dashboard's address>/gemma on the Admin page, section "Gemma server" (docs/INSTALL.md).
+# The text for Gemma goes from the employee's computer through this block straight to Ollama: it never passes the dashboard's program,
+# which is shown only the head of each request (the computer's key, no text) at /gemma/auth and answers yes or no.
+# Gemma trên chính máy chủ bảng tổng, ở đường dẫn /gemma của địa chỉ bảng tổng, cho máy quá yếu không tự chạy được gemma4:26b.
+# Không phải một trang riêng: nạp bằng một dòng `import gemma.caddy` BÊN TRONG khối của bảng tổng (aiworker.caddy), rồi
+# `sudo systemctl reload caddy`. Không phải thêm tên miền, chứng chỉ hay cổng. Gỡ: xoá dòng đó rồi reload.
+# Trước khi dùng: thay 8788 bằng cổng của bảng tổng (PORT lúc cài) và thay hai dải mẫu bằng các dải văn phòng trong aiworker.caddy.
+# Rồi đặt https://<địa chỉ bảng tổng>/gemma trên trang Quản trị, mục "Máy chủ Gemma" (docs/INSTALL.vi.md).
+# Chữ gửi cho Gemma đi từ máy nhân viên qua khối này thẳng tới Ollama: không bao giờ đi qua chương trình của bảng tổng, vốn chỉ được
+# xem phần đầu của mỗi yêu cầu (khoá của máy, không có chữ) ở /gemma/auth và trả lời được hay không.
+#
+# Caddy runs handle_path before the block's `respond @outside` line, so the list of IPs does not stop these requests: the dashboard's
+# check does. A computer passes with its own key (awd1.); one revoked on /admin is refused at once; from outside the office only a
+# computer let send from "Any network" passes, which the mark set below tells the dashboard.
+# Caddy chạy handle_path trước dòng `respond @outside` của khối, nên danh sách IP không chặn các yêu cầu này: phần kiểm của bảng tổng
+# chặn. Máy qua được bằng khoá riêng (awd1.); máy bị thu hồi ở /admin bị từ chối ngay; từ ngoài văn phòng chỉ máy được cho gửi từ
+# "Mọi mạng" mới qua, nhờ dấu đặt bên dưới báo cho bảng tổng.
+handle_path /gemma/* {
+	# no line in the access log for Gemma's requests (Caddy 2.8 or later; on an older one delete this line: the log then keeps the time,
+	# the IP and the size of each request, never its text)
+	# không ghi dòng nào vào nhật ký truy cập cho các yêu cầu của Gemma (Caddy 2.8 trở lên; bản cũ hơn thì xoá dòng này: nhật ký khi
+	# đó giữ giờ, IP và kích thước của mỗi yêu cầu, không bao giờ có chữ)
+	log_skip
+	# `route` keeps the lines below in the order written (Caddy would otherwise run forward_auth before request_header)
+	# `route` giữ các dòng dưới theo đúng thứ tự viết (nếu không Caddy sẽ chạy forward_auth trước request_header)
+	route {
+		# only asking Gemma and listing the models: pulling, deleting or copying a model is not reachable from outside
+		# chỉ hỏi Gemma và liệt kê mô hình: tải, xoá hay chép mô hình thì không với tới được từ ngoài
+		@other not path /api/chat /api/tags
+		respond @other "Not found" 404
+		# a mark the sender cannot bring in by itself; then mark every request from outside the office (the same ranges as in aiworker.caddy)
+		# dấu mà bên gửi không tự mang vào được; rồi đánh dấu mọi yêu cầu từ ngoài văn phòng (cùng các dải như trong aiworker.caddy)
+		request_header -X-AiWorker-Away
+		@away not remote_ip 203.0.113.0/24 198.51.100.0/24
+		request_header @away X-AiWorker-Away 1
+		forward_auth 127.0.0.1:8788 {
+			uri /gemma/auth
+		}
+		# Ollama listens on this server only (127.0.0.1, its default) and answers only to its own name: the key stops here
+		# Ollama chỉ nghe trên chính máy chủ này (127.0.0.1, mặc định của nó) và chỉ trả lời đúng tên của nó: khoá dừng ở đây
+		reverse_proxy 127.0.0.1:11434 {
+			header_up Host 127.0.0.1:11434
+			header_up -Authorization
+			header_up -X-AiWorker-Away
+		}
+	}
+}
